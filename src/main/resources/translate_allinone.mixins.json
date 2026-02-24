@@ -9,6 +9,9 @@
     "mixinChatHud.ChatHudAccessor",
     "mixinChatHud.ChatHudMixin",
     "mixinItem.DrawContextItemTooltipMixin",
+    "mixinItem.DrawContextTooltipMixin",
+    "mixinItem.ReiScreenOverlayContextMixin",
+    "mixinItem.OrderedTextTooltipComponentAccessor",
     "mixinInGameGui.InGameHudMixin",
     "mixinInGameGui.InGameHudAccessor",
     "mixinChatScreen.ChatScreenMixin"
