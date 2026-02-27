@@ -624,6 +624,8 @@ public class ModConfigScreen extends Screen {
                 x,
                 y,
                 width,
+                contentViewport.y,
+                contentViewport.bottom(),
                 routeDropdownSlot == routeSlot,
                 ModConfigScreen::t,
                 contentActionBlockRegistry::add,

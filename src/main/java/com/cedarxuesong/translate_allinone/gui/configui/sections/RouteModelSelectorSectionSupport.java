@@ -5,9 +5,14 @@ import com.cedarxuesong.translate_allinone.gui.configui.model.RouteSlot;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ProviderManagerConfig;
 import net.minecraft.text.Text;
 
+import java.util.List;
 import java.util.function.Supplier;
 
 public final class RouteModelSelectorSectionSupport {
+    private static final int OPTION_HEIGHT = 20;
+    private static final int OPTION_STEP = 22;
+    private static final int OPTION_GAP = OPTION_STEP - OPTION_HEIGHT;
+
     private RouteModelSelectorSectionSupport() {
     }
 
@@ -17,6 +22,8 @@ public final class RouteModelSelectorSectionSupport {
             int x,
             int y,
             int width,
+            int dropdownMinY,
+            int dropdownMaxY,
             boolean dropdownOpen,
             Translator translator,
             ActionBlockAdder actionBlockAdder,
@@ -31,7 +38,7 @@ public final class RouteModelSelectorSectionSupport {
                 x,
                 y,
                 width,
-                20,
+                OPTION_HEIGHT,
                 () -> translator.t(
                         "label.route_model",
                         RouteModelSectionSupport.describeRouteModel(
@@ -52,10 +59,17 @@ public final class RouteModelSelectorSectionSupport {
             return;
         }
 
+        List<RouteModelOption> options = RouteModelSectionSupport.buildRouteModelOptions(manager, translator.t("route_model.none"));
         int dropdownX = x;
-        int optionY = y + 22;
         int dropdownWidth = width;
-        for (RouteModelOption option : RouteModelSectionSupport.buildRouteModelOptions(manager, translator.t("route_model.none"))) {
+        int dropdownHeight = dropdownHeight(options.size());
+        int belowTop = y + OPTION_STEP;
+        int aboveTop = y - dropdownHeight - OPTION_GAP;
+        int availableBelow = Math.max(0, dropdownMaxY - belowTop);
+        int availableAbove = Math.max(0, (y - OPTION_GAP) - dropdownMinY);
+        boolean openUpward = dropdownHeight > availableBelow && availableAbove > availableBelow;
+        int optionY = clampDropdownTop(openUpward ? aboveTop : belowTop, dropdownHeight, dropdownMinY, dropdownMaxY);
+        for (RouteModelOption option : options) {
             boolean selected = option.routeKey().equals(selectedRouteKey == null ? "" : selectedRouteKey);
             int color = selected ? style.colorBlockAccent() : style.colorBlock();
             int hoverColor = selected ? style.colorBlockAccentHover() : style.colorBlockHover();
@@ -64,7 +78,7 @@ public final class RouteModelSelectorSectionSupport {
                     dropdownX,
                     optionY,
                     dropdownWidth,
-                    20,
+                    OPTION_HEIGHT,
                     () -> option.displayLabel(),
                     () -> onSelected.onSelected(option.routeKey(), option.displayLabel()),
                     color,
@@ -72,8 +86,27 @@ public final class RouteModelSelectorSectionSupport {
                     textColor,
                     false
             );
-            optionY += 22;
+            optionY += OPTION_STEP;
         }
+    }
+
+    private static int dropdownHeight(int optionCount) {
+        if (optionCount <= 0) {
+            return 0;
+        }
+        return OPTION_HEIGHT + (optionCount - 1) * OPTION_STEP;
+    }
+
+    private static int clampDropdownTop(int preferredTop, int dropdownHeight, int minY, int maxY) {
+        if (dropdownHeight <= 0) {
+            return preferredTop;
+        }
+        int minTop = minY;
+        int maxTop = maxY - dropdownHeight;
+        if (maxTop < minTop) {
+            return minTop;
+        }
+        return Math.max(minTop, Math.min(maxTop, preferredTop));
     }
 
     @FunctionalInterface

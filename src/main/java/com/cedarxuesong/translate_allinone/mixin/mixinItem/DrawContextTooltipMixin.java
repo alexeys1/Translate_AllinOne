@@ -45,9 +45,6 @@ public abstract class DrawContextTooltipMixin {
     private static final String REI_PACKAGE_PREFIX = "me.shedaniel.rei.";
 
     @Unique
-    private static final String FIRMAMENT_PACKAGE_PREFIX = "moe.nea.firmament.";
-
-    @Unique
     private record OrderedTooltipLine(OrderedTextTooltipComponentAccessor accessor, Text text) {
     }
 
@@ -225,19 +222,19 @@ public abstract class DrawContextTooltipMixin {
             return true;
         }
 
-        return translate_allinone$isReiOrFirmamentClass(positioner);
+        return translate_allinone$isReiClass(positioner);
     }
 
     @Unique
-    private boolean translate_allinone$isReiOrFirmamentClass(Object instance) {
-        return instance != null && translate_allinone$isReiOrFirmamentClassName(instance.getClass().getName());
+    private boolean translate_allinone$isReiClass(Object instance) {
+        return instance != null && translate_allinone$isReiClassName(instance.getClass().getName());
     }
 
     @Unique
-    private boolean translate_allinone$isReiOrFirmamentClassName(String className) {
+    private boolean translate_allinone$isReiClassName(String className) {
         if (className == null || className.isEmpty()) {
             return false;
         }
-        return className.startsWith(REI_PACKAGE_PREFIX) || className.startsWith(FIRMAMENT_PACKAGE_PREFIX);
+        return className.startsWith(REI_PACKAGE_PREFIX);
     }
 }
