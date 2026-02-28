@@ -21,4 +21,7 @@ public interface ChatHudAccessor {
 
     @Invoker("refresh")
     void invokeRefresh();
+
+    @Invoker("getLineHeight")
+    int invokeGetLineHeight();
 } 

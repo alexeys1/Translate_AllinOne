@@ -242,6 +242,7 @@
   "text.translate_allinone.configscreen.label.enabled": "Enabled",
   "text.translate_allinone.configscreen.label.auto_translate": "Auto Translate",
   "text.translate_allinone.configscreen.label.streaming": "Streaming",
+  "text.translate_allinone.configscreen.label.chat_interaction_offset_fix": "Fix Chat Translate Interaction Offset",
   "text.translate_allinone.configscreen.label.translate_item_name": "Translate Item Name",
   "text.translate_allinone.configscreen.label.translate_item_lore": "Translate Item Lore",
   "text.translate_allinone.configscreen.label.item_threads": "Item Worker Threads",

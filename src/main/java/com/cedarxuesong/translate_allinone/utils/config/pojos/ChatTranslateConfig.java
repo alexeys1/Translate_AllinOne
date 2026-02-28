@@ -7,6 +7,7 @@ public class ChatTranslateConfig {
     public static class ChatOutputTranslateConfig {
         public boolean enabled = false;
         public boolean auto_translate = false;
+        public int interaction_offset_amount = 0;
         public String target_language = "Chinese";
         public boolean streaming_response = false;
         public int max_concurrent_requests = 1;

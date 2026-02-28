@@ -130,6 +130,7 @@ public class ConfigManager {
         if (configToUse.chatTranslate.output == null) {
             configToUse.chatTranslate.output = new ChatTranslateConfig.ChatOutputTranslateConfig();
         }
+        configToUse.chatTranslate.output.interaction_offset_amount = clamp(configToUse.chatTranslate.output.interaction_offset_amount, 0, 5);
         if (configToUse.chatTranslate.input.keybinding == null) {
             configToUse.chatTranslate.input.keybinding = new InputBindingConfig();
         }
@@ -150,6 +151,10 @@ public class ConfigManager {
 
         configToUse.providerManager.ensureDefaults();
         return configToUse;
+    }
+
+    private static int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
     }
 
     private static void writeConfig(ModConfig targetConfig) {

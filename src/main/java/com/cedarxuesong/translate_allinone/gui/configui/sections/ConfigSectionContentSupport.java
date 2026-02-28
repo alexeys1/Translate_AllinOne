@@ -74,6 +74,17 @@ public final class ConfigSectionContentSupport {
                         true
                 );
                 y += ROW_STEP;
+                sliderAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.chat_interaction_offset_fix"),
+                        0,
+                        5,
+                        () -> output.interaction_offset_amount,
+                        value -> output.interaction_offset_amount = value
+                );
+                y += SLIDER_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.basic"), x, width, basicStart, y);
 
                 y += GROUP_GAP;
