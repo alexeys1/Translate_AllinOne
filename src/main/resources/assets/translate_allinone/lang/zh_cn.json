@@ -245,6 +245,7 @@
   "text.translate_allinone.configscreen.label.item_batch_size": "每批提交条数",
   "text.translate_allinone.configscreen.label.translate_prefix_suffix": "翻译前后缀",
   "text.translate_allinone.configscreen.label.translate_player_name": "翻译玩家名",
+  "text.translate_allinone.configscreen.label.chat_input_panel_enabled": "AI写作助手面板",
   "text.translate_allinone.configscreen.label.target_language": "目标语言",
   "text.translate_allinone.configscreen.group.basic": "基础设置",
   "text.translate_allinone.configscreen.group.hotkey": "快捷键",

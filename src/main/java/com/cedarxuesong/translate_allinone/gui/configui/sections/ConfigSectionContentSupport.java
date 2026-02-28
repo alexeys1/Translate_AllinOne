@@ -98,9 +98,21 @@ public final class ConfigSectionContentSupport {
                 if (input.keybinding == null) {
                     input.keybinding = new InputBindingConfig();
                 }
+                if (input.assistant_panel_enabled == null) {
+                    input.assistant_panel_enabled = true;
+                }
 
                 int basicStart = y;
                 toggleAdder.add(x, y, width, translator.t("label.enabled"), () -> input.enabled, value -> input.enabled = value);
+                y += ROW_STEP;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.chat_input_panel_enabled"),
+                        () -> Boolean.TRUE.equals(input.assistant_panel_enabled),
+                        value -> input.assistant_panel_enabled = value
+                );
                 y += ROW_STEP;
                 toggleAdder.add(x, y, width, translator.t("label.streaming"), () -> input.streaming_response, value -> input.streaming_response = value);
                 y += ROW_STEP;

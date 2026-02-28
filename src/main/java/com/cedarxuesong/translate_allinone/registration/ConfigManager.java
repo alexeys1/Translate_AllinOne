@@ -134,6 +134,12 @@ public class ConfigManager {
         if (configToUse.chatTranslate.input.keybinding == null) {
             configToUse.chatTranslate.input.keybinding = new InputBindingConfig();
         }
+        if (configToUse.chatTranslate.input.assistant_panel_enabled == null) {
+            configToUse.chatTranslate.input.assistant_panel_enabled = true;
+        }
+        if (configToUse.chatTranslate.input.panel == null) {
+            configToUse.chatTranslate.input.panel = new ChatTranslateConfig.ChatInputPanelState();
+        }
 
         if (configToUse.itemTranslate.keybinding == null) {
             configToUse.itemTranslate.keybinding = new ItemTranslateConfig.KeybindingConfig();

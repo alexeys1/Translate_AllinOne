@@ -4,6 +4,8 @@ import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.gui.chatinput.ChatInputPanelAction;
 import com.cedarxuesong.translate_allinone.gui.chatinput.ChatInputPanelRect;
 import com.cedarxuesong.translate_allinone.gui.configui.render.ConfigUiDraw;
+import com.cedarxuesong.translate_allinone.registration.ConfigManager;
+import com.cedarxuesong.translate_allinone.utils.config.pojos.ChatTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
 import com.cedarxuesong.translate_allinone.utils.translate.ChatInputTranslateManager;
 import net.minecraft.client.MinecraftClient;
@@ -34,6 +36,8 @@ public class ChatScreenMixin {
     @Unique
     private static final int PANEL_HEIGHT = 216;
     @Unique
+    private static final int PANEL_COLLAPSED_SIZE = 11;
+    @Unique
     private static final int PANEL_PADDING = 8;
     @Unique
     private static final int HEADER_HEIGHT = 22;
@@ -55,6 +59,10 @@ public class ChatScreenMixin {
     private static final int APPLY_BUTTON_WIDTH = 70;
     @Unique
     private static final int INPUT_MAX_LENGTH = 240;
+    @Unique
+    private static final int COLLAPSE_TOGGLE_SIZE = 14;
+    @Unique
+    private static final int COLLAPSED_PLUS_HITBOX_SIZE = 7;
 
     @Unique
     private static final int COLOR_PANEL_SHADOW = 0x70000000;
@@ -102,6 +110,12 @@ public class ChatScreenMixin {
     private static final int COLOR_ICON_TEXT = 0xFFD2E7FF;
     @Unique
     private static final int COLOR_ICON_TEXT_HOVER = 0xFFFFFFFF;
+    @Unique
+    private static final int COLOR_COLLAPSE_TOGGLE_BG = 0xA61A2838;
+    @Unique
+    private static final int COLOR_COLLAPSE_TOGGLE_BG_HOVER = 0xC3283D56;
+    @Unique
+    private static final int COLOR_COLLAPSE_TOGGLE_TEXT = 0xFFE3F0FF;
     @Unique
     private static final int COLOR_INPUT_BG = 0xF0161F2B;
     @Unique
@@ -152,6 +166,14 @@ public class ChatScreenMixin {
     @Unique
     private static double dragOffsetY;
     @Unique
+    private static boolean panelCollapsed;
+    @Unique
+    private static boolean panelStateLoadedFromConfig;
+    @Unique
+    private static double panelAnchorX = -1;
+    @Unique
+    private static double panelAnchorY = -1;
+    @Unique
     private static String instructionDraft = "";
 
     @Unique
@@ -163,7 +185,9 @@ public class ChatScreenMixin {
             return;
         }
         translate_allinone$ensurePanelPosition();
-        translate_allinone$ensureInstructionField();
+        if (!panelCollapsed) {
+            translate_allinone$ensureInstructionField();
+        }
     }
 
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
@@ -218,22 +242,30 @@ public class ChatScreenMixin {
         }
 
         translate_allinone$ensurePanelPosition();
-        translate_allinone$ensureInstructionField();
         ChatInputTranslateManager.PanelAvailability availability = translate_allinone$getPanelAvailability();
-
-        if (!translate_allinone$isInstructionEnabled(availability) && this.translate_allinone$instructionField != null) {
-            this.translate_allinone$instructionField.setFocused(false);
-        }
-
         if (panelDragging) {
             MinecraftClient client = MinecraftClient.getInstance();
             if (client == null || GLFW.glfwGetMouseButton(client.getWindow().getHandle(), GLFW.GLFW_MOUSE_BUTTON_LEFT) != GLFW.GLFW_PRESS) {
                 panelDragging = false;
+                translate_allinone$persistPanelState();
             } else {
                 panelX = mouseX - dragOffsetX;
                 panelY = mouseY - dragOffsetY;
                 translate_allinone$clampPanelPosition();
             }
+        }
+
+        if (panelCollapsed) {
+            if (this.translate_allinone$instructionField != null) {
+                this.translate_allinone$instructionField.setFocused(false);
+            }
+            translate_allinone$renderCollapsedPanel(context, mouseX, mouseY);
+            return;
+        }
+        translate_allinone$ensureInstructionField();
+
+        if (!translate_allinone$isInstructionEnabled(availability) && this.translate_allinone$instructionField != null) {
+            this.translate_allinone$instructionField.setFocused(false);
         }
 
         translate_allinone$renderPanel(context, mouseX, mouseY, delta, availability);
@@ -252,10 +284,32 @@ public class ChatScreenMixin {
         double mouseX = click.x();
         double mouseY = click.y();
         ChatInputPanelRect panelRect = translate_allinone$panelRect();
+        if (panelCollapsed) {
+            if (panelRect.contains(mouseX, mouseY)) {
+                ChatInputPanelRect expandRect = translate_allinone$collapsedExpandRect(panelRect);
+                if (expandRect.contains(mouseX, mouseY)) {
+                    translate_allinone$setPanelCollapsed(false);
+                } else {
+                    panelDragging = true;
+                    dragOffsetX = mouseX - panelX;
+                    dragOffsetY = mouseY - panelY;
+                }
+                cir.setReturnValue(true);
+            }
+            return;
+        }
+
         if (!panelRect.contains(mouseX, mouseY)) {
             if (this.translate_allinone$instructionField != null) {
                 this.translate_allinone$instructionField.setFocused(false);
             }
+            return;
+        }
+
+        ChatInputPanelRect collapseRect = translate_allinone$collapseToggleRect(panelRect);
+        if (collapseRect.contains(mouseX, mouseY)) {
+            translate_allinone$setPanelCollapsed(true);
+            cir.setReturnValue(true);
             return;
         }
 
@@ -303,7 +357,11 @@ public class ChatScreenMixin {
 
     @Unique
     private boolean translate_allinone$isPanelVisible() {
-        return this.chatField != null && Translate_AllinOne.getConfig().chatTranslate.input.enabled;
+        if (this.chatField == null) {
+            return false;
+        }
+        ChatTranslateConfig.ChatInputTranslateConfig inputConfig = Translate_AllinOne.getConfig().chatTranslate.input;
+        return inputConfig.enabled && Boolean.TRUE.equals(inputConfig.assistant_panel_enabled);
     }
 
     @Unique
@@ -373,19 +431,33 @@ public class ChatScreenMixin {
 
     @Unique
     private void translate_allinone$ensurePanelPosition() {
+        translate_allinone$loadPanelStateFromConfig();
         if (panelX < 0 || panelY < 0) {
-            panelX = translate_allinone$screenWidth() - PANEL_WIDTH - 10;
-            panelY = Math.max(24, translate_allinone$screenHeight() - PANEL_HEIGHT - 50);
+            if (translate_allinone$hasStoredAnchorPosition()) {
+                panelX = panelAnchorX;
+                panelY = panelCollapsed
+                        ? panelAnchorY
+                        : panelAnchorY - (PANEL_HEIGHT - PANEL_COLLAPSED_SIZE);
+            } else {
+                panelX = translate_allinone$screenWidth() - PANEL_WIDTH - 10;
+                panelY = Math.max(24, translate_allinone$screenHeight() - PANEL_HEIGHT - 50);
+                if (panelCollapsed) {
+                    panelY += PANEL_HEIGHT - PANEL_COLLAPSED_SIZE;
+                }
+            }
         }
         translate_allinone$clampPanelPosition();
+        translate_allinone$rememberCurrentPanelPosition();
     }
 
     @Unique
     private void translate_allinone$clampPanelPosition() {
         int width = translate_allinone$screenWidth();
         int height = translate_allinone$screenHeight();
-        panelX = Math.max(2, Math.min(panelX, width - PANEL_WIDTH - 2));
-        panelY = Math.max(2, Math.min(panelY, height - PANEL_HEIGHT - 2));
+        int panelWidth = translate_allinone$currentPanelWidth();
+        int panelHeight = translate_allinone$currentPanelHeight();
+        panelX = Math.max(2, Math.min(panelX, width - panelWidth - 2));
+        panelY = Math.max(2, Math.min(panelY, height - panelHeight - 2));
     }
 
     @Unique
@@ -465,7 +537,33 @@ public class ChatScreenMixin {
                 translate_allinone$subtitleColor(availability),
                 false
         );
-        context.drawText(textRenderer, ":::", panelRect.right() - 18, panelRect.y() + 8, COLOR_HEADER_GRIP, false);
+        context.drawText(textRenderer, ":::", panelRect.right() - 40, panelRect.y() + 8, COLOR_HEADER_GRIP, false);
+
+        ChatInputPanelRect collapseRect = translate_allinone$collapseToggleRect(panelRect);
+        boolean collapseHovered = collapseRect.contains(mouseX, mouseY);
+        context.fill(
+                collapseRect.x(),
+                collapseRect.y(),
+                collapseRect.right(),
+                collapseRect.bottom(),
+                collapseHovered ? COLOR_COLLAPSE_TOGGLE_BG_HOVER : COLOR_COLLAPSE_TOGGLE_BG
+        );
+        ConfigUiDraw.drawOutline(
+                context,
+                collapseRect.x(),
+                collapseRect.y(),
+                collapseRect.width(),
+                collapseRect.height(),
+                collapseHovered ? COLOR_BUTTON_BORDER_HOVER : COLOR_BUTTON_BORDER
+        );
+        context.drawText(
+                textRenderer,
+                "-",
+                collapseRect.x() + (collapseRect.width() - textRenderer.getWidth("-")) / 2,
+                collapseRect.y() + (collapseRect.height() - textRenderer.fontHeight) / 2,
+                COLOR_COLLAPSE_TOGGLE_TEXT,
+                false
+        );
 
         translate_allinone$drawCardShell(context, quickCardRect, Text.translatable("text.translate_allinone.chat_input_panel.quick_actions"), textRenderer);
         translate_allinone$drawCardShell(context, instructionCardRect, Text.translatable("text.translate_allinone.chat_input_panel.instruction"), textRenderer);
@@ -579,6 +677,37 @@ public class ChatScreenMixin {
     }
 
     @Unique
+    private void translate_allinone$renderCollapsedPanel(DrawContext context, int mouseX, int mouseY) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null) {
+            return;
+        }
+
+        TextRenderer textRenderer = client.textRenderer;
+        ChatInputPanelRect panelRect = translate_allinone$panelRect();
+        boolean hovered = panelRect.contains(mouseX, mouseY);
+        int borderColor = hovered ? COLOR_BUTTON_BORDER_HOVER : COLOR_PANEL_BORDER;
+        ChatInputPanelRect expandRect = translate_allinone$collapsedExpandRect(panelRect);
+        boolean expandHovered = expandRect.contains(mouseX, mouseY);
+
+        context.fill(panelRect.x() + 2, panelRect.y() + 2, panelRect.right() + 2, panelRect.bottom() + 2, COLOR_PANEL_SHADOW);
+        context.fill(panelRect.x(), panelRect.y(), panelRect.right(), panelRect.bottom(), COLOR_PANEL_BG);
+        ConfigUiDraw.drawOutline(context, panelRect.x(), panelRect.y(), panelRect.width(), panelRect.height(), borderColor);
+
+        String expandIcon = "+";
+        int iconX = panelRect.x() + (panelRect.width() - textRenderer.getWidth(expandIcon)) / 2;
+        int iconY = panelRect.y() + (panelRect.height() - textRenderer.fontHeight) / 2;
+        context.drawText(
+                textRenderer,
+                expandIcon,
+                iconX,
+                iconY,
+                expandHovered ? COLOR_BUTTON_TEXT_HOVER : COLOR_COLLAPSE_TOGGLE_TEXT,
+                false
+        );
+    }
+
+    @Unique
     private void translate_allinone$drawCardShell(DrawContext context, ChatInputPanelRect cardRect, Text title, TextRenderer textRenderer) {
         context.fill(cardRect.x(), cardRect.y(), cardRect.right(), cardRect.bottom(), COLOR_CARD_BG);
         ConfigUiDraw.drawOutline(context, cardRect.x(), cardRect.y(), cardRect.width(), cardRect.height(), COLOR_CARD_BORDER);
@@ -654,12 +783,32 @@ public class ChatScreenMixin {
 
     @Unique
     private ChatInputPanelRect translate_allinone$panelRect() {
-        return new ChatInputPanelRect((int) Math.round(panelX), (int) Math.round(panelY), PANEL_WIDTH, PANEL_HEIGHT);
+        return new ChatInputPanelRect(
+                (int) Math.round(panelX),
+                (int) Math.round(panelY),
+                translate_allinone$currentPanelWidth(),
+                translate_allinone$currentPanelHeight()
+        );
     }
 
     @Unique
     private ChatInputPanelRect translate_allinone$headerRect(ChatInputPanelRect panelRect) {
         return new ChatInputPanelRect(panelRect.x() + 1, panelRect.y() + 1, panelRect.width() - 2, HEADER_HEIGHT - 1);
+    }
+
+    @Unique
+    private ChatInputPanelRect translate_allinone$collapseToggleRect(ChatInputPanelRect panelRect) {
+        int x = panelRect.right() - PANEL_PADDING - COLLAPSE_TOGGLE_SIZE;
+        int y = panelRect.y() + 4;
+        return new ChatInputPanelRect(x, y, COLLAPSE_TOGGLE_SIZE, COLLAPSE_TOGGLE_SIZE);
+    }
+
+    @Unique
+    private ChatInputPanelRect translate_allinone$collapsedExpandRect(ChatInputPanelRect panelRect) {
+        int size = Math.min(COLLAPSED_PLUS_HITBOX_SIZE, panelRect.width());
+        int x = panelRect.x() + (panelRect.width() - size) / 2;
+        int y = panelRect.y() + (panelRect.height() - size) / 2;
+        return new ChatInputPanelRect(x, y, size, size);
     }
 
     @Unique
@@ -723,6 +872,88 @@ public class ChatScreenMixin {
     private int translate_allinone$screenHeight() {
         MinecraftClient client = MinecraftClient.getInstance();
         return client == null ? 240 : client.getWindow().getScaledHeight();
+    }
+
+    @Unique
+    private int translate_allinone$currentPanelWidth() {
+        return panelCollapsed ? PANEL_COLLAPSED_SIZE : PANEL_WIDTH;
+    }
+
+    @Unique
+    private int translate_allinone$currentPanelHeight() {
+        return panelCollapsed ? PANEL_COLLAPSED_SIZE : PANEL_HEIGHT;
+    }
+
+    @Unique
+    private void translate_allinone$setPanelCollapsed(boolean collapsed) {
+        translate_allinone$loadPanelStateFromConfig();
+        if (collapsed == panelCollapsed) {
+            return;
+        }
+
+        translate_allinone$rememberCurrentPanelPosition();
+
+        panelCollapsed = collapsed;
+        panelX = panelAnchorX;
+        panelY = collapsed ? panelAnchorY : panelAnchorY - (PANEL_HEIGHT - PANEL_COLLAPSED_SIZE);
+        panelDragging = false;
+        if (collapsed && this.translate_allinone$instructionField != null) {
+            this.translate_allinone$instructionField.setFocused(false);
+        }
+        translate_allinone$clampPanelPosition();
+        translate_allinone$rememberCurrentPanelPosition();
+        translate_allinone$persistPanelState();
+    }
+
+    @Unique
+    private void translate_allinone$loadPanelStateFromConfig() {
+        if (panelStateLoadedFromConfig) {
+            return;
+        }
+        ChatTranslateConfig.ChatInputPanelState panelState = translate_allinone$getPanelStateConfig();
+        panelCollapsed = panelState.collapsed;
+        panelAnchorX = panelState.x;
+        panelAnchorY = panelState.y;
+        panelStateLoadedFromConfig = true;
+    }
+
+    @Unique
+    private ChatTranslateConfig.ChatInputPanelState translate_allinone$getPanelStateConfig() {
+        ChatTranslateConfig.ChatInputTranslateConfig inputConfig = Translate_AllinOne.getConfig().chatTranslate.input;
+        if (inputConfig.panel == null) {
+            inputConfig.panel = new ChatTranslateConfig.ChatInputPanelState();
+        }
+        return inputConfig.panel;
+    }
+
+    @Unique
+    private boolean translate_allinone$hasStoredAnchorPosition() {
+        return panelAnchorX >= 0 && panelAnchorY >= 0;
+    }
+
+    @Unique
+    private void translate_allinone$rememberCurrentPanelPosition() {
+        panelAnchorX = panelX;
+        panelAnchorY = panelCollapsed
+                ? panelY
+                : panelY + (PANEL_HEIGHT - PANEL_COLLAPSED_SIZE);
+    }
+
+    @Unique
+    private void translate_allinone$persistPanelState() {
+        translate_allinone$loadPanelStateFromConfig();
+        translate_allinone$rememberCurrentPanelPosition();
+
+        ChatTranslateConfig.ChatInputPanelState panelState = translate_allinone$getPanelStateConfig();
+        panelState.collapsed = panelCollapsed;
+        panelState.x = panelAnchorX;
+        panelState.y = panelAnchorY;
+
+        try {
+            ConfigManager.save();
+        } catch (RuntimeException e) {
+            Translate_AllinOne.LOGGER.warn("Failed to save chat input panel state", e);
+        }
     }
 
 }

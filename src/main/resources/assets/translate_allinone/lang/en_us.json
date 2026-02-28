@@ -249,6 +249,7 @@
   "text.translate_allinone.configscreen.label.item_batch_size": "Item Batch Size",
   "text.translate_allinone.configscreen.label.translate_prefix_suffix": "Translate Prefix/Suffix",
   "text.translate_allinone.configscreen.label.translate_player_name": "Translate Player Name",
+  "text.translate_allinone.configscreen.label.chat_input_panel_enabled": "AI Writing Assistant Panel",
   "text.translate_allinone.configscreen.label.target_language": "Target Language",
   "text.translate_allinone.configscreen.group.basic": "Basic",
   "text.translate_allinone.configscreen.group.hotkey": "Hotkey",
