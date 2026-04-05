@@ -10,7 +10,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class MessageUtils {
     private static final int MAX_TRACKED_MESSAGES = 1024;
-    private static final Map<UUID, Text> MESSAGES_BY_UUID = new ConcurrentHashMap<>();
+    private static final Map<UUID, TrackedChatMessage> MESSAGES_BY_UUID = new ConcurrentHashMap<>();
     private static final Queue<UUID> INSERTION_ORDER = new ConcurrentLinkedQueue<>();
 
     private MessageUtils() {
@@ -21,7 +21,7 @@ public class MessageUtils {
             return;
         }
 
-        boolean isNewMessage = MESSAGES_BY_UUID.put(messageId, message) == null;
+        boolean isNewMessage = MESSAGES_BY_UUID.put(messageId, new TrackedChatMessage(message, null, false)) == null;
         if (isNewMessage) {
             INSERTION_ORDER.offer(messageId);
         }
@@ -32,7 +32,33 @@ public class MessageUtils {
         if (messageId == null) {
             return null;
         }
+        TrackedChatMessage trackedMessage = MESSAGES_BY_UUID.get(messageId);
+        return trackedMessage == null ? null : trackedMessage.originalMessage();
+    }
+
+    public static TrackedChatMessage getTrackedChatMessage(UUID messageId) {
+        if (messageId == null) {
+            return null;
+        }
         return MESSAGES_BY_UUID.get(messageId);
+    }
+
+    public static void setTranslatedMessage(UUID messageId, Text translatedMessage) {
+        if (messageId == null || translatedMessage == null) {
+            return;
+        }
+        MESSAGES_BY_UUID.computeIfPresent(messageId, (id, trackedMessage) ->
+                new TrackedChatMessage(trackedMessage.originalMessage(), translatedMessage, true)
+        );
+    }
+
+    public static void markShowingOriginal(UUID messageId) {
+        if (messageId == null) {
+            return;
+        }
+        MESSAGES_BY_UUID.computeIfPresent(messageId, (id, trackedMessage) ->
+                new TrackedChatMessage(trackedMessage.originalMessage(), trackedMessage.translatedMessage(), false)
+        );
     }
 
     public static void removeTrackedMessage(UUID messageId) {
@@ -52,5 +78,8 @@ public class MessageUtils {
             }
             MESSAGES_BY_UUID.remove(oldestId);
         }
+    }
+
+    public record TrackedChatMessage(Text originalMessage, Text translatedMessage, boolean showingTranslated) {
     }
 }

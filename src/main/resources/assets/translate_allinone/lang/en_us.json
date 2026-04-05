@@ -176,6 +176,7 @@
   "category.translate_allinone.keybindings": "Translate All in One",
 
   "text.translate_allinone.translate_button_hover": "Translate this message",
+  "text.translate_allinone.restore_button_hover": "Restore the original message",
   "text.translate_allinone.processing": "Processing...",
   "text.translate_allinone.thinking": "Thinking... Tokens:%d",
   "text.translate_allinone.connecting": "Connecting...",
@@ -233,7 +234,7 @@
   "text.translate_allinone.configscreen.section.scoreboard": "Scoreboard",
   "text.translate_allinone.configscreen.state.on": "ON",
   "text.translate_allinone.configscreen.state.off": "OFF",
-  "text.translate_allinone.configscreen.state.disabled": "DISABLED",
+  "text.translate_allinone.configscreen.state.disabled": "Always translate",
   "text.translate_allinone.configscreen.state.hold_to_translate": "HOLD TO TRANSLATE",
   "text.translate_allinone.configscreen.state.hold_to_see_original": "HOLD TO SEE ORIGINAL",
   "text.translate_allinone.configscreen.state.hotkey_listening": "Press a key... (ESC to cancel)",

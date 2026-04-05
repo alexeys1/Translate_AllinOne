@@ -14,6 +14,8 @@ import com.cedarxuesong.translate_allinone.utils.text.StylePreserver;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.hud.ChatHud;
 import net.minecraft.client.gui.hud.ChatHudLine;
+import net.minecraft.text.ClickEvent;
+import net.minecraft.text.HoverEvent;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Style;
 import net.minecraft.text.Text;
@@ -34,6 +36,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ChatOutputTranslateManager {
     private static final Logger LOGGER = LoggerFactory.getLogger(ChatOutputTranslateManager.class);
+    private static final String CHAT_TRANSLATE_ACTION = "translate";
+    private static final String CHAT_RESTORE_ACTION = "restore";
     private static final Map<UUID, ChatHudLine> activeTranslationLines = new ConcurrentHashMap<>();
     private static final Map<UUID, Integer> lineLocateRetryCounts = new ConcurrentHashMap<>();
     private static ExecutorService translationExecutor;
@@ -41,6 +45,14 @@ public class ChatOutputTranslateManager {
     private static final int MAX_LINE_LOCATE_RETRIES = 4;
     private static final long LINE_LOCATE_RETRY_DELAY_MS = 40L;
     private static final long ROUTE_ERROR_DISPLAY_MS = 3_000L;
+
+    public static Text buildOriginalMessageWithToggle(UUID messageId, Text originalMessage) {
+        return appendToggleButton(messageId, originalMessage, CHAT_TRANSLATE_ACTION, "text.translate_allinone.translate_button_hover");
+    }
+
+    public static Text buildTranslatedMessageWithToggle(UUID messageId, Text translatedMessage) {
+        return appendToggleButton(messageId, translatedMessage, CHAT_RESTORE_ACTION, "text.translate_allinone.restore_button_hover");
+    }
 
     private static synchronized void updateExecutorServiceIfNeeded() {
         int configuredConcurrentRequests = Translate_AllinOne.getConfig().chatTranslate.output.max_concurrent_requests;
@@ -210,6 +222,51 @@ public class ChatOutputTranslateManager {
         });
     }
 
+    public static void restoreOriginal(UUID messageId) {
+        if (messageId == null || activeTranslationLines.containsKey(messageId)) {
+            return;
+        }
+
+        MessageUtils.TrackedChatMessage trackedMessage = MessageUtils.getTrackedChatMessage(messageId);
+        if (trackedMessage == null) {
+            return;
+        }
+
+        Text originalMessage = trackedMessage.originalMessage();
+        Text translatedMessage = trackedMessage.translatedMessage();
+        if (originalMessage == null || translatedMessage == null) {
+            return;
+        }
+
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null) {
+            return;
+        }
+
+        client.execute(() -> {
+            ChatHud chatHud = client.inGameHud == null ? null : client.inGameHud.getChatHud();
+            if (chatHud == null) {
+                return;
+            }
+
+            ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
+            List<ChatHudLine> messages = chatHudAccessor.getMessages();
+            LineSearchResult searchResult = findTargetLine(messages, translatedMessage);
+            if (searchResult == null) {
+                return;
+            }
+
+            int scrolledLines = chatHudAccessor.getScrolledLines();
+            Text restoredContent = buildOriginalMessageWithToggle(messageId, originalMessage);
+            ChatHudLine targetLine = searchResult.line();
+            ChatHudLine restoredLine = new ChatHudLine(targetLine.creationTick(), restoredContent, targetLine.signature(), targetLine.indicator());
+            messages.set(searchResult.lineIndex(), restoredLine);
+            chatHudAccessor.invokeRefresh();
+            chatHudAccessor.setScrolledLines(scrolledLines);
+            MessageUtils.markShowingOriginal(messageId);
+        });
+    }
+
     private static void updateInProgressChatLine(UUID messageId, Text newContent) {
         ChatHudLine lineToUpdate = activeTranslationLines.get(messageId);
         if (lineToUpdate == null) return;
@@ -250,12 +307,13 @@ public class ChatOutputTranslateManager {
             int lineIndex = messages.indexOf(lineToUpdate);
 
             if (lineIndex != -1) {
-                ChatHudLine newLine = new ChatHudLine(lineToUpdate.creationTick(), finalContent, lineToUpdate.signature(), lineToUpdate.indicator());
+                Text finalLineContent = buildTranslatedMessageWithToggle(messageId, finalContent);
+                ChatHudLine newLine = new ChatHudLine(lineToUpdate.creationTick(), finalLineContent, lineToUpdate.signature(), lineToUpdate.indicator());
                 messages.set(lineIndex, newLine);
                 chatHudAccessor.invokeRefresh();
                 chatHudAccessor.setScrolledLines(scrolledLines);
+                MessageUtils.setTranslatedMessage(messageId, finalLineContent);
             }
-            MessageUtils.removeTrackedMessage(messageId);
         });
     }
 
@@ -357,6 +415,18 @@ public class ChatOutputTranslateManager {
     }
 
     private record LineSearchResult(int lineIndex, ChatHudLine line) {
+    }
+
+    private static Text appendToggleButton(UUID messageId, Text messageContent, String action, String hoverTranslationKey) {
+        MutableText root = Text.empty().append(messageContent.copy());
+        MutableText toggleButton = Text.literal(" [T]");
+        Style toggleStyle = Style.EMPTY
+                .withColor(Formatting.GRAY)
+                .withClickEvent(new ClickEvent.RunCommand("/translate_allinone translatechatline " + messageId + " " + action))
+                .withHoverEvent(new HoverEvent.ShowText(Text.translatable(hoverTranslationKey)));
+        toggleButton.setStyle(toggleStyle);
+        root.append(toggleButton);
+        return root;
     }
 
     @NotNull

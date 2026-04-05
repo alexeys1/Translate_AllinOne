@@ -18,11 +18,18 @@ public class ChatHudTranslateCommand {
     public static LiteralArgumentBuilder<FabricClientCommandSource> getArgumentBuilder() {
         return literal("translatechatline")
                 .then(argument("messageId", StringArgumentType.string())
-                        .executes(ChatHudTranslateCommand::run));
+                        .executes(ChatHudTranslateCommand::run)
+                        .then(argument("action", StringArgumentType.word())
+                                .executes(ChatHudTranslateCommand::run)));
     }
 
     private static int run(CommandContext<FabricClientCommandSource> context) {
         String messageIdStr = StringArgumentType.getString(context, "messageId");
+        String action = "translate";
+        try {
+            action = StringArgumentType.getString(context, "action");
+        } catch (IllegalArgumentException ignored) {
+        }
         UUID messageId;
         try {
             messageId = UUID.fromString(messageIdStr);
@@ -35,6 +42,11 @@ public class ChatHudTranslateCommand {
         if (originalMessage == null) {
             context.getSource().sendError(Text.literal("Message not found for ID: " + messageIdStr));
             return 0;
+        }
+
+        if ("restore".equalsIgnoreCase(action)) {
+            ChatOutputTranslateManager.restoreOriginal(messageId);
+            return 1;
         }
 
         ChatOutputTranslateManager.translate(messageId, originalMessage);

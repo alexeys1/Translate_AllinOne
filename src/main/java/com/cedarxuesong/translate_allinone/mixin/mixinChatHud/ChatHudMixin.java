@@ -5,12 +5,9 @@ import com.cedarxuesong.translate_allinone.registration.LifecycleEventManager;
 import com.cedarxuesong.translate_allinone.utils.AnimationManager;
 import com.cedarxuesong.translate_allinone.utils.MessageUtils;
 import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
+import com.cedarxuesong.translate_allinone.utils.translate.ChatOutputTranslateManager;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.hud.ChatHud;
-import net.minecraft.text.ClickEvent;
-import net.minecraft.text.HoverEvent;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Style;
 import net.minecraft.text.Text;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
@@ -52,13 +49,7 @@ public abstract class ChatHudMixin {
                     queueAutoTranslateCommand(messageId);
                     return message;
                 } else {
-            MutableText translateButton = Text.literal(" [T]");
-            Style style = Style.EMPTY
-                    .withClickEvent(new ClickEvent.RunCommand("/translate_allinone translatechatline " + messageId))
-                    .withHoverEvent(new HoverEvent.ShowText(Text.translatable("text.translate_allinone.translate_button_hover")));
-            translateButton.setStyle(style);
-
-            return Text.empty().append(message).append(translateButton);
+                    return ChatOutputTranslateManager.buildOriginalMessageWithToggle(messageId, message);
                 }
         }
         return message;
