@@ -397,9 +397,10 @@ public class ItemTranslateManager {
                 + "1) Keep all keys unchanged.\n"
                 + "2) Keep key count unchanged.\n"
                 + "3) Translate values only.\n"
-                + "4) Preserve tokens exactly: §a §l §r %s %d %f {d1} URLs numbers <...> {...} \\n \\t.\n"
-                + "5) If unsure for a value, keep that value unchanged.\n"
-                + "6) No extra text outside JSON.";
+                + "4) Preserve style tags exactly: <s0>...</s0>, <s1>...</s1>, ... Keep the same tag ids, counts, and order.\n"
+                + "5) Preserve tokens exactly: §a §l §r %s %d %f {d1} URLs numbers <...> {...} \\n \\t.\n"
+                + "6) If unsure for a value, keep that value unchanged.\n"
+                + "7) No extra text outside JSON.";
         return PromptMessageBuilder.appendSystemPromptSuffix(basePrompt, suffix);
     }
 

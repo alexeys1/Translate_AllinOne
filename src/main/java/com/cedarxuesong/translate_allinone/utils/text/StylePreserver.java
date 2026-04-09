@@ -15,6 +15,7 @@ import java.util.regex.Pattern;
 public class StylePreserver {
 
     private static final char PLACEHOLDER_START_CHAR = '\uE000';
+    private static final Pattern STYLE_TAG_MARKER_PATTERN = Pattern.compile("</?s(\\d+)>");
     // Regex to find a placeholder, its content, and the closing placeholder.
     // Placeholders are characters in the Private Use Area.
     private static final Pattern PLACEHOLDER_PATTERN = Pattern.compile(
@@ -108,28 +109,54 @@ public class StylePreserver {
 
     public static Text reapplyStylesFromTags(String translatedText, Map<Integer, Style> styleMap, boolean stripFont) {
         MutableText resultText = Text.empty();
-        Pattern tagPattern = Pattern.compile("<s(\\d+)>(.*?)</s\\1>", Pattern.DOTALL);
-        Matcher matcher = tagPattern.matcher(translatedText);
+        Matcher matcher = STYLE_TAG_MARKER_PATTERN.matcher(translatedText);
         int lastEnd = 0;
+        Integer activeStyleId = null;
 
         while (matcher.find()) {
             if (matcher.start() > lastEnd) {
-                resultText.append(Text.literal(translatedText.substring(lastEnd, matcher.start())));
+                String content = translatedText.substring(lastEnd, matcher.start());
+                appendTaggedOrPlainContent(resultText, content, activeStyleId, styleMap, stripFont);
             }
 
             int id = Integer.parseInt(matcher.group(1));
-            String content = matcher.group(2);
-            Style originalStyle = styleMap.getOrDefault(id, Style.EMPTY);
-            appendTaggedContent(resultText, content, originalStyle, stripFont);
+            boolean closingTag = translatedText.charAt(matcher.start() + 1) == '/';
+
+            if (closingTag) {
+                activeStyleId = null;
+            } else {
+                activeStyleId = id;
+            }
 
             lastEnd = matcher.end();
         }
 
         if (lastEnd < translatedText.length()) {
-            resultText.append(Text.literal(translatedText.substring(lastEnd)));
+            String content = translatedText.substring(lastEnd);
+            appendTaggedOrPlainContent(resultText, content, activeStyleId, styleMap, stripFont);
         }
 
         return resultText;
+    }
+
+    private static void appendTaggedOrPlainContent(
+            MutableText target,
+            String content,
+            Integer activeStyleId,
+            Map<Integer, Style> styleMap,
+            boolean stripFont
+    ) {
+        if (content == null || content.isEmpty()) {
+            return;
+        }
+
+        if (activeStyleId == null) {
+            target.append(Text.literal(content));
+            return;
+        }
+
+        Style originalStyle = styleMap.getOrDefault(activeStyleId, Style.EMPTY);
+        appendTaggedContent(target, content, originalStyle, stripFont);
     }
 
     private static void appendTaggedSegments(
