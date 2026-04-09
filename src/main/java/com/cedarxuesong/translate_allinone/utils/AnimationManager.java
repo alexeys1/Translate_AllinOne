@@ -45,11 +45,15 @@ public class AnimationManager {
         MutableText animatedText = Text.empty();
         long time = System.currentTimeMillis();
 
-        for (int i = 0; i < plainText.length(); i++) {
-            float sine = (float) (Math.sin(time / 200.0 + i / 5.0) + 1.0) / 2.0f;
+        int codePointIndex = 0;
+        for (int offset = 0; offset < plainText.length(); ) {
+            int codePoint = plainText.codePointAt(offset);
+            float sine = (float) (Math.sin(time / 200.0 + codePointIndex / 5.0) + 1.0) / 2.0f;
             int color = ColorHelper.lerp(sine, DARK_GREY, LIGHT_GREY);
-            animatedText.append(Text.literal(String.valueOf(plainText.charAt(i)))
+            animatedText.append(Text.literal(new String(Character.toChars(codePoint)))
                     .setStyle(Style.EMPTY.withColor(TextColor.fromRgb(color))));
+            offset += Character.charCount(codePoint);
+            codePointIndex++;
         }
         return animatedText;
     }
@@ -65,7 +69,8 @@ public class AnimationManager {
         float alertProgress = getAlertProgress(animationKey, alertMissingKeys, time);
 
         originalText.visit((style, s) -> {
-            for (int i = 0; i < s.length(); i++) {
+            for (int offset = 0; offset < s.length(); ) {
+                int codePoint = s.codePointAt(offset);
                 float baseSine = (float) (Math.sin(time / 200.0 + charIndex.get() / 5.0) + 1.0) / 2.0f;
                 float alertSine = (float) (Math.sin(time / 120.0 + charIndex.get() / 2.5) + 1.0) / 2.0f;
 
@@ -75,7 +80,8 @@ public class AnimationManager {
 
                 Style newStyle = style.withColor(TextColor.fromRgb(color));
 
-                animatedText.append(Text.literal(String.valueOf(s.charAt(i))).setStyle(newStyle));
+                animatedText.append(Text.literal(new String(Character.toChars(codePoint))).setStyle(newStyle));
+                offset += Character.charCount(codePoint);
                 charIndex.incrementAndGet();
             }
             return Optional.empty();

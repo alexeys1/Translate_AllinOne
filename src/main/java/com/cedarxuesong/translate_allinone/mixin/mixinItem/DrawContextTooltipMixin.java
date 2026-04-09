@@ -160,7 +160,10 @@ public abstract class DrawContextTooltipMixin {
             }
 
             translatableLines++;
-            TooltipTranslationSupport.TooltipLineResult lineResult = TooltipTranslationSupport.translateLine(line);
+            TooltipTranslationSupport.TooltipLineResult lineResult = TooltipTranslationSupport.translateLine(
+                    line,
+                    config.wynn_item_compatibility
+            );
             if (lineResult.pending()) {
                 isCurrentItemStackPending = true;
             }

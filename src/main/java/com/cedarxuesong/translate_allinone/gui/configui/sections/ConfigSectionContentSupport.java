@@ -160,6 +160,8 @@ public final class ConfigSectionContentSupport {
                 y += ROW_STEP;
                 toggleAdder.add(x, y, width, translator.t("label.translate_item_lore"), () -> item.enabled_translate_item_lore, value -> item.enabled_translate_item_lore = value);
                 y += ROW_STEP;
+                toggleAdder.add(x, y, width, translator.t("label.wynn_item_compatibility"), () -> item.wynn_item_compatibility, value -> item.wynn_item_compatibility = value);
+                y += ROW_STEP;
                 textFieldRowAdder.add(
                         x,
                         y,

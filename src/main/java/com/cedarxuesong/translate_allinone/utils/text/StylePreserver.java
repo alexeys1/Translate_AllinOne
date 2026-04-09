@@ -64,11 +64,7 @@ public class StylePreserver {
         message.visit((style, string) -> {
             if (!string.isEmpty()) {
                 if (!style.isEmpty()) {
-                    int id = counter.getAndIncrement();
-                    styleMap.put(id, style);
-                    markedText.append("<s").append(id).append(">");
-                    markedText.append(string);
-                    markedText.append("</s").append(id).append(">");
+                    appendTaggedSegments(markedText, styleMap, counter, style, string);
                 } else {
                     markedText.append(string);
                 }
@@ -107,6 +103,10 @@ public class StylePreserver {
     }
 
     public static Text reapplyStylesFromTags(String translatedText, Map<Integer, Style> styleMap) {
+        return reapplyStylesFromTags(translatedText, styleMap, false);
+    }
+
+    public static Text reapplyStylesFromTags(String translatedText, Map<Integer, Style> styleMap, boolean stripFont) {
         MutableText resultText = Text.empty();
         Pattern tagPattern = Pattern.compile("<s(\\d+)>(.*?)</s\\1>", Pattern.DOTALL);
         Matcher matcher = tagPattern.matcher(translatedText);
@@ -119,9 +119,8 @@ public class StylePreserver {
 
             int id = Integer.parseInt(matcher.group(1));
             String content = matcher.group(2);
-            Style style = styleMap.getOrDefault(id, Style.EMPTY);
-
-            resultText.append(Text.literal(content).setStyle(style));
+            Style originalStyle = styleMap.getOrDefault(id, Style.EMPTY);
+            appendTaggedContent(resultText, content, originalStyle, stripFont);
 
             lastEnd = matcher.end();
         }
@@ -131,6 +130,126 @@ public class StylePreserver {
         }
 
         return resultText;
+    }
+
+    private static void appendTaggedSegments(
+            StringBuilder markedText,
+            Map<Integer, Style> styleMap,
+            AtomicInteger counter,
+            Style style,
+            String string
+    ) {
+        StringBuilder segment = new StringBuilder();
+        Boolean privateUseSegment = null;
+
+        for (int offset = 0; offset < string.length(); ) {
+            int codePoint = string.codePointAt(offset);
+            boolean isDecorativeGlyph = isDecorativeGlyphCodePoint(codePoint);
+
+            if (privateUseSegment != null && privateUseSegment != isDecorativeGlyph && segment.length() > 0) {
+                appendTaggedSegment(markedText, styleMap, counter, style, segment.toString());
+                segment.setLength(0);
+            }
+
+            privateUseSegment = isDecorativeGlyph;
+            segment.appendCodePoint(codePoint);
+            offset += Character.charCount(codePoint);
+        }
+
+        if (segment.length() > 0) {
+            appendTaggedSegment(markedText, styleMap, counter, style, segment.toString());
+        }
+    }
+
+    private static void appendTaggedSegment(
+            StringBuilder markedText,
+            Map<Integer, Style> styleMap,
+            AtomicInteger counter,
+            Style style,
+            String segment
+    ) {
+        if (segment == null || segment.isEmpty()) {
+            return;
+        }
+
+        int id = counter.getAndIncrement();
+        styleMap.put(id, style);
+        markedText.append("<s").append(id).append(">");
+        markedText.append(segment);
+        markedText.append("</s").append(id).append(">");
+    }
+
+    private static void appendTaggedContent(MutableText target, String content, Style originalStyle, boolean stripFont) {
+        if (content == null || content.isEmpty()) {
+            return;
+        }
+
+        Style sanitizedStyle = sanitizeStyle(originalStyle, stripFont);
+        if (!stripFont || originalStyle.equals(sanitizedStyle)) {
+            target.append(Text.literal(content).setStyle(sanitizedStyle));
+            return;
+        }
+
+        StringBuilder run = new StringBuilder();
+        Boolean keepOriginalFontForRun = null;
+
+        for (int offset = 0; offset < content.length(); ) {
+            int codePoint = content.codePointAt(offset);
+            boolean keepOriginalFont = isDecorativeGlyphCodePoint(codePoint);
+
+            if (keepOriginalFontForRun != null && keepOriginalFontForRun != keepOriginalFont && run.length() > 0) {
+                target.append(Text.literal(run.toString()).setStyle(keepOriginalFontForRun ? originalStyle : sanitizedStyle));
+                run.setLength(0);
+            }
+
+            keepOriginalFontForRun = keepOriginalFont;
+            run.appendCodePoint(codePoint);
+            offset += Character.charCount(codePoint);
+        }
+
+        if (run.length() > 0) {
+            target.append(Text.literal(run.toString()).setStyle(Boolean.TRUE.equals(keepOriginalFontForRun) ? originalStyle : sanitizedStyle));
+        }
+    }
+
+    private static Style sanitizeStyle(Style style, boolean stripFont) {
+        if (!stripFont || style.isEmpty()) {
+            return style;
+        }
+
+        Style sanitized = Style.EMPTY;
+        if (style.getColor() != null) {
+            sanitized = sanitized.withColor(style.getColor());
+        }
+
+        sanitized = sanitized.withBold(style.isBold());
+        sanitized = sanitized.withItalic(style.isItalic());
+        sanitized = sanitized.withUnderline(style.isUnderlined());
+        sanitized = sanitized.withStrikethrough(style.isStrikethrough());
+        sanitized = sanitized.withObfuscated(style.isObfuscated());
+
+        if (style.getClickEvent() != null) {
+            sanitized = sanitized.withClickEvent(style.getClickEvent());
+        }
+        if (style.getHoverEvent() != null) {
+            sanitized = sanitized.withHoverEvent(style.getHoverEvent());
+        }
+        if (style.getInsertion() != null) {
+            sanitized = sanitized.withInsertion(style.getInsertion());
+        }
+
+        return sanitized;
+    }
+
+    private static boolean isDecorativeGlyphCodePoint(int codePoint) {
+        int unicodeType = Character.getType(codePoint);
+        if (unicodeType == Character.PRIVATE_USE || unicodeType == Character.UNASSIGNED) {
+            return true;
+        }
+
+        return (codePoint >= 0xE000 && codePoint <= 0xF8FF)
+                || (codePoint >= 0xF0000 && codePoint <= 0xFFFFD)
+                || (codePoint >= 0x100000 && codePoint <= 0x10FFFD);
     }
 
     public static String toLegacyTemplate(String markedTemplate, Map<Integer, Style> styleMap) {

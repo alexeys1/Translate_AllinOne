@@ -246,6 +246,7 @@
   "text.translate_allinone.configscreen.label.chat_interaction_offset_fix": "Fix Chat Translate Interaction Offset",
   "text.translate_allinone.configscreen.label.translate_item_name": "Translate Item Name",
   "text.translate_allinone.configscreen.label.translate_item_lore": "Translate Item Lore",
+  "text.translate_allinone.configscreen.label.wynn_item_compatibility": "Wynn Item Compatibility",
   "text.translate_allinone.configscreen.label.item_threads": "Item Worker Threads",
   "text.translate_allinone.configscreen.label.item_batch_size": "Item Batch Size",
   "text.translate_allinone.configscreen.label.translate_prefix_suffix": "Translate Prefix/Suffix",

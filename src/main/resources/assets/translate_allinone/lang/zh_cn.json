@@ -242,6 +242,7 @@
   "text.translate_allinone.configscreen.label.chat_interaction_offset_fix": "修复聊天翻译互动偏移",
   "text.translate_allinone.configscreen.label.translate_item_name": "翻译物品名称",
   "text.translate_allinone.configscreen.label.translate_item_lore": "翻译物品简介",
+  "text.translate_allinone.configscreen.label.wynn_item_compatibility": "Wynn 物品兼容",
   "text.translate_allinone.configscreen.label.item_threads": "物品线程数",
   "text.translate_allinone.configscreen.label.item_batch_size": "每批提交条数",
   "text.translate_allinone.configscreen.label.translate_prefix_suffix": "翻译前后缀",

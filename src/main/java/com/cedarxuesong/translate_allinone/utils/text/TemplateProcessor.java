@@ -14,8 +14,12 @@ public class TemplateProcessor {
     // 4. Version numbers or dates (e.g., 1.2.3, 2025-07-05)
     // 5. Numbers immediately after legacy color prefix '§' are excluded.
     private static final Pattern NUMBER_PATTERN = Pattern.compile("(?<!§)(\\d+([.,/-]\\d+)+|\\d{1,3}(,\\d{3})*(\\.\\d+)?|\\d+\\.\\d+|\\.\\d+|\\d+)");
+    private static final Pattern STYLE_TAG_PATTERN = Pattern.compile("<s(\\d+)>(.*?)</s\\1>", Pattern.DOTALL);
 
     public record TemplateExtractionResult(String template, List<String> values) {
+    }
+
+    public record DecorativeGlyphExtractionResult(String template, List<String> values) {
     }
 
     /**
@@ -34,7 +38,8 @@ public class TemplateProcessor {
             int matchStart = numberMatcher.start();
             int matchEnd = numberMatcher.end();
 
-            if (isInsideNumericPlaceholder(text, matchStart, matchEnd)) {
+            if (isInsideNumericPlaceholder(text, matchStart, matchEnd)
+                    || isInsideAngleBracketTag(text, matchStart, matchEnd)) {
                 numberMatcher.appendReplacement(templateBuffer, Matcher.quoteReplacement(numberMatcher.group()));
                 continue;
             }
@@ -72,6 +77,20 @@ public class TemplateProcessor {
                 && text.charAt(runEnd) == '}';
     }
 
+    private static boolean isInsideAngleBracketTag(String text, int start, int end) {
+        if (text == null || text.isEmpty()) {
+            return false;
+        }
+
+        int open = text.lastIndexOf('<', start);
+        if (open < 0) {
+            return false;
+        }
+
+        int close = text.indexOf('>', open);
+        return close >= end;
+    }
+
     public static String reassemble(String translatedTemplate, List<String> values) {
         // This method remains the same, as the AI should preserve the color codes.
         for (int i = 0; i < values.size(); i++) {
@@ -80,5 +99,61 @@ public class TemplateProcessor {
             translatedTemplate = translatedTemplate.replaceFirst(Pattern.quote(placeholder), Matcher.quoteReplacement(values.get(i)));
         }
         return translatedTemplate;
+    }
+
+    public static DecorativeGlyphExtractionResult extractDecorativeGlyphTags(String text) {
+        List<String> values = new ArrayList<>();
+        Matcher matcher = STYLE_TAG_PATTERN.matcher(text);
+        StringBuilder templateBuffer = new StringBuilder();
+
+        while (matcher.find()) {
+            String taggedContent = matcher.group(2);
+            if (!isDecorativeGlyphOnly(taggedContent)) {
+                matcher.appendReplacement(templateBuffer, Matcher.quoteReplacement(matcher.group()));
+                continue;
+            }
+
+            values.add(matcher.group());
+            String placeholder = "{g" + values.size() + "}";
+            matcher.appendReplacement(templateBuffer, Matcher.quoteReplacement(placeholder));
+        }
+
+        matcher.appendTail(templateBuffer);
+        return new DecorativeGlyphExtractionResult(templateBuffer.toString(), values);
+    }
+
+    public static String reassembleDecorativeGlyphs(String translatedTemplate, List<String> values) {
+        for (int i = 0; i < values.size(); i++) {
+            String placeholder = "{g" + (i + 1) + "}";
+            translatedTemplate = translatedTemplate.replaceFirst(Pattern.quote(placeholder), Matcher.quoteReplacement(values.get(i)));
+        }
+        return translatedTemplate;
+    }
+
+    private static boolean isDecorativeGlyphOnly(String text) {
+        if (text == null || text.isEmpty()) {
+            return false;
+        }
+
+        for (int offset = 0; offset < text.length(); ) {
+            int codePoint = text.codePointAt(offset);
+            if (!isDecorativeGlyphCodePoint(codePoint)) {
+                return false;
+            }
+            offset += Character.charCount(codePoint);
+        }
+
+        return true;
+    }
+
+    private static boolean isDecorativeGlyphCodePoint(int codePoint) {
+        int unicodeType = Character.getType(codePoint);
+        if (unicodeType == Character.PRIVATE_USE || unicodeType == Character.UNASSIGNED) {
+            return true;
+        }
+
+        return (codePoint >= 0xE000 && codePoint <= 0xF8FF)
+                || (codePoint >= 0xF0000 && codePoint <= 0xFFFFD)
+                || (codePoint >= 0x100000 && codePoint <= 0x10FFFD);
     }
 } 
