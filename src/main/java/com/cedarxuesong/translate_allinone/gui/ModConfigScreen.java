@@ -46,6 +46,7 @@ import com.cedarxuesong.translate_allinone.utils.config.pojos.ProviderManagerCon
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ScoreboardConfig;
 import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
 import com.cedarxuesong.translate_allinone.utils.update.UpdateCheckManager;
+import com.google.gson.Gson;
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
@@ -66,6 +67,7 @@ import java.util.function.Supplier;
 
 public class ModConfigScreen extends Screen {
     private static final String I18N_PREFIX = "text.translate_allinone.configscreen.";
+    private static final Gson CONFIG_STATE_GSON = new Gson();
 
     private static final int COLOR_BG = 0xFF0C0C0C;
     private static final int COLOR_TOP_BAR = 0xFF151515;
@@ -237,6 +239,7 @@ public class ModConfigScreen extends Screen {
 
     private final Screen parent;
     private final ModConfig originalConfigSnapshot;
+    private final String originalConfigSnapshotJson;
     private final List<ActionBlock> actionBlocks = new ArrayList<>();
     private final List<ActionBlock> contentActionBlocks = new ArrayList<>();
     private final List<ActionBlock> floatingActionBlocks = new ArrayList<>();
@@ -283,6 +286,7 @@ public class ModConfigScreen extends Screen {
     private boolean customParametersModalOpen;
     private boolean resetConfirmModalOpen;
     private boolean updateNoticeModalOpen;
+    private boolean unsavedChangesConfirmModalOpen;
     private boolean updateNoticeAutoPrompted;
     private String selectedCustomParameterPath = "";
     private TextFieldWidget customParameterNameField;
@@ -316,11 +320,54 @@ public class ModConfigScreen extends Screen {
         super(t("title"));
         this.parent = parent;
         this.originalConfigSnapshot = ConfigManager.copyCurrentConfig();
+        this.originalConfigSnapshotJson = CONFIG_STATE_GSON.toJson(this.originalConfigSnapshot);
         this.selectedSection = selectedSection;
     }
 
     private static Text t(String key, Object... args) {
         return Text.translatable(I18N_PREFIX + key, args);
+    }
+
+    private boolean hasUnsavedChanges() {
+        return !originalConfigSnapshotJson.equals(CONFIG_STATE_GSON.toJson(ConfigManager.copyCurrentConfig()));
+    }
+
+    private boolean isAnyModalOpen() {
+        return ConfigUiModalSupport.isAnyModalOpen(
+                addProviderModalOpen,
+                modelSettingsModalOpen,
+                customParametersModalOpen,
+                resetConfirmModalOpen,
+                updateNoticeModalOpen,
+                unsavedChangesConfirmModalOpen
+        );
+    }
+
+    private boolean isInsideOpenModal(double mouseX, double mouseY) {
+        return ConfigUiModalSupport.isInsideOpenModal(
+                mouseX,
+                mouseY,
+                this.width,
+                this.height,
+                addProviderModalOpen,
+                modelSettingsModalOpen,
+                customParametersModalOpen,
+                resetConfirmModalOpen,
+                updateNoticeModalOpen,
+                unsavedChangesConfirmModalOpen
+        );
+    }
+
+    private void finishClose() {
+        if (restoreSnapshotOnClose) {
+            ConfigManager.replaceConfig(originalConfigSnapshot);
+        }
+        restoreSnapshotOnClose = false;
+        unsavedChangesConfirmModalOpen = false;
+
+        if (this.client != null) {
+            this.client.setScreen(parent);
+        }
     }
 
     @Override
@@ -407,6 +454,8 @@ public class ModConfigScreen extends Screen {
             addUpdateNoticeModal();
         } else if (resetConfirmModalOpen) {
             addResetConfirmModal();
+        } else if (unsavedChangesConfirmModalOpen) {
+            addUnsavedChangesConfirmModal();
         }
         ConfigUiFocusSupport.applyPendingFocus(
                 this,
@@ -459,6 +508,7 @@ public class ModConfigScreen extends Screen {
         int height = Math.max(0, this.height - y - 12);
         return new UiRect(x, y, width, height);
     }
+
 
     private UiRect contentClipViewport() {
         if (contentViewport.width <= 0 || contentViewport.height <= 0) {
@@ -1080,14 +1130,14 @@ public class ModConfigScreen extends Screen {
 
     private Text hotkeyBindingLabel(ConfigSectionContentSupport.HotkeyTarget target, InputBindingConfig binding) {
         if (hotkeyCaptureTarget == target) {
-            return t("label.hotkey_binding", t("state.hotkey_listening"));
+            return hotkeyBindingLabelText(target, t("state.hotkey_listening"));
         }
 
         if (!KeybindingManager.isBound(binding)) {
-            return t("label.hotkey_binding", t("state.hotkey_unbound"));
+            return hotkeyBindingLabelText(target, t("state.hotkey_unbound"));
         }
 
-        return t("label.hotkey_binding", Text.literal(KeybindingManager.displayName(binding)));
+        return hotkeyBindingLabelText(target, Text.literal(KeybindingManager.displayName(binding)));
     }
 
     private void startHotkeyCapture(ConfigSectionContentSupport.HotkeyTarget target) {
@@ -1097,6 +1147,27 @@ public class ModConfigScreen extends Screen {
     }
 
     private void clearHotkeyBinding(ConfigSectionContentSupport.HotkeyTarget target) {
+        if (target == ConfigSectionContentSupport.HotkeyTarget.ITEM) {
+            ItemTranslateConfig.KeybindingConfig keybinding = ensureItemKeybinding(Translate_AllinOne.getConfig());
+            if (keybinding.binding == null) {
+                keybinding.binding = new InputBindingConfig();
+            }
+            if (keybinding.refreshBinding == null) {
+                keybinding.refreshBinding = new InputBindingConfig();
+            }
+
+            if (hotkeyCaptureTarget == ConfigSectionContentSupport.HotkeyTarget.ITEM
+                    || hotkeyCaptureTarget == ConfigSectionContentSupport.HotkeyTarget.ITEM_REFRESH) {
+                hotkeyCaptureTarget = null;
+            }
+
+            KeybindingManager.clear(keybinding.binding);
+            KeybindingManager.clear(keybinding.refreshBinding);
+            setStatus(t("status.hotkey_cleared", sectionLabel(target)), COLOR_STATUS_OK);
+            rebuildActionBlocks();
+            return;
+        }
+
         InputBindingConfig binding = ensureBinding(target);
         if (binding == null) {
             return;
@@ -1145,6 +1216,13 @@ public class ModConfigScreen extends Screen {
                     keybinding.binding = new InputBindingConfig();
                 }
                 yield keybinding.binding;
+            }
+            case ITEM_REFRESH -> {
+                ItemTranslateConfig.KeybindingConfig keybinding = ensureItemKeybinding(config);
+                if (keybinding.refreshBinding == null) {
+                    keybinding.refreshBinding = new InputBindingConfig();
+                }
+                yield keybinding.refreshBinding;
             }
             case SCOREBOARD -> {
                 ScoreboardConfig.KeybindingConfig keybinding = ensureScoreboardKeybinding(config);
@@ -1196,7 +1274,15 @@ public class ModConfigScreen extends Screen {
         return switch (target) {
             case CHAT_INPUT -> t("section.chat_input");
             case ITEM -> t("section.item");
+            case ITEM_REFRESH -> t("section.item");
             case SCOREBOARD -> t("section.scoreboard");
+        };
+    }
+
+    private Text hotkeyBindingLabelText(ConfigSectionContentSupport.HotkeyTarget target, Text bindingLabel) {
+        return switch (target) {
+            case ITEM_REFRESH -> t("label.item_refresh_hotkey_binding", bindingLabel);
+            default -> t("label.hotkey_binding", bindingLabel);
         };
     }
 
@@ -1261,11 +1347,15 @@ public class ModConfigScreen extends Screen {
             return;
         }
         restoreSnapshotOnClose = false;
-        close();
+        finishClose();
     }
 
     private void cancelAndClose() {
         close();
+    }
+
+    private void discardChangesAndClose() {
+        finishClose();
     }
 
     private void openResetConfirmation() {
@@ -1288,6 +1378,16 @@ public class ModConfigScreen extends Screen {
 
     private void closeResetConfirmModal() {
         resetConfirmModalOpen = false;
+    }
+
+    private void openUnsavedChangesConfirmModal() {
+        unsavedChangesConfirmModalOpen = true;
+        routeDropdownSlot = null;
+        addProviderTypeDropdownOpen = false;
+    }
+
+    private void closeUnsavedChangesConfirmModal() {
+        unsavedChangesConfirmModalOpen = false;
     }
 
     private void addResetConfirmModal() {
@@ -1372,6 +1472,59 @@ public class ModConfigScreen extends Screen {
         );
     }
 
+    private void addUnsavedChangesConfirmModal() {
+        UiRect modalRect = ConfigUiModalSupport.unsavedChangesConfirmModalRect(this.width, this.height);
+        int buttonWidth = 120;
+        int buttonHeight = 20;
+        int buttonGap = 8;
+        int buttonY = modalRect.bottom() - 30;
+        int saveX = modalRect.right() - 16 - buttonWidth;
+        int discardX = saveX - buttonGap - buttonWidth;
+        int cancelX = discardX - buttonGap - buttonWidth;
+
+        floatingActionBlockRegistry.add(
+                cancelX,
+                buttonY,
+                buttonWidth,
+                buttonHeight,
+                t("button.cancel"),
+                () -> {
+                    closeUnsavedChangesConfirmModal();
+                    rebuildActionBlocks();
+                },
+                COLOR_BLOCK,
+                COLOR_BLOCK_HOVER,
+                COLOR_TEXT,
+                true
+        );
+
+        floatingActionBlockRegistry.add(
+                discardX,
+                buttonY,
+                buttonWidth,
+                buttonHeight,
+                t("button.close_without_saving"),
+                this::discardChangesAndClose,
+                COLOR_BLOCK_DANGER,
+                COLOR_BLOCK_DANGER_HOVER,
+                COLOR_TEXT,
+                true
+        );
+
+        floatingActionBlockRegistry.add(
+                saveX,
+                buttonY,
+                buttonWidth,
+                buttonHeight,
+                t("button.save_and_close"),
+                this::saveAndClose,
+                COLOR_BLOCK_ACCENT,
+                COLOR_BLOCK_ACCENT_HOVER,
+                COLOR_TEXT,
+                true
+        );
+    }
+
     private void renderResetConfirmModalMessage(DrawContext context) {
         UiRect modalRect = ConfigUiModalSupport.resetConfirmModalRect(this.width, this.height);
         int textX = modalRect.x + 16;
@@ -1394,6 +1547,19 @@ public class ModConfigScreen extends Screen {
                 t("modal.update_notice.message", UpdateCheckManager.latestVersion(), UpdateCheckManager.currentVersion()),
                 maxWidth
         );
+        int lineY = textY;
+        for (OrderedText line : lines) {
+            context.drawText(this.textRenderer, line, textX, lineY, COLOR_TEXT_MUTED, false);
+            lineY += this.textRenderer.fontHeight + 2;
+        }
+    }
+
+    private void renderUnsavedChangesConfirmModalMessage(DrawContext context) {
+        UiRect modalRect = ConfigUiModalSupport.unsavedChangesConfirmModalRect(this.width, this.height);
+        int textX = modalRect.x + 16;
+        int textY = modalRect.y + 48;
+        int maxWidth = Math.max(10, modalRect.width - 32);
+        List<OrderedText> lines = this.textRenderer.wrapLines(t("modal.unsaved_changes.message"), maxWidth);
         int lineY = textY;
         for (OrderedText line : lines) {
             context.drawText(this.textRenderer, line, textX, lineY, COLOR_TEXT_MUTED, false);
@@ -1427,7 +1593,8 @@ public class ModConfigScreen extends Screen {
                 modelSettingsModalOpen,
                 customParametersModalOpen,
                 resetConfirmModalOpen,
-                updateNoticeModalOpen
+                updateNoticeModalOpen,
+                unsavedChangesConfirmModalOpen
         );
 
         switch (action) {
@@ -1438,6 +1605,11 @@ public class ModConfigScreen extends Screen {
             }
             case CLOSE_RESET_CONFIRM -> {
                 closeResetConfirmModal();
+                rebuildActionBlocks();
+                return;
+            }
+            case CLOSE_UNSAVED_CHANGES -> {
+                closeUnsavedChangesConfirmModal();
                 rebuildActionBlocks();
                 return;
             }
@@ -1460,14 +1632,12 @@ public class ModConfigScreen extends Screen {
             }
         }
 
-        if (restoreSnapshotOnClose) {
-            ConfigManager.replaceConfig(originalConfigSnapshot);
+        if (restoreSnapshotOnClose && hasUnsavedChanges()) {
+            openUnsavedChangesConfirmModal();
+            rebuildActionBlocks();
+            return;
         }
-        restoreSnapshotOnClose = false;
-
-        if (this.client != null) {
-            this.client.setScreen(parent);
-        }
+        finishClose();
     }
 
     @Override
@@ -1488,33 +1658,18 @@ public class ModConfigScreen extends Screen {
 
         double mouseX = click.x();
         double mouseY = click.y();
-        boolean modalOpen = ConfigUiModalSupport.isAnyModalOpen(
-                addProviderModalOpen,
-                modelSettingsModalOpen,
-                customParametersModalOpen,
-                resetConfirmModalOpen,
-                updateNoticeModalOpen
-        );
+        boolean modalOpen = isAnyModalOpen();
 
         if (modalOpen) {
             draggingSlider = null;
-            if (!ConfigUiModalSupport.isInsideOpenModal(
-                    mouseX,
-                    mouseY,
-                    this.width,
-                    this.height,
-                    addProviderModalOpen,
-                    modelSettingsModalOpen,
-                    customParametersModalOpen,
-                    resetConfirmModalOpen,
-                    updateNoticeModalOpen
-            )) {
+            if (!isInsideOpenModal(mouseX, mouseY)) {
                 ConfigUiModalInteractionSupport.ModalCloseAction action = ConfigUiModalInteractionSupport.outsideModalClickAction(
                         addProviderModalOpen,
                         modelSettingsModalOpen,
                         customParametersModalOpen,
                         resetConfirmModalOpen,
-                        updateNoticeModalOpen
+                        updateNoticeModalOpen,
+                        unsavedChangesConfirmModalOpen
                 );
                 switch (action) {
                     case CLOSE_UPDATE_NOTICE -> {
@@ -1524,6 +1679,11 @@ public class ModConfigScreen extends Screen {
                     }
                     case CLOSE_RESET_CONFIRM -> {
                         closeResetConfirmModal();
+                        rebuildActionBlocks();
+                        return true;
+                    }
+                    case CLOSE_UNSAVED_CHANGES -> {
+                        closeUnsavedChangesConfirmModal();
                         rebuildActionBlocks();
                         return true;
                     }
@@ -1694,13 +1854,7 @@ public class ModConfigScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
-        if (ConfigUiModalSupport.isAnyModalOpen(
-                addProviderModalOpen,
-                modelSettingsModalOpen,
-                customParametersModalOpen,
-                resetConfirmModalOpen,
-                updateNoticeModalOpen
-        )) {
+        if (isAnyModalOpen()) {
             return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
         }
 
@@ -1748,13 +1902,7 @@ public class ModConfigScreen extends Screen {
         updateControlAnimations();
 
         long nowMillis = System.currentTimeMillis();
-        boolean modalOpen = ConfigUiModalSupport.isAnyModalOpen(
-                addProviderModalOpen,
-                modelSettingsModalOpen,
-                customParametersModalOpen,
-                resetConfirmModalOpen,
-                updateNoticeModalOpen
-        );
+        boolean modalOpen = isAnyModalOpen();
         ConfigUiScreenRenderSupport.renderChrome(
                 context,
                 this.textRenderer,
@@ -1799,11 +1947,13 @@ public class ModConfigScreen extends Screen {
                 customParametersModalOpen,
                 resetConfirmModalOpen,
                 updateNoticeModalOpen,
+                unsavedChangesConfirmModalOpen,
                 t("modal.add_provider.title"),
                 t("modal.model.title"),
                 t("custom_params.title"),
                 t("modal.reset_confirm.title"),
                 t("modal.update_notice.title"),
+                t("modal.unsaved_changes.title"),
                 SCREEN_RENDER_STYLE
         );
 
@@ -1811,6 +1961,8 @@ public class ModConfigScreen extends Screen {
             renderUpdateNoticeModalMessage(context);
         } else if (resetConfirmModalOpen) {
             renderResetConfirmModalMessage(context);
+        } else if (unsavedChangesConfirmModalOpen) {
+            renderUnsavedChangesConfirmModalMessage(context);
         }
 
         if (modalOpen) {

@@ -9,13 +9,17 @@ public final class ConfigUiModalInteractionSupport {
             boolean modelSettingsModalOpen,
             boolean customParametersModalOpen,
             boolean resetConfirmModalOpen,
-            boolean updateNoticeModalOpen
+            boolean updateNoticeModalOpen,
+            boolean unsavedChangesConfirmModalOpen
     ) {
         if (updateNoticeModalOpen) {
             return ModalCloseAction.CLOSE_UPDATE_NOTICE;
         }
         if (resetConfirmModalOpen) {
             return ModalCloseAction.CLOSE_RESET_CONFIRM;
+        }
+        if (unsavedChangesConfirmModalOpen) {
+            return ModalCloseAction.CLOSE_UNSAVED_CHANGES;
         }
         if (customParametersModalOpen) {
             return ModalCloseAction.CLOSE_CUSTOM_PARAMETERS;
@@ -34,13 +38,17 @@ public final class ConfigUiModalInteractionSupport {
             boolean modelSettingsModalOpen,
             boolean customParametersModalOpen,
             boolean resetConfirmModalOpen,
-            boolean updateNoticeModalOpen
+            boolean updateNoticeModalOpen,
+            boolean unsavedChangesConfirmModalOpen
     ) {
         if (updateNoticeModalOpen) {
             return ModalCloseAction.CLOSE_UPDATE_NOTICE;
         }
         if (resetConfirmModalOpen) {
             return ModalCloseAction.CLOSE_RESET_CONFIRM;
+        }
+        if (unsavedChangesConfirmModalOpen) {
+            return ModalCloseAction.CLOSE_UNSAVED_CHANGES;
         }
         if (addProviderModalOpen) {
             return ModalCloseAction.CLOSE_ADD_PROVIDER;
@@ -58,6 +66,7 @@ public final class ConfigUiModalInteractionSupport {
         NONE,
         CLOSE_UPDATE_NOTICE,
         CLOSE_RESET_CONFIRM,
+        CLOSE_UNSAVED_CHANGES,
         CLOSE_ADD_PROVIDER,
         CLOSE_MODEL_SETTINGS,
         CLOSE_CUSTOM_PARAMETERS

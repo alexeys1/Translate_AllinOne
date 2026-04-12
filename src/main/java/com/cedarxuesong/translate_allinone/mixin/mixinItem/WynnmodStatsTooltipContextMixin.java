@@ -18,16 +18,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import java.util.ArrayList;
 import java.lang.reflect.Method;
 import java.util.List;
-import java.util.Objects;
 
 @Pseudo
 @Mixin(targets = "com.wynnmod.feature.item.wynn.StatsTooltipFeature", remap = false)
 public abstract class WynnmodStatsTooltipContextMixin {
     @Unique
     private static final String ITEM_STATUS_ANIMATION_KEY = "item-tooltip-status-wynnmod";
-
-    @Unique
-    private static final ThreadLocal<List<String>> translate_allinone$originalTooltipSnapshot = new ThreadLocal<>();
 
     @Inject(
             method = "onDrawItemTooltip(Lcom/wynnmod/mixin/events/ContainerEvents$DrawItemTooltip;)V",
@@ -37,7 +33,6 @@ public abstract class WynnmodStatsTooltipContextMixin {
     )
     private void translate_allinone$prepareWynnmodTooltip(@Coerce Object event, CallbackInfo ci) {
         TooltipTranslationContext.setSkipDrawContextTranslation(false);
-        translate_allinone$originalTooltipSnapshot.set(translate_allinone$captureTooltipLines(event));
     }
 
     @Inject(
@@ -47,32 +42,32 @@ public abstract class WynnmodStatsTooltipContextMixin {
             remap = false
     )
     private void translate_allinone$translateDecoratedWynnmodTooltip(@Coerce Object event, CallbackInfo ci) {
-        try {
-            ItemTranslateConfig config = Translate_AllinOne.getConfig().itemTranslate;
-            if (!config.enabled || !config.wynn_item_compatibility) {
-                return;
-            }
+        ItemTranslateConfig config = Translate_AllinOne.getConfig().itemTranslate;
+        if (!config.enabled || !config.wynn_item_compatibility) {
+            return;
+        }
 
-            boolean isKeyPressed = KeybindingManager.isPressed(config.keybinding.binding);
-            if (TooltipTranslationSupport.shouldShowOriginal(config.keybinding.mode, isKeyPressed)) {
-                return;
-            }
+        List<Text> currentTooltip = translate_allinone$getTooltipText(event);
+        if (currentTooltip == null || currentTooltip.isEmpty()) {
+            return;
+        }
 
-            List<Text> currentTooltip = translate_allinone$getTooltipText(event);
-            if (currentTooltip == null || currentTooltip.isEmpty()) {
-                return;
-            }
+        List<Text> sanitizedTooltip = TooltipTranslationSupport.stripInternalGeneratedLines(currentTooltip);
+        TooltipTranslationSupport.maybeForceRefreshCurrentTooltip(sanitizedTooltip, config);
+        boolean showRefreshNotice = TooltipTranslationSupport.shouldShowRefreshNotice(sanitizedTooltip, config);
 
-            List<Text> translatedTooltip = translate_allinone$translateDecoratedTooltip(currentTooltip, config);
-            if (translatedTooltip == null || translatedTooltip == currentTooltip) {
-                return;
-            }
-
-            if (translate_allinone$setTooltipText(event, translatedTooltip)) {
+        boolean isKeyPressed = KeybindingManager.isPressed(config.keybinding.binding);
+        if (TooltipTranslationSupport.shouldShowOriginal(config.keybinding.mode, isKeyPressed)) {
+            List<Text> tooltipToDisplay = TooltipTranslationSupport.appendRefreshNoticeLine(sanitizedTooltip, showRefreshNotice);
+            if (tooltipToDisplay != currentTooltip && translate_allinone$setTooltipText(event, tooltipToDisplay)) {
                 TooltipTranslationContext.setSkipDrawContextTranslation(true);
             }
-        } finally {
-            translate_allinone$originalTooltipSnapshot.remove();
+            return;
+        }
+
+        List<Text> translatedTooltip = translate_allinone$translateDecoratedTooltip(sanitizedTooltip, config, showRefreshNotice);
+        if (translate_allinone$setTooltipText(event, translatedTooltip)) {
+            TooltipTranslationContext.setSkipDrawContextTranslation(true);
         }
     }
 
@@ -96,36 +91,14 @@ public abstract class WynnmodStatsTooltipContextMixin {
     }
 
     @Unique
-    private static List<String> translate_allinone$captureTooltipLines(Object event) {
-        List<Text> tooltip = translate_allinone$getTooltipText(event);
-        if (tooltip == null || tooltip.isEmpty()) {
-            return List.of();
-        }
-
-        List<String> snapshot = new ArrayList<>(tooltip.size());
-        for (Text line : tooltip) {
-            snapshot.add(line == null ? null : line.getString());
-        }
-        return snapshot;
-    }
-
-    @Unique
-    private static List<Text> translate_allinone$translateDecoratedTooltip(List<Text> currentTooltip, ItemTranslateConfig config) {
-        List<String> originalSnapshot = translate_allinone$originalTooltipSnapshot.get();
-        if (originalSnapshot == null) {
-            originalSnapshot = List.of();
-        }
-
+    private static List<Text> translate_allinone$translateDecoratedTooltip(List<Text> currentTooltip, ItemTranslateConfig config, boolean showRefreshNotice) {
         List<Text> translatedTooltip = new ArrayList<>(currentTooltip.size() + 1);
         boolean isFirstLine = true;
-        boolean changed = false;
         boolean isCurrentItemStackPending = false;
         boolean hasMissingKeyIssue = false;
 
-        for (int i = 0; i < currentTooltip.size(); i++) {
-            Text line = currentTooltip.get(i);
-            if (translate_allinone$isInternalStatusLine(line)) {
-                changed = true;
+        for (Text line : currentTooltip) {
+            if (TooltipTranslationSupport.isInternalGeneratedLine(line)) {
                 continue;
             }
 
@@ -139,14 +112,13 @@ public abstract class WynnmodStatsTooltipContextMixin {
                 }
             }
 
-            if (!shouldTranslate || translate_allinone$isUnchangedOriginalLine(originalSnapshot, i, line)) {
+            if (!shouldTranslate) {
                 translatedTooltip.add(line);
                 continue;
             }
 
             TooltipTranslationSupport.TooltipLineResult lineResult = TooltipTranslationSupport.translateLine(line, true);
             translatedTooltip.add(lineResult.translatedLine());
-            changed = true;
             if (lineResult.pending()) {
                 isCurrentItemStackPending = true;
             }
@@ -164,29 +136,13 @@ public abstract class WynnmodStatsTooltipContextMixin {
                     hasMissingKeyIssue,
                     ITEM_STATUS_ANIMATION_KEY
             ));
-            changed = true;
         }
 
-        return changed ? translatedTooltip : currentTooltip;
-    }
-
-    @Unique
-    private static boolean translate_allinone$isUnchangedOriginalLine(List<String> originalSnapshot, int index, Text line) {
-        if (index >= originalSnapshot.size()) {
-            return false;
-        }
-        return Objects.equals(originalSnapshot.get(index), line == null ? null : line.getString());
-    }
-
-    @Unique
-    private static boolean translate_allinone$isInternalStatusLine(Text line) {
-        if (line == null) {
-            return false;
+        if (showRefreshNotice) {
+            translatedTooltip.add(TooltipTranslationSupport.createRefreshNoticeLine());
         }
 
-        String content = line.getString();
-        return content.startsWith("Translating...")
-                || content.startsWith("Item translation key mismatch, retrying...");
+        return translatedTooltip;
     }
 
     @Unique

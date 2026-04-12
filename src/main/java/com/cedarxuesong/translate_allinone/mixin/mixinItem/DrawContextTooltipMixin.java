@@ -84,11 +84,6 @@ public abstract class DrawContextTooltipMixin {
             return;
         }
 
-        boolean isKeyPressed = KeybindingManager.isPressed(config.keybinding.binding);
-        if (TooltipTranslationSupport.shouldShowOriginal(config.keybinding.mode, isKeyPressed)) {
-            return;
-        }
-
         if (!translate_allinone$isSupportedExternalTooltip(positioner, isWynntilsItemStatTooltip)) {
             return;
         }
@@ -98,9 +93,24 @@ public abstract class DrawContextTooltipMixin {
             translate_allinone$lastTooltipHash = parsedTooltip.hash();
         }
 
+        List<Text> tooltipLines = new ArrayList<>(parsedTooltip.orderedLines().size());
+        for (OrderedTooltipLine orderedLine : parsedTooltip.orderedLines()) {
+            tooltipLines.add(orderedLine.text());
+        }
+        TooltipTranslationSupport.maybeForceRefreshCurrentTooltip(tooltipLines, config);
+        boolean showRefreshNotice = TooltipTranslationSupport.shouldShowRefreshNotice(tooltipLines, config);
+
+        boolean isKeyPressed = KeybindingManager.isPressed(config.keybinding.binding);
+        if (TooltipTranslationSupport.shouldShowOriginal(config.keybinding.mode, isKeyPressed)) {
+            if (showRefreshNotice) {
+                components.add(TooltipComponent.of(TooltipTranslationSupport.createRefreshNoticeLine().asOrderedText()));
+            }
+            return;
+        }
+
         try {
             translate_allinone$isProcessing.set(true);
-            translate_allinone$translateComponentsInPlace(parsedTooltip.orderedLines(), components, config);
+            translate_allinone$translateComponentsInPlace(parsedTooltip.orderedLines(), components, config, showRefreshNotice);
         } catch (Exception e) {
             LOGGER.error("Failed to translate DrawContext tooltip components", e);
         } finally {
@@ -129,7 +139,8 @@ public abstract class DrawContextTooltipMixin {
     private void translate_allinone$translateComponentsInPlace(
             List<OrderedTooltipLine> orderedLines,
             List<TooltipComponent> components,
-            ItemTranslateConfig config
+            ItemTranslateConfig config,
+            boolean showRefreshNotice
     ) {
         boolean isFirstLine = true;
         int translatableLines = 0;
@@ -186,6 +197,10 @@ public abstract class DrawContextTooltipMixin {
                 );
                 components.add(TooltipComponent.of(statusLine.asOrderedText()));
             }
+        }
+
+        if (showRefreshNotice) {
+            components.add(TooltipComponent.of(TooltipTranslationSupport.createRefreshNoticeLine().asOrderedText()));
         }
     }
 

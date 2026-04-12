@@ -152,6 +152,9 @@ public final class ConfigSectionContentSupport {
                 if (item.keybinding.binding == null) {
                     item.keybinding.binding = new InputBindingConfig();
                 }
+                if (item.keybinding.refreshBinding == null) {
+                    item.keybinding.refreshBinding = new InputBindingConfig();
+                }
 
                 int basicStart = y;
                 toggleAdder.add(x, y, width, translator.t("label.enabled"), () -> item.enabled, value -> item.enabled = value);
@@ -188,6 +191,8 @@ public final class ConfigSectionContentSupport {
                 );
                 y += ROW_STEP;
                 actionAdder.add(x, y, width, bindingLabelProvider.label(HotkeyTarget.ITEM, item.keybinding.binding), () -> hotkeyStartBinding.handle(HotkeyTarget.ITEM));
+                y += ROW_STEP;
+                actionAdder.add(x, y, width, bindingLabelProvider.label(HotkeyTarget.ITEM_REFRESH, item.keybinding.refreshBinding), () -> hotkeyStartBinding.handle(HotkeyTarget.ITEM_REFRESH));
                 y += ROW_STEP;
                 actionAdder.add(x, y, width, translator.t("button.hotkey_clear"), () -> hotkeyClearBinding.handle(HotkeyTarget.ITEM));
                 y += ROW_STEP;
@@ -381,6 +386,7 @@ public final class ConfigSectionContentSupport {
     public enum HotkeyTarget {
         CHAT_INPUT,
         ITEM,
+        ITEM_REFRESH,
         SCOREBOARD
     }
 }

@@ -347,6 +347,39 @@ public class ItemTemplateCache {
         return new LookupResult(TranslationStatus.PENDING, "", null);
     }
 
+    public synchronized int forceRefresh(Iterable<String> originalTemplates) {
+        if (originalTemplates == null) {
+            return 0;
+        }
+
+        int refreshedCount = 0;
+        for (String originalTemplate : originalTemplates) {
+            if (originalTemplate == null || originalTemplate.isBlank()) {
+                continue;
+            }
+
+            templateCache.remove(originalTemplate);
+            errorCache.remove(originalTemplate);
+            inProgress.remove(originalTemplate);
+            allQueuedOrInProgressKeys.remove(originalTemplate);
+            while (pendingQueue.remove(originalTemplate)) {
+                // Remove stale queued copies before pushing this refresh request to the front.
+            }
+
+            allQueuedOrInProgressKeys.add(originalTemplate);
+            pendingQueue.offerFirst(originalTemplate);
+            refreshedCount++;
+        }
+
+        if (refreshedCount > 0) {
+            isDirty = true;
+            Translate_AllinOne.LOGGER.info("Force-refreshed {} item translation cache entrie(s).", refreshedCount);
+            scheduleSave();
+        }
+
+        return refreshedCount;
+    }
+
     public synchronized CacheStats getCacheStats() {
         long translatedCount = templateCache.values().stream()
                 .filter(v -> v != null && !v.isEmpty())

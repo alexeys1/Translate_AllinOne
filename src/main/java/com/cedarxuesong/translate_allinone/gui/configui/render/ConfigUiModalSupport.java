@@ -16,9 +16,15 @@ public final class ConfigUiModalSupport {
             boolean modelSettingsModalOpen,
             boolean customParametersModalOpen,
             boolean resetConfirmModalOpen,
-            boolean updateNoticeModalOpen
+            boolean updateNoticeModalOpen,
+            boolean unsavedChangesConfirmModalOpen
     ) {
-        return addProviderModalOpen || modelSettingsModalOpen || customParametersModalOpen || resetConfirmModalOpen || updateNoticeModalOpen;
+        return addProviderModalOpen
+                || modelSettingsModalOpen
+                || customParametersModalOpen
+                || resetConfirmModalOpen
+                || updateNoticeModalOpen
+                || unsavedChangesConfirmModalOpen;
     }
 
     public static boolean isInsideOpenModal(
@@ -30,12 +36,16 @@ public final class ConfigUiModalSupport {
             boolean modelSettingsModalOpen,
             boolean customParametersModalOpen,
             boolean resetConfirmModalOpen,
-            boolean updateNoticeModalOpen
+            boolean updateNoticeModalOpen,
+            boolean unsavedChangesConfirmModalOpen
     ) {
         if (updateNoticeModalOpen && updateNoticeModalRect(screenWidth, screenHeight).contains(x, y)) {
             return true;
         }
         if (resetConfirmModalOpen && resetConfirmModalRect(screenWidth, screenHeight).contains(x, y)) {
+            return true;
+        }
+        if (unsavedChangesConfirmModalOpen && unsavedChangesConfirmModalRect(screenWidth, screenHeight).contains(x, y)) {
             return true;
         }
         if (customParametersModalOpen && customParametersModalRect(screenWidth, screenHeight).contains(x, y)) {
@@ -81,6 +91,14 @@ public final class ConfigUiModalSupport {
 
     public static UiRect updateNoticeModalRect(int screenWidth, int screenHeight) {
         int width = 460;
+        int height = 190;
+        int x = (screenWidth - width) / 2;
+        int y = (screenHeight - height) / 2;
+        return new UiRect(x, y, width, height);
+    }
+
+    public static UiRect unsavedChangesConfirmModalRect(int screenWidth, int screenHeight) {
+        int width = 500;
         int height = 190;
         int x = (screenWidth - width) / 2;
         int y = (screenHeight - height) / 2;

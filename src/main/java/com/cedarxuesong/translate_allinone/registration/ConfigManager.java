@@ -147,6 +147,9 @@ public class ConfigManager {
         if (configToUse.itemTranslate.keybinding.binding == null) {
             configToUse.itemTranslate.keybinding.binding = new InputBindingConfig();
         }
+        if (configToUse.itemTranslate.keybinding.refreshBinding == null) {
+            configToUse.itemTranslate.keybinding.refreshBinding = new InputBindingConfig();
+        }
 
         if (configToUse.scoreboardTranslate.keybinding == null) {
             configToUse.scoreboardTranslate.keybinding = new ScoreboardConfig.KeybindingConfig();
