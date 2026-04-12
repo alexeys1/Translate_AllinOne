@@ -2,14 +2,15 @@
 	"schemaVersion": 1,
 	"id": "translate_allinone",
 	"version": "${version}",
-	"name": "Translate All in One",
+	"name": "Translate All in One (Fork)",
 	"description": "一款为 Minecraft 打造的功能强大的游戏内 AI 实时翻译模组，基于 Fabric。",
 	"authors": [
-		"CedarXuesong"
+		"CedarXuesong",
+		"Alexeys"
 	],
 	"contact": {
-		"homepage": "https://github.com/CedarXuesong/Translate_AllinOne",
-		"sources": "https://github.com/CedarXuesong/Translate_AllinOne"
+		"homepage": "https://github.com/alexeys1/Translate_AllinOne",
+		"sources": "https://github.com/alexeys1/Translate_AllinOne"
 	},
 	"license": "MIT",
 	"icon": "assets/translate_allinone/icon.png",

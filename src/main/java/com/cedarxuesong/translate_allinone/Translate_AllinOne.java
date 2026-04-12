@@ -3,6 +3,7 @@ package com.cedarxuesong.translate_allinone;
 import com.cedarxuesong.translate_allinone.registration.CommandManager;
 import com.cedarxuesong.translate_allinone.registration.ConfigManager;
 import com.cedarxuesong.translate_allinone.registration.LifecycleEventManager;
+import com.cedarxuesong.translate_allinone.utils.backup.VersionUpgradeBackupManager;
 import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
 import com.cedarxuesong.translate_allinone.utils.update.UpdateCheckManager;
 import net.fabricmc.api.ModInitializer;
@@ -17,6 +18,7 @@ public class Translate_AllinOne implements ModInitializer {
 	@Override
 	public void onInitialize() {
 		LOGGER.info("Translate All in One is initializing...");
+		VersionUpgradeBackupManager.backupIfVersionChanged();
 		ConfigManager.register();
 		UpdateCheckManager.startStartupCheck();
 		CommandManager.register();
