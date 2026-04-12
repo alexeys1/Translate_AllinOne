@@ -26,8 +26,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 每次客户端启动后执行一次 GitHub TAG 更新检测。
  */
 public final class UpdateCheckManager {
-    private static final String TAGS_API_URL = "https://api.github.com/repos/CedarXuesong/Translate_AllinOne/tags?per_page=100";
-    private static final String RELEASE_URL_PREFIX = "https://github.com/CedarXuesong/Translate_AllinOne/releases/tag/";
+    private static final String TAGS_API_URL = "https://api.github.com/repos/alexeys1/Translate_AllinOne/tags?per_page=100";
+    private static final String RELEASE_URL_PREFIX = "https://github.com/alexeys1/Translate_AllinOne/releases/tag/";
 
     private static final Gson GSON = new Gson();
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
