@@ -2,6 +2,7 @@ package com.cedarxuesong.translate_allinone.utils.text;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.IntPredicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -102,13 +103,22 @@ public class TemplateProcessor {
     }
 
     public static DecorativeGlyphExtractionResult extractDecorativeGlyphTags(String text) {
+        return extractDecorativeGlyphTags(text, styleId -> false);
+    }
+
+    public static DecorativeGlyphExtractionResult extractDecorativeGlyphTags(String text, IntPredicate preserveStyleId) {
         List<String> values = new ArrayList<>();
         Matcher matcher = STYLE_TAG_PATTERN.matcher(text);
         StringBuilder templateBuffer = new StringBuilder();
 
         while (matcher.find()) {
+            int styleId = Integer.parseInt(matcher.group(1));
             String taggedContent = matcher.group(2);
-            if (!isDecorativeGlyphOnly(taggedContent)) {
+            if (!isDecorativeGlyphOnly(taggedContent)
+                    && !(preserveStyleId != null
+                    && preserveStyleId.test(styleId)
+                    && ((isSymbolLikeOnly(taggedContent) && !isAsciiPlainPunctuationOnly(taggedContent))
+                    || isLikelyDecorativeFontToken(taggedContent)))) {
                 matcher.appendReplacement(templateBuffer, Matcher.quoteReplacement(matcher.group()));
                 continue;
             }
@@ -144,6 +154,129 @@ public class TemplateProcessor {
         }
 
         return true;
+    }
+
+    private static boolean isSymbolLikeOnly(String text) {
+        if (text == null || text.isEmpty()) {
+            return false;
+        }
+
+        boolean sawNonWhitespace = false;
+        for (int offset = 0; offset < text.length(); ) {
+            int codePoint = text.codePointAt(offset);
+            if (Character.isWhitespace(codePoint)) {
+                offset += Character.charCount(codePoint);
+                continue;
+            }
+            sawNonWhitespace = true;
+            if (Character.isLetterOrDigit(codePoint)) {
+                return false;
+            }
+            offset += Character.charCount(codePoint);
+        }
+
+        return sawNonWhitespace;
+    }
+
+    private static boolean isLikelyDecorativeFontToken(String text) {
+        if (text == null || text.isEmpty()) {
+            return false;
+        }
+        if (isAsciiPlainPunctuationOnly(text)) {
+            return false;
+        }
+
+        int nonWhitespaceCodePoints = 0;
+        boolean sawMeaningfulCodePoint = false;
+        boolean sawLetter = false;
+        boolean sawLowercaseLetter = false;
+        boolean sawDecorativeGlyph = false;
+        boolean sawSymbolicCodePoint = false;
+        for (int offset = 0; offset < text.length(); ) {
+            int codePoint = text.codePointAt(offset);
+            offset += Character.charCount(codePoint);
+
+            if (Character.isWhitespace(codePoint)) {
+                continue;
+            }
+
+            sawMeaningfulCodePoint = true;
+            nonWhitespaceCodePoints++;
+            if (nonWhitespaceCodePoints > 2 || Character.isDigit(codePoint)) {
+                return false;
+            }
+
+            if (Character.isLetter(codePoint)) {
+                sawLetter = true;
+                if (Character.isLowerCase(codePoint)) {
+                    sawLowercaseLetter = true;
+                }
+            }
+            if (isDecorativeGlyphCodePoint(codePoint)) {
+                sawDecorativeGlyph = true;
+            }
+            if (isSymbolicCodePoint(codePoint)) {
+                sawSymbolicCodePoint = true;
+            }
+            if (!(Character.isLetter(codePoint) || isDecorativeGlyphCodePoint(codePoint) || isSymbolicCodePoint(codePoint))) {
+                return false;
+            }
+        }
+
+        if (!sawMeaningfulCodePoint) {
+            return false;
+        }
+        if (sawDecorativeGlyph || sawSymbolicCodePoint) {
+            return true;
+        }
+        if (sawLetter && sawLowercaseLetter) {
+            return false;
+        }
+        return sawMeaningfulCodePoint;
+    }
+
+    private static boolean isAsciiPlainPunctuationOnly(String text) {
+        if (text == null || text.isEmpty()) {
+            return false;
+        }
+
+        boolean sawNonWhitespace = false;
+        for (int offset = 0; offset < text.length(); ) {
+            int codePoint = text.codePointAt(offset);
+            offset += Character.charCount(codePoint);
+
+            if (Character.isWhitespace(codePoint)) {
+                continue;
+            }
+
+            if (!isAsciiPlainPunctuation(codePoint)) {
+                return false;
+            }
+            sawNonWhitespace = true;
+        }
+
+        return sawNonWhitespace;
+    }
+
+    private static boolean isAsciiPlainPunctuation(int codePoint) {
+        return codePoint <= 0x7F
+                && !Character.isLetterOrDigit(codePoint)
+                && !Character.isWhitespace(codePoint);
+    }
+
+    private static boolean isSymbolicCodePoint(int codePoint) {
+        int type = Character.getType(codePoint);
+        return type == Character.MATH_SYMBOL
+                || type == Character.CURRENCY_SYMBOL
+                || type == Character.MODIFIER_SYMBOL
+                || type == Character.OTHER_SYMBOL
+                || type == Character.CONNECTOR_PUNCTUATION
+                || type == Character.DASH_PUNCTUATION
+                || type == Character.START_PUNCTUATION
+                || type == Character.END_PUNCTUATION
+                || type == Character.INITIAL_QUOTE_PUNCTUATION
+                || type == Character.FINAL_QUOTE_PUNCTUATION
+                || type == Character.OTHER_PUNCTUATION;
     }
 
     private static boolean isDecorativeGlyphCodePoint(int codePoint) {

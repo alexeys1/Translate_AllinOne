@@ -192,13 +192,26 @@ public final class TooltipTextMatcherSupport {
                 && config.debug.log_tooltip_timing;
     }
 
+    public static boolean shouldLogTooltipParagraphResult(ItemTranslateConfig config) {
+        return isDevEnabled(config)
+                && config.debug.log_tooltip_paragraph_result;
+    }
+
+    public static boolean shouldLogTooltipStyleMap(ItemTranslateConfig config) {
+        return isDevEnabled(config)
+                && config.debug.log_tooltip_style_map;
+    }
+
     public static boolean shouldLogItemBatchTiming(ItemTranslateConfig config) {
         return isDevEnabled(config)
                 && config.debug.log_item_batch_timing;
     }
 
     private static boolean shouldLogAnyTooltipDev(ItemTranslateConfig config) {
-        return shouldLogTooltipFilterResult(config) || shouldLogTooltipTiming(config);
+        return shouldLogTooltipFilterResult(config)
+                || shouldLogTooltipTiming(config)
+                || shouldLogTooltipParagraphResult(config)
+                || shouldLogTooltipStyleMap(config);
     }
 
     public static boolean beginTooltipDevPass(ItemTranslateConfig config, String source, List<Text> tooltipLines) {

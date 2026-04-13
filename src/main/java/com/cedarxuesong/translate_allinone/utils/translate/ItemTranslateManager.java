@@ -448,8 +448,9 @@ public class ItemTranslateManager {
                 + "3) Translate values only.\n"
                 + "4) Preserve style tags exactly: <s0>...</s0>, <s1>...</s1>, ... Keep the same tag ids, counts, and order.\n"
                 + "5) Preserve tokens exactly: §a §l §r %s %d %f {d1} URLs numbers <...> {...} \\n \\t.\n"
-                + "6) If unsure for a value, keep that value unchanged.\n"
-                + "7) No extra text outside JSON.";
+                + "6) If a value contains line breaks, preserve the full meaning and paragraph order. Keep intentional structural breaks when they matter, but soft-wrapped tooltip text may be reflowed naturally. Do not omit words or leave connector fragments like 'by' or 'to' untranslated inside an otherwise translated sentence.\n"
+                + "7) If unsure for a value, keep that value unchanged.\n"
+                + "8) No extra text outside JSON.";
         return PromptMessageBuilder.appendSystemPromptSuffix(basePrompt, suffix);
     }
 

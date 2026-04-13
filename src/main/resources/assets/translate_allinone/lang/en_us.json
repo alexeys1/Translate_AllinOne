@@ -255,6 +255,8 @@
   "text.translate_allinone.configscreen.label.item_dev_enabled": "Enable Item Translation Debug",
   "text.translate_allinone.configscreen.label.item_dev_log_tooltip_filter": "Log TextMatcher Filter Results",
   "text.translate_allinone.configscreen.label.item_dev_log_tooltip_nodes": "Log TextMatcher Node Details",
+  "text.translate_allinone.configscreen.label.item_dev_log_tooltip_paragraph": "Log Tooltip Paragraph Reflow",
+  "text.translate_allinone.configscreen.label.item_dev_log_tooltip_style_map": "Log Tooltip Style Map",
   "text.translate_allinone.configscreen.label.item_dev_log_tooltip_timing": "Log Tooltip Translation Timing",
   "text.translate_allinone.configscreen.label.item_dev_log_batch_timing": "Log Item Batch Timing",
   "text.translate_allinone.configscreen.label.wynn_item_compatibility": "Wynn Item Compatibility",

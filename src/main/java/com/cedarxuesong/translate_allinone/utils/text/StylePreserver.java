@@ -5,7 +5,9 @@ import net.minecraft.text.Style;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -105,6 +107,10 @@ public class StylePreserver {
 
     public static Text reapplyStylesFromTags(String translatedText, Map<Integer, Style> styleMap) {
         return reapplyStylesFromTags(translatedText, styleMap, false);
+    }
+
+    public static Style sanitizeStyleForComparison(Style style, boolean stripFont) {
+        return sanitizeStyle(style == null ? Style.EMPTY : style, stripFont);
     }
 
     public static Text reapplyStylesFromTags(String translatedText, Map<Integer, Style> styleMap, boolean stripFont) {
@@ -211,6 +217,11 @@ public class StylePreserver {
             return;
         }
 
+        if (stripFont && shouldKeepOriginalFontForSegment(content, originalStyle)) {
+            target.append(Text.literal(content).setStyle(originalStyle));
+            return;
+        }
+
         Style sanitizedStyle = sanitizeStyle(originalStyle, stripFont);
         if (!stripFont || originalStyle.equals(sanitizedStyle)) {
             target.append(Text.literal(content).setStyle(sanitizedStyle));
@@ -237,6 +248,117 @@ public class StylePreserver {
         if (run.length() > 0) {
             target.append(Text.literal(run.toString()).setStyle(Boolean.TRUE.equals(keepOriginalFontForRun) ? originalStyle : sanitizedStyle));
         }
+    }
+
+    private static boolean shouldKeepOriginalFontForSegment(String content, Style originalStyle) {
+        if (originalStyle == null || originalStyle.getFont() == null || content == null || content.isEmpty()) {
+            return false;
+        }
+        if (isAsciiPlainPunctuationOnly(content)) {
+            return false;
+        }
+
+        if (isLikelyDecorativeFontToken(content)) {
+            return true;
+        }
+
+        boolean sawNonWhitespace = false;
+        for (int offset = 0; offset < content.length(); ) {
+            int codePoint = content.codePointAt(offset);
+            if (Character.isWhitespace(codePoint)) {
+                offset += Character.charCount(codePoint);
+                continue;
+            }
+            sawNonWhitespace = true;
+            if (Character.isLetterOrDigit(codePoint)) {
+                return false;
+            }
+            offset += Character.charCount(codePoint);
+        }
+
+        return sawNonWhitespace && !isAsciiPlainPunctuationOnly(content);
+    }
+
+    private static boolean isLikelyDecorativeFontToken(String content) {
+        if (content == null || content.isEmpty()) {
+            return false;
+        }
+        if (isAsciiPlainPunctuationOnly(content)) {
+            return false;
+        }
+
+        int nonWhitespaceCodePoints = 0;
+        boolean sawMeaningfulCodePoint = false;
+        boolean sawLetter = false;
+        boolean sawLowercaseLetter = false;
+        boolean sawDecorativeGlyph = false;
+        boolean sawSymbolicCodePoint = false;
+        for (int offset = 0; offset < content.length(); ) {
+            int codePoint = content.codePointAt(offset);
+            offset += Character.charCount(codePoint);
+
+            if (Character.isWhitespace(codePoint)) {
+                continue;
+            }
+
+            sawMeaningfulCodePoint = true;
+            nonWhitespaceCodePoints++;
+            if (nonWhitespaceCodePoints > 2 || Character.isDigit(codePoint)) {
+                return false;
+            }
+
+            if (Character.isLetter(codePoint)) {
+                sawLetter = true;
+                if (Character.isLowerCase(codePoint)) {
+                    sawLowercaseLetter = true;
+                }
+            }
+            if (isDecorativeGlyphCodePoint(codePoint)) {
+                sawDecorativeGlyph = true;
+            }
+            if (isSymbolicCodePoint(codePoint)) {
+                sawSymbolicCodePoint = true;
+            }
+            if (!(Character.isLetter(codePoint) || isDecorativeGlyphCodePoint(codePoint) || isSymbolicCodePoint(codePoint))) {
+                return false;
+            }
+        }
+
+        if (!sawMeaningfulCodePoint) {
+            return false;
+        }
+        if (sawDecorativeGlyph || sawSymbolicCodePoint) {
+            return true;
+        }
+        if (sawLetter && sawLowercaseLetter) {
+            return false;
+        }
+        return sawMeaningfulCodePoint;
+    }
+
+    private static boolean isAsciiPlainPunctuationOnly(String content) {
+        boolean sawNonWhitespace = false;
+        for (int offset = 0; offset < content.length(); ) {
+            int codePoint = content.codePointAt(offset);
+            offset += Character.charCount(codePoint);
+
+            if (Character.isWhitespace(codePoint)) {
+                continue;
+            }
+
+            if (!isAsciiPlainPunctuation(codePoint)) {
+                return false;
+            }
+            sawNonWhitespace = true;
+        }
+
+        return sawNonWhitespace;
+    }
+
+    private static boolean isAsciiPlainPunctuation(int codePoint) {
+        return codePoint <= 0x7F
+                && !Character.isLetterOrDigit(codePoint)
+                && !Character.isWhitespace(codePoint);
     }
 
     private static Style sanitizeStyle(Style style, boolean stripFont) {
@@ -277,6 +399,21 @@ public class StylePreserver {
         return (codePoint >= 0xE000 && codePoint <= 0xF8FF)
                 || (codePoint >= 0xF0000 && codePoint <= 0xFFFFD)
                 || (codePoint >= 0x100000 && codePoint <= 0x10FFFD);
+    }
+
+    private static boolean isSymbolicCodePoint(int codePoint) {
+        int type = Character.getType(codePoint);
+        return type == Character.MATH_SYMBOL
+                || type == Character.CURRENCY_SYMBOL
+                || type == Character.MODIFIER_SYMBOL
+                || type == Character.OTHER_SYMBOL
+                || type == Character.CONNECTOR_PUNCTUATION
+                || type == Character.DASH_PUNCTUATION
+                || type == Character.START_PUNCTUATION
+                || type == Character.END_PUNCTUATION
+                || type == Character.INITIAL_QUOTE_PUNCTUATION
+                || type == Character.FINAL_QUOTE_PUNCTUATION
+                || type == Character.OTHER_PUNCTUATION;
     }
 
     public static String toLegacyTemplate(String markedTemplate, Map<Integer, Style> styleMap) {
@@ -372,4 +509,5 @@ public class StylePreserver {
 
         return result;
     }
-} 
+
+}

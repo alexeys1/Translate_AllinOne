@@ -251,6 +251,8 @@
   "text.translate_allinone.configscreen.label.item_dev_enabled": "启用物品翻译调试",
   "text.translate_allinone.configscreen.label.item_dev_log_tooltip_filter": "记录 TextMatcher 过滤结果",
   "text.translate_allinone.configscreen.label.item_dev_log_tooltip_nodes": "记录 TextMatcher 节点详情",
+  "text.translate_allinone.configscreen.label.item_dev_log_tooltip_paragraph": "记录 Tooltip 段落重组日志",
+  "text.translate_allinone.configscreen.label.item_dev_log_tooltip_style_map": "记录 Tooltip 样式映射日志",
   "text.translate_allinone.configscreen.label.item_dev_log_tooltip_timing": "记录 Tooltip 翻译耗时",
   "text.translate_allinone.configscreen.label.item_dev_log_batch_timing": "记录物品批次请求耗时",
   "text.translate_allinone.configscreen.label.wynn_item_compatibility": "Wynn 物品兼容",

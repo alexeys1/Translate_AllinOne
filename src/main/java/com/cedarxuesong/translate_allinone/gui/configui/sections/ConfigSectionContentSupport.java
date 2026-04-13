@@ -274,6 +274,24 @@ public final class ConfigSectionContentSupport {
                         x,
                         y,
                         width,
+                        translator.t("label.item_dev_log_tooltip_paragraph"),
+                        () -> item.debug.log_tooltip_paragraph_result,
+                        value -> item.debug.log_tooltip_paragraph_result = value
+                );
+                y += ROW_STEP;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.item_dev_log_tooltip_style_map"),
+                        () -> item.debug.log_tooltip_style_map,
+                        value -> item.debug.log_tooltip_style_map = value
+                );
+                y += ROW_STEP;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
                         translator.t("label.item_dev_log_tooltip_timing"),
                         () -> item.debug.log_tooltip_timing,
                         value -> item.debug.log_tooltip_timing = value

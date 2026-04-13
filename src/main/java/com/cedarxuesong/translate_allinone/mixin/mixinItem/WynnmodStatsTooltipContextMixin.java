@@ -107,60 +107,23 @@ public abstract class WynnmodStatsTooltipContextMixin {
             boolean emitDevLog,
             long tooltipStartedAtNanos
     ) {
-        List<Text> translatedTooltip = new ArrayList<>(currentTooltip.size() + 1);
-        boolean isFirstLine = true;
-        int translatableLines = 0;
-        boolean isCurrentItemStackPending = false;
-        boolean hasMissingKeyIssue = false;
-
-        for (int lineIndex = 0; lineIndex < currentTooltip.size(); lineIndex++) {
-            Text line = currentTooltip.get(lineIndex);
-            if (TooltipTranslationSupport.isInternalGeneratedLine(line)) {
-                continue;
-            }
-
-            if (line == null || line.getString().trim().isEmpty()) {
-                translatedTooltip.add(line);
-                continue;
-            }
-
-            boolean firstContentLine = isFirstLine;
-            isFirstLine = false;
-            TooltipTextMatcherSupport.TooltipLineDecision decision =
-                    TooltipTextMatcherSupport.evaluateTooltipLine(line, firstContentLine, config);
-            TooltipTextMatcherSupport.logLineDecisionIfDev(config, emitDevLog, "wynnmod", lineIndex, decision, line);
-            if (!decision.shouldTranslate()) {
-                translatedTooltip.add(line);
-                continue;
-            }
-
-            translatableLines++;
-            long lineStartedAtNanos = emitDevLog ? System.nanoTime() : 0L;
-            TooltipTranslationSupport.TooltipLineResult lineResult = TooltipTranslationSupport.translateLine(line, true);
-            TooltipTextMatcherSupport.logLineTranslationIfDev(
-                    config,
-                    emitDevLog,
-                    "wynnmod",
-                    lineIndex,
-                    lineResult,
-                    lineStartedAtNanos
-            );
-            translatedTooltip.add(lineResult.translatedLine());
-            if (lineResult.pending()) {
-                isCurrentItemStackPending = true;
-            }
-            if (lineResult.missingKeyIssue()) {
-                hasMissingKeyIssue = true;
-            }
-        }
+        List<Text> tooltip = TooltipTranslationSupport.stripInternalGeneratedLines(currentTooltip);
+        TooltipTranslationSupport.TooltipProcessingResult processedTooltip = TooltipTranslationSupport.processTooltipLines(
+                tooltip,
+                config,
+                true,
+                emitDevLog,
+                "wynnmod"
+        );
+        List<Text> translatedTooltip = new ArrayList<>(processedTooltip.translatedLines());
 
         ItemTemplateCache.CacheStats stats = ItemTemplateCache.getInstance().getCacheStats();
         boolean isAnythingPending = stats.total() > stats.translated();
-        boolean shouldShowStatus = isCurrentItemStackPending || hasMissingKeyIssue || isAnythingPending;
+        boolean shouldShowStatus = processedTooltip.pending() || processedTooltip.missingKeyIssue() || isAnythingPending;
         if (shouldShowStatus) {
             translatedTooltip.add(TooltipTranslationSupport.createStatusLine(
                     stats,
-                    hasMissingKeyIssue,
+                    processedTooltip.missingKeyIssue(),
                     ITEM_STATUS_ANIMATION_KEY
             ));
         }
@@ -173,8 +136,8 @@ public abstract class WynnmodStatsTooltipContextMixin {
                 config,
                 emitDevLog,
                 "wynnmod",
-                currentTooltip.size(),
-                translatableLines,
+                tooltip.size(),
+                processedTooltip.translatableLines(),
                 tooltipStartedAtNanos
         );
         return translatedTooltip;

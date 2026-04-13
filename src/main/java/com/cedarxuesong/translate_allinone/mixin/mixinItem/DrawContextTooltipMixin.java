@@ -155,61 +155,52 @@ public abstract class DrawContextTooltipMixin {
             boolean emitDevLog,
             long tooltipStartedAtNanos
     ) {
-        boolean isFirstLine = true;
-        int translatableLines = 0;
-        boolean isCurrentItemStackPending = false;
-        boolean hasMissingKeyIssue = false;
-
-        for (int lineIndex = 0; lineIndex < orderedLines.size(); lineIndex++) {
-            OrderedTooltipLine orderedLine = orderedLines.get(lineIndex);
-            OrderedTextTooltipComponentAccessor accessor = orderedLine.accessor();
-            Text line = orderedLine.text();
-            if (line.getString().trim().isEmpty()) {
-                continue;
-            }
-
-            boolean firstContentLine = isFirstLine;
-            isFirstLine = false;
-            TooltipTextMatcherSupport.TooltipLineDecision decision =
-                    TooltipTextMatcherSupport.evaluateTooltipLine(line, firstContentLine, config);
-            TooltipTextMatcherSupport.logLineDecisionIfDev(config, emitDevLog, "draw-context", lineIndex, decision, line);
-
-            if (!decision.shouldTranslate()) {
-                continue;
-            }
-
-            translatableLines++;
-            long lineStartedAtNanos = emitDevLog ? System.nanoTime() : 0L;
-            TooltipTranslationSupport.TooltipLineResult lineResult = TooltipTranslationSupport.translateLine(
-                    line,
-                    config.wynn_item_compatibility
-            );
-            TooltipTextMatcherSupport.logLineTranslationIfDev(
-                    config,
-                    emitDevLog,
-                    "draw-context",
-                    lineIndex,
-                    lineResult,
-                    lineStartedAtNanos
-            );
-            if (lineResult.pending()) {
-                isCurrentItemStackPending = true;
-            }
-            if (lineResult.missingKeyIssue()) {
-                hasMissingKeyIssue = true;
-            }
-
-            accessor.setText(lineResult.translatedLine().asOrderedText());
+        List<Text> sourceLines = new ArrayList<>(orderedLines.size());
+        for (OrderedTooltipLine orderedLine : orderedLines) {
+            sourceLines.add(orderedLine.text());
         }
 
-        if (translatableLines > 0) {
+        TooltipTranslationSupport.TooltipProcessingResult processedTooltip = TooltipTranslationSupport.processTooltipLines(
+                sourceLines,
+                config,
+                config.wynn_item_compatibility,
+                emitDevLog,
+                "draw-context"
+        );
+
+        if (processedTooltip.translatedLines().size() == orderedLines.size()) {
+            for (int lineIndex = 0; lineIndex < orderedLines.size(); lineIndex++) {
+                OrderedTextTooltipComponentAccessor accessor = orderedLines.get(lineIndex).accessor();
+                Text translatedLine = processedTooltip.translatedLines().get(lineIndex);
+                if (translatedLine != null) {
+                    accessor.setText(translatedLine.asOrderedText());
+                }
+            }
+        } else if (orderedLines.size() == components.size()) {
+            components.clear();
+            for (Text translatedLine : processedTooltip.translatedLines()) {
+                if (translatedLine != null) {
+                    components.add(TooltipComponent.of(translatedLine.asOrderedText()));
+                }
+            }
+        } else {
+            for (int lineIndex = 0; lineIndex < orderedLines.size() && lineIndex < processedTooltip.translatedLines().size(); lineIndex++) {
+                OrderedTextTooltipComponentAccessor accessor = orderedLines.get(lineIndex).accessor();
+                Text translatedLine = processedTooltip.translatedLines().get(lineIndex);
+                if (translatedLine != null) {
+                    accessor.setText(translatedLine.asOrderedText());
+                }
+            }
+        }
+
+        if (processedTooltip.translatableLines() > 0) {
             ItemTemplateCache.CacheStats stats = ItemTemplateCache.getInstance().getCacheStats();
             boolean isAnythingPending = stats.total() > stats.translated();
-            boolean shouldShowStatus = isCurrentItemStackPending || hasMissingKeyIssue || isAnythingPending;
+            boolean shouldShowStatus = processedTooltip.pending() || processedTooltip.missingKeyIssue() || isAnythingPending;
             if (shouldShowStatus) {
                 Text statusLine = TooltipTranslationSupport.createStatusLine(
                         stats,
-                        hasMissingKeyIssue,
+                        processedTooltip.missingKeyIssue(),
                         ITEM_STATUS_ANIMATION_KEY
                 );
                 components.add(TooltipComponent.of(statusLine.asOrderedText()));
@@ -225,7 +216,7 @@ public abstract class DrawContextTooltipMixin {
                 emitDevLog,
                 "draw-context",
                 orderedLines.size(),
-                translatableLines,
+                processedTooltip.translatableLines(),
                 tooltipStartedAtNanos
         );
     }
