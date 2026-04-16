@@ -7,10 +7,13 @@ import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 
 public class MainCommand {
     public static void register(CommandDispatcher<FabricClientCommandSource> dispatcher) {
-        LiteralArgumentBuilder<FabricClientCommandSource> root = ClientCommandManager.literal("translate_allinone");
+        dispatcher.register(createRoot("translate_allinone"));
+        dispatcher.register(createRoot("taio"));
+    }
 
-        dispatcher.register(root.then(
-                ChatHudTranslateCommand.getArgumentBuilder()
-        ));
+    private static LiteralArgumentBuilder<FabricClientCommandSource> createRoot(String name) {
+        return ClientCommandManager.literal(name)
+                .executes(OpenConfigCommand::run)
+                .then(ChatHudTranslateCommand.getArgumentBuilder());
     }
 }

@@ -510,4 +510,103 @@ public class StylePreserver {
         return result;
     }
 
+    public static String convertLegacyTranslationToTaggedTemplate(String legacyTranslation, Map<Integer, Style> targetStyleMap) {
+        if (legacyTranslation == null || legacyTranslation.isEmpty()) {
+            return legacyTranslation;
+        }
+        if (targetStyleMap == null || targetStyleMap.isEmpty()) {
+            return legacyTranslation;
+        }
+
+        List<Integer> orderedStyleIds = new ArrayList<>(targetStyleMap.keySet());
+        orderedStyleIds.sort(Integer::compareTo);
+        StringBuilder taggedTranslation = new StringBuilder();
+        int[] preferredSearchIndex = {0};
+        boolean[] success = {true};
+
+        fromLegacyText(legacyTranslation).visit((style, string) -> {
+            if (string == null || string.isEmpty()) {
+                return Optional.empty();
+            }
+
+            if (style == null || style.isEmpty()) {
+                taggedTranslation.append(string);
+                return Optional.empty();
+            }
+
+            int matchedIndex = findBestMatchingStyleIndex(string, style, targetStyleMap, orderedStyleIds, preferredSearchIndex[0]);
+            if (matchedIndex < 0) {
+                success[0] = false;
+                return Optional.of(Unit.INSTANCE);
+            }
+
+            int styleId = orderedStyleIds.get(matchedIndex);
+            taggedTranslation.append("<s").append(styleId).append(">");
+            taggedTranslation.append(string);
+            taggedTranslation.append("</s").append(styleId).append(">");
+            preferredSearchIndex[0] = matchedIndex;
+            return Optional.empty();
+        }, Style.EMPTY);
+
+        return success[0] ? taggedTranslation.toString() : null;
+    }
+
+    private static int findBestMatchingStyleIndex(
+            String content,
+            Style legacyStyle,
+            Map<Integer, Style> targetStyleMap,
+            List<Integer> orderedStyleIds,
+            int preferredSearchIndex
+    ) {
+        boolean decorativeToken = isLikelyDecorativeFontToken(content);
+        int bestIndex = -1;
+        int bestScore = Integer.MIN_VALUE;
+
+        for (int i = 0; i < orderedStyleIds.size(); i++) {
+            Style candidateStyle = targetStyleMap.get(orderedStyleIds.get(i));
+            if (!matchesLegacyFormatting(candidateStyle, legacyStyle)) {
+                continue;
+            }
+
+            int score = 0;
+            if (i >= preferredSearchIndex) {
+                score += 1000;
+                score -= (i - preferredSearchIndex);
+            } else {
+                score -= (preferredSearchIndex - i) * 4;
+            }
+
+            boolean candidateHasFont = candidateStyle != null && candidateStyle.getFont() != null;
+            if (decorativeToken == candidateHasFont) {
+                score += 200;
+            } else if (!candidateHasFont) {
+                score += 25;
+            }
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestIndex = i;
+            }
+        }
+
+        return bestIndex;
+    }
+
+    private static boolean matchesLegacyFormatting(Style candidateStyle, Style legacyStyle) {
+        Style candidate = sanitizeStyle(candidateStyle == null ? Style.EMPTY : candidateStyle, true);
+        Style legacy = sanitizeStyle(legacyStyle == null ? Style.EMPTY : legacyStyle, false);
+
+        int candidateColor = candidate.getColor() == null ? Integer.MIN_VALUE : candidate.getColor().getRgb();
+        int legacyColor = legacy.getColor() == null ? Integer.MIN_VALUE : legacy.getColor().getRgb();
+        return candidateColor == legacyColor
+                && candidate.isBold() == legacy.isBold()
+                && candidate.isItalic() == legacy.isItalic()
+                && candidate.isUnderlined() == legacy.isUnderlined()
+                && candidate.isStrikethrough() == legacy.isStrikethrough()
+                && candidate.isObfuscated() == legacy.isObfuscated();
+    }
+
+    private enum Unit {
+        INSTANCE
+    }
 }

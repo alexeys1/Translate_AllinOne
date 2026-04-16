@@ -35,5 +35,6 @@ public class ItemTranslateConfig {
         public boolean log_tooltip_style_map = false;
         public boolean log_tooltip_timing = false;
         public boolean log_item_batch_timing = false;
+        public boolean log_cache_migration = false;
     }
 }

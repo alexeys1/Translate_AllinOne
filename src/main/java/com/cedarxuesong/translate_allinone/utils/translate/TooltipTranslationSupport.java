@@ -35,8 +35,13 @@ import java.util.regex.Pattern;
 public final class TooltipTranslationSupport {
     private static final String MISSING_KEY_HINT = "missing key";
     private static final String KEY_MISMATCH_HINT = "key mismatch";
+    private static final String STORED_LEGACY_PREFIX = "[taio:legacy]";
     private static final String TOOLTIP_REFRESH_NOTICE_KEY = "text.translate_allinone.item.tooltip_refresh_forced";
     private static final long REFRESH_NOTICE_DURATION_MILLIS = 1500L;
+    private static final long CACHE_MIGRATION_LOG_THROTTLE_WINDOW_MILLIS = 5000L;
+    private static final int CACHE_MIGRATION_LOG_THROTTLE_STATE_LIMIT = 4096;
+    private static final long FORCE_REFRESH_COMPAT_BYPASS_MILLIS = 300_000L;
+    private static final int FORCE_REFRESH_COMPAT_BYPASS_STATE_LIMIT = 4096;
     private static final Pattern STYLE_TAG_ID_PATTERN = Pattern.compile("</?s(\\d+)>");
     private static final Pattern NUMERIC_PLACEHOLDER_ID_PATTERN = Pattern.compile("\\{d(\\d+)}");
     private static final Pattern GLYPH_PLACEHOLDER_ID_PATTERN = Pattern.compile("\\{g(\\d+)}");
@@ -47,6 +52,10 @@ public final class TooltipTranslationSupport {
     private static final int MIN_PARAGRAPH_BODY_STYLE_DOMINANCE_PERCENT = 55;
     private static final Logger LOGGER = LoggerFactory.getLogger("Translate_AllinOne/TooltipTranslationSupport");
     private static final Set<Integer> refreshedTooltipSignaturesThisHold = new HashSet<>();
+    private static final ConcurrentHashMap<CacheMigrationLogKey, CacheMigrationLogThrottleState> cacheMigrationLogThrottle =
+            new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, Long> forceRefreshCompatBypassUntilByKey =
+            new ConcurrentHashMap<>();
     private static volatile int refreshNoticeTooltipSignature = 0;
     private static volatile long refreshNoticeExpiresAtMillis = 0L;
 
@@ -64,6 +73,11 @@ public final class TooltipTranslationSupport {
     ) {
     }
 
+    private enum CachedTranslationFormat {
+        TAGGED,
+        LEGACY
+    }
+
     private record PreparedTooltipTemplate(
             Text sourceLine,
             boolean useTagStylePreservation,
@@ -74,6 +88,35 @@ public final class TooltipTranslationSupport {
             String normalizedTemplate,
             String translationTemplateKey
     ) {
+    }
+
+    private record CompatibilityTemplateKey(String key, CachedTranslationFormat format) {
+    }
+
+    private record AdaptedCachedTranslation(String translation, CachedTranslationFormat format) {
+    }
+
+    private record DecodedStoredTranslation(String translation, CachedTranslationFormat format) {
+    }
+
+    private record ResolvedTemplateLookup(
+            ItemTemplateCache.LookupResult lookupResult,
+            CachedTranslationFormat format,
+            Text renderedLineOverride
+    ) {
+    }
+
+    private record CacheMigrationLogKey(
+            String phase,
+            CachedTranslationFormat format,
+            String newKey,
+            String compatibilityKey
+    ) {
+    }
+
+    private static final class CacheMigrationLogThrottleState {
+        private long lastLoggedAtMillis = 0L;
+        private int suppressedCount = 0;
     }
 
     private record TooltipLineCandidate(
@@ -137,8 +180,8 @@ public final class TooltipTranslationSupport {
     }
 
     private static TooltipLineResult translatePreparedTemplate(PreparedTooltipTemplate preparedTemplate) {
-        ItemTemplateCache.LookupResult lookupResult = ItemTemplateCache.getInstance()
-                .lookupOrQueue(preparedTemplate.translationTemplateKey());
+        ResolvedTemplateLookup resolvedLookup = resolveLookup(preparedTemplate);
+        ItemTemplateCache.LookupResult lookupResult = resolvedLookup.lookupResult();
         ItemTemplateCache.TranslationStatus status = lookupResult.status();
         boolean pending = status == ItemTemplateCache.TranslationStatus.PENDING || status == ItemTemplateCache.TranslationStatus.IN_PROGRESS;
         boolean missingKeyIssue = false;
@@ -153,12 +196,14 @@ public final class TooltipTranslationSupport {
                 : StylePreserver.reapplyStyles(reassembledOriginal, preparedTemplate.styleResult().styleMap);
 
         Text finalTooltipLine;
-        if (status == ItemTemplateCache.TranslationStatus.TRANSLATED) {
+        if (status == ItemTemplateCache.TranslationStatus.TRANSLATED && resolvedLookup.renderedLineOverride() != null) {
+            finalTooltipLine = resolvedLookup.renderedLineOverride();
+        } else if (status == ItemTemplateCache.TranslationStatus.TRANSLATED) {
             String reassembledTranslated = TemplateProcessor.reassembleDecorativeGlyphs(
                     TemplateProcessor.reassemble(translatedTemplate, preparedTemplate.templateResult().values()),
                     preparedTemplate.glyphResult().values()
             );
-            finalTooltipLine = preparedTemplate.useTagStylePreservation()
+            finalTooltipLine = resolvedLookup.format() == CachedTranslationFormat.TAGGED
                     ? StylePreserver.reapplyStylesFromTags(reassembledTranslated, preparedTemplate.styleResult().styleMap, true)
                     : StylePreserver.fromLegacyText(reassembledTranslated);
         } else if (status == ItemTemplateCache.TranslationStatus.ERROR) {
@@ -202,6 +247,7 @@ public final class TooltipTranslationSupport {
 
         int refreshedCount = ItemTemplateCache.getInstance().forceRefresh(keysToRefresh);
         if (refreshedCount > 0) {
+            registerForceRefreshCompatBypass(keysToRefresh);
             refreshNoticeTooltipSignature = tooltipSignature;
             refreshNoticeExpiresAtMillis = System.currentTimeMillis() + REFRESH_NOTICE_DURATION_MILLIS;
             LOGGER.info("Forced refresh of {} current item tooltip translation key(s).", refreshedCount);
@@ -2109,6 +2155,64 @@ public final class TooltipTranslationSupport {
         return summary.toString();
     }
 
+    private static void registerForceRefreshCompatBypass(Iterable<String> translationTemplateKeys) {
+        if (translationTemplateKeys == null) {
+            return;
+        }
+
+        cleanupForceRefreshCompatBypassState();
+        long expiresAtMillis = System.currentTimeMillis() + FORCE_REFRESH_COMPAT_BYPASS_MILLIS;
+        for (String translationTemplateKey : translationTemplateKeys) {
+            if (translationTemplateKey == null || translationTemplateKey.isBlank()) {
+                continue;
+            }
+            forceRefreshCompatBypassUntilByKey.put(translationTemplateKey, expiresAtMillis);
+        }
+    }
+
+    private static boolean shouldBypassCompatibilityFallback(String translationTemplateKey) {
+        if (translationTemplateKey == null || translationTemplateKey.isBlank()) {
+            return false;
+        }
+
+        Long expiresAtMillis = forceRefreshCompatBypassUntilByKey.get(translationTemplateKey);
+        if (expiresAtMillis == null) {
+            return false;
+        }
+
+        long now = System.currentTimeMillis();
+        if (expiresAtMillis <= now) {
+            forceRefreshCompatBypassUntilByKey.remove(translationTemplateKey, expiresAtMillis);
+            return false;
+        }
+        return true;
+    }
+
+    private static void clearForceRefreshCompatBypass(String translationTemplateKey) {
+        if (translationTemplateKey == null || translationTemplateKey.isBlank()) {
+            return;
+        }
+        forceRefreshCompatBypassUntilByKey.remove(translationTemplateKey);
+    }
+
+    private static void cleanupForceRefreshCompatBypassState() {
+        if (forceRefreshCompatBypassUntilByKey.isEmpty()) {
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        for (var entry : forceRefreshCompatBypassUntilByKey.entrySet()) {
+            Long expiresAtMillis = entry.getValue();
+            if (expiresAtMillis == null || expiresAtMillis <= now) {
+                forceRefreshCompatBypassUntilByKey.remove(entry.getKey(), expiresAtMillis);
+            }
+        }
+
+        if (forceRefreshCompatBypassUntilByKey.size() > FORCE_REFRESH_COMPAT_BYPASS_STATE_LIMIT) {
+            forceRefreshCompatBypassUntilByKey.clear();
+        }
+    }
+
     private static String extractTemplateKey(Text line, boolean useTagStylePreservation) {
         return prepareTemplate(line, useTagStylePreservation).translationTemplateKey();
     }
@@ -2145,11 +2249,342 @@ public final class TooltipTranslationSupport {
         );
     }
 
+    private static ResolvedTemplateLookup resolveLookup(PreparedTooltipTemplate preparedTemplate) {
+        ItemTemplateCache cache = ItemTemplateCache.getInstance();
+        CachedTranslationFormat currentFormat = preparedTemplate.useTagStylePreservation()
+                ? CachedTranslationFormat.TAGGED
+                : CachedTranslationFormat.LEGACY;
+        boolean invalidCurrentTranslation = false;
+        ItemTranslateConfig config = Translate_AllinOne.getConfig().itemTranslate;
+
+        ItemTemplateCache.LookupResult currentLookup = cache.peek(preparedTemplate.translationTemplateKey());
+        DecodedStoredTranslation decodedCurrentTranslation = decodeStoredTranslation(currentLookup.translation(), currentFormat);
+        if (currentLookup.status() == ItemTemplateCache.TranslationStatus.TRANSLATED
+                && isUsableCachedTranslation(
+                preparedTemplate,
+                decodedCurrentTranslation.translation(),
+                decodedCurrentTranslation.format()
+        )) {
+            clearForceRefreshCompatBypass(preparedTemplate.translationTemplateKey());
+            return new ResolvedTemplateLookup(
+                    translatedLookup(decodedCurrentTranslation.translation()),
+                    decodedCurrentTranslation.format(),
+                    null
+            );
+        } else if (currentLookup.status() == ItemTemplateCache.TranslationStatus.TRANSLATED) {
+            invalidCurrentTranslation = true;
+            logCacheMigrationIfDev(
+                    config,
+                    "reject-new-key",
+                    preparedTemplate.translationTemplateKey(),
+                    null,
+                    decodedCurrentTranslation.format(),
+                    false,
+                    "Current newKey cache entry still renders unresolved placeholders; forcing refresh."
+            );
+        }
+
+        if (shouldBypassCompatibilityFallback(preparedTemplate.translationTemplateKey())) {
+            if (invalidCurrentTranslation) {
+                cache.forceRefresh(List.of(preparedTemplate.translationTemplateKey()));
+                registerForceRefreshCompatBypass(List.of(preparedTemplate.translationTemplateKey()));
+                return new ResolvedTemplateLookup(
+                        new ItemTemplateCache.LookupResult(ItemTemplateCache.TranslationStatus.PENDING, "", null),
+                        currentFormat,
+                        null
+                );
+            }
+            return new ResolvedTemplateLookup(
+                    cache.lookupOrQueue(preparedTemplate.translationTemplateKey()),
+                    currentFormat,
+                    null
+            );
+        }
+
+        for (CompatibilityTemplateKey compatibilityKey : collectCompatibilityKeys(preparedTemplate)) {
+            ItemTemplateCache.LookupResult compatibilityLookup = cache.peek(compatibilityKey.key());
+            if (compatibilityLookup.status() != ItemTemplateCache.TranslationStatus.TRANSLATED) {
+                continue;
+            }
+
+            DecodedStoredTranslation decodedCompatibilityTranslation = decodeStoredTranslation(
+                    compatibilityLookup.translation(),
+                    compatibilityKey.format()
+            );
+            if (!isUsableCachedTranslation(
+                    preparedTemplate,
+                    decodedCompatibilityTranslation.translation(),
+                    decodedCompatibilityTranslation.format()
+            )) {
+                continue;
+            }
+
+            Text compatibilityRenderedText = renderCompatibilityText(
+                    preparedTemplate,
+                    decodedCompatibilityTranslation.translation(),
+                    decodedCompatibilityTranslation.format()
+            );
+            AdaptedCachedTranslation adaptedTranslation = adaptCachedTranslation(
+                    preparedTemplate,
+                    decodedCompatibilityTranslation.translation(),
+                    decodedCompatibilityTranslation.format()
+            );
+            if (adaptedTranslation != null
+                    && adaptedTranslation.translation() != null
+                    && !adaptedTranslation.translation().isBlank()
+                    && isSafeAdaptedTranslation(preparedTemplate, adaptedTranslation, compatibilityRenderedText)) {
+                cache.promoteTranslation(
+                        preparedTemplate.translationTemplateKey(),
+                        encodeStoredTranslation(adaptedTranslation.translation(), adaptedTranslation.format())
+                );
+                logCacheMigrationIfDev(
+                        config,
+                        "promote",
+                        preparedTemplate.translationTemplateKey(),
+                        compatibilityKey.key(),
+                        decodedCompatibilityTranslation.format(),
+                        true,
+                        adaptedTranslation.format() == decodedCompatibilityTranslation.format()
+                                ? "Reused compatibility cache entry and wrote it into newKey."
+                                : "Reused compatibility cache entry, adapted it, and wrote it into newKey."
+                );
+                return new ResolvedTemplateLookup(
+                        translatedLookup(adaptedTranslation.translation()),
+                        adaptedTranslation.format(),
+                        null
+                );
+            }
+
+            cache.promoteTranslation(
+                    preparedTemplate.translationTemplateKey(),
+                    encodeStoredTranslation(
+                            decodedCompatibilityTranslation.translation(),
+                            decodedCompatibilityTranslation.format()
+                    )
+            );
+            logCacheMigrationIfDev(
+                    config,
+                    decodedCompatibilityTranslation.format() == CachedTranslationFormat.LEGACY
+                            ? "promote-legacy"
+                            : "promote-compatible-format",
+                    preparedTemplate.translationTemplateKey(),
+                    compatibilityKey.key(),
+                    decodedCompatibilityTranslation.format(),
+                    true,
+                    decodedCompatibilityTranslation.format() == CachedTranslationFormat.LEGACY
+                            ? "Reused compatibility cache entry and wrote legacy-compatible content into newKey."
+                            : "Reused compatibility cache entry and wrote compatible content into newKey."
+            );
+            return new ResolvedTemplateLookup(
+                    translatedLookup(decodedCompatibilityTranslation.translation()),
+                    decodedCompatibilityTranslation.format(),
+                    null
+            );
+        }
+
+        if (invalidCurrentTranslation) {
+            cache.forceRefresh(List.of(preparedTemplate.translationTemplateKey()));
+            return new ResolvedTemplateLookup(
+                    new ItemTemplateCache.LookupResult(ItemTemplateCache.TranslationStatus.PENDING, "", null),
+                    currentFormat,
+                    null
+            );
+        }
+
+        return new ResolvedTemplateLookup(cache.lookupOrQueue(preparedTemplate.translationTemplateKey()), currentFormat, null);
+    }
+
+    private static ItemTemplateCache.LookupResult translatedLookup(String translation) {
+        return new ItemTemplateCache.LookupResult(
+                ItemTemplateCache.TranslationStatus.TRANSLATED,
+                translation,
+                null
+        );
+    }
+
+    private static List<CompatibilityTemplateKey> collectCompatibilityKeys(PreparedTooltipTemplate preparedTemplate) {
+        if (!preparedTemplate.useTagStylePreservation()) {
+            return List.of();
+        }
+
+        List<CompatibilityTemplateKey> compatibilityKeys = new ArrayList<>(2);
+        addCompatibilityKey(
+                compatibilityKeys,
+                TemplateProcessor.extractDecorativeGlyphTags(preparedTemplate.unicodeTemplate()).template(),
+                CachedTranslationFormat.TAGGED
+        );
+        addCompatibilityKey(
+                compatibilityKeys,
+                buildLegacyCompatibilityKey(preparedTemplate.sourceLine()),
+                CachedTranslationFormat.LEGACY
+        );
+        return compatibilityKeys;
+    }
+
+    private static void addCompatibilityKey(
+            List<CompatibilityTemplateKey> compatibilityKeys,
+            String key,
+            CachedTranslationFormat format
+    ) {
+        if (key == null || key.isBlank()) {
+            return;
+        }
+
+        for (CompatibilityTemplateKey existing : compatibilityKeys) {
+            if (existing.key().equals(key)) {
+                return;
+            }
+        }
+
+        compatibilityKeys.add(new CompatibilityTemplateKey(key, format));
+    }
+
+    private static AdaptedCachedTranslation adaptCachedTranslation(
+            PreparedTooltipTemplate preparedTemplate,
+            String cachedTranslation,
+            CachedTranslationFormat format
+    ) {
+        if (cachedTranslation == null || cachedTranslation.isBlank()) {
+            return null;
+        }
+
+        if (format == CachedTranslationFormat.LEGACY && preparedTemplate.useTagStylePreservation()) {
+            String converted = StylePreserver.convertLegacyTranslationToTaggedTemplate(
+                    cachedTranslation,
+                    preparedTemplate.styleResult().styleMap
+            );
+            if (converted == null || converted.isBlank()) {
+                return null;
+            }
+            return new AdaptedCachedTranslation(converted, CachedTranslationFormat.TAGGED);
+        }
+
+        return new AdaptedCachedTranslation(cachedTranslation, format);
+    }
+
+    private static DecodedStoredTranslation decodeStoredTranslation(String storedTranslation, CachedTranslationFormat defaultFormat) {
+        if (storedTranslation == null) {
+            return new DecodedStoredTranslation("", defaultFormat);
+        }
+
+        if (storedTranslation.startsWith(STORED_LEGACY_PREFIX)) {
+            return new DecodedStoredTranslation(
+                    storedTranslation.substring(STORED_LEGACY_PREFIX.length()),
+                    CachedTranslationFormat.LEGACY
+            );
+        }
+
+        return new DecodedStoredTranslation(storedTranslation, defaultFormat);
+    }
+
+    private static String encodeStoredTranslation(String translation, CachedTranslationFormat format) {
+        if (translation == null || translation.isBlank()) {
+            return translation;
+        }
+
+        if (format == CachedTranslationFormat.LEGACY && !translation.startsWith(STORED_LEGACY_PREFIX)) {
+            return STORED_LEGACY_PREFIX + translation;
+        }
+
+        return translation;
+    }
+
+    private static Text renderCompatibilityText(
+            PreparedTooltipTemplate preparedTemplate,
+            String cachedTranslation,
+            CachedTranslationFormat format
+    ) {
+        if (cachedTranslation == null || cachedTranslation.isBlank()) {
+            return null;
+        }
+
+        String reassembledTranslated = TemplateProcessor.reassembleDecorativeGlyphs(
+                TemplateProcessor.reassemble(cachedTranslation, preparedTemplate.templateResult().values()),
+                preparedTemplate.glyphResult().values()
+        );
+        return format == CachedTranslationFormat.TAGGED
+                ? StylePreserver.reapplyStylesFromTags(reassembledTranslated, preparedTemplate.styleResult().styleMap, true)
+                : StylePreserver.fromLegacyText(reassembledTranslated);
+    }
+
+    private static boolean isSafeAdaptedTranslation(
+            PreparedTooltipTemplate preparedTemplate,
+            AdaptedCachedTranslation adaptedTranslation,
+            Text compatibilityRenderedText
+    ) {
+        if (adaptedTranslation == null
+                || adaptedTranslation.format() != CachedTranslationFormat.TAGGED
+                || adaptedTranslation.translation() == null
+                || adaptedTranslation.translation().isBlank()) {
+            return false;
+        }
+
+        String reassembledTranslated = TemplateProcessor.reassembleDecorativeGlyphs(
+                TemplateProcessor.reassemble(adaptedTranslation.translation(), preparedTemplate.templateResult().values()),
+                preparedTemplate.glyphResult().values()
+        );
+        if (containsNumericPlaceholder(reassembledTranslated)) {
+            return false;
+        }
+
+        Text adaptedRenderedText = StylePreserver.reapplyStylesFromTags(
+                reassembledTranslated,
+                preparedTemplate.styleResult().styleMap,
+                true
+        );
+        if (adaptedRenderedText == null) {
+            return false;
+        }
+        if (compatibilityRenderedText == null) {
+            return true;
+        }
+        return adaptedRenderedText.getString().equals(compatibilityRenderedText.getString());
+    }
+
+    private static boolean isUsableCachedTranslation(
+            PreparedTooltipTemplate preparedTemplate,
+            String cachedTranslation,
+            CachedTranslationFormat format
+    ) {
+        Text renderedText = renderCompatibilityText(preparedTemplate, cachedTranslation, format);
+        return renderedText != null && !containsNumericPlaceholder(renderedText.getString());
+    }
+
     private static boolean containsNumericPlaceholder(String text) {
         if (text == null || text.isEmpty()) {
             return false;
         }
         return text.contains("{d1}") || text.matches(".*\\{d\\d+}.*");
+    }
+
+    private static void logCacheMigrationIfDev(
+            ItemTranslateConfig config,
+            String phase,
+            String newKey,
+            String compatibilityKey,
+            CachedTranslationFormat compatibilityFormat,
+            boolean promoted,
+            String detail
+    ) {
+        if (!TooltipTextMatcherSupport.shouldLogItemCacheMigration(config)) {
+            return;
+        }
+
+        int suppressedCount = acquireCacheMigrationLogSlot(phase, compatibilityFormat, newKey, compatibilityKey);
+        if (suppressedCount < 0) {
+            return;
+        }
+
+        LOGGER.info(
+                "[ItemDev:cache-migration] phase={} promoted={} format={} repeatsSuppressed={} newKey=\"{}\" compatibilityKey=\"{}\" detail=\"{}\"",
+                phase,
+                promoted,
+                compatibilityFormat == null ? "" : compatibilityFormat.name(),
+                suppressedCount,
+                truncateForLog(newKey, 220),
+                truncateForLog(compatibilityKey, 220),
+                truncateForLog(detail, 220)
+        );
     }
 
     private static void logParagraphRenderIfDev(
@@ -2306,6 +2741,40 @@ public final class TooltipTranslationSupport {
         return String.format(Locale.ROOT, "#%06X", rgb);
     }
 
+    private static int acquireCacheMigrationLogSlot(
+            String phase,
+            CachedTranslationFormat compatibilityFormat,
+            String newKey,
+            String compatibilityKey
+    ) {
+        if ("promote".equals(phase)) {
+            return 0;
+        }
+
+        if (cacheMigrationLogThrottle.size() > CACHE_MIGRATION_LOG_THROTTLE_STATE_LIMIT) {
+            cacheMigrationLogThrottle.clear();
+        }
+
+        CacheMigrationLogKey logKey = new CacheMigrationLogKey(phase, compatibilityFormat, newKey, compatibilityKey);
+        CacheMigrationLogThrottleState state = cacheMigrationLogThrottle.computeIfAbsent(
+                logKey,
+                unused -> new CacheMigrationLogThrottleState()
+        );
+        long now = System.currentTimeMillis();
+        synchronized (state) {
+            if (state.lastLoggedAtMillis > 0
+                    && now - state.lastLoggedAtMillis < CACHE_MIGRATION_LOG_THROTTLE_WINDOW_MILLIS) {
+                state.suppressedCount++;
+                return -1;
+            }
+
+            int suppressedCount = state.suppressedCount;
+            state.suppressedCount = 0;
+            state.lastLoggedAtMillis = now;
+            return suppressedCount;
+        }
+    }
+
     private static String truncateForLog(String value, int maxLength) {
         if (value == null) {
             return "";
@@ -2366,6 +2835,16 @@ public final class TooltipTranslationSupport {
             builder.append(raw);
         }
         return builder.toString();
+    }
+
+    private static String buildLegacyCompatibilityKey(Text line) {
+        if (line == null) {
+            return null;
+        }
+
+        StylePreserver.ExtractionResult legacyStyleResult = StylePreserver.extractAndMark(line);
+        TemplateProcessor.TemplateExtractionResult legacyTemplateResult = TemplateProcessor.extract(legacyStyleResult.markedText);
+        return StylePreserver.toLegacyTemplate(legacyTemplateResult.template(), legacyStyleResult.styleMap);
     }
 
     private static boolean shouldUseTagStylePreservation(Text line, boolean useTagStylePreservation) {

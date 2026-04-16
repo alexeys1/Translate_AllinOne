@@ -3,6 +3,8 @@ package com.cedarxuesong.translate_allinone.utils.translate;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.textmatcher.ContentMatcher;
 import com.cedarxuesong.translate_allinone.utils.textmatcher.FlatNode;
+import com.cedarxuesong.translate_allinone.utils.textmatcher.NodePredicateBuilder;
+import com.cedarxuesong.translate_allinone.utils.textmatcher.TextMatchResult;
 import com.cedarxuesong.translate_allinone.utils.textmatcher.TextPattern;
 import net.minecraft.text.PlainTextContent;
 import net.minecraft.text.Text;
@@ -15,6 +17,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
 public final class TooltipTextMatcherSupport {
@@ -22,17 +25,44 @@ public final class TooltipTextMatcherSupport {
     private static final long DEV_LOG_REPEAT_WINDOW_MILLIS = 1200L;
     private static final Pattern NAMESPACED_IDENTIFIER_PATTERN = Pattern.compile("^\\[?#?[A-Za-z0-9_.-]+:[A-Za-z0-9_/.-]+\\]?$");
     private static final Pattern GENERIC_IDENTIFIER_PATTERN = Pattern.compile("^(?=.*[A-Za-z])[A-Za-z0-9]+(?:[._/][A-Za-z0-9]+)+$");
-    private static final TextPattern HAS_TRANSLATABLE_CONTENT_PATTERN = TextPattern.builder()
-            .one(ContentMatcher.translatable(), null)
+    private static final Pattern BARE_INTERNAL_TOKEN_PATTERN = Pattern.compile("^[a-z][a-z0-9_-]{9,}$");
+    private static final TextPattern TEXTUAL_CONTENT_PATTERN = TextPattern.builder()
+            .either(either -> {
+                either.one(
+                        "translatable-default-font",
+                        ContentMatcher.translatable(),
+                        styleBlock(style -> style.defaultFont())
+                );
+                either.one(
+                        "translatable-styled",
+                        ContentMatcher.translatable(),
+                        styleBlock(style -> style.not(inner -> inner.defaultFont()))
+                );
+                either.one(
+                        "plain-letter-default-font",
+                        ContentMatcher.plainText(),
+                        styleBlock(style -> style.defaultFont().node(TooltipTextMatcherSupport::hasLetterContentNode))
+                );
+                either.one(
+                        "plain-letter-styled",
+                        ContentMatcher.plainText(),
+                        styleBlock(style -> style.not(inner -> inner.defaultFont()).node(TooltipTextMatcherSupport::hasLetterContentNode))
+                );
+            })
             .build();
-    private static final TextPattern HAS_LETTER_CONTENT_PATTERN = TextPattern.builder()
-            .one(ContentMatcher.plainText(), TooltipTextMatcherSupport::hasLetterContentNode)
-            .build();
-    private static final TextPattern NUMERIC_OR_SYMBOLIC_ONLY_PATTERN = TextPattern.builder()
-            .oneOrMore(ContentMatcher.any(), TooltipTextMatcherSupport::isNumericOrSymbolicNode)
-            .build();
-    private static final TextPattern DECORATIVE_ONLY_PATTERN = TextPattern.builder()
-            .oneOrMore(ContentMatcher.any(), TooltipTextMatcherSupport::isDecorativeNode)
+    private static final TextPattern NON_TRANSLATABLE_NODE_PATTERN = TextPattern.builder()
+            .either(either -> {
+                either.oneOrMore(
+                        "decorative-only",
+                        ContentMatcher.any(),
+                        styleBlock(style -> style.node(TooltipTextMatcherSupport::isDecorativeNode))
+                );
+                either.oneOrMore(
+                        "numeric-symbolic-only",
+                        ContentMatcher.any(),
+                        styleBlock(style -> style.node(TooltipTextMatcherSupport::isNumericOrSymbolicNode))
+                );
+            })
             .build();
     private static final Map<String, DevTooltipLogState> DEV_TOOLTIP_LOG_STATE_BY_SOURCE = new ConcurrentHashMap<>();
 
@@ -51,7 +81,9 @@ public final class TooltipTextMatcherSupport {
                     false,
                     isFirstContentLine,
                     "",
-                    "Line is null or generated internally"
+                    "Line is null or generated internally",
+                    "",
+                    ""
             );
         }
 
@@ -63,7 +95,9 @@ public final class TooltipTextMatcherSupport {
                     false,
                     isFirstContentLine,
                     "",
-                    "Line is blank after string extraction"
+                    "Line is blank after string extraction",
+                    "",
+                    ""
             );
         }
 
@@ -77,75 +111,106 @@ public final class TooltipTextMatcherSupport {
                     false,
                     isFirstContentLine,
                     rawText,
-                    "Translation is disabled for this tooltip slot"
+                    "Translation is disabled for this tooltip slot",
+                    "",
+                    ""
             );
         }
 
-        if (HAS_TRANSLATABLE_CONTENT_PATTERN.find(line).success()) {
-            return new TooltipLineDecision(
-                    TooltipLineKind.TRANSLATABLE_CONTENT,
-                    true,
-                    true,
-                    isFirstContentLine,
-                    rawText,
-                    "Matched at least one translatable text node"
-            );
-        }
+        boolean wynnCompatibilityEnabled = config.wynn_item_compatibility;
 
-        if (!config.wynn_item_compatibility && isNamespacedIdentifier(rawText)) {
+        if (!wynnCompatibilityEnabled && isNamespacedIdentifier(rawText)) {
             return new TooltipLineDecision(
                     TooltipLineKind.NAMESPACE_IDENTIFIER,
                     false,
                     true,
                     isFirstContentLine,
                     rawText,
-                    "Full line looks like a namespaced identifier"
+                    "Full line looks like a namespaced identifier",
+                    "identifier-guard",
+                    "namespaced"
             );
         }
 
-        if (!config.wynn_item_compatibility && isGenericIdentifier(rawText)) {
+        if (!wynnCompatibilityEnabled && isGenericIdentifier(rawText)) {
             return new TooltipLineDecision(
                     TooltipLineKind.IDENTIFIER_LIKE,
                     false,
                     true,
                     isFirstContentLine,
                     rawText,
-                    "Full line looks like an internal identifier or path"
+                    "Full line looks like an internal identifier or path",
+                    "identifier-guard",
+                    "generic"
             );
         }
 
-        if (DECORATIVE_ONLY_PATTERN.match(line).success()) {
+        if (!wynnCompatibilityEnabled && isBareInternalIdentifier(rawText)) {
             return new TooltipLineDecision(
-                    TooltipLineKind.DECORATIVE_ONLY,
+                    TooltipLineKind.IDENTIFIER_LIKE,
                     false,
                     true,
                     isFirstContentLine,
                     rawText,
-                    "Matched only decorative glyph or punctuation nodes"
+                    "Full line looks like a bare internal identifier token",
+                    "identifier-guard",
+                    "bare-token"
             );
         }
 
-        if (NUMERIC_OR_SYMBOLIC_ONLY_PATTERN.match(line).success()) {
-            return new TooltipLineDecision(
-                    TooltipLineKind.NUMERIC_OR_SYMBOLIC_ONLY,
-                    false,
-                    true,
-                    isFirstContentLine,
-                    rawText,
-                    "Matched only numeric or symbolic nodes"
-            );
-        }
-
-        if (HAS_LETTER_CONTENT_PATTERN.find(line).success()) {
+        TextMatchResult textualContentMatch = TEXTUAL_CONTENT_PATTERN.find(line);
+        if (textualContentMatch.success()) {
+            String firstBranch = firstMatchedBranch(textualContentMatch);
+            if (firstBranch.startsWith("translatable-")) {
+                return new TooltipLineDecision(
+                        TooltipLineKind.TRANSLATABLE_CONTENT,
+                        true,
+                        true,
+                        isFirstContentLine,
+                        rawText,
+                        "Matched at least one translatable text node",
+                        "textual-content",
+                        summarizeMatchedBranches(textualContentMatch)
+                );
+            }
             return new TooltipLineDecision(
                     TooltipLineKind.HUMAN_READABLE_TEXT,
                     true,
                     true,
                     isFirstContentLine,
                     rawText,
-                    config.wynn_item_compatibility
+                    wynnCompatibilityEnabled
                             ? "Matched letter-bearing plain text node under Wynn compatibility"
-                            : "Matched human-readable plain text node"
+                            : "Matched human-readable plain text node",
+                    "textual-content",
+                    summarizeMatchedBranches(textualContentMatch)
+            );
+        }
+
+        TextMatchResult nonTranslatableNodeMatch = NON_TRANSLATABLE_NODE_PATTERN.match(line);
+        if (nonTranslatableNodeMatch.success()) {
+            String firstBranch = firstMatchedBranch(nonTranslatableNodeMatch);
+            if ("decorative-only".equals(firstBranch)) {
+                return new TooltipLineDecision(
+                        TooltipLineKind.DECORATIVE_ONLY,
+                        false,
+                        true,
+                        isFirstContentLine,
+                        rawText,
+                        "Matched only decorative glyph or punctuation nodes",
+                        "non-translatable-node",
+                        summarizeMatchedBranches(nonTranslatableNodeMatch)
+                );
+            }
+            return new TooltipLineDecision(
+                    TooltipLineKind.NUMERIC_OR_SYMBOLIC_ONLY,
+                    false,
+                    true,
+                    isFirstContentLine,
+                    rawText,
+                    "Matched only numeric or symbolic nodes",
+                    "non-translatable-node",
+                    summarizeMatchedBranches(nonTranslatableNodeMatch)
             );
         }
 
@@ -155,7 +220,9 @@ public final class TooltipTextMatcherSupport {
                 true,
                 isFirstContentLine,
                 rawText,
-                "No text-matcher rule classified this line as translatable"
+                "No text-matcher rule classified this line as translatable",
+                "",
+                ""
         );
     }
 
@@ -207,6 +274,11 @@ public final class TooltipTextMatcherSupport {
                 && config.debug.log_item_batch_timing;
     }
 
+    public static boolean shouldLogItemCacheMigration(ItemTranslateConfig config) {
+        return isDevEnabled(config)
+                && config.debug.log_cache_migration;
+    }
+
     private static boolean shouldLogAnyTooltipDev(ItemTranslateConfig config) {
         return shouldLogTooltipFilterResult(config)
                 || shouldLogTooltipTiming(config)
@@ -246,10 +318,12 @@ public final class TooltipTextMatcherSupport {
 
         if (shouldLogTooltipNodeSummary(config)) {
             LOGGER.info(
-                    "[TooltipDev:{}] line={} kind={} translate={} firstContentLine={} reason={} text=\"{}\" nodes={}",
+                    "[TooltipDev:{}] line={} kind={} matcher={} branches={} translate={} firstContentLine={} reason={} text=\"{}\" nodes={}",
                     source,
                     lineIndex + 1,
                     decision.kind(),
+                    emptyIfBlank(decision.matcherRule()),
+                    emptyIfBlank(decision.matcherBranches()),
                     decision.shouldTranslate(),
                     decision.firstContentLine(),
                     decision.reason(),
@@ -260,10 +334,12 @@ public final class TooltipTextMatcherSupport {
         }
 
         LOGGER.info(
-                "[TooltipDev:{}] line={} kind={} translate={} firstContentLine={} reason={} text=\"{}\"",
+                "[TooltipDev:{}] line={} kind={} matcher={} branches={} translate={} firstContentLine={} reason={} text=\"{}\"",
                 source,
                 lineIndex + 1,
                 decision.kind(),
+                emptyIfBlank(decision.matcherRule()),
+                emptyIfBlank(decision.matcherBranches()),
                 decision.shouldTranslate(),
                 decision.firstContentLine(),
                 decision.reason(),
@@ -334,7 +410,9 @@ public final class TooltipTextMatcherSupport {
             boolean enabledForSlot,
             boolean firstContentLine,
             String rawText,
-            String reason
+            String reason,
+            String matcherRule,
+            String matcherBranches
     ) {
     }
 
@@ -345,6 +423,20 @@ public final class TooltipTextMatcherSupport {
         TextContent content = node.content();
         return content instanceof PlainTextContent plainTextContent
                 && containsLetter(plainTextContent.string());
+    }
+
+    private static String firstMatchedBranch(TextMatchResult result) {
+        if (result == null || result.matchedBranches() == null || result.matchedBranches().isEmpty()) {
+            return "";
+        }
+        return result.matchedBranches().get(0);
+    }
+
+    private static String summarizeMatchedBranches(TextMatchResult result) {
+        if (result == null || result.matchedBranches() == null || result.matchedBranches().isEmpty()) {
+            return "";
+        }
+        return String.join(">", result.matchedBranches());
     }
 
     private static boolean containsLetter(String value) {
@@ -378,6 +470,28 @@ public final class TooltipTextMatcherSupport {
         }
 
         return GENERIC_IDENTIFIER_PATTERN.matcher(normalized).matches();
+    }
+
+    private static boolean isBareInternalIdentifier(String rawText) {
+        if (rawText == null) {
+            return false;
+        }
+
+        String normalized = stripIdentifierWrapper(rawText);
+        if (normalized.isEmpty() || containsWhitespace(normalized)) {
+            return false;
+        }
+        if (!BARE_INTERNAL_TOKEN_PATTERN.matcher(normalized).matches()) {
+            return false;
+        }
+
+        return normalized.startsWith("skyblock")
+                || normalized.startsWith("minecraft")
+                || normalized.startsWith("wynntils")
+                || normalized.startsWith("wynn")
+                || normalized.endsWith("item")
+                || normalized.endsWith("entity")
+                || normalized.endsWith("recipe");
     }
 
     private static String stripIdentifierWrapper(String rawText) {
@@ -549,6 +663,14 @@ public final class TooltipTextMatcherSupport {
             return normalized;
         }
         return normalized.substring(0, Math.max(0, maxLength - 3)) + "...";
+    }
+
+    private static String emptyIfBlank(String value) {
+        return value == null ? "" : value;
+    }
+
+    private static Consumer<NodePredicateBuilder> styleBlock(Consumer<NodePredicateBuilder> block) {
+        return block;
     }
 
     private static String formatDurationMillis(long startedAtNanos) {

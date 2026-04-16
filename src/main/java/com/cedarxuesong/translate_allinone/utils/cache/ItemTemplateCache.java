@@ -17,6 +17,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -147,14 +148,24 @@ public class ItemTemplateCache {
         try {
             Files.createDirectories(cacheFilePath.getParent());
             Path tempPath = cacheFilePath.resolveSibling(cacheFilePath.getFileName() + ".tmp");
+            SanitizedCacheSnapshot sanitizedSnapshot = sanitizeForPersistence();
             try (var writer = Files.newBufferedWriter(tempPath, CACHE_CHARSET)) {
-                GSON.toJson(templateCache, writer);
+                GSON.toJson(sanitizedSnapshot.entries(), writer);
             }
 
             try {
                 Files.move(tempPath, cacheFilePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             } catch (AtomicMoveNotSupportedException e) {
                 Files.move(tempPath, cacheFilePath, StandardCopyOption.REPLACE_EXISTING);
+            }
+
+            if (sanitizedSnapshot.modifiedEntryCount() > 0) {
+                templateCache.clear();
+                templateCache.putAll(sanitizedSnapshot.entries());
+                Translate_AllinOne.LOGGER.warn(
+                        "Sanitized {} item cache entrie(s) containing invalid UTF-16 before saving.",
+                        sanitizedSnapshot.modifiedEntryCount()
+                );
             }
 
             Translate_AllinOne.LOGGER.info("Successfully saved {} item translation cache entries.", templateCache.size());
@@ -326,6 +337,77 @@ public class ItemTemplateCache {
         return count;
     }
 
+    private SanitizedCacheSnapshot sanitizeForPersistence() {
+        Map<String, String> sanitizedEntries = new LinkedHashMap<>(templateCache.size());
+        int modifiedEntryCount = 0;
+
+        for (Map.Entry<String, String> entry : templateCache.entrySet()) {
+            String originalKey = entry.getKey();
+            String originalValue = entry.getValue();
+            String sanitizedKey = sanitizeUtf16(originalKey);
+            String sanitizedValue = sanitizeUtf16(originalValue);
+            if (!stringEquals(originalKey, sanitizedKey) || !stringEquals(originalValue, sanitizedValue)) {
+                modifiedEntryCount++;
+            }
+            sanitizedEntries.put(sanitizedKey, sanitizedValue);
+        }
+
+        return new SanitizedCacheSnapshot(sanitizedEntries, modifiedEntryCount);
+    }
+
+    private String sanitizeUtf16(String text) {
+        if (text == null || text.isEmpty()) {
+            return text;
+        }
+
+        StringBuilder sanitized = null;
+        int index = 0;
+        while (index < text.length()) {
+            char current = text.charAt(index);
+            if (Character.isHighSurrogate(current)) {
+                if (index + 1 < text.length() && Character.isLowSurrogate(text.charAt(index + 1))) {
+                    if (sanitized != null) {
+                        sanitized.append(current).append(text.charAt(index + 1));
+                    }
+                    index += 2;
+                    continue;
+                }
+                if (sanitized == null) {
+                    sanitized = new StringBuilder(text.length());
+                    sanitized.append(text, 0, index);
+                }
+                index++;
+                continue;
+            }
+
+            if (Character.isLowSurrogate(current)) {
+                if (sanitized == null) {
+                    sanitized = new StringBuilder(text.length());
+                    sanitized.append(text, 0, index);
+                }
+                index++;
+                continue;
+            }
+
+            if (sanitized != null) {
+                sanitized.append(current);
+            }
+            index++;
+        }
+
+        return sanitized == null ? text : sanitized.toString();
+    }
+
+    private boolean stringEquals(String left, String right) {
+        if (left == null) {
+            return right == null;
+        }
+        return left.equals(right);
+    }
+
+    private record SanitizedCacheSnapshot(Map<String, String> entries, int modifiedEntryCount) {
+    }
+
     public LookupResult lookupOrQueue(String originalTemplate) {
         String translation = templateCache.get(originalTemplate);
         if (translation != null && !translation.isEmpty()) {
@@ -346,6 +428,45 @@ public class ItemTemplateCache {
         }
 
         return new LookupResult(TranslationStatus.PENDING, "", null);
+    }
+
+    public LookupResult peek(String originalTemplate) {
+        String translation = templateCache.get(originalTemplate);
+        if (translation != null && !translation.isEmpty()) {
+            return new LookupResult(TranslationStatus.TRANSLATED, translation, null);
+        }
+
+        String errorMessage = errorCache.get(originalTemplate);
+        if (errorMessage != null) {
+            return new LookupResult(TranslationStatus.ERROR, "", errorMessage);
+        }
+
+        if (inProgress.contains(originalTemplate)) {
+            return new LookupResult(TranslationStatus.IN_PROGRESS, "", null);
+        }
+
+        if (allQueuedOrInProgressKeys.contains(originalTemplate)) {
+            return new LookupResult(TranslationStatus.PENDING, "", null);
+        }
+
+        return new LookupResult(TranslationStatus.NOT_CACHED, "", null);
+    }
+
+    public synchronized void promoteTranslation(String originalTemplate, String translation) {
+        if (originalTemplate == null || originalTemplate.isBlank() || translation == null || translation.isBlank()) {
+            return;
+        }
+
+        templateCache.put(originalTemplate, translation);
+        errorCache.remove(originalTemplate);
+        inProgress.remove(originalTemplate);
+        allQueuedOrInProgressKeys.remove(originalTemplate);
+        while (pendingQueue.remove(originalTemplate)) {
+            // Remove stale queued copies now that the translation has been migrated in-place.
+        }
+
+        isDirty = true;
+        scheduleSave();
     }
 
     public synchronized int forceRefresh(Iterable<String> originalTemplates) {

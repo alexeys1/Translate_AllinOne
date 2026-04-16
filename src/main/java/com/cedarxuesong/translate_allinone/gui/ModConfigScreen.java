@@ -50,6 +50,7 @@ import com.cedarxuesong.translate_allinone.utils.config.pojos.ScoreboardConfig;
 import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
 import com.cedarxuesong.translate_allinone.utils.update.UpdateCheckManager;
 import com.google.gson.Gson;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
@@ -95,6 +96,8 @@ public class ModConfigScreen extends Screen {
     private static final int COLOR_TEXT = 0xFFE0E0E0;
     private static final int COLOR_TEXT_MUTED = 0xFF9A9A9A;
     private static final int COLOR_TEXT_ACCENT = 0xFF9CF0C0;
+    private static final int COLOR_TEXT_LINK = 0xFF78DFA6;
+    private static final int COLOR_TEXT_LINK_HOVER = 0xFF9CF0C0;
     private static final int COLOR_STATUS_OK = 0xFF59D185;
     private static final int COLOR_STATUS_ERROR = 0xFFFF6A6A;
     private static final int COLOR_MODAL_OVERLAY = 0x98000000;
@@ -246,10 +249,17 @@ public class ModConfigScreen extends Screen {
 
     private static final int TOP_BAR_HEIGHT = 40;
     private static final int LEFT_PANEL_WIDTH = 200;
+    private static final int TOP_BAR_TITLE_X = 14;
+    private static final int TOP_BAR_TEXT_Y = 14;
+    private static final int TOP_BAR_STATUS_X = LEFT_PANEL_WIDTH + 20;
+    private static final int TOP_BAR_ACTIONS_LEFT_MARGIN = 270;
+    private static final int TOP_BAR_LINK_GAP = 16;
 
     private final Screen parent;
     private final ModConfig originalConfigSnapshot;
     private final String originalConfigSnapshotJson;
+    private final String modVersion;
+    private final String repositoryUrl;
     private final List<ActionBlock> actionBlocks = new ArrayList<>();
     private final List<ActionBlock> contentActionBlocks = new ArrayList<>();
     private final List<ActionBlock> floatingActionBlocks = new ArrayList<>();
@@ -307,6 +317,7 @@ public class ModConfigScreen extends Screen {
     private FocusTarget pendingFocusTarget = FocusTarget.NONE;
     private ConfigSectionContentSupport.HotkeyTarget hotkeyCaptureTarget;
     private UiRect contentViewport = new UiRect(0, 0, 0, 0);
+    private UiRect versionLinkRect = new UiRect(0, 0, 0, 0);
     private final int[] sectionScrollOffsets = new int[ConfigSection.values().length];
     private int contentScrollOffset;
     private double contentVisualOffset;
@@ -332,11 +343,82 @@ public class ModConfigScreen extends Screen {
         this.parent = parent;
         this.originalConfigSnapshot = ConfigManager.copyCurrentConfig();
         this.originalConfigSnapshotJson = CONFIG_STATE_GSON.toJson(this.originalConfigSnapshot);
+        this.modVersion = resolveCurrentVersion();
+        this.repositoryUrl = resolveRepositoryUrl();
         this.selectedSection = selectedSection;
     }
 
     private static Text t(String key, Object... args) {
         return Text.translatable(I18N_PREFIX + key, args);
+    }
+
+    private static String resolveCurrentVersion() {
+        return FabricLoader.getInstance()
+                .getModContainer(Translate_AllinOne.MOD_ID)
+                .map(container -> container.getMetadata().getVersion().getFriendlyString())
+                .orElse("unknown");
+    }
+
+    private static String resolveRepositoryUrl() {
+        return FabricLoader.getInstance()
+                .getModContainer(Translate_AllinOne.MOD_ID)
+                .map(container -> {
+                    var contact = container.getMetadata().getContact();
+                    return contact.get("sources")
+                            .or(() -> contact.get("homepage"))
+                            .orElse("");
+                })
+                .orElse("");
+    }
+
+    private Text versionLinkText() {
+        return t("version_link", modVersion);
+    }
+
+    private boolean isStatusVisible(long nowMillis) {
+        return !statusMessage.getString().isEmpty() && nowMillis <= statusExpireAtMillis;
+    }
+
+    private UiRect resolveVersionLinkRect(long nowMillis) {
+        if (repositoryUrl.isBlank()) {
+            return new UiRect(0, 0, 0, 0);
+        }
+
+        Text versionText = versionLinkText();
+        int textWidth = this.textRenderer.getWidth(versionText);
+        if (textWidth <= 0) {
+            return new UiRect(0, 0, 0, 0);
+        }
+
+        int minX = TOP_BAR_TITLE_X + this.textRenderer.getWidth(this.title) + TOP_BAR_LINK_GAP;
+        if (isStatusVisible(nowMillis)) {
+            minX = Math.max(minX, TOP_BAR_STATUS_X + this.textRenderer.getWidth(statusMessage) + TOP_BAR_LINK_GAP);
+        }
+
+        int x = this.width - TOP_BAR_ACTIONS_LEFT_MARGIN - TOP_BAR_LINK_GAP - textWidth;
+        if (x < minX) {
+            return new UiRect(0, 0, 0, 0);
+        }
+        return new UiRect(x, TOP_BAR_TEXT_Y, textWidth, this.textRenderer.fontHeight + 2);
+    }
+
+    private void updateVersionLinkRect(long nowMillis) {
+        versionLinkRect = resolveVersionLinkRect(nowMillis);
+    }
+
+    private void renderVersionLink(DrawContext context, int mouseX, int mouseY, long nowMillis) {
+        updateVersionLinkRect(nowMillis);
+        if (versionLinkRect.width <= 0 || versionLinkRect.height <= 0) {
+            return;
+        }
+
+        boolean hovered = versionLinkRect.contains(mouseX, mouseY);
+        int color = hovered ? COLOR_TEXT_LINK_HOVER : COLOR_TEXT_LINK;
+        Text versionText = versionLinkText();
+        context.drawText(this.textRenderer, versionText, versionLinkRect.x, versionLinkRect.y, color, false);
+
+        int underlineY = versionLinkRect.y + this.textRenderer.fontHeight + 1;
+        context.fill(versionLinkRect.x, underlineY, versionLinkRect.right(), underlineY + 1, color);
     }
 
     private boolean hasUnsavedChanges() {
@@ -1454,6 +1536,21 @@ public class ModConfigScreen extends Screen {
         }
     }
 
+    private void openRepositoryLink() {
+        if (repositoryUrl.isBlank()) {
+            setStatus(t("status.failed_open_repository"), COLOR_STATUS_ERROR);
+            return;
+        }
+
+        try {
+            Util.getOperatingSystem().open(repositoryUrl);
+            setStatus(t("status.opened_repository"), COLOR_STATUS_OK);
+        } catch (Exception e) {
+            Translate_AllinOne.LOGGER.warn("Failed to open repository url {}", repositoryUrl, e);
+            setStatus(t("status.failed_open_repository"), COLOR_STATUS_ERROR);
+        }
+    }
+
     private void saveAndClose() {
         boolean saved = ConfigUiRuntimeSupport.saveConfig(
                 ModConfigScreen::t,
@@ -1848,6 +1945,12 @@ public class ModConfigScreen extends Screen {
             return true;
         }
 
+        updateVersionLinkRect(System.currentTimeMillis());
+        if (versionLinkRect.width > 0 && versionLinkRect.height > 0 && versionLinkRect.contains(mouseX, mouseY)) {
+            openRepositoryLink();
+            return true;
+        }
+
         if (click.button() == 0) {
             UiRect thumb = scrollbarThumbRect();
             if (thumb != null && thumb.contains(mouseX, mouseY)) {
@@ -2038,6 +2141,7 @@ public class ModConfigScreen extends Screen {
                 selectedSection == ConfigSection.PROVIDERS,
                 SCREEN_RENDER_STYLE
         );
+        renderVersionLink(context, mouseX, mouseY, nowMillis);
 
         ConfigUiControlRenderer.drawActionBlocks(context, this.textRenderer, actionBlocks, mouseX, mouseY, COLOR_BORDER);
 

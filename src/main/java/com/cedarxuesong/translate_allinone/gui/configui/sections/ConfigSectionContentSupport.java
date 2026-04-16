@@ -306,6 +306,15 @@ public final class ConfigSectionContentSupport {
                         value -> item.debug.log_item_batch_timing = value
                 );
                 y += ROW_STEP;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.item_dev_log_cache_migration"),
+                        () -> item.debug.log_cache_migration,
+                        value -> item.debug.log_cache_migration = value
+                );
+                y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.basic"), x, width, debugStart, y);
                 return y;
             }
