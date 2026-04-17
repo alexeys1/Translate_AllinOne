@@ -33,6 +33,7 @@ public abstract class WynnmodStatsTooltipContextMixin {
             remap = false
     )
     private void translate_allinone$prepareWynnmodTooltip(@Coerce Object event, CallbackInfo ci) {
+        TooltipTranslationContext.pushWynnmodTooltipRender();
         TooltipTranslationContext.setSkipDrawContextTranslation(false);
     }
 
@@ -43,40 +44,48 @@ public abstract class WynnmodStatsTooltipContextMixin {
             remap = false
     )
     private void translate_allinone$translateDecoratedWynnmodTooltip(@Coerce Object event, CallbackInfo ci) {
-        ItemTranslateConfig config = Translate_AllinOne.getConfig().itemTranslate;
-        if (!config.enabled || !config.wynn_item_compatibility) {
-            return;
-        }
+        try {
+            ItemTranslateConfig config = Translate_AllinOne.getConfig().itemTranslate;
+            if (!config.enabled || !config.wynn_item_compatibility) {
+                return;
+            }
 
-        List<Text> currentTooltip = translate_allinone$getTooltipText(event);
-        if (currentTooltip == null || currentTooltip.isEmpty()) {
-            return;
-        }
+            List<Text> currentTooltip = translate_allinone$getTooltipText(event);
+            if (currentTooltip == null || currentTooltip.isEmpty()) {
+                return;
+            }
 
-        List<Text> sanitizedTooltip = TooltipTranslationSupport.stripInternalGeneratedLines(currentTooltip);
-        TooltipTranslationSupport.maybeForceRefreshCurrentTooltip(sanitizedTooltip, config);
-        boolean showRefreshNotice = TooltipTranslationSupport.shouldShowRefreshNotice(sanitizedTooltip, config);
+            List<Text> sanitizedTooltip = TooltipTranslationSupport.stripInternalGeneratedLines(currentTooltip);
+            if (TooltipTranslationContext.matchesRecentScreenMirrorTooltip(sanitizedTooltip)) {
+                TooltipTranslationContext.setSkipDrawContextTranslation(true);
+                return;
+            }
+            TooltipTranslationSupport.maybeForceRefreshCurrentTooltip(sanitizedTooltip, config);
+            boolean showRefreshNotice = TooltipTranslationSupport.shouldShowRefreshNotice(sanitizedTooltip, config);
 
-        boolean isKeyPressed = KeybindingManager.isPressed(config.keybinding.binding);
-        if (TooltipTranslationSupport.shouldShowOriginal(config.keybinding.mode, isKeyPressed)) {
-            List<Text> tooltipToDisplay = TooltipTranslationSupport.appendRefreshNoticeLine(sanitizedTooltip, showRefreshNotice);
-            if (tooltipToDisplay != currentTooltip && translate_allinone$setTooltipText(event, tooltipToDisplay)) {
+            boolean isKeyPressed = KeybindingManager.isPressed(config.keybinding.binding);
+            if (TooltipTranslationSupport.shouldShowOriginal(config.keybinding.mode, isKeyPressed)) {
+                List<Text> tooltipToDisplay = TooltipTranslationSupport.appendRefreshNoticeLine(sanitizedTooltip, showRefreshNotice);
+                if (tooltipToDisplay != currentTooltip && translate_allinone$setTooltipText(event, tooltipToDisplay)) {
+                    TooltipTranslationContext.setSkipDrawContextTranslation(true);
+                }
+                return;
+            }
+
+            boolean emitDevLog = TooltipTextMatcherSupport.beginTooltipDevPass(config, "wynnmod", sanitizedTooltip);
+            long tooltipStartedAtNanos = emitDevLog ? System.nanoTime() : 0L;
+            List<Text> translatedTooltip = translate_allinone$translateDecoratedTooltip(
+                    sanitizedTooltip,
+                    config,
+                    showRefreshNotice,
+                    emitDevLog,
+                    tooltipStartedAtNanos
+            );
+            if (translate_allinone$setTooltipText(event, translatedTooltip)) {
                 TooltipTranslationContext.setSkipDrawContextTranslation(true);
             }
-            return;
-        }
-
-        boolean emitDevLog = TooltipTextMatcherSupport.beginTooltipDevPass(config, "wynnmod", sanitizedTooltip);
-        long tooltipStartedAtNanos = emitDevLog ? System.nanoTime() : 0L;
-        List<Text> translatedTooltip = translate_allinone$translateDecoratedTooltip(
-                sanitizedTooltip,
-                config,
-                showRefreshNotice,
-                emitDevLog,
-                tooltipStartedAtNanos
-        );
-        if (translate_allinone$setTooltipText(event, translatedTooltip)) {
-            TooltipTranslationContext.setSkipDrawContextTranslation(true);
+        } finally {
+            TooltipTranslationContext.popWynnmodTooltipRender();
         }
     }
 

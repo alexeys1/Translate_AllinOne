@@ -217,22 +217,30 @@ public class StylePreserver {
             return;
         }
 
-        if (stripFont && shouldKeepOriginalFontForSegment(content, originalStyle)) {
-            target.append(Text.literal(content).setStyle(originalStyle));
+        String normalizedContent = content;
+        if (stripFont && !TemplateProcessor.shouldPreserveDecorativeGlyphSegment(content)) {
+            normalizedContent = TemplateProcessor.collapseWynnInlineSpacerGlyphs(content);
+        }
+        if (normalizedContent == null || normalizedContent.isEmpty()) {
+            return;
+        }
+
+        if (stripFont && shouldKeepOriginalFontForSegment(normalizedContent, originalStyle)) {
+            target.append(Text.literal(normalizedContent).setStyle(originalStyle));
             return;
         }
 
         Style sanitizedStyle = sanitizeStyle(originalStyle, stripFont);
         if (!stripFont || originalStyle.equals(sanitizedStyle)) {
-            target.append(Text.literal(content).setStyle(sanitizedStyle));
+            target.append(Text.literal(normalizedContent).setStyle(sanitizedStyle));
             return;
         }
 
         StringBuilder run = new StringBuilder();
         Boolean keepOriginalFontForRun = null;
 
-        for (int offset = 0; offset < content.length(); ) {
-            int codePoint = content.codePointAt(offset);
+        for (int offset = 0; offset < normalizedContent.length(); ) {
+            int codePoint = normalizedContent.codePointAt(offset);
             boolean keepOriginalFont = isDecorativeGlyphCodePoint(codePoint);
 
             if (keepOriginalFontForRun != null && keepOriginalFontForRun != keepOriginalFont && run.length() > 0) {
@@ -307,7 +315,11 @@ public class StylePreserver {
                 return false;
             }
 
-            if (Character.isLetter(codePoint)) {
+            boolean decorativeTokenLetter = isDecorativeTokenLetterCodePoint(codePoint);
+            if (Character.isLetter(codePoint) && !decorativeTokenLetter) {
+                return false;
+            }
+            if (decorativeTokenLetter) {
                 sawLetter = true;
                 if (Character.isLowerCase(codePoint)) {
                     sawLowercaseLetter = true;
@@ -319,7 +331,7 @@ public class StylePreserver {
             if (isSymbolicCodePoint(codePoint)) {
                 sawSymbolicCodePoint = true;
             }
-            if (!(Character.isLetter(codePoint) || isDecorativeGlyphCodePoint(codePoint) || isSymbolicCodePoint(codePoint))) {
+            if (!(decorativeTokenLetter || isDecorativeGlyphCodePoint(codePoint) || isSymbolicCodePoint(codePoint))) {
                 return false;
             }
         }
@@ -334,6 +346,11 @@ public class StylePreserver {
             return false;
         }
         return sawMeaningfulCodePoint;
+    }
+
+    private static boolean isDecorativeTokenLetterCodePoint(int codePoint) {
+        return Character.isLetter(codePoint)
+                && Character.UnicodeScript.of(codePoint) == Character.UnicodeScript.LATIN;
     }
 
     private static boolean isAsciiPlainPunctuationOnly(String content) {

@@ -201,7 +201,8 @@ public final class TooltipTranslationSupport {
         } else if (status == ItemTemplateCache.TranslationStatus.TRANSLATED) {
             String reassembledTranslated = TemplateProcessor.reassembleDecorativeGlyphs(
                     TemplateProcessor.reassemble(translatedTemplate, preparedTemplate.templateResult().values()),
-                    preparedTemplate.glyphResult().values()
+                    preparedTemplate.glyphResult().values(),
+                    true
             );
             finalTooltipLine = resolvedLookup.format() == CachedTranslationFormat.TAGGED
                     ? StylePreserver.reapplyStylesFromTags(reassembledTranslated, preparedTemplate.styleResult().styleMap, true)
@@ -652,6 +653,7 @@ public final class TooltipTranslationSupport {
         }
         if (looksLikeBulletOrListLine(raw)
                 || looksLikeStructuredStatLine(raw)
+                || looksLikeDecoratedStructuredTooltipLine(raw)
                 || looksLikeEnchantmentListLine(raw)
                 || looksLikeMenuEntryLine(raw)) {
             return false;
@@ -749,6 +751,28 @@ public final class TooltipTranslationSupport {
         return Character.isDigit(first)
                 && countWordTokens(trimmed) <= 6
                 && (containsSymbolicMarker(trimmed) || trimmed.indexOf('%') >= 0);
+    }
+
+    private static boolean looksLikeDecoratedStructuredTooltipLine(String raw) {
+        if (raw == null || raw.isBlank() || !containsDecorativeGlyph(raw)) {
+            return false;
+        }
+
+        String visible = normalizeTooltipText(stripDecorativeGlyphsForHeuristics(raw));
+        if (visible.isEmpty()
+                || !containsLetterContent(visible)
+                || containsSentencePunctuation(visible)) {
+            return false;
+        }
+
+        int wordCount = countWordTokens(visible);
+        if (wordCount == 0 || wordCount > 8) {
+            return false;
+        }
+
+        return containsDigit(visible)
+                || visible.indexOf('%') >= 0
+                || visible.indexOf('/') >= 0;
     }
 
     private static boolean looksLikeMenuEntryLine(String raw) {
@@ -1370,7 +1394,8 @@ public final class TooltipTranslationSupport {
         PreparedParagraphTemplate paragraphTemplate = block.paragraphTemplate();
         String reassembledTranslated = TemplateProcessor.reassembleDecorativeGlyphs(
                 TemplateProcessor.reassemble(normalizedTemplate, paragraphTemplate.templateValues()),
-                paragraphTemplate.glyphValues()
+                paragraphTemplate.glyphValues(),
+                true
         );
         reassembledTranslated = postProcessTranslatedParagraphText(
                 reassembledTranslated,
@@ -2233,7 +2258,9 @@ public final class TooltipTranslationSupport {
                 }
         )
                 : new TemplateProcessor.DecorativeGlyphExtractionResult(unicodeTemplate, List.of());
-        String normalizedTemplate = glyphResult.template();
+        String normalizedTemplate = resolvedUseTagStylePreservation
+                ? TemplateProcessor.normalizeWynnInlineSpacerGlyphsInTaggedText(glyphResult.template())
+                : glyphResult.template();
         String translationTemplateKey = resolvedUseTagStylePreservation
                 ? normalizedTemplate
                 : StylePreserver.toLegacyTemplate(unicodeTemplate, styleResult.styleMap);
@@ -2410,7 +2437,9 @@ public final class TooltipTranslationSupport {
         List<CompatibilityTemplateKey> compatibilityKeys = new ArrayList<>(2);
         addCompatibilityKey(
                 compatibilityKeys,
-                TemplateProcessor.extractDecorativeGlyphTags(preparedTemplate.unicodeTemplate()).template(),
+                TemplateProcessor.normalizeWynnInlineSpacerGlyphsInTaggedText(
+                        TemplateProcessor.extractDecorativeGlyphTags(preparedTemplate.unicodeTemplate()).template()
+                ),
                 CachedTranslationFormat.TAGGED
         );
         addCompatibilityKey(
@@ -2500,7 +2529,8 @@ public final class TooltipTranslationSupport {
 
         String reassembledTranslated = TemplateProcessor.reassembleDecorativeGlyphs(
                 TemplateProcessor.reassemble(cachedTranslation, preparedTemplate.templateResult().values()),
-                preparedTemplate.glyphResult().values()
+                preparedTemplate.glyphResult().values(),
+                true
         );
         return format == CachedTranslationFormat.TAGGED
                 ? StylePreserver.reapplyStylesFromTags(reassembledTranslated, preparedTemplate.styleResult().styleMap, true)
@@ -2521,7 +2551,8 @@ public final class TooltipTranslationSupport {
 
         String reassembledTranslated = TemplateProcessor.reassembleDecorativeGlyphs(
                 TemplateProcessor.reassemble(adaptedTranslation.translation(), preparedTemplate.templateResult().values()),
-                preparedTemplate.glyphResult().values()
+                preparedTemplate.glyphResult().values(),
+                true
         );
         if (containsNumericPlaceholder(reassembledTranslated)) {
             return false;
@@ -2876,17 +2907,39 @@ public final class TooltipTranslationSupport {
 
         for (int offset = 0; offset < value.length(); ) {
             int codePoint = value.codePointAt(offset);
-            int unicodeType = Character.getType(codePoint);
-            if (unicodeType == Character.PRIVATE_USE
-                    || unicodeType == Character.UNASSIGNED
-                    || (codePoint >= 0xE000 && codePoint <= 0xF8FF)
-                    || (codePoint >= 0xF0000 && codePoint <= 0xFFFFD)
-                    || (codePoint >= 0x100000 && codePoint <= 0x10FFFD)) {
+            if (isDecorativeGlyphCodePoint(codePoint)) {
                 return true;
             }
             offset += Character.charCount(codePoint);
         }
         return false;
+    }
+
+    private static String stripDecorativeGlyphsForHeuristics(String raw) {
+        if (raw == null || raw.isEmpty()) {
+            return "";
+        }
+
+        StringBuilder builder = new StringBuilder(raw.length());
+        for (int offset = 0; offset < raw.length(); ) {
+            int codePoint = raw.codePointAt(offset);
+            if (isDecorativeGlyphCodePoint(codePoint)) {
+                builder.append(' ');
+            } else {
+                builder.appendCodePoint(codePoint);
+            }
+            offset += Character.charCount(codePoint);
+        }
+        return builder.toString();
+    }
+
+    private static boolean isDecorativeGlyphCodePoint(int codePoint) {
+        int unicodeType = Character.getType(codePoint);
+        return unicodeType == Character.PRIVATE_USE
+                || unicodeType == Character.UNASSIGNED
+                || (codePoint >= 0xE000 && codePoint <= 0xF8FF)
+                || (codePoint >= 0xF0000 && codePoint <= 0xFFFFD)
+                || (codePoint >= 0x100000 && codePoint <= 0x10FFFD);
     }
 
     private static int computeTooltipSignature(Set<String> keys) {

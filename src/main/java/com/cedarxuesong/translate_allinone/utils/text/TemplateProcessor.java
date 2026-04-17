@@ -16,6 +16,10 @@ public class TemplateProcessor {
     // 5. Numbers immediately after legacy color prefix '§' are excluded.
     private static final Pattern NUMBER_PATTERN = Pattern.compile("(?<!§)(\\d+([.,/-]\\d+)+|\\d{1,3}(,\\d{3})*(\\.\\d+)?|\\d+\\.\\d+|\\.\\d+|\\d+)");
     private static final Pattern STYLE_TAG_PATTERN = Pattern.compile("<s(\\d+)>(.*?)</s\\1>", Pattern.DOTALL);
+    private static final Pattern STYLE_TAG_MARKER_PATTERN = Pattern.compile("</?s\\d+>");
+    private static final Pattern GLYPH_PLACEHOLDER_PATTERN = Pattern.compile("\\{g(\\d+)}");
+    private static final int WYNN_INLINE_SPACER_START = 0xCFF00;
+    private static final int WYNN_INLINE_SPACER_END = 0xD0FFF;
 
     public record TemplateExtractionResult(String template, List<String> values) {
     }
@@ -110,8 +114,17 @@ public class TemplateProcessor {
         List<String> values = new ArrayList<>();
         Matcher matcher = STYLE_TAG_PATTERN.matcher(text);
         StringBuilder templateBuffer = new StringBuilder();
+        int lastEnd = 0;
 
         while (matcher.find()) {
+            if (matcher.start() > lastEnd) {
+                templateBuffer.append(extractInlineSpacerGlyphRuns(
+                        text.substring(lastEnd, matcher.start()),
+                        null,
+                        values
+                ));
+            }
+
             int styleId = Integer.parseInt(matcher.group(1));
             String taggedContent = matcher.group(2);
             if (!isDecorativeGlyphOnly(taggedContent)
@@ -119,25 +132,429 @@ public class TemplateProcessor {
                     && preserveStyleId.test(styleId)
                     && ((isSymbolLikeOnly(taggedContent) && !isAsciiPlainPunctuationOnly(taggedContent))
                     || isLikelyDecorativeFontToken(taggedContent)))) {
-                matcher.appendReplacement(templateBuffer, Matcher.quoteReplacement(matcher.group()));
+                String normalizedContent = extractInlineSpacerGlyphRuns(taggedContent, styleId, values);
+                if (!normalizedContent.isEmpty()) {
+                    templateBuffer.append("<s")
+                            .append(styleId)
+                            .append(">")
+                            .append(normalizedContent)
+                            .append("</s")
+                            .append(styleId)
+                            .append(">");
+                }
+                lastEnd = matcher.end();
                 continue;
             }
 
-            values.add(matcher.group());
+            String normalizedValue = normalizeDecorativeGlyphValue(matcher.group());
+            if (normalizedValue == null || normalizedValue.isEmpty()) {
+                lastEnd = matcher.end();
+                continue;
+            }
+
+            values.add(normalizedValue);
             String placeholder = "{g" + values.size() + "}";
-            matcher.appendReplacement(templateBuffer, Matcher.quoteReplacement(placeholder));
+            templateBuffer.append(placeholder);
+            lastEnd = matcher.end();
         }
 
-        matcher.appendTail(templateBuffer);
+        if (lastEnd < text.length()) {
+            templateBuffer.append(extractInlineSpacerGlyphRuns(text.substring(lastEnd), null, values));
+        }
         return new DecorativeGlyphExtractionResult(templateBuffer.toString(), values);
     }
 
     public static String reassembleDecorativeGlyphs(String translatedTemplate, List<String> values) {
-        for (int i = 0; i < values.size(); i++) {
-            String placeholder = "{g" + (i + 1) + "}";
-            translatedTemplate = translatedTemplate.replaceFirst(Pattern.quote(placeholder), Matcher.quoteReplacement(values.get(i)));
+        return reassembleDecorativeGlyphs(translatedTemplate, values, false);
+    }
+
+    public static String reassembleDecorativeGlyphs(
+            String translatedTemplate,
+            List<String> values,
+            boolean collapsePureInlineSpacerDecorativeSegments
+    ) {
+        if (translatedTemplate == null || translatedTemplate.isEmpty() || values == null || values.isEmpty()) {
+            return translatedTemplate;
         }
-        return translatedTemplate;
+
+        String strippedTemplate = collapsePureInlineSpacerDecorativeSegments
+                ? STYLE_TAG_MARKER_PATTERN.matcher(translatedTemplate).replaceAll("")
+                : null;
+        Matcher matcher = GLYPH_PLACEHOLDER_PATTERN.matcher(translatedTemplate);
+        StringBuilder reassembled = new StringBuilder(translatedTemplate.length());
+        int lastEnd = 0;
+
+        while (matcher.find()) {
+            reassembled.append(translatedTemplate, lastEnd, matcher.start());
+
+            int placeholderIndex = Integer.parseInt(matcher.group(1)) - 1;
+            String rawValue = placeholderIndex >= 0 && placeholderIndex < values.size()
+                    ? values.get(placeholderIndex)
+                    : matcher.group();
+            String replacement = collapsePureInlineSpacerDecorativeSegments
+                    ? normalizeDecorativeGlyphValueForTranslation(
+                    rawValue,
+                    strippedTemplate,
+                    matcher.group(),
+                    values
+            )
+                    : normalizeDecorativeGlyphValue(rawValue);
+            reassembled.append(replacement);
+            lastEnd = matcher.end();
+        }
+
+        reassembled.append(translatedTemplate, lastEnd, translatedTemplate.length());
+        return reassembled.toString();
+    }
+
+    public static String normalizeWynnInlineSpacerGlyphsInTaggedText(String text) {
+        if (text == null || text.isEmpty()) {
+            return text;
+        }
+
+        Matcher matcher = STYLE_TAG_PATTERN.matcher(text);
+        StringBuilder normalized = new StringBuilder(text.length());
+        int lastEnd = 0;
+
+        while (matcher.find()) {
+            if (matcher.start() > lastEnd) {
+                normalized.append(collapseWynnInlineSpacerGlyphs(text.substring(lastEnd, matcher.start())));
+            }
+
+            String content = collapseWynnInlineSpacerGlyphs(matcher.group(2));
+            if (content != null && !content.isEmpty()) {
+                normalized.append("<s")
+                        .append(matcher.group(1))
+                        .append(">")
+                        .append(content)
+                        .append("</s")
+                        .append(matcher.group(1))
+                        .append(">");
+            }
+            lastEnd = matcher.end();
+        }
+
+        if (lastEnd < text.length()) {
+            normalized.append(collapseWynnInlineSpacerGlyphs(text.substring(lastEnd)));
+        }
+        return normalized.toString();
+    }
+
+    private static String extractInlineSpacerGlyphRuns(String text, Integer styleId, List<String> values) {
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
+
+        StringBuilder normalized = new StringBuilder(text.length());
+        boolean pendingSpacer = false;
+        for (int offset = 0; offset < text.length(); ) {
+            int codePoint = text.codePointAt(offset);
+            offset += Character.charCount(codePoint);
+
+            if (isWynnInlineSpacerGlyphCodePoint(codePoint)) {
+                pendingSpacer = true;
+                continue;
+            }
+
+            if (pendingSpacer) {
+                appendInlineSpacerPlaceholder(normalized, styleId, values);
+                pendingSpacer = false;
+            }
+            normalized.appendCodePoint(codePoint);
+        }
+
+        if (pendingSpacer) {
+            appendInlineSpacerPlaceholder(normalized, styleId, values);
+        }
+        return normalized.toString();
+    }
+
+    private static void appendInlineSpacerPlaceholder(StringBuilder templateBuffer, Integer styleId, List<String> values) {
+        if (templateBuffer == null || values == null) {
+            return;
+        }
+
+        values.add(styleId == null ? " " : "<s" + styleId + "> </s" + styleId + ">");
+        templateBuffer.append("{g").append(values.size()).append("}");
+    }
+
+    public static String normalizeDecorativeGlyphValue(String value) {
+        if (value == null || value.isEmpty()) {
+            return value;
+        }
+
+        Matcher matcher = STYLE_TAG_PATTERN.matcher(value);
+        if (!matcher.matches()) {
+            return shouldPreserveDecorativeGlyphSegment(value) ? value : collapseWynnInlineSpacerGlyphs(value);
+        }
+
+        String content = matcher.group(2);
+        String normalizedContent = shouldPreserveDecorativeGlyphSegment(content)
+                ? content
+                : collapseWynnInlineSpacerGlyphs(content);
+        if (normalizedContent == null || normalizedContent.isEmpty()) {
+            return "";
+        }
+        return "<s" + matcher.group(1) + ">" + normalizedContent + "</s" + matcher.group(1) + ">";
+    }
+
+    public static String collapseWynnInlineSpacerGlyphs(String text) {
+        if (text == null || text.isEmpty()) {
+            return text;
+        }
+
+        StringBuilder normalized = new StringBuilder(text.length());
+        boolean pendingWhitespace = false;
+        for (int offset = 0; offset < text.length(); ) {
+            int codePoint = text.codePointAt(offset);
+            offset += Character.charCount(codePoint);
+
+            if (isWynnInlineSpacerGlyphCodePoint(codePoint)) {
+                pendingWhitespace = true;
+                continue;
+            }
+
+            if (Character.isWhitespace(codePoint)) {
+                pendingWhitespace = true;
+                continue;
+            }
+
+            if (pendingWhitespace && (normalized.isEmpty() || normalized.charAt(normalized.length() - 1) != ' ')) {
+                normalized.append(' ');
+            }
+            pendingWhitespace = false;
+            normalized.appendCodePoint(codePoint);
+        }
+
+        if (pendingWhitespace && (normalized.isEmpty() || normalized.charAt(normalized.length() - 1) != ' ')) {
+            normalized.append(' ');
+        }
+        return normalized.toString();
+    }
+
+    public static boolean shouldPreserveDecorativeGlyphSegment(String text) {
+        if (text == null || text.isEmpty()) {
+            return false;
+        }
+
+        boolean sawDecorativeGlyph = false;
+        for (int offset = 0; offset < text.length(); ) {
+            int codePoint = text.codePointAt(offset);
+            offset += Character.charCount(codePoint);
+
+            if (Character.isWhitespace(codePoint)) {
+                continue;
+            }
+            if (!isDecorativeGlyphCodePoint(codePoint)) {
+                return false;
+            }
+            sawDecorativeGlyph = true;
+        }
+
+        return sawDecorativeGlyph;
+    }
+
+    private static String normalizeDecorativeGlyphValueForTranslation(
+            String value,
+            String strippedTemplate,
+            String placeholder,
+            List<String> values
+    ) {
+        if (!isPureInlineSpacerDecorativeValue(value)) {
+            return normalizeDecorativeGlyphValue(value);
+        }
+
+        if (strippedTemplate != null
+                && placeholder != null
+                && isAttachedToVisibleDecorativePlaceholderCluster(strippedTemplate, placeholder, values)) {
+            return normalizeDecorativeGlyphValue(value);
+        }
+        return collapseDecorativeValueToVisibleSpace(value);
+    }
+
+    private static boolean isAttachedToVisibleDecorativePlaceholderCluster(
+            String strippedTemplate,
+            String placeholder,
+            List<String> values
+    ) {
+        if (strippedTemplate == null || strippedTemplate.isEmpty() || placeholder == null || placeholder.isEmpty()) {
+            return false;
+        }
+
+        int start = strippedTemplate.indexOf(placeholder);
+        if (start < 0) {
+            return false;
+        }
+        int end = start + placeholder.length();
+        return hasVisibleDecorativePlaceholderClusterToLeft(strippedTemplate, start, values)
+                || hasVisibleDecorativePlaceholderClusterToRight(strippedTemplate, end, values);
+    }
+
+    private static boolean hasVisibleDecorativePlaceholderClusterToLeft(
+            String template,
+            int start,
+            List<String> values
+    ) {
+        int cursor = start;
+        while (cursor > 0 && Character.isWhitespace(template.charAt(cursor - 1))) {
+            cursor--;
+        }
+
+        while (cursor > 0) {
+            if (template.charAt(cursor - 1) != '}') {
+                return false;
+            }
+
+            int braceStart = template.lastIndexOf('{', cursor - 1);
+            if (braceStart < 0) {
+                return false;
+            }
+
+            Integer placeholderIndex = parseGlyphPlaceholderIndex(template.substring(braceStart, cursor));
+            if (placeholderIndex == null) {
+                return false;
+            }
+
+            String neighborValue = values.get(placeholderIndex);
+            if (hasVisibleDecorativeGlyphValue(neighborValue)) {
+                return true;
+            }
+            if (!isPureInlineSpacerDecorativeValue(neighborValue)) {
+                return false;
+            }
+
+            cursor = braceStart;
+            while (cursor > 0 && Character.isWhitespace(template.charAt(cursor - 1))) {
+                cursor--;
+            }
+        }
+
+        return false;
+    }
+
+    private static boolean hasVisibleDecorativePlaceholderClusterToRight(
+            String template,
+            int end,
+            List<String> values
+    ) {
+        int cursor = end;
+        while (cursor < template.length() && Character.isWhitespace(template.charAt(cursor))) {
+            cursor++;
+        }
+
+        while (cursor < template.length()) {
+            if (template.charAt(cursor) != '{') {
+                return false;
+            }
+
+            int braceEnd = template.indexOf('}', cursor);
+            if (braceEnd < 0) {
+                return false;
+            }
+
+            Integer placeholderIndex = parseGlyphPlaceholderIndex(template.substring(cursor, braceEnd + 1));
+            if (placeholderIndex == null) {
+                return false;
+            }
+
+            String neighborValue = values.get(placeholderIndex);
+            if (hasVisibleDecorativeGlyphValue(neighborValue)) {
+                return true;
+            }
+            if (!isPureInlineSpacerDecorativeValue(neighborValue)) {
+                return false;
+            }
+
+            cursor = braceEnd + 1;
+            while (cursor < template.length() && Character.isWhitespace(template.charAt(cursor))) {
+                cursor++;
+            }
+        }
+
+        return false;
+    }
+
+    private static Integer parseGlyphPlaceholderIndex(String token) {
+        if (token == null || token.isEmpty()) {
+            return null;
+        }
+
+        Matcher matcher = GLYPH_PLACEHOLDER_PATTERN.matcher(token);
+        if (!matcher.matches()) {
+            return null;
+        }
+
+        int parsedIndex = Integer.parseInt(matcher.group(1)) - 1;
+        return parsedIndex >= 0 ? parsedIndex : null;
+    }
+
+    private static boolean hasVisibleDecorativeGlyphValue(String value) {
+        String content = unwrapStyleTagContent(value);
+        if (content == null || content.isEmpty()) {
+            return false;
+        }
+
+        for (int offset = 0; offset < content.length(); ) {
+            int codePoint = content.codePointAt(offset);
+            offset += Character.charCount(codePoint);
+
+            if (Character.isWhitespace(codePoint)) {
+                continue;
+            }
+            if (isDecorativeGlyphCodePoint(codePoint) && !isWynnInlineSpacerGlyphCodePoint(codePoint)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isPureInlineSpacerDecorativeValue(String value) {
+        String content = unwrapStyleTagContent(value);
+        if (content == null || content.isEmpty()) {
+            return false;
+        }
+
+        boolean sawSpacerGlyph = false;
+        for (int offset = 0; offset < content.length(); ) {
+            int codePoint = content.codePointAt(offset);
+            offset += Character.charCount(codePoint);
+
+            if (Character.isWhitespace(codePoint)) {
+                continue;
+            }
+            if (!isDecorativeGlyphCodePoint(codePoint) || !isWynnInlineSpacerGlyphCodePoint(codePoint)) {
+                return false;
+            }
+            sawSpacerGlyph = true;
+        }
+
+        return sawSpacerGlyph;
+    }
+
+    private static String collapseDecorativeValueToVisibleSpace(String value) {
+        if (value == null || value.isEmpty()) {
+            return value;
+        }
+
+        Matcher matcher = STYLE_TAG_PATTERN.matcher(value);
+        if (!matcher.matches()) {
+            return collapseWynnInlineSpacerGlyphs(value);
+        }
+
+        String normalizedContent = collapseWynnInlineSpacerGlyphs(matcher.group(2));
+        if (normalizedContent == null || normalizedContent.isEmpty()) {
+            return "";
+        }
+        return "<s" + matcher.group(1) + ">" + normalizedContent + "</s" + matcher.group(1) + ">";
+    }
+
+    private static String unwrapStyleTagContent(String value) {
+        if (value == null || value.isEmpty()) {
+            return value;
+        }
+
+        Matcher matcher = STYLE_TAG_PATTERN.matcher(value);
+        return matcher.matches() ? matcher.group(2) : value;
     }
 
     private static boolean isDecorativeGlyphOnly(String text) {
@@ -206,7 +623,11 @@ public class TemplateProcessor {
                 return false;
             }
 
-            if (Character.isLetter(codePoint)) {
+            boolean decorativeTokenLetter = isDecorativeTokenLetterCodePoint(codePoint);
+            if (Character.isLetter(codePoint) && !decorativeTokenLetter) {
+                return false;
+            }
+            if (decorativeTokenLetter) {
                 sawLetter = true;
                 if (Character.isLowerCase(codePoint)) {
                     sawLowercaseLetter = true;
@@ -218,7 +639,7 @@ public class TemplateProcessor {
             if (isSymbolicCodePoint(codePoint)) {
                 sawSymbolicCodePoint = true;
             }
-            if (!(Character.isLetter(codePoint) || isDecorativeGlyphCodePoint(codePoint) || isSymbolicCodePoint(codePoint))) {
+            if (!(decorativeTokenLetter || isDecorativeGlyphCodePoint(codePoint) || isSymbolicCodePoint(codePoint))) {
                 return false;
             }
         }
@@ -233,6 +654,11 @@ public class TemplateProcessor {
             return false;
         }
         return sawMeaningfulCodePoint;
+    }
+
+    private static boolean isDecorativeTokenLetterCodePoint(int codePoint) {
+        return Character.isLetter(codePoint)
+                && Character.UnicodeScript.of(codePoint) == Character.UnicodeScript.LATIN;
     }
 
     private static boolean isAsciiPlainPunctuationOnly(String text) {
@@ -288,5 +714,9 @@ public class TemplateProcessor {
         return (codePoint >= 0xE000 && codePoint <= 0xF8FF)
                 || (codePoint >= 0xF0000 && codePoint <= 0xFFFFD)
                 || (codePoint >= 0x100000 && codePoint <= 0x10FFFD);
+    }
+
+    private static boolean isWynnInlineSpacerGlyphCodePoint(int codePoint) {
+        return codePoint >= WYNN_INLINE_SPACER_START && codePoint <= WYNN_INLINE_SPACER_END;
     }
 } 

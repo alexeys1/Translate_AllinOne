@@ -38,7 +38,17 @@ public abstract class DrawContextItemTooltipMixin {
             CallbackInfoReturnable<List<Text>> cir
     ) {
         List<Text> originalTooltip = cir.getReturnValue();
+        if (TooltipTranslationContext.isInWynnmodTooltipRender()) {
+            TooltipTranslationContext.setSkipDrawContextTranslation(false);
+            TooltipTranslationContext.rememberScreenMirrorTooltip(null);
+            return;
+        }
         List<Text> mirroredTooltip = translate_allinone$buildTooltipMirror(originalTooltip);
+        TooltipTranslationContext.rememberScreenMirrorTooltip(
+                mirroredTooltip == originalTooltip
+                        ? null
+                        : TooltipTranslationSupport.stripInternalGeneratedLines(mirroredTooltip)
+        );
         TooltipTranslationContext.setSkipDrawContextTranslation(mirroredTooltip != originalTooltip);
         cir.setReturnValue(mirroredTooltip);
     }
