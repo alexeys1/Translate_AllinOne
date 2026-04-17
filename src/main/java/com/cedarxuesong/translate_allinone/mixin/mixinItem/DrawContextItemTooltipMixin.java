@@ -1,5 +1,7 @@
 package com.cedarxuesong.translate_allinone.mixin.mixinItem;
 
+import com.cedarxuesong.translate_allinone.Translate_AllinOne;
+import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTranslationContext;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTranslationSupport;
 import net.minecraft.client.MinecraftClient;
@@ -38,17 +40,17 @@ public abstract class DrawContextItemTooltipMixin {
             CallbackInfoReturnable<List<Text>> cir
     ) {
         List<Text> originalTooltip = cir.getReturnValue();
-        if (TooltipTranslationContext.isInWynnmodTooltipRender()) {
+        boolean useWynnmodTooltipTracking = translate_allinone$shouldUseWynnmodTooltipTracking();
+        if (useWynnmodTooltipTracking && TooltipTranslationContext.isInWynnmodTooltipRender()) {
             TooltipTranslationContext.setSkipDrawContextTranslation(false);
             TooltipTranslationContext.rememberScreenMirrorTooltip(null);
             return;
         }
         List<Text> mirroredTooltip = translate_allinone$buildTooltipMirror(originalTooltip);
-        TooltipTranslationContext.rememberScreenMirrorTooltip(
-                mirroredTooltip == originalTooltip
-                        ? null
-                        : TooltipTranslationSupport.stripInternalGeneratedLines(mirroredTooltip)
-        );
+        TooltipTranslationContext.rememberScreenMirrorTooltip(useWynnmodTooltipTracking
+                && mirroredTooltip != originalTooltip
+                ? TooltipTranslationSupport.stripInternalGeneratedLines(mirroredTooltip)
+                : null);
         TooltipTranslationContext.setSkipDrawContextTranslation(mirroredTooltip != originalTooltip);
         cir.setReturnValue(mirroredTooltip);
     }
@@ -68,5 +70,11 @@ public abstract class DrawContextItemTooltipMixin {
         } finally {
             translate_allinone$isBuildingTooltipMirror.set(false);
         }
+    }
+
+    @Unique
+    private static boolean translate_allinone$shouldUseWynnmodTooltipTracking() {
+        ItemTranslateConfig config = Translate_AllinOne.getConfig().itemTranslate;
+        return config != null && config.enabled && config.wynn_item_compatibility;
     }
 }

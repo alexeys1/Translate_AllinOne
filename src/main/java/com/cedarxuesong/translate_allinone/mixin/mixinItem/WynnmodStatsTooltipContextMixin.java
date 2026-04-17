@@ -33,6 +33,9 @@ public abstract class WynnmodStatsTooltipContextMixin {
             remap = false
     )
     private void translate_allinone$prepareWynnmodTooltip(@Coerce Object event, CallbackInfo ci) {
+        if (!translate_allinone$shouldUseWynnmodTooltipTracking()) {
+            return;
+        }
         TooltipTranslationContext.pushWynnmodTooltipRender();
         TooltipTranslationContext.setSkipDrawContextTranslation(false);
     }
@@ -44,12 +47,13 @@ public abstract class WynnmodStatsTooltipContextMixin {
             remap = false
     )
     private void translate_allinone$translateDecoratedWynnmodTooltip(@Coerce Object event, CallbackInfo ci) {
+        boolean usingWynnmodTooltipTracking = translate_allinone$shouldUseWynnmodTooltipTracking();
         try {
-            ItemTranslateConfig config = Translate_AllinOne.getConfig().itemTranslate;
-            if (!config.enabled || !config.wynn_item_compatibility) {
+            if (!usingWynnmodTooltipTracking) {
                 return;
             }
 
+            ItemTranslateConfig config = Translate_AllinOne.getConfig().itemTranslate;
             List<Text> currentTooltip = translate_allinone$getTooltipText(event);
             if (currentTooltip == null || currentTooltip.isEmpty()) {
                 return;
@@ -85,8 +89,16 @@ public abstract class WynnmodStatsTooltipContextMixin {
                 TooltipTranslationContext.setSkipDrawContextTranslation(true);
             }
         } finally {
-            TooltipTranslationContext.popWynnmodTooltipRender();
+            if (usingWynnmodTooltipTracking) {
+                TooltipTranslationContext.popWynnmodTooltipRender();
+            }
         }
+    }
+
+    @Unique
+    private static boolean translate_allinone$shouldUseWynnmodTooltipTracking() {
+        ItemTranslateConfig config = Translate_AllinOne.getConfig().itemTranslate;
+        return config != null && config.enabled && config.wynn_item_compatibility;
     }
 
     @Unique
