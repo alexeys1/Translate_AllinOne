@@ -132,6 +132,7 @@ public final class TooltipTranslationSupport {
             Map<Integer, Style> styleMap,
             List<String> templateValues,
             List<String> glyphValues,
+            Integer bodyStyleId,
             int wrapWidth
     ) {
     }
@@ -677,6 +678,7 @@ public final class TooltipTranslationSupport {
         if (looksLikeBulletOrListLine(raw)
                 || looksLikeStructuredStatLine(raw)
                 || looksLikeDecoratedStructuredTooltipLine(raw)
+                || looksLikeStandaloneEnchantmentHeader(raw)
                 || looksLikeEnchantmentListLine(raw)
                 || looksLikeMenuEntryLine(raw)) {
             return false;
@@ -850,6 +852,52 @@ public final class TooltipTranslationSupport {
         return matchedEntries >= 2;
     }
 
+    private static boolean looksLikeStandaloneEnchantmentHeader(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return false;
+        }
+
+        String visible = normalizeTooltipText(stripDecorativeGlyphsForHeuristics(raw));
+        if (visible.isEmpty()
+                || visible.indexOf(':') >= 0
+                || visible.indexOf('：') >= 0
+                || visible.indexOf('/') >= 0
+                || visible.indexOf('\\') >= 0
+                || visible.indexOf(',') >= 0
+                || containsSentencePunctuation(visible)) {
+            return false;
+        }
+
+        String[] tokens = visible.split("\\s+");
+        if (tokens.length < 2 || tokens.length > 4) {
+            return false;
+        }
+
+        String lastToken = trimEdgePunctuation(tokens[tokens.length - 1]);
+        boolean levelLike = isIntegerToken(lastToken) || isRomanNumeralToken(lastToken);
+        boolean bonusLike = tokens.length == 2 && "bonus".equalsIgnoreCase(lastToken);
+        if (!levelLike && !bonusLike) {
+            return false;
+        }
+
+        int limit = levelLike ? tokens.length - 1 : tokens.length;
+        int titleWordCount = 0;
+        for (int index = 0; index < limit; index++) {
+            String token = trimEdgePunctuation(tokens[index]);
+            if (token.isEmpty()) {
+                return false;
+            }
+            if (isEnchantmentConnectorWord(token)) {
+                continue;
+            }
+            if (!isTitleLikeWord(token)) {
+                return false;
+            }
+            titleWordCount++;
+        }
+        return titleWordCount >= 1;
+    }
+
     private static boolean looksLikeEnchantmentEntry(String segment) {
         if (segment == null || segment.isBlank()) {
             return false;
@@ -956,6 +1004,18 @@ public final class TooltipTranslationSupport {
             offset += Character.charCount(codePoint);
         }
         return true;
+    }
+
+    private static boolean isRomanNumeralToken(String token) {
+        if (token == null || token.isBlank()) {
+            return false;
+        }
+
+        String upper = token.trim().toUpperCase(Locale.ROOT);
+        if (upper.isEmpty() || upper.length() > 8) {
+            return false;
+        }
+        return upper.matches("M{0,4}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})");
     }
 
     private static boolean containsDigit(String raw) {
@@ -1335,6 +1395,7 @@ public final class TooltipTranslationSupport {
                 combinedStyleMap,
                 combinedTemplateValues,
                 combinedGlyphValues,
+                findDominantParagraphBodyStyleId(combinedTemplateKey.toString(), combinedStyleMap),
                 computeParagraphWrapWidth(preparedLines)
         );
     }
@@ -1422,7 +1483,8 @@ public final class TooltipTranslationSupport {
         );
         reassembledTranslated = postProcessTranslatedParagraphText(
                 reassembledTranslated,
-                paragraphTemplate.styleMap()
+                paragraphTemplate.styleMap(),
+                paragraphTemplate.bodyStyleId()
         );
         logParagraphStyleMapIfDev(
                 config,
@@ -1487,7 +1549,11 @@ public final class TooltipTranslationSupport {
         return renderedText;
     }
 
-    private static String postProcessTranslatedParagraphText(String translatedText, Map<Integer, Style> styleMap) {
+    private static String postProcessTranslatedParagraphText(
+            String translatedText,
+            Map<Integer, Style> styleMap,
+            Integer bodyStyleId
+    ) {
         if (translatedText == null || translatedText.isBlank()) {
             return translatedText;
         }
@@ -1497,7 +1563,7 @@ public final class TooltipTranslationSupport {
         if (applyChineseHeuristics) {
             normalized = normalizeChineseTaggedWhitespace(normalized);
         }
-        normalized = normalizeParagraphTaggedStyles(normalized, styleMap);
+        normalized = normalizeParagraphTaggedStyles(normalized, styleMap, bodyStyleId);
         return applyChineseHeuristics ? normalizeChineseTaggedWhitespace(normalized) : normalized;
     }
 
@@ -1565,7 +1631,7 @@ public final class TooltipTranslationSupport {
         return normalized.toString().trim();
     }
 
-    private static String normalizeParagraphTaggedStyles(String text, Map<Integer, Style> styleMap) {
+    private static String normalizeParagraphTaggedStyles(String text, Map<Integer, Style> styleMap, Integer bodyStyleId) {
         if (text == null
                 || text.isBlank()
                 || styleMap == null
@@ -1580,7 +1646,7 @@ public final class TooltipTranslationSupport {
         }
 
         canonicalizeEquivalentParagraphStyles(runs, styleMap);
-        absorbParagraphBodyStyle(runs, styleMap);
+        absorbParagraphBodyStyle(runs, styleMap, bodyStyleId);
         return serializeParagraphTaggedRuns(runs);
     }
 
@@ -1645,36 +1711,15 @@ public final class TooltipTranslationSupport {
         }
     }
 
-    private static void absorbParagraphBodyStyle(List<ParagraphTaggedRun> runs, Map<Integer, Style> styleMap) {
-        Map<Integer, Integer> bodyScoreByStyleId = new HashMap<>();
-        int totalBodyScore = 0;
-        for (ParagraphTaggedRun run : runs) {
-            if (run == null || run.styleId == null) {
-                continue;
-            }
-
-            int bodyScore = scoreParagraphBodyText(run.content);
-            if (bodyScore <= 0) {
-                continue;
-            }
-            bodyScoreByStyleId.merge(run.styleId, bodyScore, Integer::sum);
-            totalBodyScore += bodyScore;
-        }
-        if (totalBodyScore <= 0 || bodyScoreByStyleId.isEmpty()) {
-            return;
-        }
-
-        int dominantStyleId = -1;
-        int dominantStyleScore = 0;
-        for (Map.Entry<Integer, Integer> entry : bodyScoreByStyleId.entrySet()) {
-            if (entry.getValue() > dominantStyleScore) {
-                dominantStyleId = entry.getKey();
-                dominantStyleScore = entry.getValue();
-            }
-        }
-        if (dominantStyleId < 0
-                || dominantStyleScore < MIN_PARAGRAPH_BODY_STYLE_DOMINANT_SCORE
-                || dominantStyleScore * 100 < totalBodyScore * MIN_PARAGRAPH_BODY_STYLE_DOMINANCE_PERCENT) {
+    private static void absorbParagraphBodyStyle(
+            List<ParagraphTaggedRun> runs,
+            Map<Integer, Style> styleMap,
+            Integer preferredBodyStyleId
+    ) {
+        Integer dominantStyleId = preferredBodyStyleId == null
+                ? findDominantParagraphBodyStyleId(runs, styleMap)
+                : findCanonicalParagraphStyleId(preferredBodyStyleId, runs, styleMap);
+        if (dominantStyleId == null) {
             return;
         }
 
@@ -1690,6 +1735,82 @@ public final class TooltipTranslationSupport {
         }
     }
 
+    private static Integer findDominantParagraphBodyStyleId(String taggedText, Map<Integer, Style> styleMap) {
+        if (taggedText == null || taggedText.isBlank() || styleMap == null || styleMap.isEmpty()) {
+            return null;
+        }
+
+        List<ParagraphTaggedRun> runs = parseParagraphTaggedRuns(taggedText);
+        if (runs.isEmpty()) {
+            return null;
+        }
+        canonicalizeEquivalentParagraphStyles(runs, styleMap);
+        return findDominantParagraphBodyStyleId(runs, styleMap);
+    }
+
+    private static Integer findDominantParagraphBodyStyleId(List<ParagraphTaggedRun> runs, Map<Integer, Style> styleMap) {
+        Map<Integer, Integer> bodyScoreByStyleId = new HashMap<>();
+        int totalBodyScore = 0;
+        for (ParagraphTaggedRun run : runs) {
+            if (run == null || run.styleId == null) {
+                continue;
+            }
+
+            int bodyScore = scoreParagraphBodyText(run.content);
+            if (bodyScore <= 0) {
+                continue;
+            }
+            bodyScoreByStyleId.merge(run.styleId, bodyScore, Integer::sum);
+            totalBodyScore += bodyScore;
+        }
+        if (totalBodyScore <= 0 || bodyScoreByStyleId.isEmpty()) {
+            return null;
+        }
+
+        int dominantStyleId = -1;
+        int dominantStyleScore = 0;
+        for (Map.Entry<Integer, Integer> entry : bodyScoreByStyleId.entrySet()) {
+            if (entry.getValue() > dominantStyleScore) {
+                dominantStyleId = entry.getKey();
+                dominantStyleScore = entry.getValue();
+            }
+        }
+        if (dominantStyleId < 0
+                || dominantStyleScore < MIN_PARAGRAPH_BODY_STYLE_DOMINANT_SCORE
+                || dominantStyleScore * 100 < totalBodyScore * MIN_PARAGRAPH_BODY_STYLE_DOMINANCE_PERCENT) {
+            return null;
+        }
+        return dominantStyleId;
+    }
+
+    private static Integer findCanonicalParagraphStyleId(
+            Integer preferredStyleId,
+            List<ParagraphTaggedRun> runs,
+            Map<Integer, Style> styleMap
+    ) {
+        if (preferredStyleId == null || runs == null || runs.isEmpty() || styleMap == null || styleMap.isEmpty()) {
+            return preferredStyleId;
+        }
+
+        Style preferredVisualStyle = StylePreserver.sanitizeStyleForComparison(
+                styleMap.getOrDefault(preferredStyleId, Style.EMPTY),
+                true
+        );
+        for (ParagraphTaggedRun run : runs) {
+            if (run == null || run.styleId == null) {
+                continue;
+            }
+            Style runVisualStyle = StylePreserver.sanitizeStyleForComparison(
+                    styleMap.getOrDefault(run.styleId, Style.EMPTY),
+                    true
+            );
+            if (preferredVisualStyle.equals(runVisualStyle)) {
+                return run.styleId;
+            }
+        }
+        return preferredStyleId;
+    }
+
     private static boolean shouldAbsorbPlainRunIntoParagraphBody(
             List<ParagraphTaggedRun> runs,
             int index,
@@ -1699,14 +1820,7 @@ public final class TooltipTranslationSupport {
         if (run == null || run.styleId != null) {
             return false;
         }
-        if (scoreParagraphBodyText(run.content) < MIN_PARAGRAPH_BODY_RUN_SCORE) {
-            return false;
-        }
-
-        Integer previousStyledRun = findAdjacentStyledRunStyleId(runs, index, -1);
-        Integer nextStyledRun = findAdjacentStyledRunStyleId(runs, index, 1);
-        return Objects.equals(previousStyledRun, dominantStyleId)
-                || Objects.equals(nextStyledRun, dominantStyleId);
+        return scoreParagraphBodyText(run.content) >= MIN_PARAGRAPH_BODY_RUN_SCORE;
     }
 
     private static Integer findAdjacentStyledRunStyleId(List<ParagraphTaggedRun> runs, int startIndex, int direction) {
@@ -2304,6 +2418,7 @@ public final class TooltipTranslationSupport {
     }
 
     private static ResolvedTemplateLookup resolveLookup(PreparedTooltipTemplate preparedTemplate) {
+        long resolveStartedAtNanos = System.nanoTime();
         ItemTemplateCache cache = ItemTemplateCache.getInstance();
         CachedTranslationFormat currentFormat = preparedTemplate.useTagStylePreservation()
                 ? CachedTranslationFormat.TAGGED
@@ -2355,7 +2470,11 @@ public final class TooltipTranslationSupport {
             );
         }
 
-        for (CompatibilityTemplateKey compatibilityKey : collectCompatibilityKeys(preparedTemplate)) {
+        long collectCompatibilityKeysStartedAtNanos = System.nanoTime();
+        List<CompatibilityTemplateKey> compatibilityKeys = collectCompatibilityKeys(preparedTemplate);
+        long collectCompatibilityKeysElapsedNanos = System.nanoTime() - collectCompatibilityKeysStartedAtNanos;
+        long compatibilityScanStartedAtNanos = System.nanoTime();
+        for (CompatibilityTemplateKey compatibilityKey : compatibilityKeys) {
             ItemTemplateCache.LookupResult compatibilityLookup = cache.peek(compatibilityKey.key());
             if (compatibilityLookup.status() != ItemTemplateCache.TranslationStatus.TRANSLATED) {
                 continue;
@@ -2387,10 +2506,12 @@ public final class TooltipTranslationSupport {
                     && adaptedTranslation.translation() != null
                     && !adaptedTranslation.translation().isBlank()
                     && isSafeAdaptedTranslation(preparedTemplate, adaptedTranslation, compatibilityRenderedText)) {
+                long promoteStartedAtNanos = System.nanoTime();
                 cache.promoteTranslation(
                         preparedTemplate.translationTemplateKey(),
                         encodeStoredTranslation(adaptedTranslation.translation(), adaptedTranslation.format())
                 );
+                long promoteElapsedNanos = System.nanoTime() - promoteStartedAtNanos;
                 logCacheMigrationIfDev(
                         config,
                         "promote",
@@ -2402,6 +2523,18 @@ public final class TooltipTranslationSupport {
                                 ? "Reused compatibility cache entry and wrote it into newKey."
                                 : "Reused compatibility cache entry, adapted it, and wrote it into newKey."
                 );
+                logCacheMigrationTimingIfDev(
+                        config,
+                        "promote",
+                        preparedTemplate.translationTemplateKey(),
+                        compatibilityKey.key(),
+                        decodedCompatibilityTranslation.format(),
+                        collectCompatibilityKeysElapsedNanos,
+                        System.nanoTime() - compatibilityScanStartedAtNanos,
+                        promoteElapsedNanos,
+                        System.nanoTime() - resolveStartedAtNanos,
+                        "compatibilityKeyCount=" + compatibilityKeys.size()
+                );
                 return new ResolvedTemplateLookup(
                         translatedLookup(adaptedTranslation.translation()),
                         adaptedTranslation.format(),
@@ -2409,6 +2542,7 @@ public final class TooltipTranslationSupport {
                 );
             }
 
+            long promoteStartedAtNanos = System.nanoTime();
             cache.promoteTranslation(
                     preparedTemplate.translationTemplateKey(),
                     encodeStoredTranslation(
@@ -2416,6 +2550,7 @@ public final class TooltipTranslationSupport {
                             decodedCompatibilityTranslation.format()
                     )
             );
+            long promoteElapsedNanos = System.nanoTime() - promoteStartedAtNanos;
             logCacheMigrationIfDev(
                     config,
                     decodedCompatibilityTranslation.format() == CachedTranslationFormat.LEGACY
@@ -2428,6 +2563,20 @@ public final class TooltipTranslationSupport {
                     decodedCompatibilityTranslation.format() == CachedTranslationFormat.LEGACY
                             ? "Reused compatibility cache entry and wrote legacy-compatible content into newKey."
                             : "Reused compatibility cache entry and wrote compatible content into newKey."
+            );
+            logCacheMigrationTimingIfDev(
+                    config,
+                    decodedCompatibilityTranslation.format() == CachedTranslationFormat.LEGACY
+                            ? "promote-legacy"
+                            : "promote-compatible-format",
+                    preparedTemplate.translationTemplateKey(),
+                    compatibilityKey.key(),
+                    decodedCompatibilityTranslation.format(),
+                    collectCompatibilityKeysElapsedNanos,
+                    System.nanoTime() - compatibilityScanStartedAtNanos,
+                    promoteElapsedNanos,
+                    System.nanoTime() - resolveStartedAtNanos,
+                    "compatibilityKeyCount=" + compatibilityKeys.size()
             );
             return new ResolvedTemplateLookup(
                     translatedLookup(decodedCompatibilityTranslation.translation()),
@@ -2643,6 +2792,42 @@ public final class TooltipTranslationSupport {
                 truncateForLog(compatibilityKey, 220),
                 truncateForLog(detail, 220)
         );
+    }
+
+    private static void logCacheMigrationTimingIfDev(
+            ItemTranslateConfig config,
+            String phase,
+            String newKey,
+            String compatibilityKey,
+            CachedTranslationFormat compatibilityFormat,
+            long collectCompatibilityKeysElapsedNanos,
+            long compatibilityScanElapsedNanos,
+            long promoteElapsedNanos,
+            long totalElapsedNanos,
+            String detail
+    ) {
+        if (!TooltipTextMatcherSupport.shouldLogItemCacheMigration(config)) {
+            return;
+        }
+
+        LOGGER.info(
+                "[ItemDev:cache-hotspot] phase={} thread=\"{}\" renderThread={} format={} totalMs={} collectKeysMs={} scanMs={} promoteMs={} newKey=\"{}\" compatibilityKey=\"{}\" detail=\"{}\"",
+                phase,
+                Thread.currentThread().getName(),
+                Thread.currentThread().getName().contains("Render thread"),
+                compatibilityFormat == null ? "" : compatibilityFormat.name(),
+                formatDevDurationMillis(totalElapsedNanos),
+                formatDevDurationMillis(collectCompatibilityKeysElapsedNanos),
+                formatDevDurationMillis(compatibilityScanElapsedNanos),
+                formatDevDurationMillis(promoteElapsedNanos),
+                truncateForLog(newKey, 220),
+                truncateForLog(compatibilityKey, 220),
+                truncateForLog(detail, 220)
+        );
+    }
+
+    private static String formatDevDurationMillis(long elapsedNanos) {
+        return String.format(Locale.ROOT, "%.2f", elapsedNanos / 1_000_000.0);
     }
 
     private static void logParagraphRenderIfDev(

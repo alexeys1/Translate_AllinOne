@@ -1,6 +1,7 @@
 package com.cedarxuesong.translate_allinone.utils.cache;
 
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
+import com.cedarxuesong.translate_allinone.utils.translate.TooltipTextMatcherSupport;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonParseException;
@@ -8,6 +9,8 @@ import com.google.gson.Strictness;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 import net.fabricmc.loader.api.FabricLoader;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -19,6 +22,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -29,6 +33,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 public class ItemTemplateCache {
+    private static final Logger LOGGER = LoggerFactory.getLogger("Translate_AllinOne/ItemTemplateCache");
+    private static final long DEV_CACHE_HOTSPOT_THRESHOLD_NANOS = 500_000L;
 
     public enum TranslationStatus {
         TRANSLATED,
@@ -140,40 +146,61 @@ public class ItemTemplateCache {
     }
 
     public synchronized void save() {
+        long saveStartedAtNanos = System.nanoTime();
         saveScheduled = false;
         if (!isDirty) {
+            logCacheHotspotIfDev("save-skip-clean", saveStartedAtNanos, "dirty=false");
             return;
         }
 
         try {
+            long sanitizeStartedAtNanos = System.nanoTime();
             Files.createDirectories(cacheFilePath.getParent());
             Path tempPath = cacheFilePath.resolveSibling(cacheFilePath.getFileName() + ".tmp");
             SanitizedCacheSnapshot sanitizedSnapshot = sanitizeForPersistence();
+            long sanitizeElapsedNanos = System.nanoTime() - sanitizeStartedAtNanos;
+
+            long writeStartedAtNanos = System.nanoTime();
             try (var writer = Files.newBufferedWriter(tempPath, CACHE_CHARSET)) {
                 GSON.toJson(sanitizedSnapshot.entries(), writer);
             }
+            long writeElapsedNanos = System.nanoTime() - writeStartedAtNanos;
 
+            long moveStartedAtNanos = System.nanoTime();
             try {
                 Files.move(tempPath, cacheFilePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             } catch (AtomicMoveNotSupportedException e) {
                 Files.move(tempPath, cacheFilePath, StandardCopyOption.REPLACE_EXISTING);
             }
+            long moveElapsedNanos = System.nanoTime() - moveStartedAtNanos;
 
             if (sanitizedSnapshot.modifiedEntryCount() > 0) {
                 templateCache.clear();
                 templateCache.putAll(sanitizedSnapshot.entries());
-                Translate_AllinOne.LOGGER.warn(
+                LOGGER.warn(
                         "Sanitized {} item cache entrie(s) containing invalid UTF-16 before saving.",
                         sanitizedSnapshot.modifiedEntryCount()
                 );
             }
 
-            Translate_AllinOne.LOGGER.info("Successfully saved {} item translation cache entries.", templateCache.size());
+            long backupStartedAtNanos = System.nanoTime();
+            LOGGER.info("Successfully saved {} item translation cache entries.", templateCache.size());
             CacheBackupManager.maybeBackup(cacheFilePath, "item translation");
+            long backupElapsedNanos = System.nanoTime() - backupStartedAtNanos;
             isDirty = false;
             lastSaveAtMillis = System.currentTimeMillis();
+            logCacheSaveBreakdownIfDev(
+                    saveStartedAtNanos,
+                    sanitizeElapsedNanos,
+                    writeElapsedNanos,
+                    moveElapsedNanos,
+                    backupElapsedNanos,
+                    sanitizedSnapshot.modifiedEntryCount(),
+                    sanitizedSnapshot.entries().size()
+            );
         } catch (IOException e) {
-            Translate_AllinOne.LOGGER.error("Failed to save item translation cache", e);
+            logCacheHotspotIfDev("save-failed", saveStartedAtNanos, "path=" + cacheFilePath);
+            LOGGER.error("Failed to save item translation cache", e);
         }
     }
 
@@ -453,6 +480,7 @@ public class ItemTemplateCache {
     }
 
     public synchronized void promoteTranslation(String originalTemplate, String translation) {
+        long promoteStartedAtNanos = System.nanoTime();
         if (originalTemplate == null || originalTemplate.isBlank() || translation == null || translation.isBlank()) {
             return;
         }
@@ -461,12 +489,21 @@ public class ItemTemplateCache {
         errorCache.remove(originalTemplate);
         inProgress.remove(originalTemplate);
         allQueuedOrInProgressKeys.remove(originalTemplate);
+        int removedPendingCount = 0;
         while (pendingQueue.remove(originalTemplate)) {
             // Remove stale queued copies now that the translation has been migrated in-place.
+            removedPendingCount++;
         }
 
         isDirty = true;
         scheduleSave();
+        logCacheHotspotIfDev(
+                "promoteTranslation",
+                promoteStartedAtNanos,
+                "key=" + truncateForLog(originalTemplate, 160)
+                        + ", removedPending=" + removedPendingCount
+                        + ", cacheSize=" + templateCache.size()
+        );
     }
 
     public synchronized int forceRefresh(Iterable<String> originalTemplates) {
@@ -575,16 +612,31 @@ public class ItemTemplateCache {
     private synchronized void scheduleSave() {
         long elapsed = System.currentTimeMillis() - lastSaveAtMillis;
         if (elapsed >= SAVE_DEBOUNCE_MILLIS) {
+            logCacheHotspotIfDev(
+                    "scheduleSave",
+                    0L,
+                    "mode=immediate, lastSaveAgoMs=" + elapsed + ", saveScheduled=" + saveScheduled
+            );
             save();
             return;
         }
 
         if (saveScheduled) {
+            logCacheHotspotIfDev(
+                    "scheduleSave",
+                    0L,
+                    "mode=skip-already-scheduled, lastSaveAgoMs=" + elapsed
+            );
             return;
         }
 
         long delayMillis = Math.max(0, SAVE_DEBOUNCE_MILLIS - elapsed);
         saveScheduled = true;
+        logCacheHotspotIfDev(
+                "scheduleSave",
+                0L,
+                "mode=async-scheduled, lastSaveAgoMs=" + elapsed + ", delayMs=" + delayMillis
+        );
         saveExecutor.schedule(this::save, delayMillis, TimeUnit.MILLISECONDS);
     }
 
@@ -594,6 +646,90 @@ public class ItemTemplateCache {
         }
         inProgress.removeAll(failedKeys);
         failedKeys.forEach(key -> errorCache.put(key, errorMessage));
-        Translate_AllinOne.LOGGER.warn("Marked {} keys as errored. They will be retried later.", failedKeys.size());
+        LOGGER.warn("Marked {} keys as errored. They will be retried later.", failedKeys.size());
+    }
+
+    private void logCacheSaveBreakdownIfDev(
+            long saveStartedAtNanos,
+            long sanitizeElapsedNanos,
+            long writeElapsedNanos,
+            long moveElapsedNanos,
+            long backupElapsedNanos,
+            int modifiedEntryCount,
+            int persistedEntryCount
+    ) {
+        if (!shouldLogCacheTimingDev()) {
+            return;
+        }
+
+        long totalElapsedNanos = System.nanoTime() - saveStartedAtNanos;
+        if (!isRenderThread() && totalElapsedNanos < DEV_CACHE_HOTSPOT_THRESHOLD_NANOS) {
+            return;
+        }
+
+        LOGGER.info(
+                "[ItemDev:cache-save] thread=\"{}\" renderThread={} totalMs={} sanitizeMs={} writeMs={} moveMs={} backupMs={} modifiedEntries={} persistedEntries={}",
+                Thread.currentThread().getName(),
+                isRenderThread(),
+                formatDurationMillis(totalElapsedNanos),
+                formatDurationMillis(sanitizeElapsedNanos),
+                formatDurationMillis(writeElapsedNanos),
+                formatDurationMillis(moveElapsedNanos),
+                formatDurationMillis(backupElapsedNanos),
+                modifiedEntryCount,
+                persistedEntryCount
+        );
+    }
+
+    private void logCacheHotspotIfDev(String op, long startedAtNanos, String detail) {
+        if (!shouldLogCacheTimingDev()) {
+            return;
+        }
+
+        long elapsedNanos = startedAtNanos <= 0L ? 0L : System.nanoTime() - startedAtNanos;
+        if (!isRenderThread() && elapsedNanos < DEV_CACHE_HOTSPOT_THRESHOLD_NANOS) {
+            return;
+        }
+
+        LOGGER.info(
+                "[ItemDev:cache-hotspot] op={} thread=\"{}\" renderThread={} elapsedMs={} detail=\"{}\"",
+                op,
+                Thread.currentThread().getName(),
+                isRenderThread(),
+                formatDurationMillis(elapsedNanos),
+                truncateForLog(detail, 220)
+        );
+    }
+
+    private boolean shouldLogCacheTimingDev() {
+        try {
+            return TooltipTextMatcherSupport.shouldLogItemCacheMigration(Translate_AllinOne.getConfig().itemTranslate);
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private static boolean isRenderThread() {
+        return Thread.currentThread().getName().contains("Render thread");
+    }
+
+    private static String formatDurationMillis(long elapsedNanos) {
+        return String.format(Locale.ROOT, "%.2f", elapsedNanos / 1_000_000.0);
+    }
+
+    private static String truncateForLog(String value, int maxLength) {
+        if (value == null) {
+            return "";
+        }
+
+        String normalized = value
+                .replace('\n', ' ')
+                .replace('\r', ' ')
+                .replace('\t', ' ')
+                .trim();
+        if (normalized.length() <= maxLength) {
+            return normalized;
+        }
+        return normalized.substring(0, Math.max(0, maxLength - 3)) + "...";
     }
 }
