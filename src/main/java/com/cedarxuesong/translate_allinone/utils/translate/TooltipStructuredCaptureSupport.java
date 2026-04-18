@@ -18,13 +18,19 @@ import java.util.function.Predicate;
 
 final class TooltipStructuredCaptureSupport {
     private static final TextPattern STRUCTURED_LABEL_VALUE_PATTERN = TextPattern.builder()
+            .zeroOrMore(
+                    ContentMatcher.any(),
+                    "prefix",
+                    nodePredicate(TooltipStructuredCaptureSupport::isStructuredPrefixSegment),
+                    true
+            )
             .oneOrMore(
                     ContentMatcher.any(),
                     "label",
                     nodePredicate(TooltipStructuredCaptureSupport::isStructuredLabelSegment)
             )
             .one(
-                    ContentMatcher.text(":"),
+                    ContentMatcher.textMatching(TooltipStructuredCaptureSupport::isStructuredColonText),
                     "colon",
                     nodePredicate(node -> true)
             )
@@ -45,11 +51,38 @@ final class TooltipStructuredCaptureSupport {
     }
 
     static StructuredTooltipLineResult tryTranslateStructuredLine(Text line, boolean useTagStylePreservation) {
-        StructuredLineMatch structuredLine = matchStructuredLine(line, useTagStylePreservation);
-        if (structuredLine == null) {
+        List<FlatNode> splitNodes = splitStructuredNodes(line);
+        if (splitNodes.isEmpty()) {
             return null;
         }
 
+        StructuredLineMatch structuredLine = matchStructuredLine(splitNodes, useTagStylePreservation);
+        if (structuredLine == null) {
+            EnchantListMatch enchantListMatch = matchEnchantListLine(splitNodes, useTagStylePreservation);
+            return enchantListMatch == null ? null : translateEnchantListLine(enchantListMatch, useTagStylePreservation);
+        }
+        return translateLabelValueStructuredLine(structuredLine, useTagStylePreservation);
+    }
+
+    static Set<String> collectStructuredTemplateKeys(Text line, boolean useTagStylePreservation) {
+        List<FlatNode> splitNodes = splitStructuredNodes(line);
+        if (splitNodes.isEmpty()) {
+            return Set.of();
+        }
+
+        StructuredLineMatch structuredLine = matchStructuredLine(splitNodes, useTagStylePreservation);
+        if (structuredLine != null) {
+            return structuredLine.translationTemplateKeys();
+        }
+
+        EnchantListMatch enchantListMatch = matchEnchantListLine(splitNodes, useTagStylePreservation);
+        return enchantListMatch == null ? Set.of() : enchantListMatch.translationTemplateKeys();
+    }
+
+    private static StructuredTooltipLineResult translateLabelValueStructuredLine(
+            StructuredLineMatch structuredLine,
+            boolean useTagStylePreservation
+    ) {
         TooltipTranslationSupport.TooltipLineResult labelTranslation =
                 TooltipTranslationSupport.translateLine(structuredLine.labelTranslationText(), useTagStylePreservation);
         if (isErrorTranslation(labelTranslation.translatedLine())) {
@@ -73,6 +106,9 @@ final class TooltipStructuredCaptureSupport {
         }
 
         MutableText combined = Text.empty();
+        if (structuredLine.prefixText() != null) {
+            combined.append(structuredLine.prefixText());
+        }
         combined.append(labelTranslation.translatedLine());
         if (structuredLine.colonText() != null) {
             combined.append(structuredLine.colonText());
@@ -92,29 +128,13 @@ final class TooltipStructuredCaptureSupport {
         );
     }
 
-    static Set<String> collectStructuredTemplateKeys(Text line, boolean useTagStylePreservation) {
-        StructuredLineMatch structuredLine = matchStructuredLine(line, useTagStylePreservation);
-        if (structuredLine == null) {
-            return Set.of();
-        }
-        return structuredLine.translationTemplateKeys();
-    }
-
-    private static StructuredLineMatch matchStructuredLine(Text line, boolean useTagStylePreservation) {
-        if (line == null) {
-            return null;
-        }
-
-        List<FlatNode> splitNodes = splitInlineNodes(line);
-        if (splitNodes.isEmpty()) {
-            return null;
-        }
-
+    private static StructuredLineMatch matchStructuredLine(List<FlatNode> splitNodes, boolean useTagStylePreservation) {
         TextMatchResult match = STRUCTURED_LABEL_VALUE_PATTERN.match(splitNodes);
         if (!match.success()) {
             return null;
         }
 
+        Text prefixText = toText(match.groupNodes("prefix"));
         List<FlatNode> labelNodes = trimWhitespaceNodes(match.groupNodes("label"));
         List<FlatNode> valueNodes = trimWhitespaceNodes(match.groupNodes("value"));
         Text labelText = toText(labelNodes);
@@ -148,6 +168,7 @@ final class TooltipStructuredCaptureSupport {
 
         return new StructuredLineMatch(
                 kind,
+                prefixText,
                 labelText,
                 labelTranslationText,
                 colonText,
@@ -156,6 +177,57 @@ final class TooltipStructuredCaptureSupport {
                 valueTranslationText,
                 labelKey,
                 valueKey
+        );
+    }
+
+    private static StructuredTooltipLineResult translateEnchantListLine(
+            EnchantListMatch enchantListMatch,
+            boolean useTagStylePreservation
+    ) {
+        if (enchantListMatch == null || enchantListMatch.entries().isEmpty()) {
+            return null;
+        }
+
+        MutableText combined = Text.empty();
+        boolean pending = false;
+        boolean missingKeyIssue = false;
+
+        for (EnchantListEntry entry : enchantListMatch.entries()) {
+            if (entry.leadingText() != null) {
+                combined.append(entry.leadingText());
+            }
+
+            TooltipTranslationSupport.TooltipLineResult nameTranslation =
+                    TooltipTranslationSupport.translateLine(entry.nameTranslationText(), useTagStylePreservation);
+            if (isErrorTranslation(nameTranslation.translatedLine())) {
+                return new StructuredTooltipLineResult(
+                        nameTranslation,
+                        enchantListMatch.translationTemplateKeys(),
+                        buildDebugSummary(enchantListMatch)
+                );
+            }
+
+            pending |= nameTranslation.pending();
+            missingKeyIssue |= nameTranslation.missingKeyIssue();
+            combined.append(nameTranslation.translatedLine());
+            if (entry.bridgeText() != null) {
+                combined.append(entry.bridgeText());
+            }
+            if (entry.levelText() != null) {
+                combined.append(entry.levelText());
+            }
+            if (entry.trailingText() != null) {
+                combined.append(entry.trailingText());
+            }
+            if (entry.delimiterText() != null) {
+                combined.append(entry.delimiterText());
+            }
+        }
+
+        return new StructuredTooltipLineResult(
+                new TooltipTranslationSupport.TooltipLineResult(combined, pending, missingKeyIssue),
+                enchantListMatch.translationTemplateKeys(),
+                buildDebugSummary(enchantListMatch)
         );
     }
 
@@ -175,6 +247,9 @@ final class TooltipStructuredCaptureSupport {
         if (isPriceLikeLabel(normalizedLabel) && isCoinsLikeValue(normalizedValue)) {
             return StructuredLineKind.PRICE_VALUE;
         }
+        if (isGenericMeasuredValue(normalizedValue)) {
+            return StructuredLineKind.MEASURED_VALUE;
+        }
         if (isSelectedLikeLabel(normalizedLabel) && isWordPhraseValue(normalizedValue)) {
             return StructuredLineKind.SELECTED_VALUE;
         }
@@ -188,6 +263,130 @@ final class TooltipStructuredCaptureSupport {
         return null;
     }
 
+    private static EnchantListMatch matchEnchantListLine(List<FlatNode> splitNodes, boolean useTagStylePreservation) {
+        if (splitNodes == null || splitNodes.isEmpty()) {
+            return null;
+        }
+
+        List<EnchantListEntry> entries = new ArrayList<>();
+        List<FlatNode> currentEntryNodes = new ArrayList<>();
+        for (int index = 0; index < splitNodes.size(); index++) {
+            FlatNode node = splitNodes.get(index);
+            if (isCommaSegment(node)) {
+                if (currentEntryNodes.isEmpty()) {
+                    return null;
+                }
+
+                List<FlatNode> delimiterNodes = new ArrayList<>();
+                delimiterNodes.add(node);
+                int nextIndex = index + 1;
+                while (nextIndex < splitNodes.size() && isWhitespaceOnlySegment(splitNodes.get(nextIndex))) {
+                    delimiterNodes.add(splitNodes.get(nextIndex));
+                    nextIndex++;
+                }
+
+                EnchantListEntry entry = parseEnchantListEntry(currentEntryNodes, delimiterNodes, useTagStylePreservation);
+                if (entry == null) {
+                    return null;
+                }
+                entries.add(entry);
+                currentEntryNodes = new ArrayList<>();
+                index = nextIndex - 1;
+                continue;
+            }
+            currentEntryNodes.add(node);
+        }
+
+        if (entries.isEmpty() || currentEntryNodes.isEmpty()) {
+            return null;
+        }
+
+        EnchantListEntry lastEntry = parseEnchantListEntry(currentEntryNodes, List.of(), useTagStylePreservation);
+        if (lastEntry == null) {
+            return null;
+        }
+        entries.add(lastEntry);
+        if (entries.size() < 2) {
+            return null;
+        }
+
+        return new EnchantListMatch(List.copyOf(entries));
+    }
+
+    private static EnchantListEntry parseEnchantListEntry(
+            List<FlatNode> entryNodes,
+            List<FlatNode> delimiterNodes,
+            boolean useTagStylePreservation
+    ) {
+        if (entryNodes == null || entryNodes.isEmpty()) {
+            return null;
+        }
+
+        int start = 0;
+        int end = entryNodes.size();
+        while (start < end && isWhitespaceOnlySegment(entryNodes.get(start))) {
+            start++;
+        }
+        while (end > start && isWhitespaceOnlySegment(entryNodes.get(end - 1))) {
+            end--;
+        }
+        if (start >= end) {
+            return null;
+        }
+
+        List<FlatNode> leadingNodes = start > 0 ? List.copyOf(entryNodes.subList(0, start)) : List.of();
+        List<FlatNode> trailingNodes = end < entryNodes.size() ? List.copyOf(entryNodes.subList(end, entryNodes.size())) : List.of();
+        List<FlatNode> coreNodes = List.copyOf(entryNodes.subList(start, end));
+
+        int levelEnd = coreNodes.size();
+        int levelStart = levelEnd;
+        while (levelStart > 0 && isEnchantLevelSegment(coreNodes.get(levelStart - 1))) {
+            levelStart--;
+        }
+        if (levelStart >= levelEnd) {
+            return null;
+        }
+
+        int bridgeEnd = levelStart;
+        int bridgeStart = bridgeEnd;
+        while (bridgeStart > 0 && isWhitespaceOnlySegment(coreNodes.get(bridgeStart - 1))) {
+            bridgeStart--;
+        }
+        if (bridgeStart == bridgeEnd || bridgeStart <= 0) {
+            return null;
+        }
+
+        List<FlatNode> nameNodes = List.copyOf(coreNodes.subList(0, bridgeStart));
+        List<FlatNode> bridgeNodes = List.copyOf(coreNodes.subList(bridgeStart, bridgeEnd));
+        List<FlatNode> levelNodes = List.copyOf(coreNodes.subList(levelStart, levelEnd));
+        if (!isLikelyEnchantName(nameNodes)) {
+            return null;
+        }
+
+        Text nameText = toText(nameNodes);
+        Text nameTranslationText = toCompactedText(nameNodes);
+        Text levelText = toText(levelNodes);
+        if (nameText == null || nameTranslationText == null || levelText == null) {
+            return null;
+        }
+
+        String nameKey = TooltipTranslationSupport.extractTemplateKeyForLine(nameTranslationText, useTagStylePreservation);
+        if (nameKey == null || nameKey.isBlank()) {
+            return null;
+        }
+
+        return new EnchantListEntry(
+                toText(leadingNodes),
+                nameText,
+                nameTranslationText,
+                toText(bridgeNodes),
+                levelText,
+                toText(trailingNodes),
+                toText(delimiterNodes),
+                nameKey
+        );
+    }
+
     private static boolean isErrorTranslation(Text text) {
         return text != null && text.getString().startsWith("Error: ");
     }
@@ -196,12 +395,28 @@ final class TooltipStructuredCaptureSupport {
         if (structuredLine == null) {
             return "";
         }
+        String prefix = truncateForLog(textString(structuredLine.prefixText()), 48);
         return "pattern=" + structuredLine.kind().debugName()
                 + ", translateValue=" + structuredLine.kind().translateValue()
+                + (prefix.isEmpty() ? "" : ", prefix=\"" + prefix + "\"")
                 + ", label=\"" + truncateForLog(textString(structuredLine.labelText()), 96) + "\""
                 + ", value=\"" + truncateForLog(textString(structuredLine.valueText()), 96) + "\""
                 + ", labelKey=\"" + truncateForLog(structuredLine.labelKey(), 140) + "\""
                 + (structuredLine.valueKey() == null ? "" : ", valueKey=\"" + truncateForLog(structuredLine.valueKey(), 140) + "\"");
+    }
+
+    private static String buildDebugSummary(EnchantListMatch enchantListMatch) {
+        if (enchantListMatch == null || enchantListMatch.entries() == null || enchantListMatch.entries().isEmpty()) {
+            return "";
+        }
+
+        List<String> names = new ArrayList<>();
+        for (EnchantListEntry entry : enchantListMatch.entries()) {
+            names.add(truncateForLog(textString(entry.nameText()), 48));
+        }
+        return "pattern=enchant-list"
+                + ", entries=" + enchantListMatch.entries().size()
+                + ", names=\"" + truncateForLog(String.join(" | ", names), 220) + "\"";
     }
 
     private static Predicate<FlatNode> nodePredicate(Predicate<FlatNode> predicate) {
@@ -244,6 +459,13 @@ final class TooltipStructuredCaptureSupport {
             return List.of();
         }
         return List.copyOf(nodes.subList(start, end));
+    }
+
+    private static List<FlatNode> splitStructuredNodes(Text line) {
+        if (line == null) {
+            return List.of();
+        }
+        return splitInlineNodes(line);
     }
 
     private static String textString(Text text) {
@@ -347,6 +569,16 @@ final class TooltipStructuredCaptureSupport {
                 || normalized.matches("(?i)[+-]?\\d+(?:\\.\\d+)?\\s*x");
     }
 
+    private static boolean isGenericMeasuredValue(String value) {
+        String normalized = value == null ? "" : value.trim();
+        if (normalized.isEmpty() || !containsDigit(normalized) || !containsLetter(normalized)) {
+            return false;
+        }
+
+        return normalized.matches("(?iu)[+-]?(?:\\d+(?:[.,/-]\\d+)*|\\.\\d+)\\s*[\\p{L}]{1,8}")
+                || normalized.matches("(?iu)[+-]?(?:\\d+(?:[.,/-]\\d+)*|\\.\\d+)(?:\\s+[\\p{L}][\\p{L}'-]{0,15}){1,3}");
+    }
+
     private static boolean isCoinsLikeValue(String value) {
         String normalized = value == null ? "" : value.trim();
         if (normalized.isEmpty() || !containsDigit(normalized)) {
@@ -434,6 +666,50 @@ final class TooltipStructuredCaptureSupport {
         return false;
     }
 
+    private static boolean isCommaSegment(FlatNode node) {
+        return ",".equals(node == null ? "" : node.extractString());
+    }
+
+    private static boolean isEnchantLevelSegment(FlatNode node) {
+        String value = normalizeSpaces(node == null ? "" : node.extractString());
+        return !value.isEmpty() && value.matches("\\d+");
+    }
+
+    private static boolean isLikelyEnchantName(List<FlatNode> nameNodes) {
+        Text nameText = toText(nameNodes);
+        String normalized = normalizeLabel(textString(nameText));
+        if (normalized.isEmpty()
+                || normalized.indexOf(':') >= 0
+                || normalized.indexOf('：') >= 0
+                || !containsLetter(normalized)) {
+            return false;
+        }
+
+        String[] tokens = normalized.split("\\s+");
+        if (tokens.length == 0 || tokens.length > 4) {
+            return false;
+        }
+
+        for (String token : tokens) {
+            String trimmed = token == null ? "" : token.trim();
+            if (trimmed.isEmpty()) {
+                return false;
+            }
+            for (int offset = 0; offset < trimmed.length(); ) {
+                int codePoint = trimmed.codePointAt(offset);
+                if (!(Character.isLetter(codePoint)
+                        || codePoint == '\''
+                        || codePoint == '-'
+                        || codePoint == '&'
+                        || codePoint == '/')) {
+                    return false;
+                }
+                offset += Character.charCount(codePoint);
+            }
+        }
+        return true;
+    }
+
     private static List<FlatNode> splitInlineNodes(Text line) {
         List<FlatNode> compactNodes = FlatNode.compact(FlatNode.flatten(line));
         List<FlatNode> splitNodes = new ArrayList<>();
@@ -471,7 +747,7 @@ final class TooltipStructuredCaptureSupport {
     }
 
     private static InlineSegmentType classifyInlineSegmentType(int codePoint) {
-        if (codePoint == ':') {
+        if (codePoint == ':' || codePoint == '：') {
             return InlineSegmentType.COLON;
         }
         if (Character.isWhitespace(codePoint)) {
@@ -486,6 +762,14 @@ final class TooltipStructuredCaptureSupport {
         return InlineSegmentType.OTHER;
     }
 
+    private static boolean isStructuredColonText(String value) {
+        return ":".equals(value) || "：".equals(value);
+    }
+
+    private static boolean isStructuredPrefixSegment(FlatNode node) {
+        return isWhitespaceOnlySegment(node) || isDecorativePrefixSegment(node);
+    }
+
     private static boolean isStructuredLabelSegment(FlatNode node) {
         String value = node == null ? "" : node.extractString();
         if (value.isEmpty()) {
@@ -498,6 +782,31 @@ final class TooltipStructuredCaptureSupport {
             return true;
         }
         return isAllowedLabelPunctuation(value);
+    }
+
+    private static boolean isDecorativePrefixSegment(FlatNode node) {
+        String value = node == null ? "" : node.extractString();
+        if (value.isEmpty()) {
+            return false;
+        }
+
+        boolean sawDecorative = false;
+        for (int offset = 0; offset < value.length(); ) {
+            int codePoint = value.codePointAt(offset);
+            if (Character.isWhitespace(codePoint)) {
+                offset += Character.charCount(codePoint);
+                continue;
+            }
+            if (Character.isLetterOrDigit(codePoint) || codePoint == ':' || codePoint == '：') {
+                return false;
+            }
+            if (!isPrivateUseCodePoint(codePoint) && !isDecorativePrefixCodePoint(codePoint)) {
+                return false;
+            }
+            sawDecorative = true;
+            offset += Character.charCount(codePoint);
+        }
+        return sawDecorative;
     }
 
     private static boolean isWhitespaceOnlySegment(FlatNode node) {
@@ -515,6 +824,25 @@ final class TooltipStructuredCaptureSupport {
         return true;
     }
 
+    private static boolean isDecorativePrefixCodePoint(int codePoint) {
+        if (codePoint <= 0x7F) {
+            return false;
+        }
+
+        int type = Character.getType(codePoint);
+        return type == Character.MATH_SYMBOL
+                || type == Character.CURRENCY_SYMBOL
+                || type == Character.MODIFIER_SYMBOL
+                || type == Character.OTHER_SYMBOL
+                || type == Character.CONNECTOR_PUNCTUATION
+                || type == Character.DASH_PUNCTUATION
+                || type == Character.START_PUNCTUATION
+                || type == Character.END_PUNCTUATION
+                || type == Character.INITIAL_QUOTE_PUNCTUATION
+                || type == Character.FINAL_QUOTE_PUNCTUATION
+                || type == Character.OTHER_PUNCTUATION;
+    }
+
     private static boolean isStructuredGenericValueSegment(FlatNode node) {
         String value = node == null ? "" : node.extractString();
         if (value.isEmpty()) {
@@ -522,7 +850,7 @@ final class TooltipStructuredCaptureSupport {
         }
         for (int offset = 0; offset < value.length(); ) {
             int codePoint = value.codePointAt(offset);
-            if (codePoint == ':') {
+            if (codePoint == ':' || codePoint == '：') {
                 return false;
             }
             offset += Character.charCount(codePoint);
@@ -548,7 +876,7 @@ final class TooltipStructuredCaptureSupport {
     }
 
     private static boolean isStructuredValueSymbol(int codePoint) {
-        if (codePoint == ':') {
+        if (codePoint == ':' || codePoint == '：') {
             return false;
         }
         if (codePoint == '+' || codePoint == '-' || codePoint == '%' || codePoint == '.' || codePoint == ','
@@ -588,6 +916,7 @@ final class TooltipStructuredCaptureSupport {
         NUMERIC("structured-numeric", false),
         TIMED_VALUE("structured-timed", true),
         PRICE_VALUE("structured-price", true),
+        MEASURED_VALUE("structured-measured", true),
         SELECTED_VALUE("structured-selected", true),
         DONATED_STATUS("structured-donated", true),
         WORD_LIST("structured-list", true);
@@ -624,6 +953,7 @@ final class TooltipStructuredCaptureSupport {
 
     private record StructuredLineMatch(
             StructuredLineKind kind,
+            Text prefixText,
             Text labelText,
             Text labelTranslationText,
             Text colonText,
@@ -643,5 +973,34 @@ final class TooltipStructuredCaptureSupport {
             }
             return keys;
         }
+    }
+
+    private record EnchantListMatch(List<EnchantListEntry> entries) {
+        private Set<String> translationTemplateKeys() {
+            LinkedHashSet<String> keys = new LinkedHashSet<>();
+            if (entries == null) {
+                return keys;
+            }
+
+            for (EnchantListEntry entry : entries) {
+                if (entry == null || entry.nameKey() == null || entry.nameKey().isBlank()) {
+                    continue;
+                }
+                keys.add(entry.nameKey());
+            }
+            return keys;
+        }
+    }
+
+    private record EnchantListEntry(
+            Text leadingText,
+            Text nameText,
+            Text nameTranslationText,
+            Text bridgeText,
+            Text levelText,
+            Text trailingText,
+            Text delimiterText,
+            String nameKey
+    ) {
     }
 }

@@ -1321,6 +1321,24 @@ public final class TooltipTranslationSupport {
             );
             return null;
         }
+        if (paragraphRenderWouldDropLines(block.preparedLines().size(), results.size())) {
+            logParagraphRenderIfDev(
+                    config,
+                    emitDevLog,
+                    devSource,
+                    block,
+                    "reject-line-loss",
+                    true,
+                    "Paragraph rewrap would drop source lines. sourceLines="
+                            + block.preparedLines().size()
+                            + ", renderedLines="
+                            + results.size(),
+                    normalizedTemplate,
+                    renderedParagraphText.getString(),
+                    wrappedLines
+            );
+            return null;
+        }
 
         logParagraphRenderIfDev(
                 config,
@@ -1335,6 +1353,10 @@ public final class TooltipTranslationSupport {
                 wrappedLines
         );
         return results;
+    }
+
+    static boolean paragraphRenderWouldDropLines(int sourceLineCount, int renderedLineCount) {
+        return sourceLineCount > 0 && renderedLineCount >= 0 && renderedLineCount < sourceLineCount;
     }
 
     private static Text renderOriginalPreparedLine(PreparedTooltipTemplate preparedTemplate) {

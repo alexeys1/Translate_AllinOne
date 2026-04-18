@@ -1694,22 +1694,19 @@ public class ModConfigScreen extends Screen {
         int buttonHeight = 20;
         int buttonGap = 8;
         int buttonY = modalRect.bottom() - 30;
-        int saveX = modalRect.right() - 16 - buttonWidth;
-        int discardX = saveX - buttonGap - buttonWidth;
-        int cancelX = discardX - buttonGap - buttonWidth;
+        int cancelX = modalRect.right() - 16 - buttonWidth;
+        int discardX = cancelX - buttonGap - buttonWidth;
+        int saveX = discardX - buttonGap - buttonWidth;
 
         floatingActionBlockRegistry.add(
-                cancelX,
+                saveX,
                 buttonY,
                 buttonWidth,
                 buttonHeight,
-                t("button.cancel"),
-                () -> {
-                    closeUnsavedChangesConfirmModal();
-                    rebuildActionBlocks();
-                },
-                COLOR_BLOCK,
-                COLOR_BLOCK_HOVER,
+                t("button.save_and_close"),
+                this::saveAndClose,
+                COLOR_BLOCK_ACCENT,
+                COLOR_BLOCK_ACCENT_HOVER,
                 COLOR_TEXT,
                 true
         );
@@ -1728,14 +1725,17 @@ public class ModConfigScreen extends Screen {
         );
 
         floatingActionBlockRegistry.add(
-                saveX,
+                cancelX,
                 buttonY,
                 buttonWidth,
                 buttonHeight,
-                t("button.save_and_close"),
-                this::saveAndClose,
-                COLOR_BLOCK_ACCENT,
-                COLOR_BLOCK_ACCENT_HOVER,
+                t("button.cancel"),
+                () -> {
+                    closeUnsavedChangesConfirmModal();
+                    rebuildActionBlocks();
+                },
+                COLOR_BLOCK,
+                COLOR_BLOCK_HOVER,
                 COLOR_TEXT,
                 true
         );
