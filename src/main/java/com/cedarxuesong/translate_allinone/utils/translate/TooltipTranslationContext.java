@@ -8,7 +8,7 @@ public final class TooltipTranslationContext {
     private static final long REI_CONTEXT_STALE_MILLIS = 10_000L;
     private static final long WYNN_ITEM_STAT_CONTEXT_STALE_MILLIS = 500L;
     private static final long WYNN_QUEST_CONTEXT_STALE_MILLIS = 10_000L;
-    private static final long SCREEN_MIRROR_TOOLTIP_STALE_MILLIS = 750L;
+    private static final long RECENT_TRANSLATED_TOOLTIP_STALE_MILLIS = 750L;
     private static final ThreadLocal<Boolean> SKIP_DRAW_CONTEXT_TRANSLATION = ThreadLocal.withInitial(() -> false);
     private static final ThreadLocal<Integer> WYNNMOD_TOOLTIP_RENDER_DEPTH = ThreadLocal.withInitial(() -> 0);
     private static final ThreadLocal<Integer> REI_TOOLTIP_RENDER_DEPTH = ThreadLocal.withInitial(() -> 0);
@@ -16,8 +16,8 @@ public final class TooltipTranslationContext {
     private static final ThreadLocal<Long> WYNN_ITEM_STAT_TOOLTIP_MARKED_AT = ThreadLocal.withInitial(() -> 0L);
     private static final ThreadLocal<Integer> WYNN_QUEST_TOOLTIP_RENDER_DEPTH = ThreadLocal.withInitial(() -> 0);
     private static final ThreadLocal<Long> WYNN_QUEST_TOOLTIP_RENDER_ENTERED_AT = ThreadLocal.withInitial(() -> 0L);
-    private static final ThreadLocal<Integer> SCREEN_MIRROR_TOOLTIP_SIGNATURE = ThreadLocal.withInitial(() -> 0);
-    private static final ThreadLocal<Long> SCREEN_MIRROR_TOOLTIP_RECORDED_AT = ThreadLocal.withInitial(() -> 0L);
+    private static final ThreadLocal<Integer> RECENT_TRANSLATED_TOOLTIP_SIGNATURE = ThreadLocal.withInitial(() -> 0);
+    private static final ThreadLocal<Long> RECENT_TRANSLATED_TOOLTIP_RECORDED_AT = ThreadLocal.withInitial(() -> 0L);
 
     private TooltipTranslationContext() {
     }
@@ -151,35 +151,35 @@ public final class TooltipTranslationContext {
         return true;
     }
 
-    public static void rememberScreenMirrorTooltip(List<Text> tooltipLines) {
+    public static void rememberRecentTranslatedTooltip(List<Text> tooltipLines) {
         if (tooltipLines == null || tooltipLines.isEmpty()) {
-            SCREEN_MIRROR_TOOLTIP_SIGNATURE.set(0);
-            SCREEN_MIRROR_TOOLTIP_RECORDED_AT.set(0L);
+            RECENT_TRANSLATED_TOOLTIP_SIGNATURE.set(0);
+            RECENT_TRANSLATED_TOOLTIP_RECORDED_AT.set(0L);
             return;
         }
 
-        SCREEN_MIRROR_TOOLTIP_SIGNATURE.set(computeTooltipSignature(tooltipLines));
-        SCREEN_MIRROR_TOOLTIP_RECORDED_AT.set(System.currentTimeMillis());
+        RECENT_TRANSLATED_TOOLTIP_SIGNATURE.set(computeTooltipSignature(tooltipLines));
+        RECENT_TRANSLATED_TOOLTIP_RECORDED_AT.set(System.currentTimeMillis());
     }
 
-    public static boolean matchesRecentScreenMirrorTooltip(List<Text> tooltipLines) {
+    public static boolean matchesRecentTranslatedTooltip(List<Text> tooltipLines) {
         if (tooltipLines == null || tooltipLines.isEmpty()) {
             return false;
         }
 
-        long recordedAt = SCREEN_MIRROR_TOOLTIP_RECORDED_AT.get();
+        long recordedAt = RECENT_TRANSLATED_TOOLTIP_RECORDED_AT.get();
         if (recordedAt <= 0L) {
             return false;
         }
 
         long now = System.currentTimeMillis();
-        if (now - recordedAt > SCREEN_MIRROR_TOOLTIP_STALE_MILLIS) {
-            SCREEN_MIRROR_TOOLTIP_SIGNATURE.set(0);
-            SCREEN_MIRROR_TOOLTIP_RECORDED_AT.set(0L);
+        if (now - recordedAt > RECENT_TRANSLATED_TOOLTIP_STALE_MILLIS) {
+            RECENT_TRANSLATED_TOOLTIP_SIGNATURE.set(0);
+            RECENT_TRANSLATED_TOOLTIP_RECORDED_AT.set(0L);
             return false;
         }
 
-        return SCREEN_MIRROR_TOOLTIP_SIGNATURE.get() == computeTooltipSignature(tooltipLines);
+        return RECENT_TRANSLATED_TOOLTIP_SIGNATURE.get() == computeTooltipSignature(tooltipLines);
     }
 
     private static int computeTooltipSignature(List<Text> tooltipLines) {

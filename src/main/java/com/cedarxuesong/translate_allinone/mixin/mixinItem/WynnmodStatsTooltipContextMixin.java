@@ -21,7 +21,13 @@ import java.lang.reflect.Method;
 import java.util.List;
 
 @Pseudo
-@Mixin(targets = "com.wynnmod.feature.item.wynn.StatsTooltipFeature", remap = false)
+@Mixin(
+        targets = {
+                "com.wynnmod.feature.item.wynn.StatsTooltipFeature",
+                "com.wynnmod.feature.item.wynn.DecorateTooltipFeature"
+        },
+        remap = false
+)
 public abstract class WynnmodStatsTooltipContextMixin {
     @Unique
     private static final String ITEM_STATUS_ANIMATION_KEY = "item-tooltip-status-wynnmod";
@@ -60,7 +66,7 @@ public abstract class WynnmodStatsTooltipContextMixin {
             }
 
             List<Text> sanitizedTooltip = TooltipTranslationSupport.stripInternalGeneratedLines(currentTooltip);
-            if (TooltipTranslationContext.matchesRecentScreenMirrorTooltip(sanitizedTooltip)) {
+            if (TooltipTranslationContext.matchesRecentTranslatedTooltip(sanitizedTooltip)) {
                 TooltipTranslationContext.setSkipDrawContextTranslation(true);
                 return;
             }
@@ -71,6 +77,7 @@ public abstract class WynnmodStatsTooltipContextMixin {
             if (TooltipTranslationSupport.shouldShowOriginal(config.keybinding.mode, isKeyPressed)) {
                 List<Text> tooltipToDisplay = TooltipTranslationSupport.appendRefreshNoticeLine(sanitizedTooltip, showRefreshNotice);
                 if (tooltipToDisplay != currentTooltip && translate_allinone$setTooltipText(event, tooltipToDisplay)) {
+                    TooltipTranslationContext.rememberRecentTranslatedTooltip(null);
                     TooltipTranslationContext.setSkipDrawContextTranslation(true);
                 }
                 return;
@@ -86,6 +93,9 @@ public abstract class WynnmodStatsTooltipContextMixin {
                     tooltipStartedAtNanos
             );
             if (translate_allinone$setTooltipText(event, translatedTooltip)) {
+                TooltipTranslationContext.rememberRecentTranslatedTooltip(
+                        TooltipTranslationSupport.stripInternalGeneratedLines(translatedTooltip)
+                );
                 TooltipTranslationContext.setSkipDrawContextTranslation(true);
             }
         } finally {

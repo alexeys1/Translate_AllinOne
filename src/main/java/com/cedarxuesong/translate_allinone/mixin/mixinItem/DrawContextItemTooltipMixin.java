@@ -43,14 +43,16 @@ public abstract class DrawContextItemTooltipMixin {
         boolean useWynnmodTooltipTracking = translate_allinone$shouldUseWynnmodTooltipTracking();
         if (useWynnmodTooltipTracking && TooltipTranslationContext.isInWynnmodTooltipRender()) {
             TooltipTranslationContext.setSkipDrawContextTranslation(false);
-            TooltipTranslationContext.rememberScreenMirrorTooltip(null);
             return;
         }
         List<Text> mirroredTooltip = translate_allinone$buildTooltipMirror(originalTooltip);
-        TooltipTranslationContext.rememberScreenMirrorTooltip(useWynnmodTooltipTracking
-                && mirroredTooltip != originalTooltip
-                ? TooltipTranslationSupport.stripInternalGeneratedLines(mirroredTooltip)
-                : null);
+        if (useWynnmodTooltipTracking) {
+            TooltipTranslationContext.rememberRecentTranslatedTooltip(
+                    mirroredTooltip != originalTooltip
+                            ? TooltipTranslationSupport.stripInternalGeneratedLines(mirroredTooltip)
+                            : null
+            );
+        }
         TooltipTranslationContext.setSkipDrawContextTranslation(mirroredTooltip != originalTooltip);
         cir.setReturnValue(mirroredTooltip);
     }
