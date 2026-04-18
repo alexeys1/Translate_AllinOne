@@ -48,6 +48,21 @@ public class ItemTemplateCache {
 
     public record LookupResult(TranslationStatus status, String translation, String errorMessage) {}
 
+    public record QueueSnapshot(
+            int pending,
+            int batchQueue,
+            int inProgress,
+            int errored,
+            int queuedOrInProgress
+    ) {}
+
+    public record BatchWorkItem(
+            long batchId,
+            List<String> items,
+            long collectedAtNanos,
+            long enqueuedAtNanos
+    ) {}
+
     private record LoadedEntries(
             Map<String, String> entries,
             int duplicateKeyCount,
@@ -65,7 +80,7 @@ public class ItemTemplateCache {
     private final Map<String, String> templateCache = new ConcurrentHashMap<>();
     private final Set<String> inProgress = ConcurrentHashMap.newKeySet();
     private final LinkedBlockingDeque<String> pendingQueue = new LinkedBlockingDeque<>();
-    private final LinkedBlockingQueue<List<String>> batchWorkQueue = new LinkedBlockingQueue<>();
+    private final LinkedBlockingQueue<BatchWorkItem> batchWorkQueue = new LinkedBlockingQueue<>();
     private final Set<String> allQueuedOrInProgressKeys = ConcurrentHashMap.newKeySet();
     private final Map<String, String> errorCache = new ConcurrentHashMap<>();
     private final ScheduledExecutorService saveExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
@@ -554,6 +569,10 @@ public class ItemTemplateCache {
         return new CacheStats((int) translatedCount, totalCount);
     }
 
+    public synchronized QueueSnapshot snapshotQueues() {
+        return snapshotQueuesUnsafe();
+    }
+
     public Set<String> getErroredKeys() {
         return new java.util.HashSet<>(errorCache.keySet());
     }
@@ -564,13 +583,18 @@ public class ItemTemplateCache {
         return items;
     }
 
-    public void submitBatchForTranslation(List<String> batch) {
+    public void submitBatchForTranslation(long batchId, List<String> batch, long collectedAtNanos) {
         if (batch != null && !batch.isEmpty()) {
-            batchWorkQueue.offer(batch);
+            batchWorkQueue.offer(new BatchWorkItem(
+                    batchId,
+                    new ArrayList<>(batch),
+                    collectedAtNanos,
+                    System.nanoTime()
+            ));
         }
     }
 
-    public List<String> takeBatchForTranslation() throws InterruptedException {
+    public BatchWorkItem takeBatchForTranslation() throws InterruptedException {
         return batchWorkQueue.take();
     }
     
@@ -604,7 +628,11 @@ public class ItemTemplateCache {
         finishedKeys.forEach(errorCache::remove);
         
         isDirty = true;
-        Translate_AllinOne.LOGGER.info("Updated {} translations in the cache.", translations.size());
+        Translate_AllinOne.LOGGER.info(
+                "Updated {} translations in the cache. queue={}",
+                translations.size(),
+                formatQueueSnapshot(snapshotQueuesUnsafe())
+        );
 
         scheduleSave();
     }
@@ -612,6 +640,26 @@ public class ItemTemplateCache {
     private synchronized void scheduleSave() {
         long elapsed = System.currentTimeMillis() - lastSaveAtMillis;
         if (elapsed >= SAVE_DEBOUNCE_MILLIS) {
+            if (isRenderThread()) {
+                if (saveScheduled) {
+                    logCacheHotspotIfDev(
+                            "scheduleSave",
+                            0L,
+                            "mode=skip-already-scheduled-render-thread, lastSaveAgoMs=" + elapsed
+                    );
+                    return;
+                }
+
+                saveScheduled = true;
+                logCacheHotspotIfDev(
+                        "scheduleSave",
+                        0L,
+                        "mode=async-render-thread-immediate, lastSaveAgoMs=" + elapsed + ", delayMs=0"
+                );
+                saveExecutor.schedule(this::save, 0, TimeUnit.MILLISECONDS);
+                return;
+            }
+
             logCacheHotspotIfDev(
                     "scheduleSave",
                     0L,
@@ -646,7 +694,33 @@ public class ItemTemplateCache {
         }
         inProgress.removeAll(failedKeys);
         failedKeys.forEach(key -> errorCache.put(key, errorMessage));
-        LOGGER.warn("Marked {} keys as errored. They will be retried later.", failedKeys.size());
+        LOGGER.warn(
+                "Marked {} keys as errored. They will be retried later. queue={} error=\"{}\"",
+                failedKeys.size(),
+                formatQueueSnapshot(snapshotQueuesUnsafe()),
+                truncateForLog(errorMessage, 220)
+        );
+    }
+
+    private QueueSnapshot snapshotQueuesUnsafe() {
+        return new QueueSnapshot(
+                pendingQueue.size(),
+                batchWorkQueue.size(),
+                inProgress.size(),
+                errorCache.size(),
+                allQueuedOrInProgressKeys.size()
+        );
+    }
+
+    public static String formatQueueSnapshot(QueueSnapshot snapshot) {
+        if (snapshot == null) {
+            return "";
+        }
+        return "pending=" + snapshot.pending()
+                + ", batchQueue=" + snapshot.batchQueue()
+                + ", inProgress=" + snapshot.inProgress()
+                + ", errored=" + snapshot.errored()
+                + ", queuedOrInProgress=" + snapshot.queuedOrInProgress();
     }
 
     private void logCacheSaveBreakdownIfDev(

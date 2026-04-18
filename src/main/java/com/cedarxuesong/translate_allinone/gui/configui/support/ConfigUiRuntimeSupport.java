@@ -3,6 +3,7 @@ package com.cedarxuesong.translate_allinone.gui.configui.support;
 import com.cedarxuesong.translate_allinone.registration.ConfigManager;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.cedarxuesong.translate_allinone.utils.llmapi.ProviderConnectionTester;
+import com.cedarxuesong.translate_allinone.utils.translate.ItemTranslateManager;
 import net.minecraft.text.Text;
 
 import java.util.function.Consumer;
@@ -20,6 +21,7 @@ public final class ConfigUiRuntimeSupport {
     ) {
         try {
             ConfigManager.save();
+            ItemTranslateManager.getInstance().requestRuntimeRefresh();
             statusSetter.set(translator.t("status.config_saved", ConfigManager.getConfigPath().getFileName()), okColor);
             return true;
         } catch (Exception e) {
