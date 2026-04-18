@@ -1321,7 +1321,12 @@ public final class TooltipTranslationSupport {
             );
             return null;
         }
-        if (paragraphRenderWouldDropLines(block.preparedLines().size(), results.size())) {
+        boolean allowCompressedLineCount = shouldAllowCompressedParagraphLineCount(config);
+        if (paragraphRenderDropsTooManyLines(block.preparedLines().size(), results.size(), allowCompressedLineCount)) {
+            int minimumAcceptedLines = minimumAcceptedRenderedLineCount(
+                    block.preparedLines().size(),
+                    allowCompressedLineCount
+            );
             logParagraphRenderIfDev(
                     config,
                     emitDevLog,
@@ -1329,10 +1334,12 @@ public final class TooltipTranslationSupport {
                     block,
                     "reject-line-loss",
                     true,
-                    "Paragraph rewrap would drop source lines. sourceLines="
+                    "Paragraph rewrap would compress too aggressively. sourceLines="
                             + block.preparedLines().size()
                             + ", renderedLines="
-                            + results.size(),
+                            + results.size()
+                            + ", minimumAcceptedLines="
+                            + minimumAcceptedLines,
                     normalizedTemplate,
                     renderedParagraphText.getString(),
                     wrappedLines
@@ -1355,8 +1362,36 @@ public final class TooltipTranslationSupport {
         return results;
     }
 
-    static boolean paragraphRenderWouldDropLines(int sourceLineCount, int renderedLineCount) {
-        return sourceLineCount > 0 && renderedLineCount >= 0 && renderedLineCount < sourceLineCount;
+    static boolean paragraphRenderDropsTooManyLines(
+            int sourceLineCount,
+            int renderedLineCount,
+            boolean allowCompressedLineCount
+    ) {
+        if (sourceLineCount <= 0 || renderedLineCount < 0) {
+            return false;
+        }
+        return renderedLineCount < minimumAcceptedRenderedLineCount(sourceLineCount, allowCompressedLineCount);
+    }
+
+    private static int minimumAcceptedRenderedLineCount(int sourceLineCount, boolean allowCompressedLineCount) {
+        if (sourceLineCount <= 0) {
+            return 0;
+        }
+        if (!allowCompressedLineCount) {
+            return sourceLineCount;
+        }
+
+        // CJK output often preserves meaning while wrapping into about half as many lines.
+        return Math.max(1, (sourceLineCount + 1) / 2);
+    }
+
+    private static boolean shouldAllowCompressedParagraphLineCount(ItemTranslateConfig config) {
+        if (config == null || config.target_language == null) {
+            return false;
+        }
+
+        String language = config.target_language.toLowerCase(Locale.ROOT);
+        return language.contains("chinese") || language.contains("中文") || language.startsWith("zh");
     }
 
     private static Text renderOriginalPreparedLine(PreparedTooltipTemplate preparedTemplate) {
@@ -1966,6 +2001,26 @@ public final class TooltipTranslationSupport {
         return STYLE_TAG_ID_PATTERN.matcher(candidate).matches() ? endIndex : -1;
     }
 
+    private static String stripParagraphStyleTags(String text) {
+        if (text == null || text.isEmpty() || text.indexOf('<') < 0) {
+            return text;
+        }
+
+        StringBuilder stripped = new StringBuilder(text.length());
+        for (int index = 0; index < text.length(); ) {
+            int styleTagEnd = findStyleTagEnd(text, index);
+            if (styleTagEnd >= index) {
+                index = styleTagEnd + 1;
+                continue;
+            }
+
+            int codePoint = text.codePointAt(index);
+            stripped.appendCodePoint(codePoint);
+            index += Character.charCount(codePoint);
+        }
+        return stripped.toString();
+    }
+
     private static int findNextVisibleCodePoint(String text, int startIndex) {
         if (text == null || startIndex < 0) {
             return -1;
@@ -2102,12 +2157,12 @@ public final class TooltipTranslationSupport {
             return null;
         }
 
-        String normalized = normalizeTooltipText(translatedTemplate);
-        if (normalized.isEmpty() || !containsCjk(normalized)) {
+        String visibleText = normalizeTooltipText(stripParagraphStyleTags(translatedTemplate));
+        if (visibleText.isEmpty() || !containsCjk(visibleText)) {
             return null;
         }
 
-        String connector = findStandaloneEnglishConnector(normalized);
+        String connector = findStandaloneEnglishConnector(visibleText);
         if (connector != null) {
             return "Rendered paragraph still contains standalone English connector: " + connector;
         }
@@ -2125,10 +2180,13 @@ public final class TooltipTranslationSupport {
             sourceLetterCount += countAsciiLetters(preparedLine.sourceLine().getString());
         }
 
-        int translatedCjkCount = countCjk(normalized);
-        if (sourceLetterCount >= 18 && translatedCjkCount > 0 && translatedCjkCount * 4 < sourceLetterCount) {
+        int translatedCjkCount = countCjk(visibleText);
+        int translatedSignalCount = countTranslatedSignalUnits(visibleText);
+        if (sourceLetterCount >= 18 && translatedSignalCount > 0 && translatedSignalCount * 3 < sourceLetterCount) {
             return "Rendered paragraph looks too short for Chinese output (sourceLetters="
                     + sourceLetterCount
+                    + ", translatedSignal="
+                    + translatedSignalCount
                     + ", translatedCjk="
                     + translatedCjkCount
                     + ").";
@@ -2229,6 +2287,25 @@ public final class TooltipTranslationSupport {
                     || script == Character.UnicodeScript.HIRAGANA
                     || script == Character.UnicodeScript.KATAKANA
                     || script == Character.UnicodeScript.HANGUL) {
+                count++;
+            }
+            offset += Character.charCount(codePoint);
+        }
+        return count;
+    }
+
+    private static int countTranslatedSignalUnits(String text) {
+        if (text == null || text.isEmpty()) {
+            return 0;
+        }
+
+        int count = 0;
+        for (int offset = 0; offset < text.length(); ) {
+            int codePoint = text.codePointAt(offset);
+            if (isCjkCodePoint(codePoint)
+                    || Character.isDigit(codePoint)
+                    || (codePoint >= 'A' && codePoint <= 'Z')
+                    || (codePoint >= 'a' && codePoint <= 'z')) {
                 count++;
             }
             offset += Character.charCount(codePoint);
