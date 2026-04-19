@@ -249,6 +249,10 @@ public final class ConfigSectionContentSupport {
                     config.debug = new DebugConfig();
                 }
                 DebugConfig debug = config.debug;
+                ChatTranslateConfig.ChatOutputTranslateConfig output = config.chatTranslate.output;
+                if (output.debug == null) {
+                    output.debug = new ChatTranslateConfig.ChatOutputTranslateConfig.DebugConfig();
+                }
                 ItemTranslateConfig item = config.itemTranslate;
                 if (item.debug == null) {
                     item.debug = new ItemTranslateConfig.DebugConfig();
@@ -265,6 +269,46 @@ public final class ConfigSectionContentSupport {
                 );
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.llm_requests"), x, width, llmDebugStart, y);
+
+                y += GROUP_GAP;
+                int chatOutputDebugStart = y;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.chat_output_dev_enabled"),
+                        () -> output.debug.enabled,
+                        value -> output.debug.enabled = value
+                );
+                y += ROW_STEP;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.chat_output_dev_log_intercept"),
+                        () -> output.debug.log_intercepted_message,
+                        value -> output.debug.log_intercepted_message = value
+                );
+                y += ROW_STEP;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.chat_output_dev_log_llm_submission"),
+                        () -> output.debug.log_llm_submission,
+                        value -> output.debug.log_llm_submission = value
+                );
+                y += ROW_STEP;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.chat_output_dev_log_reflow_mapping"),
+                        () -> output.debug.log_reflow_mapping,
+                        value -> output.debug.log_reflow_mapping = value
+                );
+                y += ROW_STEP;
+                addGroupBox(groupBoxAdder, translator.t("group.chat_output_debug"), x, width, chatOutputDebugStart, y);
 
                 y += GROUP_GAP;
                 int itemDebugStart = y;

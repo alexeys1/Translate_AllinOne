@@ -1,5 +1,7 @@
 package com.cedarxuesong.translate_allinone.utils.config.pojos;
 
+import com.google.gson.annotations.SerializedName;
+
 public class ChatTranslateConfig {
     public ChatOutputTranslateConfig output = new ChatOutputTranslateConfig();
     public ChatInputTranslateConfig input = new ChatInputTranslateConfig();
@@ -11,6 +13,15 @@ public class ChatTranslateConfig {
         public String target_language = "Chinese";
         public boolean streaming_response = false;
         public int max_concurrent_requests = 1;
+        @SerializedName(value = "debug", alternate = {"dev"})
+        public DebugConfig debug = new DebugConfig();
+
+        public static class DebugConfig {
+            public boolean enabled = false;
+            public boolean log_intercepted_message = false;
+            public boolean log_llm_submission = false;
+            public boolean log_reflow_mapping = false;
+        }
     }
 
     public static class ChatInputTranslateConfig {

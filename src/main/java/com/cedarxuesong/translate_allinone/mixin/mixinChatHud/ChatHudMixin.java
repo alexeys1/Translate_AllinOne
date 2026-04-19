@@ -35,15 +35,16 @@ public abstract class ChatHudMixin {
         try {
             isModifyingMessage.set(true);
 
-        ModConfig config = Translate_AllinOne.getConfig();
-        if (config.chatTranslate.output.enabled) {
+            ModConfig config = Translate_AllinOne.getConfig();
+            if (config.chatTranslate.output.enabled) {
                 String plainText = AnimationManager.stripFormatting(message.getString()).trim();
                 if (plainText.isEmpty()) {
                     return message;
                 }
 
-            UUID messageId = UUID.randomUUID();
-            MessageUtils.putTrackedMessage(messageId, message);
+                UUID messageId = UUID.randomUUID();
+                ChatOutputTranslateManager.logInterceptedMessage(messageId, message, plainText, config.chatTranslate.output.auto_translate);
+                MessageUtils.putTrackedMessage(messageId, message);
 
                 if (config.chatTranslate.output.auto_translate) {
                     queueAutoTranslateCommand(messageId);
@@ -51,8 +52,8 @@ public abstract class ChatHudMixin {
                 } else {
                     return ChatOutputTranslateManager.buildOriginalMessageWithToggle(messageId, message);
                 }
-        }
-        return message;
+            }
+            return message;
         } finally {
             isModifyingMessage.set(false);
         }

@@ -11,6 +11,7 @@ import com.cedarxuesong.translate_allinone.utils.llmapi.LLM;
 import com.cedarxuesong.translate_allinone.utils.llmapi.ProviderSettings;
 import com.cedarxuesong.translate_allinone.utils.llmapi.openai.OpenAIRequest;
 import com.cedarxuesong.translate_allinone.utils.text.StylePreserver;
+import com.cedarxuesong.translate_allinone.utils.text.TemplateProcessor;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.hud.ChatHud;
 import net.minecraft.client.gui.hud.ChatHudLine;
@@ -24,8 +25,10 @@ import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CompletableFuture;
@@ -33,6 +36,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class ChatOutputTranslateManager {
     private static final Logger LOGGER = LoggerFactory.getLogger(ChatOutputTranslateManager.class);
@@ -45,6 +51,8 @@ public class ChatOutputTranslateManager {
     private static final int MAX_LINE_LOCATE_RETRIES = 4;
     private static final long LINE_LOCATE_RETRY_DELAY_MS = 40L;
     private static final long ROUTE_ERROR_DISPLAY_MS = 3_000L;
+    private static final Pattern STYLE_TAG_PATTERN = Pattern.compile("<s(\\d+)>(.*?)</s\\1>", Pattern.DOTALL);
+    private static final Pattern CHAT_IGNORABLE_PLACEHOLDER_PATTERN = Pattern.compile("\\{c(\\d+)}");
 
     public static Text buildOriginalMessageWithToggle(UUID messageId, Text originalMessage) {
         return appendToggleButton(messageId, originalMessage, CHAT_TRANSLATE_ACTION, "text.translate_allinone.translate_button_hover");
@@ -52,6 +60,21 @@ public class ChatOutputTranslateManager {
 
     public static Text buildTranslatedMessageWithToggle(UUID messageId, Text translatedMessage) {
         return appendToggleButton(messageId, translatedMessage, CHAT_RESTORE_ACTION, "text.translate_allinone.restore_button_hover");
+    }
+
+    public static void logInterceptedMessage(UUID messageId, Text originalMessage, String plainText, boolean autoTranslate) {
+        if (!shouldLogInterceptedMessage()) {
+            return;
+        }
+
+        LOGGER.info(
+                "[ChatOutputDev:intercept] messageId={} autoTranslate={} rawText=\"{}\" plainText=\"{}\" segments={}",
+                messageId,
+                autoTranslate,
+                escapeForLog(originalMessage == null ? "" : originalMessage.getString()),
+                escapeForLog(plainText),
+                describeTextSegments(originalMessage)
+        );
     }
 
     private static synchronized void updateExecutorServiceIfNeeded() {
@@ -95,6 +118,7 @@ public class ChatOutputTranslateManager {
         lineLocateRetryCounts.remove(messageId);
         int lineIndex = searchResult.lineIndex();
         ChatHudLine targetLine = searchResult.line();
+        logChatLineMapping(messageId, "locate_original", lineIndex, targetLine.content());
 
         updateExecutorServiceIfNeeded();
 
@@ -152,21 +176,24 @@ public class ChatOutputTranslateManager {
                 ProviderSettings settings = ProviderSettings.fromProviderProfile(providerProfile);
                 LLM llm = new LLM(settings);
 
-                StylePreserver.ExtractionResult extraction = StylePreserver.extractAndMarkWithTags(originalMessage);
-                String textToTranslate = extraction.markedText;
-                Map<Integer, Style> styleMap = extraction.styleMap;
+                PreparedChatTranslation preparedTranslation = prepareTranslationPayload(originalMessage);
+                String textToTranslate = preparedTranslation.textToTranslate();
+                Map<Integer, Style> styleMap = preparedTranslation.styleMap();
 
                 List<OpenAIRequest.Message> apiMessages = getMessages(providerProfile, chatOutputConfig.target_language, textToTranslate);
                 requestContext = buildRequestContext(providerProfile, chatOutputConfig.target_language, textToTranslate, apiMessages, chatOutputConfig.streaming_response, messageId);
+                logLlmSubmission(messageId, providerProfile, chatOutputConfig, originalMessage, textToTranslate, styleMap, apiMessages, requestContext);
 
                 LOGGER.info("Starting translation for message ID: {}. Marked text: {}", messageId, textToTranslate);
 
                 if (chatOutputConfig.streaming_response) {
                     final StringBuilder rawResponseBuffer = new StringBuilder();
+                    final StringBuilder fullResponseBuffer = new StringBuilder();
                     final StringBuilder visibleContentBuffer = new StringBuilder();
                     final AtomicBoolean inThinkTag = new AtomicBoolean(false);
 
                     llm.getStreamingCompletion(apiMessages, requestContext).forEach(chunk -> {
+                        fullResponseBuffer.append(chunk);
                         rawResponseBuffer.append(chunk);
 
                         while (true) {
@@ -205,13 +232,22 @@ public class ChatOutputTranslateManager {
                         }
                     });
 
-                    Text finalStyledText = StylePreserver.reapplyStylesFromTags(visibleContentBuffer.toString().stripLeading(), styleMap);
+                    Text finalStyledText = rebuildTranslatedText(visibleContentBuffer.toString().stripLeading(), preparedTranslation);
+                    logReflowResult(
+                            messageId,
+                            true,
+                            fullResponseBuffer.toString(),
+                            visibleContentBuffer.toString().stripLeading(),
+                            finalStyledText,
+                            styleMap
+                    );
                     updateChatLineWithFinalText(messageId, finalStyledText);
                 } else {
                     String result = llm.getCompletion(apiMessages, requestContext).join();
                     LOGGER.info("Finished translation for message ID: {}. Result: {}", messageId, result);
                     final String finalTranslation = result.stripLeading();
-                    Text finalStyledText = StylePreserver.reapplyStylesFromTags(finalTranslation, styleMap);
+                    Text finalStyledText = rebuildTranslatedText(finalTranslation, preparedTranslation);
+                    logReflowResult(messageId, false, result, finalTranslation, finalStyledText, styleMap);
                     updateChatLineWithFinalText(messageId, finalStyledText);
                 }
             } catch (Exception e) {
@@ -294,7 +330,10 @@ public class ChatOutputTranslateManager {
     private static void updateChatLineWithFinalText(UUID messageId, Text finalContent) {
         lineLocateRetryCounts.remove(messageId);
         ChatHudLine lineToUpdate = activeTranslationLines.remove(messageId);
-        if (lineToUpdate == null) return;
+        if (lineToUpdate == null) {
+            logChatLineMapping(messageId, "final_update_missing_active_line", -1, finalContent);
+            return;
+        }
 
         MinecraftClient.getInstance().execute(() -> {
             ChatHud chatHud = MinecraftClient.getInstance().inGameHud.getChatHud();
@@ -313,6 +352,9 @@ public class ChatOutputTranslateManager {
                 chatHudAccessor.invokeRefresh();
                 chatHudAccessor.setScrolledLines(scrolledLines);
                 MessageUtils.setTranslatedMessage(messageId, finalLineContent);
+                logChatLineMapping(messageId, "final_update", lineIndex, finalLineContent);
+            } else {
+                logChatLineMapping(messageId, "final_update_line_missing", -1, finalContent);
             }
         });
     }
@@ -403,6 +445,7 @@ public class ChatOutputTranslateManager {
         if (attempt > MAX_LINE_LOCATE_RETRIES) {
             return false;
         }
+        logLocateRetry(messageId, attempt, originalMessage);
 
         CompletableFuture.delayedExecutor(LINE_LOCATE_RETRY_DELAY_MS, TimeUnit.MILLISECONDS).execute(() -> {
             MinecraftClient client = MinecraftClient.getInstance();
@@ -415,6 +458,146 @@ public class ChatOutputTranslateManager {
     }
 
     private record LineSearchResult(int lineIndex, ChatHudLine line) {
+    }
+
+    static PreparedChatTranslation prepareTranslationPayload(Text originalMessage) {
+        StylePreserver.ExtractionResult extraction = StylePreserver.extractAndMarkWithTags(originalMessage);
+        TemplateProcessor.TemplateExtractionResult templateResult = TemplateProcessor.extract(extraction.markedText);
+        TemplateProcessor.DecorativeGlyphExtractionResult glyphResult = TemplateProcessor.extractDecorativeGlyphTags(templateResult.template());
+        String normalizedTemplate = TemplateProcessor.normalizeWynnInlineSpacerGlyphsInTaggedText(glyphResult.template());
+        IgnorableChatSegmentExtractionResult ignorableSegments = extractIgnorableChatSegments(normalizedTemplate);
+        return new PreparedChatTranslation(
+                ignorableSegments.template(),
+                extraction.styleMap,
+                templateResult.values(),
+                glyphResult.values(),
+                ignorableSegments.values()
+        );
+    }
+
+    static Text rebuildTranslatedText(String translatedText, PreparedChatTranslation preparedTranslation) {
+        if (preparedTranslation == null) {
+            return Text.literal(translatedText == null ? "" : translatedText);
+        }
+
+        String reassembled = TemplateProcessor.reassemble(
+                translatedText == null ? "" : translatedText,
+                preparedTranslation.templateValues()
+        );
+        reassembled = TemplateProcessor.reassembleDecorativeGlyphs(
+                reassembled,
+                preparedTranslation.decorativeGlyphValues(),
+                true
+        );
+        reassembled = reassembleIgnorableChatSegments(reassembled, preparedTranslation.ignorableSegments());
+        return StylePreserver.reapplyStylesFromTags(reassembled, preparedTranslation.styleMap(), true);
+    }
+
+    private static IgnorableChatSegmentExtractionResult extractIgnorableChatSegments(String text) {
+        if (text == null || text.isEmpty()) {
+            return new IgnorableChatSegmentExtractionResult(text == null ? "" : text, List.of());
+        }
+
+        List<String> values = new ArrayList<>();
+        Matcher matcher = STYLE_TAG_PATTERN.matcher(text);
+        StringBuilder template = new StringBuilder(text.length());
+        int lastEnd = 0;
+
+        while (matcher.find()) {
+            if (matcher.start() > lastEnd) {
+                template.append(text, lastEnd, matcher.start());
+            }
+
+            String taggedSegment = matcher.group();
+            String content = matcher.group(2);
+            if (shouldExtractIgnorableChatSegment(content)) {
+                values.add(taggedSegment);
+                template.append("{c").append(values.size()).append("}");
+            } else {
+                template.append(taggedSegment);
+            }
+            lastEnd = matcher.end();
+        }
+
+        if (lastEnd < text.length()) {
+            template.append(text, lastEnd, text.length());
+        }
+
+        return new IgnorableChatSegmentExtractionResult(template.toString(), values);
+    }
+
+    private static String reassembleIgnorableChatSegments(String text, List<String> values) {
+        if (text == null || text.isEmpty() || values == null || values.isEmpty()) {
+            return text;
+        }
+
+        Matcher matcher = CHAT_IGNORABLE_PLACEHOLDER_PATTERN.matcher(text);
+        StringBuilder reassembled = new StringBuilder(text.length());
+        int lastEnd = 0;
+
+        while (matcher.find()) {
+            reassembled.append(text, lastEnd, matcher.start());
+            int placeholderIndex = Integer.parseInt(matcher.group(1)) - 1;
+            String replacement = placeholderIndex >= 0 && placeholderIndex < values.size()
+                    ? values.get(placeholderIndex)
+                    : matcher.group();
+            reassembled.append(replacement);
+            lastEnd = matcher.end();
+        }
+
+        reassembled.append(text, lastEnd, text.length());
+        return reassembled.toString();
+    }
+
+    private static boolean shouldExtractIgnorableChatSegment(String content) {
+        if (content == null || content.isEmpty()) {
+            return false;
+        }
+
+        boolean sawIgnorable = false;
+        for (int offset = 0; offset < content.length(); ) {
+            int codePoint = content.codePointAt(offset);
+            offset += Character.charCount(codePoint);
+
+            if (Character.isWhitespace(codePoint)) {
+                continue;
+            }
+            if (!isIgnorableChatCodePoint(codePoint) && !isDecorativeGlyphCodePoint(codePoint)) {
+                return false;
+            }
+            sawIgnorable = true;
+        }
+        return sawIgnorable;
+    }
+
+    private static boolean isIgnorableChatCodePoint(int codePoint) {
+        int type = Character.getType(codePoint);
+        return type == Character.FORMAT
+                || type == Character.CONTROL
+                || codePoint == 0xFFFC;
+    }
+
+    private static boolean isDecorativeGlyphCodePoint(int codePoint) {
+        int unicodeType = Character.getType(codePoint);
+        if (unicodeType == Character.PRIVATE_USE || unicodeType == Character.UNASSIGNED) {
+            return true;
+        }
+
+        return (codePoint >= 0xE000 && codePoint <= 0xF8FF)
+                || (codePoint >= 0xF0000 && codePoint <= 0xFFFFD)
+                || (codePoint >= 0x100000 && codePoint <= 0x10FFFD);
+    }
+
+    record PreparedChatTranslation(
+            String textToTranslate,
+            Map<Integer, Style> styleMap,
+            List<String> templateValues,
+            List<String> decorativeGlyphValues,
+            List<String> ignorableSegments
+    ) {
+    }
+
+    private record IgnorableChatSegmentExtractionResult(String template, List<String> values) {
     }
 
     private static Text appendToggleButton(UUID messageId, Text messageContent, String action, String hoverTranslationKey) {
@@ -493,5 +676,209 @@ public class ChatOutputTranslateManager {
             return value;
         }
         return value.substring(0, Math.max(0, maxLength - 3)) + "...";
+    }
+
+    private static void logLlmSubmission(
+            UUID messageId,
+            ApiProviderProfile providerProfile,
+            ChatTranslateConfig.ChatOutputTranslateConfig chatOutputConfig,
+            Text originalMessage,
+            String markedText,
+            Map<Integer, Style> styleMap,
+            List<OpenAIRequest.Message> apiMessages,
+            String requestContext
+    ) {
+        if (!shouldLogLlmSubmission()) {
+            return;
+        }
+
+        LOGGER.info(
+                "[ChatOutputDev:llm_submit] messageId={} provider={} model={} target={} streaming={} originalText=\"{}\" markedText=\"{}\" styleMap={} apiMessages={} context={}",
+                messageId,
+                providerProfile == null ? "" : providerProfile.id,
+                providerProfile == null ? "" : providerProfile.model_id,
+                chatOutputConfig == null || chatOutputConfig.target_language == null ? "" : chatOutputConfig.target_language,
+                chatOutputConfig != null && chatOutputConfig.streaming_response,
+                escapeForLog(originalMessage == null ? "" : originalMessage.getString()),
+                escapeForLog(markedText),
+                describeStyleMap(styleMap),
+                describeApiMessages(apiMessages),
+                requestContext == null ? "" : requestContext
+        );
+    }
+
+    private static void logReflowResult(
+            UUID messageId,
+            boolean streaming,
+            String rawModelOutput,
+            String visibleTranslation,
+            Text finalStyledText,
+            Map<Integer, Style> styleMap
+    ) {
+        if (!shouldLogReflowMapping()) {
+            return;
+        }
+
+        LOGGER.info(
+                "[ChatOutputDev:reflow] messageId={} streaming={} rawModelOutput=\"{}\" visibleTranslation=\"{}\" finalText=\"{}\" styleMap={} finalSegments={}",
+                messageId,
+                streaming,
+                escapeForLog(rawModelOutput),
+                escapeForLog(visibleTranslation),
+                escapeForLog(finalStyledText == null ? "" : finalStyledText.getString()),
+                describeStyleMap(styleMap),
+                describeTextSegments(finalStyledText)
+        );
+    }
+
+    private static void logChatLineMapping(UUID messageId, String action, int lineIndex, Text content) {
+        if (!shouldLogReflowMapping()) {
+            return;
+        }
+
+        LOGGER.info(
+                "[ChatOutputDev:chat_map] messageId={} action={} lineIndex={} text=\"{}\" segments={}",
+                messageId,
+                action,
+                lineIndex,
+                escapeForLog(content == null ? "" : content.getString()),
+                describeTextSegments(content)
+        );
+    }
+
+    private static void logLocateRetry(UUID messageId, int attempt, Text originalMessage) {
+        if (!shouldLogReflowMapping()) {
+            return;
+        }
+
+        LOGGER.info(
+                "[ChatOutputDev:chat_map] messageId={} action=retry_locate attempt={} maxRetries={} originalText=\"{}\"",
+                messageId,
+                attempt,
+                MAX_LINE_LOCATE_RETRIES,
+                escapeForLog(originalMessage == null ? "" : originalMessage.getString())
+        );
+    }
+
+    private static boolean shouldLogInterceptedMessage() {
+        ChatTranslateConfig.ChatOutputTranslateConfig.DebugConfig debugConfig = getDebugConfig();
+        return debugConfig != null && debugConfig.enabled && debugConfig.log_intercepted_message;
+    }
+
+    private static boolean shouldLogLlmSubmission() {
+        ChatTranslateConfig.ChatOutputTranslateConfig.DebugConfig debugConfig = getDebugConfig();
+        return debugConfig != null && debugConfig.enabled && debugConfig.log_llm_submission;
+    }
+
+    private static boolean shouldLogReflowMapping() {
+        ChatTranslateConfig.ChatOutputTranslateConfig.DebugConfig debugConfig = getDebugConfig();
+        return debugConfig != null && debugConfig.enabled && debugConfig.log_reflow_mapping;
+    }
+
+    private static ChatTranslateConfig.ChatOutputTranslateConfig.DebugConfig getDebugConfig() {
+        try {
+            if (Translate_AllinOne.getConfig() == null
+                    || Translate_AllinOne.getConfig().chatTranslate == null
+                    || Translate_AllinOne.getConfig().chatTranslate.output == null) {
+                return null;
+            }
+            return Translate_AllinOne.getConfig().chatTranslate.output.debug;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static String describeApiMessages(List<OpenAIRequest.Message> apiMessages) {
+        if (apiMessages == null || apiMessages.isEmpty()) {
+            return "[]";
+        }
+
+        List<String> parts = new ArrayList<>();
+        for (int index = 0; index < apiMessages.size(); index++) {
+            OpenAIRequest.Message message = apiMessages.get(index);
+            String role = message == null || message.role == null ? "" : message.role;
+            String content = message == null || message.content == null ? "" : message.content;
+            parts.add("#" + index + "{role=" + role + ",content=\"" + escapeForLog(content) + "\"}");
+        }
+        return parts.toString();
+    }
+
+    private static String describeStyleMap(Map<Integer, Style> styleMap) {
+        if (styleMap == null || styleMap.isEmpty()) {
+            return "{}";
+        }
+
+        return styleMap.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> entry.getKey() + "=" + describeStyle(entry.getValue()))
+                .collect(Collectors.joining(", ", "{", "}"));
+    }
+
+    private static String describeTextSegments(Text text) {
+        if (text == null) {
+            return "[]";
+        }
+
+        List<String> segments = new ArrayList<>();
+        text.visit((style, string) -> {
+            if (string != null && !string.isEmpty()) {
+                segments.add("{text=\"" + escapeForLog(string) + "\",style=" + describeStyle(style) + "}");
+            }
+            return Optional.empty();
+        }, Style.EMPTY);
+        return segments.toString();
+    }
+
+    private static String describeStyle(Style style) {
+        if (style == null || style.isEmpty()) {
+            return "plain";
+        }
+
+        List<String> fields = new ArrayList<>();
+        if (style.getColor() != null) {
+            fields.add("color=" + formatRgb(style.getColor().getRgb()));
+        }
+        if (style.isBold()) {
+            fields.add("bold");
+        }
+        if (style.isItalic()) {
+            fields.add("italic");
+        }
+        if (style.isUnderlined()) {
+            fields.add("underline");
+        }
+        if (style.isStrikethrough()) {
+            fields.add("strikethrough");
+        }
+        if (style.isObfuscated()) {
+            fields.add("obfuscated");
+        }
+        if (style.getFont() != null) {
+            fields.add("font=" + style.getFont());
+        }
+        if (style.getClickEvent() != null) {
+            fields.add("click=" + style.getClickEvent().getAction().asString());
+        }
+        if (style.getHoverEvent() != null) {
+            fields.add("hover");
+        }
+        return fields.isEmpty() ? "plain" : String.join("|", fields);
+    }
+
+    private static String formatRgb(int rgb) {
+        return String.format("#%06X", rgb & 0xFFFFFF);
+    }
+
+    private static String escapeForLog(String value) {
+        if (value == null || value.isEmpty()) {
+            return "";
+        }
+
+        return value
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\r", "\\r")
+                .replace("\n", "\\n")
+                .replace("\t", "\\t");
     }
 }

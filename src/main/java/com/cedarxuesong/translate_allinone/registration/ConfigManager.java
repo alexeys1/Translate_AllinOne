@@ -145,6 +145,9 @@ public class ConfigManager {
         if (configToUse.chatTranslate.output == null) {
             configToUse.chatTranslate.output = new ChatTranslateConfig.ChatOutputTranslateConfig();
         }
+        if (configToUse.chatTranslate.output.debug == null) {
+            configToUse.chatTranslate.output.debug = new ChatTranslateConfig.ChatOutputTranslateConfig.DebugConfig();
+        }
         configToUse.chatTranslate.output.interaction_offset_amount = clamp(configToUse.chatTranslate.output.interaction_offset_amount, 0, 5);
         if (configToUse.chatTranslate.input.keybinding == null) {
             configToUse.chatTranslate.input.keybinding = new InputBindingConfig();
