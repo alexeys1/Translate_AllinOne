@@ -84,7 +84,7 @@ final class TooltipRoutePlanner {
                 continue;
             }
 
-            TooltipParagraphBlock paragraphBlock = buildParagraphBlock(candidates, index);
+            TooltipParagraphBlock paragraphBlock = buildParagraphBlock(candidates, index, useTagStylePreservation);
             if (paragraphBlock != null) {
                 Set<String> blockKeys = singleKeySet(paragraphBlock.paragraphTemplate().translationTemplateKey());
                 allTranslationTemplateKeys.addAll(blockKeys);
@@ -214,17 +214,27 @@ final class TooltipRoutePlanner {
         return candidates;
     }
 
-    private static TooltipParagraphBlock buildParagraphBlock(List<TooltipLineCandidate> candidates, int startIndex) {
+    private static TooltipParagraphBlock buildParagraphBlock(
+            List<TooltipLineCandidate> candidates,
+            int startIndex,
+            boolean useTagStylePreservation
+    ) {
         if (!canStartParagraphBlock(candidates, startIndex)) {
             return null;
         }
 
         List<TooltipTemplateRuntime.PreparedTooltipTemplate> preparedLines = new ArrayList<>();
-        preparedLines.add(TooltipTemplateRuntime.prepareTemplate(candidates.get(startIndex).line(), true));
+        preparedLines.add(TooltipTemplateRuntime.prepareTemplate(
+                candidates.get(startIndex).line(),
+                useTagStylePreservation
+        ));
         int endExclusive = startIndex + 1;
         while (endExclusive < candidates.size()
                 && canExtendParagraphBlock(candidates.get(endExclusive - 1), candidates.get(endExclusive))) {
-            preparedLines.add(TooltipTemplateRuntime.prepareTemplate(candidates.get(endExclusive).line(), true));
+            preparedLines.add(TooltipTemplateRuntime.prepareTemplate(
+                    candidates.get(endExclusive).line(),
+                    useTagStylePreservation
+            ));
             endExclusive++;
         }
 

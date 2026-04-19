@@ -1,6 +1,5 @@
 package com.cedarxuesong.translate_allinone.utils.translate;
 
-import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.utils.AnimationManager;
 import com.cedarxuesong.translate_allinone.utils.cache.ItemTemplateCache;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
@@ -372,6 +371,7 @@ final class TooltipParagraphSupport {
         );
         reassembledTranslated = postProcessTranslatedParagraphText(
                 reassembledTranslated,
+                config,
                 paragraphTemplate.styleMap(),
                 paragraphTemplate.bodyStyleId()
         );
@@ -398,7 +398,7 @@ final class TooltipParagraphSupport {
             return null;
         }
 
-        String paragraphQualityIssue = describeParagraphQualityIssue(block, reassembledTranslated);
+        String paragraphQualityIssue = describeParagraphQualityIssue(block, reassembledTranslated, config);
         if (paragraphQualityIssue != null) {
             logParagraphRenderIfDev(
                     config,
@@ -440,6 +440,7 @@ final class TooltipParagraphSupport {
 
     private static String postProcessTranslatedParagraphText(
             String translatedText,
+            ItemTranslateConfig config,
             Map<Integer, Style> styleMap,
             Integer bodyStyleId
     ) {
@@ -447,7 +448,7 @@ final class TooltipParagraphSupport {
             return translatedText;
         }
 
-        boolean applyChineseHeuristics = shouldApplyChineseParagraphQualityHeuristics();
+        boolean applyChineseHeuristics = shouldApplyChineseParagraphQualityHeuristics(config);
         String normalized = translatedText;
         if (applyChineseHeuristics) {
             normalized = normalizeChineseTaggedWhitespace(normalized);
@@ -951,11 +952,14 @@ final class TooltipParagraphSupport {
         return result;
     }
 
-    private static String describeParagraphQualityIssue(
+    static String describeParagraphQualityIssue(
             TooltipParagraphBlock block,
-            String translatedTemplate
+            String translatedTemplate,
+            ItemTranslateConfig config
     ) {
-        if (!shouldApplyChineseParagraphQualityHeuristics() || translatedTemplate == null || translatedTemplate.isBlank()) {
+        if (!shouldApplyChineseParagraphQualityHeuristics(config)
+                || translatedTemplate == null
+                || translatedTemplate.isBlank()) {
             return null;
         }
 
@@ -1091,8 +1095,7 @@ final class TooltipParagraphSupport {
         );
     }
 
-    private static boolean shouldApplyChineseParagraphQualityHeuristics() {
-        ItemTranslateConfig config = Translate_AllinOne.getConfig().itemTranslate;
+    static boolean shouldApplyChineseParagraphQualityHeuristics(ItemTranslateConfig config) {
         if (config == null || config.target_language == null) {
             return false;
         }
