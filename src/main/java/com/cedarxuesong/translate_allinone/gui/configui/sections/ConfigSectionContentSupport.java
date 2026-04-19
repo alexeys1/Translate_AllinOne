@@ -12,6 +12,7 @@ import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfi
 import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ProviderManagerConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ScoreboardConfig;
+import com.cedarxuesong.translate_allinone.utils.config.pojos.WynnCraftConfig;
 import net.minecraft.text.Text;
 
 import java.util.function.BooleanSupplier;
@@ -106,7 +107,7 @@ public final class ConfigSectionContentSupport {
                     input.keybinding = new InputBindingConfig();
                 }
                 if (input.assistant_panel_enabled == null) {
-                    input.assistant_panel_enabled = true;
+                    input.assistant_panel_enabled = false;
                 }
 
                 int basicStart = y;
@@ -173,8 +174,6 @@ public final class ConfigSectionContentSupport {
                 toggleAdder.add(x, y, width, translator.t("label.translate_item_name"), () -> item.enabled_translate_item_custom_name, value -> item.enabled_translate_item_custom_name = value);
                 y += ROW_STEP;
                 toggleAdder.add(x, y, width, translator.t("label.translate_item_lore"), () -> item.enabled_translate_item_lore, value -> item.enabled_translate_item_lore = value);
-                y += ROW_STEP;
-                toggleAdder.add(x, y, width, translator.t("label.wynn_item_compatibility"), () -> item.wynn_item_compatibility, value -> item.wynn_item_compatibility = value);
                 y += ROW_STEP;
                 textFieldRowAdder.add(
                         x,
@@ -433,6 +432,30 @@ public final class ConfigSectionContentSupport {
                 addGroupBox(groupBoxAdder, translator.t("group.route"), x, width, routeStart, routeStart + ROW_STEP);
                 return routeStart + ROW_STEP;
             }
+            case WYNNCRAFT -> {
+                WynnCraftConfig resolvedWynnCraft = config.wynnCraft;
+                if (resolvedWynnCraft == null) {
+                    resolvedWynnCraft = new WynnCraftConfig();
+                    config.wynnCraft = resolvedWynnCraft;
+                }
+                WynnCraftConfig wynnCraft = resolvedWynnCraft;
+
+                int compatibilityStart = y;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.wynn_item_compatibility"),
+                        () -> wynnCraft.wynn_item_compatibility,
+                        value -> {
+                            wynnCraft.wynn_item_compatibility = value;
+                            config.itemTranslate.wynn_item_compatibility = value;
+                        }
+                );
+                y += ROW_STEP;
+                addGroupBox(groupBoxAdder, translator.t("group.wynncraft"), x, width, compatibilityStart, y);
+                return y;
+            }
             case CACHE -> {
                 CacheBackupConfig resolvedCacheBackup = config.cacheBackup;
                 if (resolvedCacheBackup == null) {
@@ -442,6 +465,15 @@ public final class ConfigSectionContentSupport {
                 CacheBackupConfig cacheBackup = resolvedCacheBackup;
 
                 int policyStart = y;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.cache_backup_enabled"),
+                        cacheBackup::isEnabled,
+                        value -> cacheBackup.enabled = value
+                );
+                y += ROW_STEP;
                 textFieldRowAdder.add(
                         x,
                         y,

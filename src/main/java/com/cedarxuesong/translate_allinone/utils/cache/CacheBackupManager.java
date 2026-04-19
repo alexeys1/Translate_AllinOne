@@ -65,7 +65,7 @@ public final class CacheBackupManager {
     }
 
     static void maybeBackup(Path cacheFilePath, String cacheTypeLabel) {
-        if (cacheFilePath == null || !Files.isRegularFile(cacheFilePath)) {
+        if (!isBackupEnabled() || cacheFilePath == null || !Files.isRegularFile(cacheFilePath)) {
             return;
         }
 
@@ -239,6 +239,10 @@ public final class CacheBackupManager {
         return getConfiguredSettings().max_backup_count;
     }
 
+    private static boolean isBackupEnabled() {
+        return getConfiguredSettings().isEnabled();
+    }
+
     private static int getConfiguredBackupIntervalMinutes() {
         return getConfiguredSettings().backup_interval_minutes;
     }
@@ -252,6 +256,7 @@ public final class CacheBackupManager {
 
             CacheBackupConfig configured = Translate_AllinOne.getConfig().cacheBackup;
             CacheBackupConfig safe = new CacheBackupConfig();
+            safe.enabled = configured.isEnabled();
             safe.backup_interval_minutes = clamp(
                     configured.backup_interval_minutes,
                     CacheBackupConfig.MIN_BACKUP_INTERVAL_MINUTES,

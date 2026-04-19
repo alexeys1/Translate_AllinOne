@@ -30,7 +30,7 @@ public final class ConfigUiControlRenderer {
             context.fill(block.x(), block.y(), block.x() + block.width(), block.y() + block.height(), hovered ? block.hoverColor() : block.color());
             drawOutline(context, block.x(), block.y(), block.width(), block.height(), borderColor);
 
-            Text label = block.label();
+            Text label = trimText(textRenderer, block.label(), Math.max(0, block.width() - 12));
             int textY = block.y() + 6;
             int textX = block.centered()
                     ? block.x() + (block.width() - textRenderer.getWidth(label)) / 2

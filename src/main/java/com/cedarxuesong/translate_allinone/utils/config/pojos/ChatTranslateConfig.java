@@ -26,7 +26,7 @@ public class ChatTranslateConfig {
 
     public static class ChatInputTranslateConfig {
         public boolean enabled = false;
-        public Boolean assistant_panel_enabled = true;
+        public Boolean assistant_panel_enabled = false;
         public String target_language = "English";
         public boolean streaming_response = false;
         public InputBindingConfig keybinding = new InputBindingConfig();

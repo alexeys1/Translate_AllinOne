@@ -12,10 +12,12 @@ import java.util.function.Consumer;
 public final class ProviderManagerSectionSupport {
     private static final int CONTENT_TOP_INSET = 16;
     private static final int COLUMN_GAP = 16;
+    private static final int STACKED_SECTION_GAP = 34;
     private static final int MIN_CONTENT_HEIGHT = 24;
     private static final int GROUP_PADDING_TOP = 18;
     private static final int GROUP_PADDING_BOTTOM = 8;
     private static final int GROUP_PADDING_SIDE = 6;
+    private static final int STACKED_LAYOUT_BREAKPOINT = 720;
 
     private ProviderManagerSectionSupport() {
     }
@@ -54,6 +56,69 @@ public final class ProviderManagerSectionSupport {
         int workspaceHeight = Math.max(120, viewportHeight - 12);
         int contentY = y + CONTENT_TOP_INSET;
         int contentHeight = Math.max(120, workspaceHeight - CONTENT_TOP_INSET);
+        boolean stackedLayout = width < STACKED_LAYOUT_BREAKPOINT;
+
+        ProviderProfileSupport.SelectedProvider selected = ProviderProfileSupport.resolveSelectedProvider(
+                providerManager,
+                selectedProviderId,
+                selectedProviderIndex
+        );
+
+        if (stackedLayout) {
+            ProviderListSectionSupport.RenderResult listResult = ProviderListSectionSupport.render(
+                    providerManager,
+                    x,
+                    contentY,
+                    width,
+                    providerSearchQuery,
+                    selectedProviderId,
+                    translator::t,
+                    listActionBlockAdder,
+                    listTextFieldAdder,
+                    onSearchChanged,
+                    onProviderSelected,
+                    onOpenAddProvider,
+                    providerListStyle
+            );
+
+            int listContentBottom = listResult.contentBottomY();
+            addGroupBox(
+                    groupBoxAdder,
+                    translator.t("group.providers.list"),
+                    x,
+                    width,
+                    contentY,
+                    listContentBottom
+            );
+
+            int detailY = listContentBottom + STACKED_SECTION_GAP;
+            int detailContentBottom = ProviderDetailSectionSupport.render(
+                    selected.profile(),
+                    x,
+                    detailY,
+                    width,
+                    contentHeight,
+                    providerApiKeyVisible,
+                    translator::t,
+                    groupBoxAdder,
+                    providerTypeLabelProvider,
+                    detailActionBlockAdder,
+                    detailTextFieldAdder,
+                    onToggleProviderEnabled,
+                    onDeleteProvider,
+                    onToggleApiKeyVisible,
+                    onTestProviderConnection,
+                    onSetDefaultModel,
+                    onOpenModelSettings,
+                    onRemoveModel,
+                    onAddModel,
+                    providerDetailStyle
+            );
+
+            int totalContentBottom = Math.max(listContentBottom, detailContentBottom);
+            return new RenderResult(listResult.providerSearchField(), selected.selectedProviderId(), totalContentBottom);
+        }
+
         int listWidth = Math.max(220, Math.min(300, width / 3));
         int detailX = x + listWidth + COLUMN_GAP;
         int detailWidth = Math.max(260, width - listWidth - COLUMN_GAP);
@@ -83,12 +148,6 @@ public final class ProviderManagerSectionSupport {
                 listWidth,
                 contentY,
                 leftContentBottom
-        );
-
-        ProviderProfileSupport.SelectedProvider selected = ProviderProfileSupport.resolveSelectedProvider(
-                providerManager,
-                selectedProviderId,
-                selectedProviderIndex
         );
 
         int detailContentBottom = ProviderDetailSectionSupport.render(

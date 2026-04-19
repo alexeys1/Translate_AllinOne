@@ -7,6 +7,7 @@ import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTextMatcherSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTranslationContext;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTranslationSupport;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.text.Text;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Pseudo;
@@ -66,12 +67,12 @@ public abstract class WynnmodStatsTooltipContextMixin {
             }
 
             List<Text> sanitizedTooltip = TooltipTranslationSupport.stripInternalGeneratedLines(currentTooltip);
-            if (TooltipTranslationContext.matchesRecentTranslatedTooltip(sanitizedTooltip)) {
+            TooltipTranslationSupport.maybeForceRefreshCurrentTooltip(sanitizedTooltip, config);
+            boolean showRefreshNotice = TooltipTranslationSupport.shouldShowRefreshNotice(sanitizedTooltip, config);
+            if (!showRefreshNotice && TooltipTranslationContext.matchesRecentTranslatedTooltip(sanitizedTooltip)) {
                 TooltipTranslationContext.setSkipDrawContextTranslation(true);
                 return;
             }
-            TooltipTranslationSupport.maybeForceRefreshCurrentTooltip(sanitizedTooltip, config);
-            boolean showRefreshNotice = TooltipTranslationSupport.shouldShowRefreshNotice(sanitizedTooltip, config);
 
             boolean isKeyPressed = KeybindingManager.isPressed(config.keybinding.binding);
             if (TooltipTranslationSupport.shouldShowOriginal(config.keybinding.mode, isKeyPressed)) {
@@ -108,7 +109,10 @@ public abstract class WynnmodStatsTooltipContextMixin {
     @Unique
     private static boolean translate_allinone$shouldUseWynnmodTooltipTracking() {
         ItemTranslateConfig config = Translate_AllinOne.getConfig().itemTranslate;
-        return config != null && config.enabled && config.wynn_item_compatibility;
+        return config != null
+                && config.enabled
+                && config.wynn_item_compatibility
+                && FabricLoader.getInstance().isModLoaded("wynnmod");
     }
 
     @Unique

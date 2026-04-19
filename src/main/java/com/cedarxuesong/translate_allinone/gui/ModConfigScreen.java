@@ -279,7 +279,7 @@ public class ModConfigScreen extends Screen {
     private ConfigSection selectedSection;
     private int selectedProviderIndex;
     private String selectedProviderId = "";
-    private boolean providerApiKeyVisible;
+    private boolean providerApiKeyVisible = true;
     private String providerSearchQuery = "";
     private RouteSlot routeDropdownSlot;
 
@@ -865,7 +865,7 @@ public class ModConfigScreen extends Screen {
                 },
                 providerId -> {
                     selectedProviderId = providerId;
-                    providerApiKeyVisible = false;
+                    providerApiKeyVisible = true;
                     modelSettingsModalOpen = false;
                     rebuildActionBlocks();
                 },
@@ -1042,7 +1042,7 @@ public class ModConfigScreen extends Screen {
         ApiProviderProfile profile = result.profile();
         selectedProviderId = result.selectedProviderId();
         selectedProviderIndex = result.selectedProviderIndex();
-        providerApiKeyVisible = false;
+        providerApiKeyVisible = true;
 
         closeAddProviderModal();
         setStatus(t("status.added_provider", profile.name), COLOR_STATUS_OK);
@@ -1239,7 +1239,7 @@ public class ModConfigScreen extends Screen {
         );
         String removedId = result.removedProviderId();
         selectedProviderId = result.selectedProviderId();
-        providerApiKeyVisible = false;
+        providerApiKeyVisible = true;
 
         setStatus(t("status.removed_profile", removedId), COLOR_STATUS_OK);
         rebuildActionBlocks();
@@ -1283,10 +1283,10 @@ public class ModConfigScreen extends Screen {
             return;
         }
 
-        int labelWidth = Math.min(180, Math.max(120, width / 3));
+        int labelWidth = responsiveLabelWidth(width);
         int fieldGap = 6;
         int fieldX = x + labelWidth + fieldGap;
-        int fieldWidth = Math.max(120, width - labelWidth - fieldGap);
+        int fieldWidth = Math.max(72, width - labelWidth - fieldGap);
 
         contentActionBlockRegistry.add(x, y, labelWidth, 20, label, () -> {
         });
@@ -1304,7 +1304,7 @@ public class ModConfigScreen extends Screen {
     }
 
     private void addStaticTextRow(int x, int y, int width, Text label, Text value) {
-        int labelWidth = Math.min(180, Math.max(120, width / 3));
+        int labelWidth = responsiveLabelWidth(width);
         staticTextRows.add(new StaticTextRow(
                 x,
                 y,
@@ -1315,6 +1315,11 @@ public class ModConfigScreen extends Screen {
                 COLOR_TEXT,
                 COLOR_TEXT_MUTED
         ));
+    }
+
+    private int responsiveLabelWidth(int width) {
+        int minimum = width < 360 ? 88 : 120;
+        return Math.min(180, Math.max(minimum, width / 3));
     }
 
     private Text hotkeyBindingLabel(ConfigSectionContentSupport.HotkeyTarget target, InputBindingConfig binding) {
@@ -1789,7 +1794,7 @@ public class ModConfigScreen extends Screen {
         hotkeyCaptureTarget = null;
         selectedProviderIndex = 0;
         selectedProviderId = "";
-        providerApiKeyVisible = false;
+        providerApiKeyVisible = true;
         providerSearchQuery = "";
         routeDropdownSlot = null;
         addProviderTypeDropdownOpen = false;

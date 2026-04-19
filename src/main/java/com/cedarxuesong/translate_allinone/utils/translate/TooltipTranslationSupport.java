@@ -5,13 +5,16 @@ import com.cedarxuesong.translate_allinone.utils.AnimationManager;
 import com.cedarxuesong.translate_allinone.utils.cache.ItemTemplateCache;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
+import com.cedarxuesong.translate_allinone.utils.textmatcher.FlatNode;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipRoutePlanner.TooltipParagraphBlock;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipRoutePlanner.TooltipPlan;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipRoutePlanner.TooltipRouteKind;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipRoutePlanner.TooltipRouteSegment;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTemplateRuntime.PreparedTooltipTemplate;
 import net.minecraft.text.MutableText;
+import net.minecraft.text.StyleSpriteSource;
 import net.minecraft.text.Text;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.Formatting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,6 +30,8 @@ public final class TooltipTranslationSupport {
     private static final String KEY_MISMATCH_HINT = "key mismatch";
     private static final String TOOLTIP_REFRESH_NOTICE_KEY = "text.translate_allinone.item.tooltip_refresh_forced";
     private static final long REFRESH_NOTICE_DURATION_MILLIS = 1500L;
+    private static final StyleSpriteSource.Font WYNNCRAFT_TOOLTIP_FONT =
+            new StyleSpriteSource.Font(Identifier.of("minecraft", "language/wynncraft"));
     private static final Logger LOGGER = LoggerFactory.getLogger("Translate_AllinOne/TooltipTranslationSupport");
     private static final Set<Integer> refreshedTooltipSignaturesThisHold = new HashSet<>();
     private static volatile int refreshNoticeTooltipSignature = 0;
@@ -117,7 +122,8 @@ public final class TooltipTranslationSupport {
             return tooltip;
         }
 
-        TooltipPlan tooltipPlan = TooltipRoutePlanner.planTooltip(tooltip, config, config.wynn_item_compatibility);
+        boolean wynnCompatibilityEnabled = config.wynn_item_compatibility;
+        TooltipPlan tooltipPlan = TooltipRoutePlanner.planTooltip(tooltip, config, wynnCompatibilityEnabled);
         maybeForceRefreshCurrentTooltip(tooltipPlan.translationTemplateKeys(), config);
         boolean showRefreshNotice = shouldShowRefreshNotice(tooltipPlan.translationTemplateKeys());
 
@@ -134,7 +140,7 @@ public final class TooltipTranslationSupport {
             TooltipProcessingResult processedTooltip = processTooltipPlan(
                     tooltipPlan,
                     config,
-                    config.wynn_item_compatibility,
+                    wynnCompatibilityEnabled,
                     emitDevLog,
                     "screen-mirror"
             );
@@ -372,6 +378,41 @@ public final class TooltipTranslationSupport {
             }
         }
         return sanitized == null ? tooltip : sanitized;
+    }
+
+    public static boolean looksLikeDedicatedWynnmodTooltip(List<Text> tooltip) {
+        if (tooltip == null || tooltip.isEmpty()) {
+            return false;
+        }
+
+        List<Text> sanitizedTooltip = stripInternalGeneratedLines(tooltip);
+        if (sanitizedTooltip == null || sanitizedTooltip.isEmpty()) {
+            return false;
+        }
+
+        boolean hasWynncraftFont = false;
+        boolean hasMeaningfulLine = false;
+        for (Text line : sanitizedTooltip) {
+            if (line == null) {
+                continue;
+            }
+
+            if (!hasMeaningfulLine && TooltipTextMatcherSupport.hasMeaningfulContent(line)) {
+                hasMeaningfulLine = true;
+            }
+
+            if (hasWynncraftFont) {
+                continue;
+            }
+
+            for (FlatNode node : FlatNode.compact(FlatNode.flatten(line))) {
+                if (node.style() != null && WYNNCRAFT_TOOLTIP_FONT.equals(node.style().getFont())) {
+                    hasWynncraftFont = true;
+                    break;
+                }
+            }
+        }
+        return hasWynncraftFont && hasMeaningfulLine;
     }
 
     public static boolean shouldShowRefreshNotice(List<Text> tooltip, ItemTranslateConfig config) {

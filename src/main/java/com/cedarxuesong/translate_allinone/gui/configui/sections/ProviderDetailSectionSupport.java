@@ -18,6 +18,11 @@ public final class ProviderDetailSectionSupport {
     private static final int GROUP_PADDING_TOP = 18;
     private static final int GROUP_PADDING_BOTTOM = 8;
     private static final int GROUP_PADDING_SIDE = 6;
+    private static final int DEFAULT_LABEL_MIN_WIDTH = 120;
+    private static final int COMPACT_LABEL_MIN_WIDTH = 88;
+    private static final int API_BUTTON_WIDTH = 56;
+    private static final int COMPACT_API_BUTTON_WIDTH = 48;
+    private static final int API_STACKED_BREAKPOINT = 360;
 
     private ProviderDetailSectionSupport() {
     }
@@ -127,7 +132,7 @@ public final class ProviderDetailSectionSupport {
         );
         rowY += ROW_STEP;
 
-        int labelWidth = 120;
+        int labelWidth = resolveLabelWidth(width);
         int fieldX = x + labelWidth + 6;
         int fieldWidth = Math.max(40, width - labelWidth - 6);
         actionBlockAdder.add(
@@ -325,10 +330,13 @@ public final class ProviderDetailSectionSupport {
             Consumer<ApiProviderProfile> onTestProviderConnection,
             Style style
     ) {
-        int labelWidth = 120;
-        int operationWidth = 56;
+        int labelWidth = resolveLabelWidth(width);
+        int operationWidth = width < API_STACKED_BREAKPOINT ? COMPACT_API_BUTTON_WIDTH : API_BUTTON_WIDTH;
         int fieldX = x + labelWidth + 6;
-        int fieldWidth = Math.max(40, width - labelWidth - 6 - operationWidth - operationWidth - 8);
+        boolean stackedButtons = width < API_STACKED_BREAKPOINT;
+        int fieldWidth = stackedButtons
+                ? Math.max(40, width - labelWidth - 6)
+                : Math.max(40, width - labelWidth - 6 - operationWidth - operationWidth - 8);
         int toggleX = fieldX + fieldWidth + 4;
         int testX = toggleX + operationWidth + 4;
 
@@ -363,6 +371,40 @@ public final class ProviderDetailSectionSupport {
                 providerApiKeyVisible
         );
 
+        if (stackedButtons) {
+            int buttonY = y + ROW_STEP;
+            int toggleWidth = Math.max(72, (width - 4) / 2);
+            int testWidth = Math.max(72, width - toggleWidth - 4);
+
+            actionBlockAdder.add(
+                    x,
+                    buttonY,
+                    toggleWidth,
+                    20,
+                    () -> providerApiKeyVisible ? translator.t("button.hide_key") : translator.t("button.show_key"),
+                    onToggleApiKeyVisible,
+                    style.colorBlock(),
+                    style.colorBlockHover(),
+                    style.colorText(),
+                    true
+            );
+
+            actionBlockAdder.add(
+                    x + toggleWidth + 4,
+                    buttonY,
+                    testWidth,
+                    20,
+                    () -> translator.t("button.test"),
+                    () -> onTestProviderConnection.accept(profile),
+                    style.colorBlock(),
+                    style.colorBlockHover(),
+                    style.colorText(),
+                    true
+            );
+
+            return buttonY + ROW_STEP;
+        }
+
         actionBlockAdder.add(
                 toggleX,
                 y,
@@ -389,7 +431,7 @@ public final class ProviderDetailSectionSupport {
                 true
         );
 
-        return y + 24;
+        return y + ROW_STEP;
     }
 
     private static int addProviderTextFieldRow(
@@ -405,7 +447,7 @@ public final class ProviderDetailSectionSupport {
             TextFieldAdder textFieldAdder,
             Style style
     ) {
-        int labelWidth = Math.min(180, Math.max(120, width / 3));
+        int labelWidth = resolveLabelWidth(width);
         int fieldX = x + labelWidth + 6;
         int fieldWidth = Math.max(40, width - labelWidth - 6);
 
@@ -424,6 +466,11 @@ public final class ProviderDetailSectionSupport {
         );
         textFieldAdder.add(fieldX, y, fieldWidth, maxLength, initialValue, label, onChanged, editable);
         return y + 24;
+    }
+
+    private static int resolveLabelWidth(int width) {
+        int minimum = width < API_STACKED_BREAKPOINT ? COMPACT_LABEL_MIN_WIDTH : DEFAULT_LABEL_MIN_WIDTH;
+        return Math.min(180, Math.max(minimum, width / 3));
     }
 
     @FunctionalInterface

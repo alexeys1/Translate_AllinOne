@@ -1,5 +1,6 @@
 package com.cedarxuesong.translate_allinone.utils.translate;
 
+import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.textmatcher.ContentMatcher;
 import com.cedarxuesong.translate_allinone.utils.textmatcher.FlatNode;

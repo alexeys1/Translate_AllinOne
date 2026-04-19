@@ -9,6 +9,7 @@ import com.cedarxuesong.translate_allinone.utils.config.pojos.InputBindingConfig
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ProviderManagerConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ScoreboardConfig;
+import com.cedarxuesong.translate_allinone.utils.config.pojos.WynnCraftConfig;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -27,10 +28,6 @@ import java.nio.file.StandardCopyOption;
 
 public class ConfigManager {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    private static final Path CONFIG_PATH = FabricLoader.getInstance()
-            .getConfigDir()
-            .resolve(Translate_AllinOne.MOD_ID)
-            .resolve(Translate_AllinOne.MOD_ID + ".json");
 
     private static ModConfig config;
     private static boolean registered;
@@ -40,7 +37,7 @@ public class ConfigManager {
             return;
         }
 
-        config = loadConfig();
+        config = loadConfig(resolveConfigPath());
         registered = true;
     }
 
@@ -51,7 +48,7 @@ public class ConfigManager {
 
     public static synchronized void save() {
         ensureRegistered();
-        writeConfig(config);
+        writeConfig(resolveConfigPath(), config);
     }
 
     public static synchronized ModConfig copyCurrentConfig() {
@@ -70,34 +67,54 @@ public class ConfigManager {
     }
 
     public static Path getConfigPath() {
-        return CONFIG_PATH;
+        return resolveConfigPath();
     }
 
-    private static ModConfig loadConfig() {
-        if (!Files.exists(CONFIG_PATH)) {
+    static ModConfig loadConfig(Path configPath) {
+        if (!Files.exists(configPath)) {
             ModConfig defaultConfig = normalizeConfig(new ModConfig());
-            writeConfig(defaultConfig);
+            writeConfigBestEffort(configPath, defaultConfig, "Failed to persist default config file: {}");
             return defaultConfig;
         }
 
-        try (Reader reader = Files.newBufferedReader(CONFIG_PATH)) {
-            JsonElement rawConfig = JsonParser.parseReader(reader);
-            ModConfig loadedConfig = normalizeConfig(GSON.fromJson(rawConfig, ModConfig.class));
+        JsonElement rawConfig;
+        try (Reader reader = Files.newBufferedReader(configPath)) {
+            rawConfig = JsonParser.parseReader(reader);
+        } catch (Exception e) {
+            return loadFallbackConfig(configPath, e);
+        }
+
+        try {
+            ModConfig parsedConfig = GSON.fromJson(rawConfig, ModConfig.class);
+            boolean shouldRewriteConfig = parsedConfig == null;
+            ModConfig loadedConfig = normalizeConfig(parsedConfig);
             boolean migratedLegacyItemDebugConfig = migrateLegacyItemDebugConfig(rawConfig, loadedConfig);
-            if (loadedConfig == null) {
-                Translate_AllinOne.LOGGER.warn("Config file is empty or invalid, using defaults: {}", CONFIG_PATH);
-                loadedConfig = normalizeConfig(new ModConfig());
-                writeConfig(loadedConfig);
-            } else if (migratedLegacyItemDebugConfig) {
-                writeConfig(loadedConfig);
+            boolean migratedLegacyItemWynnCompatibilityConfig = ConfigMigrationSupport.migrateLegacyItemWynnCompatibilityConfig(rawConfig, loadedConfig);
+            ConfigMigrationSupport.syncDerivedConfigState(loadedConfig);
+            loadedConfig = normalizeConfig(loadedConfig);
+
+            if (shouldRewriteConfig) {
+                Translate_AllinOne.LOGGER.warn("Config file is empty or invalid, using defaults: {}", configPath);
+            }
+
+            if (shouldRewriteConfig || migratedLegacyItemDebugConfig || migratedLegacyItemWynnCompatibilityConfig) {
+                writeConfigBestEffort(
+                        configPath,
+                        loadedConfig,
+                        "Failed to rewrite migrated config file, continuing with loaded values: {}"
+                );
             }
             return loadedConfig;
         } catch (Exception e) {
-            Translate_AllinOne.LOGGER.error("Failed to load config file, using defaults: {}", CONFIG_PATH, e);
-            ModConfig fallback = normalizeConfig(new ModConfig());
-            writeConfig(fallback);
-            return fallback;
+            return loadFallbackConfig(configPath, e);
         }
+    }
+
+    private static Path resolveConfigPath() {
+        return FabricLoader.getInstance()
+                .getConfigDir()
+                .resolve(Translate_AllinOne.MOD_ID)
+                .resolve(Translate_AllinOne.MOD_ID + ".json");
     }
 
     private static void ensureRegistered() {
@@ -129,8 +146,14 @@ public class ConfigManager {
         if (configToUse.scoreboardTranslate == null) {
             configToUse.scoreboardTranslate = new ScoreboardConfig();
         }
+        if (configToUse.wynnCraft == null) {
+            configToUse.wynnCraft = new WynnCraftConfig();
+        }
         if (configToUse.cacheBackup == null) {
             configToUse.cacheBackup = new CacheBackupConfig();
+        }
+        if (configToUse.cacheBackup.enabled == null) {
+            configToUse.cacheBackup.enabled = CacheBackupConfig.DEFAULT_ENABLED;
         }
         if (configToUse.debug == null) {
             configToUse.debug = new DebugConfig();
@@ -153,7 +176,7 @@ public class ConfigManager {
             configToUse.chatTranslate.input.keybinding = new InputBindingConfig();
         }
         if (configToUse.chatTranslate.input.assistant_panel_enabled == null) {
-            configToUse.chatTranslate.input.assistant_panel_enabled = true;
+            configToUse.chatTranslate.input.assistant_panel_enabled = false;
         }
         if (configToUse.chatTranslate.input.panel == null) {
             configToUse.chatTranslate.input.panel = new ChatTranslateConfig.ChatInputPanelState();
@@ -171,6 +194,7 @@ public class ConfigManager {
         if (configToUse.itemTranslate.debug == null) {
             configToUse.itemTranslate.debug = new ItemTranslateConfig.DebugConfig();
         }
+        configToUse.itemTranslate.wynn_item_compatibility = configToUse.wynnCraft.wynn_item_compatibility;
 
         if (configToUse.scoreboardTranslate.keybinding == null) {
             configToUse.scoreboardTranslate.keybinding = new ScoreboardConfig.KeybindingConfig();
@@ -198,10 +222,25 @@ public class ConfigManager {
         return Math.max(min, Math.min(max, value));
     }
 
-    private static void writeConfig(ModConfig targetConfig) {
-        Path parent = CONFIG_PATH.getParent();
+    private static ModConfig loadFallbackConfig(Path configPath, Exception cause) {
+        Translate_AllinOne.LOGGER.error("Failed to load config file, using defaults: {}", configPath, cause);
+        ModConfig fallback = normalizeConfig(new ModConfig());
+        writeConfigBestEffort(configPath, fallback, "Failed to persist fallback config file: {}");
+        return fallback;
+    }
+
+    private static void writeConfigBestEffort(Path configPath, ModConfig targetConfig, String message) {
+        try {
+            writeConfig(configPath, targetConfig);
+        } catch (RuntimeException e) {
+            Translate_AllinOne.LOGGER.error(message, configPath, e);
+        }
+    }
+
+    private static void writeConfig(Path configPath, ModConfig targetConfig) {
+        Path parent = configPath.getParent();
         if (parent == null) {
-            throw new IllegalStateException("Config path has no parent: " + CONFIG_PATH);
+            throw new IllegalStateException("Config path has no parent: " + configPath);
         }
 
         try {
@@ -210,7 +249,7 @@ public class ConfigManager {
             throw new RuntimeException("Failed to create config directory: " + parent, e);
         }
 
-        Path tempPath = parent.resolve(CONFIG_PATH.getFileName() + ".tmp");
+        Path tempPath = parent.resolve(configPath.getFileName() + ".tmp");
         try (Writer writer = Files.newBufferedWriter(tempPath)) {
             GSON.toJson(targetConfig, writer);
         } catch (IOException e) {
@@ -218,15 +257,15 @@ public class ConfigManager {
         }
 
         try {
-            Files.move(tempPath, CONFIG_PATH, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            Files.move(tempPath, configPath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (AtomicMoveNotSupportedException e) {
             try {
-                Files.move(tempPath, CONFIG_PATH, StandardCopyOption.REPLACE_EXISTING);
+                Files.move(tempPath, configPath, StandardCopyOption.REPLACE_EXISTING);
             } catch (IOException moveException) {
-                throw new RuntimeException("Failed to replace config file: " + CONFIG_PATH, moveException);
+                throw new RuntimeException("Failed to replace config file: " + configPath, moveException);
             }
         } catch (IOException e) {
-            throw new RuntimeException("Failed to replace config file: " + CONFIG_PATH, e);
+            throw new RuntimeException("Failed to replace config file: " + configPath, e);
         }
     }
 
@@ -268,14 +307,7 @@ public class ConfigManager {
     }
 
     private static JsonObject getItemTranslateObject(JsonElement rawConfig) {
-        if (rawConfig == null || !rawConfig.isJsonObject()) {
-            return null;
-        }
-        JsonElement itemTranslateElement = rawConfig.getAsJsonObject().get("itemTranslate");
-        if (itemTranslateElement == null || !itemTranslateElement.isJsonObject()) {
-            return null;
-        }
-        return itemTranslateElement.getAsJsonObject();
+        return ConfigMigrationSupport.getItemTranslateObject(rawConfig);
     }
 
     private static JsonObject getItemDebugObject(JsonElement rawConfig) {
