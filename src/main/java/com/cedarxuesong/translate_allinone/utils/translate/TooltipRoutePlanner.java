@@ -185,7 +185,9 @@ final class TooltipRoutePlanner {
 
     private static List<TooltipLineCandidate> evaluateTooltipLines(List<Text> tooltip, ItemTranslateConfig config) {
         List<TooltipLineCandidate> candidates = new ArrayList<>(tooltip.size());
-        boolean isFirstLine = true;
+        boolean nameSlotAvailable = true;
+        boolean wynnCompatibilityEnabled = config != null && config.wynn_item_compatibility;
+        String firstTitleComparisonText = "";
 
         for (int lineIndex = 0; lineIndex < tooltip.size(); lineIndex++) {
             Text line = tooltip.get(lineIndex);
@@ -193,14 +195,19 @@ final class TooltipRoutePlanner {
                 candidates.add(new TooltipLineCandidate(
                         lineIndex,
                         line,
-                        isFirstLine,
+                        nameSlotAvailable,
                         null
                 ));
                 continue;
             }
 
-            boolean firstContentLine = isFirstLine;
-            isFirstLine = false;
+            boolean hasMeaningfulContent = TooltipTextMatcherSupport.hasMeaningfulContent(line, wynnCompatibilityEnabled);
+            boolean consumesNameSlot = nameSlotAvailable && hasMeaningfulContent;
+            boolean duplicateWynnTitleLine = !nameSlotAvailable
+                    && wynnCompatibilityEnabled
+                    && hasMeaningfulContent
+                    && looksLikeDuplicateWynnTitleLine(line, firstTitleComparisonText);
+            boolean firstContentLine = consumesNameSlot || duplicateWynnTitleLine;
             TooltipTextMatcherSupport.TooltipLineDecision decision =
                     TooltipTextMatcherSupport.evaluateTooltipLine(line, firstContentLine, config);
             candidates.add(new TooltipLineCandidate(
@@ -209,9 +216,54 @@ final class TooltipRoutePlanner {
                     firstContentLine,
                     decision
             ));
+
+            if (consumesNameSlot) {
+                nameSlotAvailable = false;
+                firstTitleComparisonText = extractTitleComparisonText(line);
+            }
         }
 
         return candidates;
+    }
+
+    private static boolean looksLikeDuplicateWynnTitleLine(Text line, String firstTitleComparisonText) {
+        if (line == null
+                || firstTitleComparisonText == null
+                || firstTitleComparisonText.isBlank()) {
+            return false;
+        }
+
+        String raw = line.getString();
+        if (raw == null || raw.isBlank() || !TooltipTemplateRuntime.containsDecorativeGlyph(raw)) {
+            return false;
+        }
+
+        String currentComparisonText = extractTitleComparisonText(line);
+        if (currentComparisonText.isBlank()) {
+            return false;
+        }
+
+        return currentComparisonText.equals(firstTitleComparisonText)
+                || hasEquivalentNumericBracketSuffix(currentComparisonText, firstTitleComparisonText);
+    }
+
+    private static String extractTitleComparisonText(Text line) {
+        if (line == null) {
+            return "";
+        }
+
+        return normalizeTooltipText(TooltipTemplateRuntime.stripDecorativeGlyphsForHeuristics(line.getString()));
+    }
+
+    private static boolean hasEquivalentNumericBracketSuffix(String currentText, String firstTitleComparisonText) {
+        if (currentText == null
+                || firstTitleComparisonText == null
+                || !currentText.startsWith(firstTitleComparisonText)) {
+            return false;
+        }
+
+        String suffix = currentText.substring(firstTitleComparisonText.length()).trim();
+        return !suffix.isEmpty() && suffix.matches("\\[[0-9./%]+]");
     }
 
     private static TooltipParagraphBlock buildParagraphBlock(
@@ -379,9 +431,57 @@ final class TooltipRoutePlanner {
             return true;
         }
 
-        return Character.isDigit(first)
+        if (Character.isDigit(first)
                 && countWordTokens(trimmed) <= 6
-                && (containsSymbolicMarker(trimmed) || trimmed.indexOf('%') >= 0);
+                && (containsSymbolicMarker(trimmed) || trimmed.indexOf('%') >= 0)) {
+            return true;
+        }
+
+        return looksLikeLeadingLabelStructuredStatLine(trimmed);
+    }
+
+    private static boolean looksLikeLeadingLabelStructuredStatLine(String raw) {
+        if (raw == null
+                || raw.isBlank()
+                || TooltipTemplateRuntime.containsDecorativeGlyph(raw)
+                || !containsDigit(raw)
+                || containsSentencePunctuationOutsideNumericContext(raw)) {
+            return false;
+        }
+
+        String[] tokens = raw.trim().split("\\s+");
+        if (tokens.length < 2 || tokens.length > 8) {
+            return false;
+        }
+
+        int firstValueTokenIndex = -1;
+        for (int index = 0; index < tokens.length; index++) {
+            if (looksLikeStructuredStatValueToken(tokens[index])) {
+                firstValueTokenIndex = index;
+                break;
+            }
+        }
+        if (firstValueTokenIndex <= 0) {
+            return false;
+        }
+
+        int labelTokenCount = 0;
+        for (int index = 0; index < firstValueTokenIndex; index++) {
+            if (!isStructuredStatLabelToken(tokens[index])) {
+                return false;
+            }
+            labelTokenCount++;
+        }
+        if (labelTokenCount == 0 || labelTokenCount > 6) {
+            return false;
+        }
+
+        for (int index = firstValueTokenIndex; index < tokens.length; index++) {
+            if (!looksLikeStructuredStatValueToken(tokens[index])) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static boolean looksLikeDecoratedStructuredTooltipLine(String raw) {
@@ -392,7 +492,7 @@ final class TooltipRoutePlanner {
         String visible = normalizeTooltipText(TooltipTemplateRuntime.stripDecorativeGlyphsForHeuristics(raw));
         if (visible.isEmpty()
                 || !containsLetterContent(visible)
-                || containsSentencePunctuation(visible)) {
+                || containsSentencePunctuationOutsideNumericContext(visible)) {
             return false;
         }
 
@@ -653,6 +753,69 @@ final class TooltipRoutePlanner {
         return count;
     }
 
+    private static boolean isStructuredStatLabelToken(String token) {
+        String normalized = trimEdgePunctuation(token);
+        if (normalized.isEmpty() || containsDigit(normalized)) {
+            return false;
+        }
+        if (isEnchantmentConnectorWord(normalized)) {
+            return true;
+        }
+
+        String[] parts = normalized.split("[-']");
+        boolean sawWordPart = false;
+        for (String part : parts) {
+            if (part == null || part.isEmpty()) {
+                continue;
+            }
+            if (!isTitleLikeWord(part)) {
+                return false;
+            }
+            sawWordPart = true;
+        }
+        return sawWordPart;
+    }
+
+    private static boolean looksLikeStructuredStatValueToken(String token) {
+        String normalized = trimEdgePunctuation(token);
+        if (normalized.isEmpty() || !containsDigit(normalized)) {
+            return false;
+        }
+
+        boolean sawDigit = false;
+        int letterCount = 0;
+        int firstDigitOffset = -1;
+        for (int offset = 0; offset < normalized.length(); ) {
+            int codePoint = normalized.codePointAt(offset);
+            if (Character.isDigit(codePoint)) {
+                sawDigit = true;
+                if (firstDigitOffset < 0) {
+                    firstDigitOffset = offset;
+                }
+                offset += Character.charCount(codePoint);
+                continue;
+            }
+            if (codePoint == '.'
+                    || codePoint == ','
+                    || codePoint == '/'
+                    || codePoint == '+'
+                    || codePoint == '-'
+                    || codePoint == '%') {
+                offset += Character.charCount(codePoint);
+                continue;
+            }
+            if (!Character.isLetter(codePoint) || offset < firstDigitOffset) {
+                return false;
+            }
+            letterCount++;
+            if (letterCount > 3) {
+                return false;
+            }
+            offset += Character.charCount(codePoint);
+        }
+        return sawDigit;
+    }
+
     private static boolean containsSymbolicMarker(String raw) {
         if (raw == null || raw.isEmpty()) {
             return false;
@@ -695,6 +858,69 @@ final class TooltipRoutePlanner {
             offset += Character.charCount(codePoint);
         }
         return false;
+    }
+
+    private static boolean containsSentencePunctuationOutsideNumericContext(String raw) {
+        if (raw == null || raw.isEmpty()) {
+            return false;
+        }
+
+        for (int offset = 0; offset < raw.length(); ) {
+            int codePoint = raw.codePointAt(offset);
+            int charCount = Character.charCount(codePoint);
+            if ((codePoint == '.' || codePoint == ',')
+                    && Character.isDigit(findPreviousNonWhitespaceCodePoint(raw, offset))
+                    && Character.isDigit(findNextNonWhitespaceCodePoint(raw, offset + charCount))) {
+                offset += charCount;
+                continue;
+            }
+            if (codePoint == '.'
+                    || codePoint == ','
+                    || codePoint == '!'
+                    || codePoint == '?'
+                    || codePoint == ';'
+                    || codePoint == ':'
+                    || codePoint == '。'
+                    || codePoint == '，'
+                    || codePoint == '！'
+                    || codePoint == '？'
+                    || codePoint == '：'
+                    || codePoint == '；') {
+                return true;
+            }
+            offset += charCount;
+        }
+        return false;
+    }
+
+    private static int findPreviousNonWhitespaceCodePoint(String raw, int offset) {
+        if (raw == null || raw.isEmpty()) {
+            return -1;
+        }
+
+        for (int index = Math.min(offset, raw.length()); index > 0; ) {
+            int codePoint = raw.codePointBefore(index);
+            if (!Character.isWhitespace(codePoint)) {
+                return codePoint;
+            }
+            index -= Character.charCount(codePoint);
+        }
+        return -1;
+    }
+
+    private static int findNextNonWhitespaceCodePoint(String raw, int offset) {
+        if (raw == null || raw.isEmpty()) {
+            return -1;
+        }
+
+        for (int index = Math.max(0, offset); index < raw.length(); ) {
+            int codePoint = raw.codePointAt(index);
+            if (!Character.isWhitespace(codePoint)) {
+                return codePoint;
+            }
+            index += Character.charCount(codePoint);
+        }
+        return -1;
     }
 
     private static String trimEdgePunctuation(String token) {

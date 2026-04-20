@@ -344,6 +344,7 @@ public class ModConfigScreen extends Screen {
         this.parent = parent;
         this.originalConfigSnapshot = ConfigManager.copyCurrentConfig();
         this.originalConfigSnapshotJson = CONFIG_STATE_GSON.toJson(this.originalConfigSnapshot);
+        this.providerApiKeyVisible = isProviderApiKeyVisible(this.originalConfigSnapshot.providerManager);
         this.modVersion = resolveCurrentVersion();
         this.repositoryUrl = resolveRepositoryUrl();
         this.selectedSection = selectedSection;
@@ -608,6 +609,7 @@ public class ModConfigScreen extends Screen {
     private void addSectionSpecificActions() {
         ModConfig config = Translate_AllinOne.getConfig();
         config.providerManager.ensureDefaults();
+        providerApiKeyVisible = isProviderApiKeyVisible(config.providerManager);
 
         int x = LEFT_PANEL_WIDTH + 20;
         int y = TOP_BAR_HEIGHT + 28;
@@ -812,6 +814,19 @@ public class ModConfigScreen extends Screen {
         return t("provider_type." + providerType.name().toLowerCase(Locale.ROOT));
     }
 
+    private static boolean isProviderApiKeyVisible(ProviderManagerConfig providerManager) {
+        return providerManager == null || providerManager.api_key_visible == null || providerManager.api_key_visible;
+    }
+
+    private void setProviderApiKeyVisible(boolean visible) {
+        providerApiKeyVisible = visible;
+        ModConfig config = Translate_AllinOne.getConfig();
+        if (config.providerManager == null) {
+            config.providerManager = new ProviderManagerConfig();
+        }
+        config.providerManager.api_key_visible = visible;
+    }
+
     private void addRouteModelSelector(ProviderManagerConfig manager, RouteSlot routeSlot, int x, int y, int width) {
         RouteModelSelectorSectionSupport.render(
                 manager,
@@ -866,7 +881,6 @@ public class ModConfigScreen extends Screen {
                 },
                 providerId -> {
                     selectedProviderId = providerId;
-                    providerApiKeyVisible = true;
                     modelSettingsModalOpen = false;
                     rebuildActionBlocks();
                 },
@@ -882,7 +896,7 @@ public class ModConfigScreen extends Screen {
                 },
                 targetProfile -> deleteProvider(providerManager, targetProfile),
                 () -> {
-                    providerApiKeyVisible = !providerApiKeyVisible;
+                    setProviderApiKeyVisible(!providerApiKeyVisible);
                     rebuildActionBlocks();
                 },
                 profile -> ConfigUiRuntimeSupport.testProviderConnection(
@@ -1043,7 +1057,6 @@ public class ModConfigScreen extends Screen {
         ApiProviderProfile profile = result.profile();
         selectedProviderId = result.selectedProviderId();
         selectedProviderIndex = result.selectedProviderIndex();
-        providerApiKeyVisible = true;
 
         closeAddProviderModal();
         setStatus(t("status.added_provider", profile.name), COLOR_STATUS_OK);
@@ -1240,7 +1253,6 @@ public class ModConfigScreen extends Screen {
         );
         String removedId = result.removedProviderId();
         selectedProviderId = result.selectedProviderId();
-        providerApiKeyVisible = true;
 
         setStatus(t("status.removed_profile", removedId), COLOR_STATUS_OK);
         rebuildActionBlocks();
@@ -1855,7 +1867,7 @@ public class ModConfigScreen extends Screen {
         hotkeyCaptureTarget = null;
         selectedProviderIndex = 0;
         selectedProviderId = "";
-        providerApiKeyVisible = true;
+        providerApiKeyVisible = isProviderApiKeyVisible(Translate_AllinOne.getConfig().providerManager);
         providerSearchQuery = "";
         routeDropdownSlot = null;
         addProviderTypeDropdownOpen = false;

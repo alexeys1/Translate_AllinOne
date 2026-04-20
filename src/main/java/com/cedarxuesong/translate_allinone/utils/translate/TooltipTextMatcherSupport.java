@@ -228,8 +228,14 @@ public final class TooltipTextMatcherSupport {
     }
 
     public static boolean hasMeaningfulContent(Text line) {
+        return hasMeaningfulContent(line, false);
+    }
+
+    public static boolean hasMeaningfulContent(Text line, boolean wynnCompatibilityEnabled) {
         ItemTranslateConfig config = new ItemTranslateConfig();
         config.enabled_translate_item_custom_name = true;
+        config.enabled_translate_item_lore = true;
+        config.wynn_item_compatibility = wynnCompatibilityEnabled;
         TooltipLineDecision decision = evaluateTooltipLine(line, true, config);
         return decision.kind() == TooltipLineKind.TRANSLATABLE_CONTENT
                 || decision.kind() == TooltipLineKind.HUMAN_READABLE_TEXT;

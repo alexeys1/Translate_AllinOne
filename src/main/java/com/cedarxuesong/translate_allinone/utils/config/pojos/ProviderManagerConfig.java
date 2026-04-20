@@ -8,6 +8,7 @@ public class ProviderManagerConfig {
 
     public List<ApiProviderProfile> providers = new ArrayList<>();
     public Routes routes = new Routes();
+    public Boolean api_key_visible = true;
 
     public ProviderManagerConfig() {
         ensureDefaults();
@@ -25,6 +26,10 @@ public class ProviderManagerConfig {
 
         if (routes == null) {
             routes = new Routes();
+        }
+
+        if (api_key_visible == null) {
+            api_key_visible = true;
         }
 
         routes.item = normalizeRouteValue(routes.item);
