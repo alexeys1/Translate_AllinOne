@@ -47,6 +47,7 @@ import com.cedarxuesong.translate_allinone.utils.config.pojos.InputBindingConfig
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ProviderManagerConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ScoreboardConfig;
+import com.cedarxuesong.translate_allinone.utils.config.pojos.WynnCraftConfig;
 import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
 import com.cedarxuesong.translate_allinone.utils.update.UpdateCheckManager;
 import com.google.gson.Gson;
@@ -1362,6 +1363,27 @@ public class ModConfigScreen extends Screen {
             return;
         }
 
+        if (target == ConfigSectionContentSupport.HotkeyTarget.WYNNTILS_TASK_TRACKER) {
+            WynnCraftConfig.KeybindingConfig keybinding = ensureWynntilsTaskTrackerKeybinding(Translate_AllinOne.getConfig());
+            if (keybinding.binding == null) {
+                keybinding.binding = new InputBindingConfig();
+            }
+            if (keybinding.refreshBinding == null) {
+                keybinding.refreshBinding = new InputBindingConfig();
+            }
+
+            if (hotkeyCaptureTarget == ConfigSectionContentSupport.HotkeyTarget.WYNNTILS_TASK_TRACKER
+                    || hotkeyCaptureTarget == ConfigSectionContentSupport.HotkeyTarget.WYNNTILS_TASK_TRACKER_REFRESH) {
+                hotkeyCaptureTarget = null;
+            }
+
+            KeybindingManager.clear(keybinding.binding);
+            KeybindingManager.clear(keybinding.refreshBinding);
+            setStatus(t("status.hotkey_cleared", sectionLabel(target)), COLOR_STATUS_OK);
+            rebuildActionBlocks();
+            return;
+        }
+
         InputBindingConfig binding = ensureBinding(target);
         if (binding == null) {
             return;
@@ -1385,6 +1407,12 @@ public class ModConfigScreen extends Screen {
             case SCOREBOARD -> {
                 ScoreboardConfig.KeybindingConfig keybinding = ensureScoreboardKeybinding(config);
                 ScoreboardConfig.KeybindingMode[] modes = ScoreboardConfig.KeybindingMode.values();
+                keybinding.mode = modes[(keybinding.mode.ordinal() + 1) % modes.length];
+                setStatus(t("status.hotkey_mode_changed", sectionLabel(target), modeLabel(keybinding.mode.name())), COLOR_STATUS_OK);
+            }
+            case WYNNTILS_TASK_TRACKER -> {
+                WynnCraftConfig.KeybindingConfig keybinding = ensureWynntilsTaskTrackerKeybinding(config);
+                WynnCraftConfig.KeybindingMode[] modes = WynnCraftConfig.KeybindingMode.values();
                 keybinding.mode = modes[(keybinding.mode.ordinal() + 1) % modes.length];
                 setStatus(t("status.hotkey_mode_changed", sectionLabel(target), modeLabel(keybinding.mode.name())), COLOR_STATUS_OK);
             }
@@ -1425,6 +1453,20 @@ public class ModConfigScreen extends Screen {
                 }
                 yield keybinding.binding;
             }
+            case WYNNTILS_TASK_TRACKER -> {
+                WynnCraftConfig.KeybindingConfig keybinding = ensureWynntilsTaskTrackerKeybinding(config);
+                if (keybinding.binding == null) {
+                    keybinding.binding = new InputBindingConfig();
+                }
+                yield keybinding.binding;
+            }
+            case WYNNTILS_TASK_TRACKER_REFRESH -> {
+                WynnCraftConfig.KeybindingConfig keybinding = ensureWynntilsTaskTrackerKeybinding(config);
+                if (keybinding.refreshBinding == null) {
+                    keybinding.refreshBinding = new InputBindingConfig();
+                }
+                yield keybinding.refreshBinding;
+            }
         };
     }
 
@@ -1440,6 +1482,22 @@ public class ModConfigScreen extends Screen {
             config.scoreboardTranslate.keybinding = new ScoreboardConfig.KeybindingConfig();
         }
         return config.scoreboardTranslate.keybinding;
+    }
+
+    private WynnCraftConfig.KeybindingConfig ensureWynntilsTaskTrackerKeybinding(ModConfig config) {
+        if (config.wynnCraft == null) {
+            config.wynnCraft = new WynnCraftConfig();
+        }
+        if (config.wynnCraft.wynntils_task_tracker == null) {
+            config.wynnCraft.wynntils_task_tracker = new WynnCraftConfig.WynntilsTaskTrackerConfig();
+        }
+        if (config.wynnCraft.wynntils_task_tracker.keybinding == null) {
+            config.wynnCraft.wynntils_task_tracker.keybinding = new WynnCraftConfig.KeybindingConfig();
+        }
+        if (config.wynnCraft.wynntils_task_tracker.keybinding.refreshBinding == null) {
+            config.wynnCraft.wynntils_task_tracker.keybinding.refreshBinding = new InputBindingConfig();
+        }
+        return config.wynnCraft.wynntils_task_tracker.keybinding;
     }
 
     private void applyCapturedBinding(InputBindingConfig captured) {
@@ -1470,12 +1528,15 @@ public class ModConfigScreen extends Screen {
             case ITEM -> t("section.item");
             case ITEM_REFRESH -> t("section.item");
             case SCOREBOARD -> t("section.scoreboard");
+            case WYNNTILS_TASK_TRACKER -> t("group.wynntils_task_tracker");
+            case WYNNTILS_TASK_TRACKER_REFRESH -> t("group.wynntils_task_tracker");
         };
     }
 
     private Text hotkeyBindingLabelText(ConfigSectionContentSupport.HotkeyTarget target, Text bindingLabel) {
         return switch (target) {
             case ITEM_REFRESH -> t("label.item_refresh_hotkey_binding", bindingLabel);
+            case WYNNTILS_TASK_TRACKER_REFRESH -> t("label.item_refresh_hotkey_binding", bindingLabel);
             default -> t("label.hotkey_binding", bindingLabel);
         };
     }

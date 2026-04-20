@@ -29,6 +29,7 @@ public class ProviderManagerConfig {
 
         routes.item = normalizeRouteValue(routes.item);
         routes.scoreboard = normalizeRouteValue(routes.scoreboard);
+        routes.wynntils_task_tracker = normalizeRouteValue(routes.wynntils_task_tracker);
         routes.chat_input = normalizeRouteValue(routes.chat_input);
         routes.chat_output = normalizeRouteValue(routes.chat_output);
     }
@@ -107,6 +108,7 @@ public class ProviderManagerConfig {
     public static class Routes {
         public String item = "";
         public String scoreboard = "";
+        public String wynntils_task_tracker = "";
         public String chat_input = "";
         public String chat_output = "";
     }

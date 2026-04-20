@@ -16,6 +16,10 @@
     "mixinItem.WynntilsItemStatInfoContextMixin",
     "mixinItem.WynntilsQuestTooltipContextMixin",
     "mixinItem.OrderedTextTooltipComponentAccessor",
+    "mixinWynntils.ActivityNameFunctionMixin",
+    "mixinWynntils.ActivityTaskFunctionMixin",
+    "mixinWynntils.ActivityTypeFunctionMixin",
+    "mixinWynntils.ContentTrackerOverlayMixin",
     "mixinInGameGui.InGameHudMixin",
     "mixinInGameGui.InGameHudAccessor",
     "mixinChatScreen.ChatScreenMixin"

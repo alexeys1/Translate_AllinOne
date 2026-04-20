@@ -256,6 +256,18 @@ public final class ConfigSectionContentSupport {
                 if (item.debug == null) {
                     item.debug = new ItemTranslateConfig.DebugConfig();
                 }
+                WynnCraftConfig wynnCraft = config.wynnCraft;
+                if (wynnCraft == null) {
+                    wynnCraft = new WynnCraftConfig();
+                    config.wynnCraft = wynnCraft;
+                }
+                if (wynnCraft.wynntils_task_tracker == null) {
+                    wynnCraft.wynntils_task_tracker = new WynnCraftConfig.WynntilsTaskTrackerConfig();
+                }
+                if (wynnCraft.wynntils_task_tracker.debug == null) {
+                    wynnCraft.wynntils_task_tracker.debug = new WynnCraftConfig.DebugConfig();
+                }
+                WynnCraftConfig resolvedWynnCraft = wynnCraft;
 
                 int llmDebugStart = y;
                 toggleAdder.add(
@@ -377,6 +389,25 @@ public final class ConfigSectionContentSupport {
                 );
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.item_debug"), x, width, itemDebugStart, y);
+
+                y += GROUP_GAP;
+                int trackerDebugStart = y;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.wynntils_task_tracker_dev_enabled"),
+                        () -> resolvedWynnCraft.wynntils_task_tracker.debug.enabled,
+                        value -> resolvedWynnCraft.wynntils_task_tracker.debug.enabled = value
+                );
+                y += ROW_STEP;
+                addGroupBox(
+                        groupBoxAdder,
+                        translator.t("group.wynntils_task_tracker_debug"),
+                        x,
+                        width,
+                        trackerDebugStart,
+                        y);
                 return y;
             }
             case SCOREBOARD -> {
@@ -439,6 +470,21 @@ public final class ConfigSectionContentSupport {
                     config.wynnCraft = resolvedWynnCraft;
                 }
                 WynnCraftConfig wynnCraft = resolvedWynnCraft;
+                if (wynnCraft.wynntils_task_tracker == null) {
+                    wynnCraft.wynntils_task_tracker = new WynnCraftConfig.WynntilsTaskTrackerConfig();
+                }
+                if (wynnCraft.wynntils_task_tracker.debug == null) {
+                    wynnCraft.wynntils_task_tracker.debug = new WynnCraftConfig.DebugConfig();
+                }
+                if (wynnCraft.wynntils_task_tracker.keybinding == null) {
+                    wynnCraft.wynntils_task_tracker.keybinding = new WynnCraftConfig.KeybindingConfig();
+                }
+                if (wynnCraft.wynntils_task_tracker.keybinding.binding == null) {
+                    wynnCraft.wynntils_task_tracker.keybinding.binding = new InputBindingConfig();
+                }
+                if (wynnCraft.wynntils_task_tracker.keybinding.refreshBinding == null) {
+                    wynnCraft.wynntils_task_tracker.keybinding.refreshBinding = new InputBindingConfig();
+                }
 
                 int compatibilityStart = y;
                 toggleAdder.add(
@@ -454,7 +500,96 @@ public final class ConfigSectionContentSupport {
                 );
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.wynncraft"), x, width, compatibilityStart, y);
-                return y;
+
+                y += GROUP_GAP;
+                int trackerStart = y;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.enabled"),
+                        () -> wynnCraft.wynntils_task_tracker.enabled,
+                        value -> wynnCraft.wynntils_task_tracker.enabled = value
+                );
+                y += ROW_STEP;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.translate_wynntils_task_tracker_title"),
+                        () -> wynnCraft.wynntils_task_tracker.translate_title,
+                        value -> wynnCraft.wynntils_task_tracker.translate_title = value
+                );
+                y += ROW_STEP;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.translate_wynntils_task_tracker_description"),
+                        () -> wynnCraft.wynntils_task_tracker.translate_description,
+                        value -> wynnCraft.wynntils_task_tracker.translate_description = value
+                );
+                y += ROW_STEP;
+                textFieldRowAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.target_language"),
+                        48,
+                        wynnCraft.wynntils_task_tracker.target_language,
+                        translator.t("placeholder.target_language"),
+                        value -> wynnCraft.wynntils_task_tracker.target_language = sanitizeLanguage(value),
+                        value -> true,
+                        true
+                );
+                y += ROW_STEP;
+                addGroupBox(groupBoxAdder, translator.t("group.wynntils_task_tracker"), x, width, trackerStart, y);
+
+                y += GROUP_GAP;
+                int hotkeyStart = y;
+                actionAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.hotkey_mode", modeText(translator, wynnCraft.wynntils_task_tracker.keybinding.mode.name())),
+                        () -> hotkeyCycleMode.handle(HotkeyTarget.WYNNTILS_TASK_TRACKER)
+                );
+                y += ROW_STEP;
+                actionAdder.add(
+                        x,
+                        y,
+                        width,
+                        bindingLabelProvider.label(
+                                HotkeyTarget.WYNNTILS_TASK_TRACKER,
+                                wynnCraft.wynntils_task_tracker.keybinding.binding),
+                        () -> hotkeyStartBinding.handle(HotkeyTarget.WYNNTILS_TASK_TRACKER)
+                );
+                y += ROW_STEP;
+                actionAdder.add(
+                        x,
+                        y,
+                        width,
+                        bindingLabelProvider.label(
+                                HotkeyTarget.WYNNTILS_TASK_TRACKER_REFRESH,
+                                wynnCraft.wynntils_task_tracker.keybinding.refreshBinding),
+                        () -> hotkeyStartBinding.handle(HotkeyTarget.WYNNTILS_TASK_TRACKER_REFRESH)
+                );
+                y += ROW_STEP;
+                actionAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("button.hotkey_clear"),
+                        () -> hotkeyClearBinding.handle(HotkeyTarget.WYNNTILS_TASK_TRACKER)
+                );
+                y += ROW_STEP;
+                addGroupBox(groupBoxAdder, translator.t("group.hotkey"), x, width, hotkeyStart, y);
+
+                y += GROUP_GAP;
+                int routeStart = y;
+                routeSelectorAdder.add(config.providerManager, RouteSlot.WYNNTILS_TASK_TRACKER, x, y, width);
+                addGroupBox(groupBoxAdder, translator.t("group.route"), x, width, routeStart, routeStart + ROW_STEP);
+                return routeStart + ROW_STEP;
             }
             case CACHE -> {
                 CacheBackupConfig resolvedCacheBackup = config.cacheBackup;
@@ -712,6 +847,8 @@ public final class ConfigSectionContentSupport {
         CHAT_INPUT,
         ITEM,
         ITEM_REFRESH,
-        SCOREBOARD
+        SCOREBOARD,
+        WYNNTILS_TASK_TRACKER,
+        WYNNTILS_TASK_TRACKER_REFRESH
     }
 }

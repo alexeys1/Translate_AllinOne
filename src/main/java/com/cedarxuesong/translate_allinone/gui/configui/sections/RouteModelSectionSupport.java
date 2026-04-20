@@ -44,6 +44,7 @@ public final class RouteModelSectionSupport {
         return switch (routeSlot) {
             case ITEM -> manager.routes.item;
             case SCOREBOARD -> manager.routes.scoreboard;
+            case WYNNTILS_TASK_TRACKER -> manager.routes.wynntils_task_tracker;
             case CHAT_INPUT -> manager.routes.chat_input;
             case CHAT_OUTPUT -> manager.routes.chat_output;
         };
@@ -53,6 +54,7 @@ public final class RouteModelSectionSupport {
         switch (routeSlot) {
             case ITEM -> manager.routes.item = routeKey;
             case SCOREBOARD -> manager.routes.scoreboard = routeKey;
+            case WYNNTILS_TASK_TRACKER -> manager.routes.wynntils_task_tracker = routeKey;
             case CHAT_INPUT -> manager.routes.chat_input = routeKey;
             case CHAT_OUTPUT -> manager.routes.chat_output = routeKey;
         }
@@ -95,6 +97,9 @@ public final class RouteModelSectionSupport {
         }
         if (ProviderManagerConfig.extractProviderId(manager.routes.scoreboard).equals(providerId)) {
             manager.routes.scoreboard = "";
+        }
+        if (ProviderManagerConfig.extractProviderId(manager.routes.wynntils_task_tracker).equals(providerId)) {
+            manager.routes.wynntils_task_tracker = "";
         }
         if (ProviderManagerConfig.extractProviderId(manager.routes.chat_input).equals(providerId)) {
             manager.routes.chat_input = "";

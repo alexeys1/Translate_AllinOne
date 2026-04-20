@@ -14,6 +14,7 @@ public final class ProviderRouteResolver {
     public enum Route {
         ITEM,
         SCOREBOARD,
+        WYNNTILS_TASK_TRACKER,
         CHAT_INPUT,
         CHAT_OUTPUT
     }
@@ -29,6 +30,7 @@ public final class ProviderRouteResolver {
         String routeKey = switch (route) {
             case ITEM -> manager.routes.item;
             case SCOREBOARD -> manager.routes.scoreboard;
+            case WYNNTILS_TASK_TRACKER -> manager.routes.wynntils_task_tracker;
             case CHAT_INPUT -> manager.routes.chat_input;
             case CHAT_OUTPUT -> manager.routes.chat_output;
         };

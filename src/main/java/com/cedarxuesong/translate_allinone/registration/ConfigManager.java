@@ -149,6 +149,21 @@ public class ConfigManager {
         if (configToUse.wynnCraft == null) {
             configToUse.wynnCraft = new WynnCraftConfig();
         }
+        if (configToUse.wynnCraft.wynntils_task_tracker == null) {
+            configToUse.wynnCraft.wynntils_task_tracker = new WynnCraftConfig.WynntilsTaskTrackerConfig();
+        }
+        if (configToUse.wynnCraft.wynntils_task_tracker.debug == null) {
+            configToUse.wynnCraft.wynntils_task_tracker.debug = new WynnCraftConfig.DebugConfig();
+        }
+        if (configToUse.wynnCraft.wynntils_task_tracker.keybinding == null) {
+            configToUse.wynnCraft.wynntils_task_tracker.keybinding = new WynnCraftConfig.KeybindingConfig();
+        }
+        if (configToUse.wynnCraft.wynntils_task_tracker.keybinding.binding == null) {
+            configToUse.wynnCraft.wynntils_task_tracker.keybinding.binding = new InputBindingConfig();
+        }
+        if (configToUse.wynnCraft.wynntils_task_tracker.keybinding.refreshBinding == null) {
+            configToUse.wynnCraft.wynntils_task_tracker.keybinding.refreshBinding = new InputBindingConfig();
+        }
         if (configToUse.cacheBackup == null) {
             configToUse.cacheBackup = new CacheBackupConfig();
         }
@@ -195,7 +210,6 @@ public class ConfigManager {
             configToUse.itemTranslate.debug = new ItemTranslateConfig.DebugConfig();
         }
         configToUse.itemTranslate.wynn_item_compatibility = configToUse.wynnCraft.wynn_item_compatibility;
-
         if (configToUse.scoreboardTranslate.keybinding == null) {
             configToUse.scoreboardTranslate.keybinding = new ScoreboardConfig.KeybindingConfig();
         }
