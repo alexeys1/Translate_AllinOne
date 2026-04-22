@@ -133,7 +133,7 @@ final class TooltipTemplateRuntime {
                     : StylePreserver.fromLegacyText(reassembledTranslated);
         } else if (status == ItemTemplateCache.TranslationStatus.ERROR) {
             String errorMessage = lookupResult.errorMessage();
-            if (TooltipTranslationSupport.isMissingKeyIssue(errorMessage)) {
+            if (TooltipInternalLineSupport.isMissingKeyIssue(errorMessage)) {
                 pending = true;
                 missingKeyIssue = true;
                 finalTooltipLine = originalTextObject;

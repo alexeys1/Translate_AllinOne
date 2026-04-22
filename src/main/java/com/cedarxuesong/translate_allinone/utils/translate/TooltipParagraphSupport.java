@@ -84,7 +84,7 @@ final class TooltipParagraphSupport {
         boolean pending = blockLookup.status() == ItemTemplateCache.TranslationStatus.PENDING
                 || blockLookup.status() == ItemTemplateCache.TranslationStatus.IN_PROGRESS;
         boolean missingKeyIssue = blockLookup.status() == ItemTemplateCache.TranslationStatus.ERROR
-                && TooltipTranslationSupport.isMissingKeyIssue(blockLookup.errorMessage());
+                && TooltipInternalLineSupport.isMissingKeyIssue(blockLookup.errorMessage());
         if (blockLookup.status() == ItemTemplateCache.TranslationStatus.TRANSLATED) {
             pending = true;
         }
@@ -454,7 +454,20 @@ final class TooltipParagraphSupport {
             normalized = normalizeChineseTaggedWhitespace(normalized);
         }
         normalized = normalizeParagraphTaggedStyles(normalized, styleMap, bodyStyleId);
-        return applyChineseHeuristics ? normalizeChineseTaggedWhitespace(normalized) : normalized;
+        if (applyChineseHeuristics) {
+            normalized = normalizeChineseNumericHighlightRuns(normalized, styleMap, bodyStyleId);
+            normalized = normalizeChineseTaggedWhitespace(normalized);
+        }
+        return normalized;
+    }
+
+    static String normalizeTranslatedParagraphTextForTest(
+            String translatedText,
+            ItemTranslateConfig config,
+            Map<Integer, Style> styleMap,
+            Integer bodyStyleId
+    ) {
+        return postProcessTranslatedParagraphText(translatedText, config, styleMap, bodyStyleId);
     }
 
     private static String normalizeParagraphTranslatedTemplate(String translatedBlockTemplate) {
@@ -542,6 +555,74 @@ final class TooltipParagraphSupport {
         return serializeParagraphTaggedRuns(runs);
     }
 
+    private static String normalizeChineseNumericHighlightRuns(
+            String text,
+            Map<Integer, Style> styleMap,
+            Integer preferredBodyStyleId
+    ) {
+        if (text == null
+                || text.isBlank()
+                || styleMap == null
+                || styleMap.isEmpty()
+                || text.indexOf('<') < 0) {
+            return text;
+        }
+
+        List<ParagraphTaggedRun> runs = parseParagraphTaggedRuns(text);
+        if (runs.isEmpty()) {
+            return text;
+        }
+
+        Integer bodyStyleId = preferredBodyStyleId == null
+                ? findDominantParagraphBodyStyleId(runs, styleMap)
+                : findCanonicalParagraphStyleId(preferredBodyStyleId, runs, styleMap);
+        if (bodyStyleId == null) {
+            return text;
+        }
+
+        List<ParagraphTaggedRun> normalizedRuns = new ArrayList<>(runs.size());
+        for (ParagraphTaggedRun run : runs) {
+            if (!shouldSplitChineseNumericHighlightRun(run, bodyStyleId)) {
+                addParagraphTaggedRun(normalizedRuns, run == null ? null : run.styleId, run == null ? null : run.content);
+                continue;
+            }
+
+            int digitIndex = findFirstDigitCharIndex(run.content);
+            int coreEndIndex = findChineseNumericHighlightCoreEnd(run.content, digitIndex);
+            if (digitIndex < 0 || coreEndIndex <= digitIndex) {
+                addParagraphTaggedRun(normalizedRuns, run.styleId, run.content);
+                continue;
+            }
+
+            String prefix = run.content.substring(0, digitIndex);
+            String core = run.content.substring(digitIndex, coreEndIndex);
+            String suffix = run.content.substring(coreEndIndex);
+
+            boolean prefixLooksLikeBodyText = containsLetterLikeText(prefix);
+            boolean suffixLooksLikeBodyText = containsLetterLikeText(suffix);
+            if (!prefixLooksLikeBodyText && !suffixLooksLikeBodyText) {
+                addParagraphTaggedRun(normalizedRuns, run.styleId, run.content);
+                continue;
+            }
+
+            if (prefixLooksLikeBodyText) {
+                addParagraphTaggedRun(normalizedRuns, bodyStyleId, prefix);
+            } else if (!prefix.isEmpty()) {
+                core = prefix + core;
+            }
+
+            addParagraphTaggedRun(normalizedRuns, run.styleId, core);
+
+            if (suffixLooksLikeBodyText) {
+                addParagraphTaggedRun(normalizedRuns, bodyStyleId, suffix);
+            } else if (!suffix.isEmpty()) {
+                addParagraphTaggedRun(normalizedRuns, run.styleId, suffix);
+            }
+        }
+
+        return serializeParagraphTaggedRuns(normalizedRuns);
+    }
+
     private static List<ParagraphTaggedRun> parseParagraphTaggedRuns(String text) {
         List<ParagraphTaggedRun> runs = new ArrayList<>();
         Matcher matcher = TooltipTemplateRuntime.STYLE_TAG_ID_PATTERN.matcher(text);
@@ -580,6 +661,160 @@ final class TooltipParagraphSupport {
         }
 
         runs.add(new ParagraphTaggedRun(styleId, content));
+    }
+
+    private static boolean shouldSplitChineseNumericHighlightRun(ParagraphTaggedRun run, Integer bodyStyleId) {
+        if (run == null
+                || run.styleId == null
+                || Objects.equals(run.styleId, bodyStyleId)
+                || run.content == null
+                || run.content.isBlank()
+                || !containsDigit(run.content)
+                || TooltipTemplateRuntime.containsDecorativeGlyph(run.content)
+                || containsNonPunctuationSymbolCodePoint(run.content)
+                || !containsCjkText(run.content)) {
+            return false;
+        }
+
+        int digitIndex = findFirstDigitCharIndex(run.content);
+        if (digitIndex < 0) {
+            return false;
+        }
+
+        int coreEndIndex = findChineseNumericHighlightCoreEnd(run.content, digitIndex);
+        if (coreEndIndex <= digitIndex) {
+            return false;
+        }
+
+        String prefix = run.content.substring(0, digitIndex);
+        String suffix = run.content.substring(coreEndIndex);
+        return containsLetterLikeText(prefix) || containsLetterLikeText(suffix);
+    }
+
+    private static int findFirstDigitCharIndex(String text) {
+        if (text == null || text.isEmpty()) {
+            return -1;
+        }
+
+        for (int index = 0; index < text.length(); ) {
+            int codePoint = text.codePointAt(index);
+            if (Character.isDigit(codePoint)) {
+                return index;
+            }
+            index += Character.charCount(codePoint);
+        }
+        return -1;
+    }
+
+    private static int findChineseNumericHighlightCoreEnd(String text, int digitIndex) {
+        if (text == null || text.isEmpty() || digitIndex < 0 || digitIndex >= text.length()) {
+            return digitIndex;
+        }
+
+        boolean consumedCjkUnit = false;
+        int index = digitIndex;
+        while (index < text.length()) {
+            int codePoint = text.codePointAt(index);
+            if (Character.isDigit(codePoint)
+                    || Character.isWhitespace(codePoint)
+                    || isAsciiLetter(codePoint)
+                    || isNumericHighlightPunctuation(codePoint)) {
+                index += Character.charCount(codePoint);
+                continue;
+            }
+            if (!consumedCjkUnit && isChineseNumericHighlightUnit(codePoint)) {
+                consumedCjkUnit = true;
+                index += Character.charCount(codePoint);
+                continue;
+            }
+            break;
+        }
+        return index;
+    }
+
+    private static boolean isAsciiLetter(int codePoint) {
+        return codePoint <= 0x7F && Character.isLetter(codePoint);
+    }
+
+    private static boolean isNumericHighlightPunctuation(int codePoint) {
+        return codePoint == '+'
+                || codePoint == '-'
+                || codePoint == '.'
+                || codePoint == ','
+                || codePoint == '%'
+                || codePoint == '/'
+                || codePoint == ':'
+                || codePoint == '：'
+                || codePoint == '('
+                || codePoint == ')'
+                || codePoint == '（'
+                || codePoint == '）'
+                || codePoint == '['
+                || codePoint == ']';
+    }
+
+    private static boolean isChineseNumericHighlightUnit(int codePoint) {
+        return codePoint == '格'
+                || codePoint == '秒'
+                || codePoint == '级'
+                || codePoint == '层'
+                || codePoint == '次'
+                || codePoint == '倍'
+                || codePoint == '点'
+                || codePoint == '米'
+                || codePoint == '天'
+                || codePoint == '周'
+                || codePoint == '月'
+                || codePoint == '年';
+    }
+
+    private static boolean containsLetterLikeText(String text) {
+        if (text == null || text.isBlank()) {
+            return false;
+        }
+
+        for (int index = 0; index < text.length(); ) {
+            int codePoint = text.codePointAt(index);
+            if (Character.isLetter(codePoint) || isCjkCodePoint(codePoint)) {
+                return true;
+            }
+            index += Character.charCount(codePoint);
+        }
+        return false;
+    }
+
+    private static boolean containsCjkText(String text) {
+        if (text == null || text.isBlank()) {
+            return false;
+        }
+
+        for (int index = 0; index < text.length(); ) {
+            int codePoint = text.codePointAt(index);
+            if (isCjkCodePoint(codePoint)) {
+                return true;
+            }
+            index += Character.charCount(codePoint);
+        }
+        return false;
+    }
+
+    private static boolean containsNonPunctuationSymbolCodePoint(String text) {
+        if (text == null || text.isEmpty()) {
+            return false;
+        }
+
+        for (int index = 0; index < text.length(); ) {
+            int codePoint = text.codePointAt(index);
+            int type = Character.getType(codePoint);
+            if (type == Character.MATH_SYMBOL
+                    || type == Character.CURRENCY_SYMBOL
+                    || type == Character.MODIFIER_SYMBOL
+                    || type == Character.OTHER_SYMBOL) {
+                return true;
+            }
+            index += Character.charCount(codePoint);
+        }
+        return false;
     }
 
     private static void canonicalizeEquivalentParagraphStyles(

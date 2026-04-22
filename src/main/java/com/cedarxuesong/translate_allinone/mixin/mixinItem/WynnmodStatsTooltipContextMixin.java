@@ -1,9 +1,11 @@
 package com.cedarxuesong.translate_allinone.mixin.mixinItem;
 
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
-import com.cedarxuesong.translate_allinone.utils.cache.ItemTemplateCache;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
+import com.cedarxuesong.translate_allinone.utils.translate.TooltipInternalLineSupport;
+import com.cedarxuesong.translate_allinone.utils.translate.TooltipRecentRenderGuardSupport;
+import com.cedarxuesong.translate_allinone.utils.translate.TooltipRefreshNoticeSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTextMatcherSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTranslationContext;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTranslationSupport;
@@ -33,6 +35,13 @@ public abstract class WynnmodStatsTooltipContextMixin {
     @Unique
     private static final String ITEM_STATUS_ANIMATION_KEY = "item-tooltip-status-wynnmod";
 
+    @Unique
+    private record DecoratedTooltipTranslationResult(
+            List<Text> tooltip,
+            boolean locallyStableForRecentGuard
+    ) {
+    }
+
     @Inject(
             method = "onDrawItemTooltip(Lcom/wynnmod/mixin/events/ContainerEvents$DrawItemTooltip;)V",
             at = @At("HEAD"),
@@ -41,6 +50,13 @@ public abstract class WynnmodStatsTooltipContextMixin {
     )
     private void translate_allinone$prepareWynnmodTooltip(@Coerce Object event, CallbackInfo ci) {
         if (!translate_allinone$shouldUseWynnmodTooltipTracking()) {
+            TooltipTextMatcherSupport.logTooltipGuardIfDev(
+                    Translate_AllinOne.getConfig().itemTranslate,
+                    "wynnmod",
+                    "skip-tracking-disabled-head",
+                    null,
+                    "Wynnmod tooltip tracking is disabled or the feature is unavailable."
+            );
             return;
         }
         TooltipTranslationContext.pushWynnmodTooltipRender();
@@ -57,28 +73,57 @@ public abstract class WynnmodStatsTooltipContextMixin {
         boolean usingWynnmodTooltipTracking = translate_allinone$shouldUseWynnmodTooltipTracking();
         try {
             if (!usingWynnmodTooltipTracking) {
+                TooltipTextMatcherSupport.logTooltipGuardIfDev(
+                        Translate_AllinOne.getConfig().itemTranslate,
+                        "wynnmod",
+                        "skip-tracking-disabled-return",
+                        null,
+                        "Wynnmod tooltip tracking is disabled or the feature is unavailable."
+                );
                 return;
             }
 
             ItemTranslateConfig config = Translate_AllinOne.getConfig().itemTranslate;
             List<Text> currentTooltip = translate_allinone$getTooltipText(event);
             if (currentTooltip == null || currentTooltip.isEmpty()) {
+                TooltipTextMatcherSupport.logTooltipGuardIfDev(
+                        config,
+                        "wynnmod",
+                        "skip-empty-tooltip",
+                        currentTooltip,
+                        "Wynnmod event did not expose any tooltip text."
+                );
                 return;
             }
 
-            List<Text> sanitizedTooltip = TooltipTranslationSupport.stripInternalGeneratedLines(currentTooltip);
-            TooltipTranslationSupport.maybeForceRefreshCurrentTooltip(sanitizedTooltip, config);
-            boolean showRefreshNotice = TooltipTranslationSupport.shouldShowRefreshNotice(sanitizedTooltip, config);
-            if (!showRefreshNotice && TooltipTranslationContext.matchesRecentTranslatedTooltip(sanitizedTooltip)) {
+            List<Text> sanitizedTooltip = TooltipInternalLineSupport.stripInternalGeneratedLines(currentTooltip);
+            TooltipRefreshNoticeSupport.maybeForceRefreshCurrentTooltip(sanitizedTooltip, config);
+            boolean showRefreshNotice = TooltipRefreshNoticeSupport.shouldShowRefreshNotice(sanitizedTooltip, config);
+            if (TooltipRecentRenderGuardSupport.shouldSkipDuplicateRender(sanitizedTooltip, showRefreshNotice)) {
+                TooltipTextMatcherSupport.logTooltipGuardIfDev(
+                        config,
+                        "wynnmod",
+                        "skip-duplicate-render",
+                        sanitizedTooltip,
+                        "Recent translated tooltip guard matched. showRefreshNotice=" + showRefreshNotice
+                );
                 TooltipTranslationContext.setSkipDrawContextTranslation(true);
                 return;
             }
 
             boolean isKeyPressed = KeybindingManager.isPressed(config.keybinding.binding);
             if (TooltipTranslationSupport.shouldShowOriginal(config.keybinding.mode, isKeyPressed)) {
-                List<Text> tooltipToDisplay = TooltipTranslationSupport.appendRefreshNoticeLine(sanitizedTooltip, showRefreshNotice);
+                TooltipTextMatcherSupport.logTooltipGuardIfDev(
+                        config,
+                        "wynnmod",
+                        "skip-show-original",
+                        sanitizedTooltip,
+                        "Configured keybinding mode is currently showing the original tooltip. showRefreshNotice="
+                                + showRefreshNotice
+                );
+                List<Text> tooltipToDisplay = TooltipRefreshNoticeSupport.appendRefreshNoticeLine(sanitizedTooltip, showRefreshNotice);
                 if (tooltipToDisplay != currentTooltip && translate_allinone$setTooltipText(event, tooltipToDisplay)) {
-                    TooltipTranslationContext.rememberRecentTranslatedTooltip(null);
+                    TooltipRecentRenderGuardSupport.clearRememberedTooltip();
                     TooltipTranslationContext.setSkipDrawContextTranslation(true);
                 }
                 return;
@@ -86,18 +131,17 @@ public abstract class WynnmodStatsTooltipContextMixin {
 
             boolean emitDevLog = TooltipTextMatcherSupport.beginTooltipDevPass(config, "wynnmod", sanitizedTooltip);
             long tooltipStartedAtNanos = emitDevLog ? System.nanoTime() : 0L;
-            List<Text> translatedTooltip = translate_allinone$translateDecoratedTooltip(
+            DecoratedTooltipTranslationResult translatedTooltipResult = translate_allinone$translateDecoratedTooltip(
                     sanitizedTooltip,
                     config,
                     showRefreshNotice,
                     emitDevLog,
                     tooltipStartedAtNanos
             );
-            if (translate_allinone$setTooltipText(event, translatedTooltip)) {
-                TooltipTranslationContext.rememberRecentTranslatedTooltip(
-                        TooltipTranslationSupport.canRememberRecentTranslatedTooltip(translatedTooltip)
-                                ? TooltipTranslationSupport.stripInternalGeneratedLines(translatedTooltip)
-                                : null
+            if (translate_allinone$setTooltipText(event, translatedTooltipResult.tooltip())) {
+                TooltipRecentRenderGuardSupport.rememberTooltipIfStable(
+                        translatedTooltipResult.tooltip(),
+                        translatedTooltipResult.locallyStableForRecentGuard()
                 );
                 TooltipTranslationContext.setSkipDrawContextTranslation(true);
             }
@@ -137,14 +181,14 @@ public abstract class WynnmodStatsTooltipContextMixin {
     }
 
     @Unique
-    private static List<Text> translate_allinone$translateDecoratedTooltip(
+    private static DecoratedTooltipTranslationResult translate_allinone$translateDecoratedTooltip(
             List<Text> currentTooltip,
             ItemTranslateConfig config,
             boolean showRefreshNotice,
             boolean emitDevLog,
             long tooltipStartedAtNanos
     ) {
-        List<Text> tooltip = TooltipTranslationSupport.stripInternalGeneratedLines(currentTooltip);
+        List<Text> tooltip = TooltipInternalLineSupport.stripInternalGeneratedLines(currentTooltip);
         TooltipTranslationSupport.TooltipProcessingResult processedTooltip = TooltipTranslationSupport.processTooltipLines(
                 tooltip,
                 config,
@@ -152,22 +196,13 @@ public abstract class WynnmodStatsTooltipContextMixin {
                 emitDevLog,
                 "wynnmod"
         );
-        List<Text> translatedTooltip = new ArrayList<>(processedTooltip.translatedLines());
-
-        ItemTemplateCache.CacheStats stats = ItemTemplateCache.getInstance().getCacheStats();
-        boolean isAnythingPending = stats.total() > stats.translated();
-        boolean shouldShowStatus = processedTooltip.pending() || processedTooltip.missingKeyIssue() || isAnythingPending;
-        if (shouldShowStatus) {
-            translatedTooltip.add(TooltipTranslationSupport.createStatusLine(
-                    stats,
-                    processedTooltip.missingKeyIssue(),
-                    ITEM_STATUS_ANIMATION_KEY
-            ));
-        }
-
-        if (showRefreshNotice) {
-            translatedTooltip.add(TooltipTranslationSupport.createRefreshNoticeLine());
-        }
+        List<Text> translatedTooltip = TooltipInternalLineSupport.appendStatusLineIfNeeded(
+                new ArrayList<>(processedTooltip.translatedLines()),
+                processedTooltip,
+                ITEM_STATUS_ANIMATION_KEY
+        );
+        translatedTooltip = TooltipRefreshNoticeSupport.appendRefreshNoticeLine(translatedTooltip, showRefreshNotice);
+        boolean locallyStableForRecentGuard = !processedTooltip.pending() && !processedTooltip.missingKeyIssue();
 
         TooltipTextMatcherSupport.logTooltipPassIfDev(
                 config,
@@ -177,7 +212,7 @@ public abstract class WynnmodStatsTooltipContextMixin {
                 processedTooltip.translatableLines(),
                 tooltipStartedAtNanos
         );
-        return translatedTooltip;
+        return new DecoratedTooltipTranslationResult(translatedTooltip, locallyStableForRecentGuard);
     }
 
     @Unique

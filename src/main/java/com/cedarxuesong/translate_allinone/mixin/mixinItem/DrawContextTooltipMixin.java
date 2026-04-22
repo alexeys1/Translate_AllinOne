@@ -4,6 +4,8 @@ import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.utils.cache.ItemTemplateCache;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
+import com.cedarxuesong.translate_allinone.utils.translate.TooltipInternalLineSupport;
+import com.cedarxuesong.translate_allinone.utils.translate.TooltipRefreshNoticeSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTextMatcherSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTranslationContext;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTranslationSupport;
@@ -73,6 +75,13 @@ public abstract class DrawContextTooltipMixin {
 
         boolean isWynntilsItemStatTooltip = TooltipTranslationContext.isInWynntilsItemStatTooltipRender();
         if (TooltipTranslationContext.consumeSkipDrawContextTranslation()) {
+            TooltipTextMatcherSupport.logTooltipGuardIfDev(
+                    Translate_AllinOne.getConfig().itemTranslate,
+                    "draw-context",
+                    "skip-consume-shared-guard",
+                    null,
+                    "TooltipTranslationContext.consumeSkipDrawContextTranslation() returned true."
+            );
             return;
         }
 
@@ -98,13 +107,13 @@ public abstract class DrawContextTooltipMixin {
         for (OrderedTooltipLine orderedLine : parsedTooltip.orderedLines()) {
             tooltipLines.add(orderedLine.text());
         }
-        TooltipTranslationSupport.maybeForceRefreshCurrentTooltip(tooltipLines, config);
-        boolean showRefreshNotice = TooltipTranslationSupport.shouldShowRefreshNotice(tooltipLines, config);
+        TooltipRefreshNoticeSupport.maybeForceRefreshCurrentTooltip(tooltipLines, config);
+        boolean showRefreshNotice = TooltipRefreshNoticeSupport.shouldShowRefreshNotice(tooltipLines, config);
 
         boolean isKeyPressed = KeybindingManager.isPressed(config.keybinding.binding);
         if (TooltipTranslationSupport.shouldShowOriginal(config.keybinding.mode, isKeyPressed)) {
             if (showRefreshNotice) {
-                components.add(TooltipComponent.of(TooltipTranslationSupport.createRefreshNoticeLine().asOrderedText()));
+                components.add(TooltipComponent.of(TooltipRefreshNoticeSupport.createRefreshNoticeLine().asOrderedText()));
             }
             return;
         }
@@ -195,10 +204,8 @@ public abstract class DrawContextTooltipMixin {
 
         if (processedTooltip.translatableLines() > 0) {
             ItemTemplateCache.CacheStats stats = ItemTemplateCache.getInstance().getCacheStats();
-            boolean isAnythingPending = stats.total() > stats.translated();
-            boolean shouldShowStatus = processedTooltip.pending() || processedTooltip.missingKeyIssue() || isAnythingPending;
-            if (shouldShowStatus) {
-                Text statusLine = TooltipTranslationSupport.createStatusLine(
+            if (TooltipInternalLineSupport.shouldShowStatusLine(processedTooltip, stats)) {
+                Text statusLine = TooltipInternalLineSupport.createStatusLine(
                         stats,
                         processedTooltip.missingKeyIssue(),
                         ITEM_STATUS_ANIMATION_KEY
@@ -208,7 +215,7 @@ public abstract class DrawContextTooltipMixin {
         }
 
         if (showRefreshNotice) {
-            components.add(TooltipComponent.of(TooltipTranslationSupport.createRefreshNoticeLine().asOrderedText()));
+            components.add(TooltipComponent.of(TooltipRefreshNoticeSupport.createRefreshNoticeLine().asOrderedText()));
         }
 
         TooltipTextMatcherSupport.logTooltipPassIfDev(

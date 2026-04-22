@@ -2,6 +2,8 @@ package com.cedarxuesong.translate_allinone.mixin.mixinItem;
 
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
+import com.cedarxuesong.translate_allinone.utils.translate.TooltipRecentRenderGuardSupport;
+import com.cedarxuesong.translate_allinone.utils.translate.TooltipTextMatcherSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTranslationContext;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTranslationSupport;
 import net.fabricmc.loader.api.FabricLoader;
@@ -59,20 +61,35 @@ public abstract class DrawContextItemTooltipMixin {
         List<Text> originalTooltip = cir.getReturnValue();
         boolean useWynnmodTooltipTracking = translate_allinone$shouldUseWynnmodTooltipTracking();
         if (useWynnmodTooltipTracking && TooltipTranslationContext.isInWynnmodTooltipRender()) {
+            TooltipTextMatcherSupport.logTooltipGuardIfDev(
+                    Translate_AllinOne.getConfig().itemTranslate,
+                    "screen-mirror",
+                    "skip-inside-wynnmod-render",
+                    originalTooltip,
+                    "Draw-context mirror skipped because Wynnmod tooltip render is already active."
+            );
             TooltipTranslationContext.setSkipDrawContextTranslation(false);
             return;
         }
-        if (useWynnmodTooltipTracking && TooltipTranslationSupport.looksLikeDedicatedWynnmodTooltip(originalTooltip)) {
+        if (useWynnmodTooltipTracking && TooltipRecentRenderGuardSupport.looksLikeDedicatedWynnmodTooltip(originalTooltip)) {
+            TooltipTextMatcherSupport.logTooltipGuardIfDev(
+                    Translate_AllinOne.getConfig().itemTranslate,
+                    "screen-mirror",
+                    "skip-dedicated-wynnmod-tooltip",
+                    originalTooltip,
+                    "Tooltip already looks like a dedicated Wynnmod-rendered tooltip."
+            );
             TooltipTranslationContext.setSkipDrawContextTranslation(false);
             return;
         }
-        List<Text> mirroredTooltip = translate_allinone$buildTooltipMirror(originalTooltip);
+        TooltipTranslationSupport.TranslatedTooltipBuildResult mirrorResult =
+                translate_allinone$buildTooltipMirror(originalTooltip);
+        List<Text> mirroredTooltip = mirrorResult.translatedTooltip();
         if (useWynnmodTooltipTracking) {
-            TooltipTranslationContext.rememberRecentTranslatedTooltip(
-                    mirroredTooltip != originalTooltip
-                            && TooltipTranslationSupport.canRememberRecentTranslatedTooltip(mirroredTooltip)
-                            ? TooltipTranslationSupport.stripInternalGeneratedLines(mirroredTooltip)
-                            : null
+            TooltipRecentRenderGuardSupport.rememberMirroredTooltip(
+                    originalTooltip,
+                    mirroredTooltip,
+                    mirrorResult.locallyStableForRecentGuard()
             );
         }
         TooltipTranslationContext.setSkipDrawContextTranslation(mirroredTooltip != originalTooltip);
@@ -80,17 +97,17 @@ public abstract class DrawContextItemTooltipMixin {
     }
 
     @Unique
-    private static List<Text> translate_allinone$buildTooltipMirror(List<Text> originalTooltip) {
+    private static TooltipTranslationSupport.TranslatedTooltipBuildResult translate_allinone$buildTooltipMirror(List<Text> originalTooltip) {
         if (translate_allinone$isBuildingTooltipMirror.get()) {
-            return originalTooltip;
+            return new TooltipTranslationSupport.TranslatedTooltipBuildResult(originalTooltip, false);
         }
 
         try {
             translate_allinone$isBuildingTooltipMirror.set(true);
-            return TooltipTranslationSupport.buildTranslatedTooltip(originalTooltip, ITEM_STATUS_ANIMATION_KEY);
+            return TooltipTranslationSupport.buildTranslatedTooltipResult(originalTooltip, ITEM_STATUS_ANIMATION_KEY);
         } catch (Exception e) {
             LOGGER.error("Failed to build translated tooltip mirror", e);
-            return originalTooltip;
+            return new TooltipTranslationSupport.TranslatedTooltipBuildResult(originalTooltip, false);
         } finally {
             translate_allinone$isBuildingTooltipMirror.set(false);
         }

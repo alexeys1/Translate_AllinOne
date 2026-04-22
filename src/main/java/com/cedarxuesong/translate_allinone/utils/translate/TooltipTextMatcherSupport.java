@@ -66,7 +66,6 @@ public final class TooltipTextMatcherSupport {
             })
             .build();
     private static final Map<String, DevTooltipLogState> DEV_TOOLTIP_LOG_STATE_BY_SOURCE = new ConcurrentHashMap<>();
-
     private TooltipTextMatcherSupport() {
     }
 
@@ -75,7 +74,7 @@ public final class TooltipTextMatcherSupport {
     }
 
     public static TooltipLineDecision evaluateTooltipLine(Text line, boolean isFirstContentLine, ItemTranslateConfig config) {
-        if (line == null || config == null || TooltipTranslationSupport.isInternalGeneratedLine(line)) {
+        if (line == null || config == null || TooltipInternalLineSupport.isInternalGeneratedLine(line)) {
             return new TooltipLineDecision(
                     TooltipLineKind.INTERNAL_OR_NULL,
                     false,
@@ -286,11 +285,29 @@ public final class TooltipTextMatcherSupport {
                 && config.debug.log_cache_migration;
     }
 
-    private static boolean shouldLogAnyTooltipDev(ItemTranslateConfig config) {
+    public static boolean shouldLogAnyTooltipDev(ItemTranslateConfig config) {
         return shouldLogTooltipFilterResult(config)
                 || shouldLogTooltipTiming(config)
                 || shouldLogTooltipParagraphResult(config)
                 || shouldLogTooltipStyleMap(config);
+    }
+
+    public static void logTooltipGuardIfDev(
+            ItemTranslateConfig config,
+            String source,
+            String phase,
+            List<Text> tooltipLines,
+            String detail
+    ) {
+        if (!shouldLogAnyTooltipDev(config) || source == null || source.isBlank() || phase == null || phase.isBlank()) {
+            return;
+        }
+        TooltipGuardDevLogSupport.recordGuardEvent(
+                source,
+                phase,
+                tooltipLines == null ? 0 : tooltipLines.size(),
+                detail
+        );
     }
 
     public static boolean beginTooltipDevPass(ItemTranslateConfig config, String source, List<Text> tooltipLines) {

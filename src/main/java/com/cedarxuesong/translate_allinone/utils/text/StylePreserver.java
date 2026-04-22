@@ -342,7 +342,7 @@ public class StylePreserver {
         if (sawDecorativeGlyph || sawSymbolicCodePoint) {
             return true;
         }
-        if (sawLetter && sawLowercaseLetter) {
+        if (sawLetter && sawLowercaseLetter && nonWhitespaceCodePoints > 1) {
             return false;
         }
         return sawMeaningfulCodePoint;

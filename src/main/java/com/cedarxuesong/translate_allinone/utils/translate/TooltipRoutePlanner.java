@@ -191,7 +191,7 @@ final class TooltipRoutePlanner {
 
         for (int lineIndex = 0; lineIndex < tooltip.size(); lineIndex++) {
             Text line = tooltip.get(lineIndex);
-            if (line == null || line.getString().trim().isEmpty() || TooltipTranslationSupport.isInternalGeneratedLine(line)) {
+            if (line == null || line.getString().trim().isEmpty() || TooltipInternalLineSupport.isInternalGeneratedLine(line)) {
                 candidates.add(new TooltipLineCandidate(
                         lineIndex,
                         line,
@@ -201,69 +201,29 @@ final class TooltipRoutePlanner {
                 continue;
             }
 
-            boolean hasMeaningfulContent = TooltipTextMatcherSupport.hasMeaningfulContent(line, wynnCompatibilityEnabled);
-            boolean consumesNameSlot = nameSlotAvailable && hasMeaningfulContent;
-            boolean duplicateWynnTitleLine = !nameSlotAvailable
-                    && wynnCompatibilityEnabled
-                    && hasMeaningfulContent
-                    && looksLikeDuplicateWynnTitleLine(line, firstTitleComparisonText);
-            boolean firstContentLine = consumesNameSlot || duplicateWynnTitleLine;
+            TooltipTitleLineHeuristics.TitleLineEvaluation titleLineEvaluation =
+                    TooltipTitleLineHeuristics.evaluateLine(
+                            line,
+                            nameSlotAvailable,
+                            wynnCompatibilityEnabled,
+                            firstTitleComparisonText
+                    );
             TooltipTextMatcherSupport.TooltipLineDecision decision =
-                    TooltipTextMatcherSupport.evaluateTooltipLine(line, firstContentLine, config);
+                    TooltipTextMatcherSupport.evaluateTooltipLine(line, titleLineEvaluation.firstContentLine(), config);
             candidates.add(new TooltipLineCandidate(
                     lineIndex,
                     line,
-                    firstContentLine,
+                    titleLineEvaluation.firstContentLine(),
                     decision
             ));
 
-            if (consumesNameSlot) {
+            if (titleLineEvaluation.consumesNameSlot()) {
                 nameSlotAvailable = false;
-                firstTitleComparisonText = extractTitleComparisonText(line);
+                firstTitleComparisonText = titleLineEvaluation.nextFirstTitleComparisonText();
             }
         }
 
         return candidates;
-    }
-
-    private static boolean looksLikeDuplicateWynnTitleLine(Text line, String firstTitleComparisonText) {
-        if (line == null
-                || firstTitleComparisonText == null
-                || firstTitleComparisonText.isBlank()) {
-            return false;
-        }
-
-        String raw = line.getString();
-        if (raw == null || raw.isBlank() || !TooltipTemplateRuntime.containsDecorativeGlyph(raw)) {
-            return false;
-        }
-
-        String currentComparisonText = extractTitleComparisonText(line);
-        if (currentComparisonText.isBlank()) {
-            return false;
-        }
-
-        return currentComparisonText.equals(firstTitleComparisonText)
-                || hasEquivalentNumericBracketSuffix(currentComparisonText, firstTitleComparisonText);
-    }
-
-    private static String extractTitleComparisonText(Text line) {
-        if (line == null) {
-            return "";
-        }
-
-        return normalizeTooltipText(TooltipTemplateRuntime.stripDecorativeGlyphsForHeuristics(line.getString()));
-    }
-
-    private static boolean hasEquivalentNumericBracketSuffix(String currentText, String firstTitleComparisonText) {
-        if (currentText == null
-                || firstTitleComparisonText == null
-                || !currentText.startsWith(firstTitleComparisonText)) {
-            return false;
-        }
-
-        String suffix = currentText.substring(firstTitleComparisonText.length()).trim();
-        return !suffix.isEmpty() && suffix.matches("\\[[0-9./%]+]");
     }
 
     private static TooltipParagraphBlock buildParagraphBlock(
