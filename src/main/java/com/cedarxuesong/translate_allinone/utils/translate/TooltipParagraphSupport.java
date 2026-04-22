@@ -32,6 +32,8 @@ import java.util.regex.Pattern;
 final class TooltipParagraphSupport {
     private static final Pattern ENGLISH_CONNECTOR_PATTERN =
             Pattern.compile("(?i)\\b(by|to|and|of|for|in|on|from|with|the|a|an)\\b");
+    private static final Pattern CHINESE_BLOCK_DISTANCE_PATTERN =
+            Pattern.compile("(\\d+(?:\\.\\d+)?)个?方块");
     private static final int MIN_PARAGRAPH_BODY_STYLE_DOMINANT_SCORE = 5;
     private static final int MIN_PARAGRAPH_BODY_RUN_SCORE = 1;
     private static final int MIN_PARAGRAPH_BODY_STYLE_DOMINANCE_PERCENT = 55;
@@ -163,6 +165,20 @@ final class TooltipParagraphSupport {
         return maxMissingAccentScore > 0
                 && maxMissingAccentScore <= MAX_NON_WYNN_MISSING_STYLE_SCORE
                 && totalMissingAccentScore <= MAX_NON_WYNN_TOTAL_MISSING_STYLE_SCORE;
+    }
+
+    static boolean allowsRelaxedBodyOnlyParagraphStyleFallback(
+            boolean strictParagraphStyleCoverage,
+            boolean chineseTargetLanguage,
+            int sourceLineCount,
+            boolean translatedHasBodyStyle,
+            int translatedAccentStyleCount
+    ) {
+        return !strictParagraphStyleCoverage
+                && chineseTargetLanguage
+                && sourceLineCount > 1
+                && translatedHasBodyStyle
+                && translatedAccentStyleCount == 0;
     }
 
     static int countTranslatedSignalUnits(String text) {
@@ -455,6 +471,7 @@ final class TooltipParagraphSupport {
         }
         normalized = normalizeParagraphTaggedStyles(normalized, styleMap, bodyStyleId);
         if (applyChineseHeuristics) {
+            normalized = normalizeChineseMeasurementUnits(normalized);
             normalized = normalizeChineseNumericHighlightRuns(normalized, styleMap, bodyStyleId);
             normalized = normalizeChineseTaggedWhitespace(normalized);
         }
@@ -621,6 +638,30 @@ final class TooltipParagraphSupport {
         }
 
         return serializeParagraphTaggedRuns(normalizedRuns);
+    }
+
+    private static String normalizeChineseMeasurementUnits(String text) {
+        if (text == null || text.isBlank() || text.indexOf('<') < 0) {
+            return text;
+        }
+
+        List<ParagraphTaggedRun> runs = parseParagraphTaggedRuns(text);
+        if (runs.isEmpty()) {
+            return text;
+        }
+
+        for (int index = 0; index < runs.size(); index++) {
+            ParagraphTaggedRun run = runs.get(index);
+            if (run == null || run.content == null || run.content.isBlank()) {
+                continue;
+            }
+
+            String normalizedContent = CHINESE_BLOCK_DISTANCE_PATTERN.matcher(run.content).replaceAll("$1格");
+            if (!Objects.equals(normalizedContent, run.content)) {
+                runs.set(index, new ParagraphTaggedRun(run.styleId, normalizedContent));
+            }
+        }
+        return serializeParagraphTaggedRuns(runs);
     }
 
     private static List<ParagraphTaggedRun> parseParagraphTaggedRuns(String text) {
@@ -1192,7 +1233,8 @@ final class TooltipParagraphSupport {
             String translatedTemplate,
             ItemTranslateConfig config
     ) {
-        if (!shouldApplyChineseParagraphQualityHeuristics(config)
+        boolean chineseTargetLanguage = shouldApplyChineseParagraphQualityHeuristics(config);
+        if (!chineseTargetLanguage
                 || translatedTemplate == null
                 || translatedTemplate.isBlank()) {
             return null;
@@ -1209,7 +1251,11 @@ final class TooltipParagraphSupport {
         }
 
         String styleCoverageIssue = describeParagraphStyleCoverageIssue(block, translatedTemplate);
-        if (styleCoverageIssue != null) {
+        if (styleCoverageIssue != null && !shouldAllowBodyOnlyParagraphStyleFallback(
+                block,
+                translatedTemplate,
+                chineseTargetLanguage
+        )) {
             return styleCoverageIssue;
         }
 
@@ -1233,6 +1279,40 @@ final class TooltipParagraphSupport {
                     + ").";
         }
         return null;
+    }
+
+    private static boolean shouldAllowBodyOnlyParagraphStyleFallback(
+            TooltipParagraphBlock block,
+            String translatedTemplate,
+            boolean chineseTargetLanguage
+    ) {
+        if (block == null
+                || block.preparedLines() == null
+                || block.preparedLines().isEmpty()
+                || block.paragraphTemplate() == null
+                || translatedTemplate == null
+                || translatedTemplate.isBlank()) {
+            return false;
+        }
+
+        LinkedHashMap<Style, Integer> translatedScores = collectTaggedParagraphVisualStyleScores(
+                translatedTemplate,
+                block.paragraphTemplate().styleMap()
+        );
+        if (translatedScores.isEmpty()) {
+            return false;
+        }
+
+        Style bodyStyle = resolveParagraphBodyVisualStyle(block);
+        boolean translatedHasBodyStyle = bodyStyle == null || translatedScores.containsKey(bodyStyle);
+        int translatedAccentStyleCount = countNonBodyParagraphStyles(translatedScores.keySet(), bodyStyle);
+        return allowsRelaxedBodyOnlyParagraphStyleFallback(
+                TooltipTranslationContext.shouldRequireStrictParagraphStyleCoverage(),
+                chineseTargetLanguage,
+                block.preparedLines().size(),
+                translatedHasBodyStyle,
+                translatedAccentStyleCount
+        );
     }
 
     private static String describeParagraphStyleCoverageIssue(

@@ -31,37 +31,32 @@ public final class WynntilsTaskTrackerTranslationSupport {
 
     public static boolean isTrackerTranslationEnabled() {
         WynnCraftConfig.WynntilsTaskTrackerConfig trackerConfig = getTrackerConfig();
-        return trackerConfig != null
-                && trackerConfig.enabled
-                && (trackerConfig.translate_title || trackerConfig.translate_description);
+        return hasAnyTranslatedSectionEnabled(trackerConfig);
     }
 
     public static String translateTitle(String originalText) {
-        if (!shouldTranslateTitle()) {
+        WynnCraftConfig.WynntilsTaskTrackerConfig trackerConfig = getTrackerConfig();
+        if (!shouldTranslateField(trackerConfig, trackerConfig != null && trackerConfig.translate_title)) {
             return originalText;
         }
         return translateTemplateText(originalText, false);
     }
 
     public static String translateDescription(String originalText) {
-        if (!shouldTranslateDescription()) {
+        WynnCraftConfig.WynntilsTaskTrackerConfig trackerConfig = getTrackerConfig();
+        if (!shouldTranslateField(trackerConfig, trackerConfig != null && trackerConfig.translate_description)) {
             return originalText;
         }
         return translateTemplateText(originalText, true);
     }
 
-    private static boolean shouldTranslateTitle() {
-        WynnCraftConfig.WynntilsTaskTrackerConfig trackerConfig = getTrackerConfig();
-        return trackerConfig != null && trackerConfig.translate_title;
-    }
-
-    private static boolean shouldTranslateDescription() {
-        WynnCraftConfig.WynntilsTaskTrackerConfig trackerConfig = getTrackerConfig();
-        return trackerConfig != null && trackerConfig.translate_description;
-    }
-
     private static String translateTemplateText(String originalText, boolean legacyFormatted) {
         if (originalText == null || originalText.isBlank()) {
+            return originalText;
+        }
+
+        WynnCraftConfig.WynntilsTaskTrackerConfig trackerConfig = getTrackerConfig();
+        if (!shouldRenderTranslatedText(trackerConfig)) {
             return originalText;
         }
 
@@ -89,9 +84,6 @@ public final class WynntilsTaskTrackerTranslationSupport {
 
         WynntilsTaskTrackerTextCache.LookupResult lookupResult =
                 WynntilsTaskTrackerTextCache.getInstance().lookupOrQueue(translationTemplateKey);
-        if (shouldShowOriginal()) {
-            return originalText;
-        }
 
         if (lookupResult.status() == WynntilsTaskTrackerTextCache.TranslationStatus.TRANSLATED) {
             String reassembledTranslated = TemplateProcessor.reassemble(lookupResult.translation(), templateResult.values());
@@ -118,14 +110,11 @@ public final class WynntilsTaskTrackerTranslationSupport {
         return originalText;
     }
 
-    private static boolean shouldShowOriginal() {
-        WynnCraftConfig.WynntilsTaskTrackerConfig trackerConfig = getTrackerConfig();
-        if (trackerConfig == null || trackerConfig.keybinding == null) {
+    public static boolean shouldShowOriginal(WynnCraftConfig.KeybindingMode mode, boolean isKeyPressed) {
+        if (mode == null) {
             return false;
         }
-
-        boolean isKeyPressed = KeybindingManager.isPressed(trackerConfig.keybinding.binding);
-        return switch (trackerConfig.keybinding.mode) {
+        return switch (mode) {
             case HOLD_TO_TRANSLATE -> !isKeyPressed;
             case HOLD_TO_SEE_ORIGINAL -> isKeyPressed;
             case DISABLED -> false;
@@ -155,7 +144,9 @@ public final class WynntilsTaskTrackerTranslationSupport {
 
     public static boolean shouldUsePlainTitleFont() {
         WynnCraftConfig.WynntilsTaskTrackerConfig trackerConfig = getTrackerConfig();
-        return trackerConfig != null && trackerConfig.enabled && trackerConfig.translate_title;
+        return shouldTranslateField(trackerConfig, trackerConfig != null && trackerConfig.translate_title)
+                && LifecycleEventManager.isReadyForTranslation
+                && hasConfiguredRoute();
     }
 
     private static boolean hasConfiguredRoute() {
@@ -166,6 +157,54 @@ public final class WynntilsTaskTrackerTranslationSupport {
                 && config.providerManager.routes.wynntils_task_tracker != null
                 && !config.providerManager.routes.wynntils_task_tracker.isBlank()
                 && ProviderRouteResolver.resolve(config, ProviderRouteResolver.Route.WYNNTILS_TASK_TRACKER) != null;
+    }
+
+    private static boolean hasAnyTranslatedSectionEnabled(WynnCraftConfig.WynntilsTaskTrackerConfig trackerConfig) {
+        return trackerConfig != null
+                && trackerConfig.enabled
+                && (trackerConfig.translate_title || trackerConfig.translate_description);
+    }
+
+    static boolean shouldTranslateField(
+            WynnCraftConfig.WynntilsTaskTrackerConfig trackerConfig,
+            boolean fieldEnabled
+    ) {
+        return shouldTranslateField(trackerConfig, fieldEnabled, isTranslationHotkeyPressed(trackerConfig));
+    }
+
+    static boolean shouldTranslateField(
+            WynnCraftConfig.WynntilsTaskTrackerConfig trackerConfig,
+            boolean fieldEnabled,
+            boolean isKeyPressed
+    ) {
+        return fieldEnabled && shouldRenderTranslatedText(trackerConfig, isKeyPressed);
+    }
+
+    static boolean shouldRenderTranslatedText(WynnCraftConfig.WynntilsTaskTrackerConfig trackerConfig) {
+        return shouldRenderTranslatedText(trackerConfig, isTranslationHotkeyPressed(trackerConfig));
+    }
+
+    static boolean shouldRenderTranslatedText(
+            WynnCraftConfig.WynntilsTaskTrackerConfig trackerConfig,
+            boolean isKeyPressed
+    ) {
+        return hasAnyTranslatedSectionEnabled(trackerConfig)
+                && !shouldShowOriginal(resolveKeybindingMode(trackerConfig), isKeyPressed);
+    }
+
+    private static WynnCraftConfig.KeybindingMode resolveKeybindingMode(
+            WynnCraftConfig.WynntilsTaskTrackerConfig trackerConfig
+    ) {
+        if (trackerConfig == null || trackerConfig.keybinding == null || trackerConfig.keybinding.mode == null) {
+            return WynnCraftConfig.KeybindingMode.DISABLED;
+        }
+        return trackerConfig.keybinding.mode;
+    }
+
+    private static boolean isTranslationHotkeyPressed(WynnCraftConfig.WynntilsTaskTrackerConfig trackerConfig) {
+        return trackerConfig != null
+                && trackerConfig.keybinding != null
+                && KeybindingManager.isPressed(trackerConfig.keybinding.binding);
     }
 
     public static void devLog(String message, Object... args) {
