@@ -6,6 +6,7 @@ import com.cedarxuesong.translate_allinone.utils.config.ProviderRouteResolver;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.llmapi.LLM;
+import com.cedarxuesong.translate_allinone.utils.llmapi.LlmPayloadJsonSupport;
 import com.cedarxuesong.translate_allinone.utils.llmapi.ProviderSettings;
 import com.cedarxuesong.translate_allinone.utils.llmapi.openai.OpenAIRequest;
 import com.google.gson.Gson;
@@ -31,7 +32,7 @@ import java.util.regex.Pattern;
 
 public class ItemTranslateManager {
     private static final ItemTranslateManager INSTANCE = new ItemTranslateManager();
-    private static final Gson GSON = new Gson();
+    private static final Gson GSON = LlmPayloadJsonSupport.gson();
     private static final Pattern JSON_EXTRACT_PATTERN = Pattern.compile("\\{.*\\}", Pattern.DOTALL);
     private static final int MAX_KEY_MISMATCH_BATCH_RETRIES = 1;
 

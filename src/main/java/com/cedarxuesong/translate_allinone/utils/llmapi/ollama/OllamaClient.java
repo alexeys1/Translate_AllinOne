@@ -1,6 +1,7 @@
 package com.cedarxuesong.translate_allinone.utils.llmapi.ollama;
 
 import com.cedarxuesong.translate_allinone.utils.llmapi.LLMApiException;
+import com.cedarxuesong.translate_allinone.utils.llmapi.LlmPayloadJsonSupport;
 import com.cedarxuesong.translate_allinone.utils.llmapi.ProviderSettings;
 import com.cedarxuesong.translate_allinone.utils.llmapi.openai.OpenAIError;
 import com.google.gson.Gson;
@@ -15,7 +16,7 @@ import java.util.stream.Stream;
 
 public class OllamaClient {
 
-    private static final Gson GSON = new Gson();
+    private static final Gson GSON = LlmPayloadJsonSupport.gson();
     private final HttpClient httpClient;
     private final ProviderSettings.OllamaSettings settings;
 

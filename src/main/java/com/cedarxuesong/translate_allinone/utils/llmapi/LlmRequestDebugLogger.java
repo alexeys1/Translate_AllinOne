@@ -18,6 +18,8 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 final class LlmRequestDebugLogger {
+    private static final int MESSAGE_PREVIEW_HEAD_CHARS = 220;
+    private static final int MESSAGE_PREVIEW_TAIL_CHARS = 140;
     private static final ConcurrentMap<String, AtomicInteger> REQUEST_FINGERPRINT_COUNTS = new ConcurrentHashMap<>();
     private static final ConcurrentMap<String, AtomicInteger> ROLE_FINGERPRINT_COUNTS = new ConcurrentHashMap<>();
 
@@ -41,7 +43,7 @@ final class LlmRequestDebugLogger {
         RequestTextStats stats = summarize(messages);
         SeenCounts seenCounts = registerSeenCounts(stats);
         Translate_AllinOne.LOGGER.info(
-                "[LLMDev:request] api={} provider={} model={} streaming={} structuredOutput={} dispatch={} sendAttempt={} messages={} totalChars={} totalCodePoints={} totalUtf8Bytes={} estimatedTokens={} charsByRole={} estimatedTokensByRole={} tokenShareByRole={} roleFingerprints={} roleSeenCounts={} messageStats={} requestFingerprint={} requestSeenCount={} context={}",
+                "[LLMDev:request] api={} provider={} model={} streaming={} structuredOutput={} dispatch={} sendAttempt={} messages={} totalChars={} totalCodePoints={} totalUtf8Bytes={} estimatedTokens={} charsByRole={} estimatedTokensByRole={} tokenShareByRole={} roleFingerprints={} roleSeenCounts={} messageStats={} messagePreview={} requestFingerprint={} requestSeenCount={} context={}",
                 api,
                 providerName(settings),
                 modelName(settings),
@@ -60,6 +62,7 @@ final class LlmRequestDebugLogger {
                 formatRoleFingerprints(stats.roleStats()),
                 formatRoleSeenCounts(seenCounts.roleSeenCounts()),
                 formatMessageStats(stats.messages()),
+                formatMessagePreview(stats.messages()),
                 stats.requestFingerprint(),
                 seenCounts.requestSeenCount(),
                 requestContext == null ? "" : requestContext
@@ -83,7 +86,15 @@ final class LlmRequestDebugLogger {
                 int utf8Bytes = utf8Length(content);
                 int estimatedTokens = estimateTokens(utf8Bytes);
 
-                messageStats.add(new MessageTextStats(role, charCount, codePointCount, utf8Bytes, estimatedTokens, shortHash(content)));
+                messageStats.add(new MessageTextStats(
+                        role,
+                        charCount,
+                        codePointCount,
+                        utf8Bytes,
+                        estimatedTokens,
+                        shortHash(content),
+                        buildPreview(content)
+                ));
                 roleAccumulators.computeIfAbsent(role, RoleAccumulator::new).add(content, charCount, codePointCount, utf8Bytes);
                 totalChars += charCount;
                 totalCodePoints += codePointCount;
@@ -270,6 +281,24 @@ final class LlmRequestDebugLogger {
         return builder.append(']').toString();
     }
 
+    static String formatMessagePreview(List<MessageTextStats> messageStats) {
+        if (messageStats == null || messageStats.isEmpty()) {
+            return "[]";
+        }
+        StringBuilder builder = new StringBuilder("[");
+        for (int i = 0; i < messageStats.size(); i++) {
+            MessageTextStats stats = messageStats.get(i);
+            if (i > 0) {
+                builder.append(", ");
+            }
+            builder.append(stats.role())
+                    .append(":\"")
+                    .append(stats.preview())
+                    .append('"');
+        }
+        return builder.append(']').toString();
+    }
+
     private static Map<String, RoleTextStats> buildRoleStats(Map<String, RoleAccumulator> accumulators, int totalUtf8Bytes) {
         Map<String, RoleTextStats> roleStats = new LinkedHashMap<>();
         if (accumulators == null || accumulators.isEmpty()) {
@@ -328,6 +357,31 @@ final class LlmRequestDebugLogger {
         return normalizeRole(role) + '\u0000' + (fingerprint == null ? "" : fingerprint);
     }
 
+    private static String buildPreview(String content) {
+        String escaped = escapeForInlineLog(content);
+        int maxPreviewChars = MESSAGE_PREVIEW_HEAD_CHARS + MESSAGE_PREVIEW_TAIL_CHARS;
+        if (escaped.length() <= maxPreviewChars) {
+            return escaped;
+        }
+        int omittedChars = escaped.length() - maxPreviewChars;
+        return escaped.substring(0, MESSAGE_PREVIEW_HEAD_CHARS)
+                + "...(+" + omittedChars + " chars)..."
+                + escaped.substring(escaped.length() - MESSAGE_PREVIEW_TAIL_CHARS);
+    }
+
+    private static String escapeForInlineLog(String value) {
+        if (value == null || value.isEmpty()) {
+            return "";
+        }
+        return value
+                .replace("\\", "\\\\")
+                .replace("\r\n", "\n")
+                .replace("\r", "\n")
+                .replace("\n", "\\n")
+                .replace("\t", "\\t")
+                .replace("\"", "\\\"");
+    }
+
     private static String shortHash(String value) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -371,7 +425,8 @@ final class LlmRequestDebugLogger {
             int codePointCount,
             int utf8Bytes,
             int estimatedTokens,
-            String fingerprint
+            String fingerprint,
+            String preview
     ) {
     }
 

@@ -2,6 +2,7 @@ package com.cedarxuesong.translate_allinone.utils.llmapi.openai;
 
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.utils.llmapi.LLMApiException;
+import com.cedarxuesong.translate_allinone.utils.llmapi.LlmPayloadJsonSupport;
 import com.cedarxuesong.translate_allinone.utils.llmapi.ProviderSettings;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -21,7 +22,7 @@ import java.util.stream.Stream;
 
 public class OpenAIClient {
 
-    private static final Gson GSON = new Gson();
+    private static final Gson GSON = LlmPayloadJsonSupport.gson();
     private final HttpClient httpClient;
     private final ProviderSettings.OpenAISettings settings;
 
@@ -32,15 +33,15 @@ public class OpenAIClient {
 
     private String buildRequestBody(Object request) {
         // 使用GSON将基础请求对象转换为JsonObject
-        JsonObject jsonObject = GSON.toJsonTree(request).getAsJsonObject();
+        JsonObject jsonObject = LlmPayloadJsonSupport.toJsonTree(request).getAsJsonObject();
 
         // 如果存在自定义参数，则添加到JsonObject中
         if (settings.customParameters() != null && !settings.customParameters().isEmpty()) {
             settings.customParameters().forEach((key, value) ->
-                    jsonObject.add(key, GSON.toJsonTree(value))
+                    jsonObject.add(key, LlmPayloadJsonSupport.toJsonTree(value))
             );
         }
-        return GSON.toJson(jsonObject);
+        return LlmPayloadJsonSupport.toJson(jsonObject);
     }
 
     /**
