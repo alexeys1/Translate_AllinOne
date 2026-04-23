@@ -75,16 +75,6 @@ public abstract class DrawContextTooltipMixin {
         }
 
         boolean isWynntilsItemStatTooltip = TooltipTranslationContext.isInWynntilsItemStatTooltipRender();
-        if (TooltipTranslationContext.consumeSkipDrawContextTranslation()) {
-            TooltipTextMatcherSupport.logTooltipGuardIfDev(
-                    Translate_AllinOne.getConfig().itemTranslate,
-                    "draw-context",
-                    "skip-consume-shared-guard",
-                    null,
-                    "TooltipTranslationContext.consumeSkipDrawContextTranslation() returned true."
-            );
-            return;
-        }
 
         if (components == null || components.isEmpty()) {
             return;
@@ -107,6 +97,16 @@ public abstract class DrawContextTooltipMixin {
         List<Text> tooltipLines = new ArrayList<>(parsedTooltip.orderedLines().size());
         for (OrderedTooltipLine orderedLine : parsedTooltip.orderedLines()) {
             tooltipLines.add(orderedLine.text());
+        }
+        if (TooltipTranslationContext.consumeSkipDrawContextTranslation(tooltipLines)) {
+            TooltipTextMatcherSupport.logTooltipGuardIfDev(
+                    config,
+                    "draw-context",
+                    "skip-consume-shared-guard",
+                    tooltipLines,
+                    "TooltipTranslationContext.consumeSkipDrawContextTranslation(tooltipLines) matched the expected tooltip."
+            );
+            return;
         }
         TooltipRefreshNoticeSupport.maybeForceRefreshCurrentTooltip(tooltipLines, config);
         boolean showRefreshNotice = TooltipRefreshNoticeSupport.shouldShowRefreshNotice(tooltipLines, config);

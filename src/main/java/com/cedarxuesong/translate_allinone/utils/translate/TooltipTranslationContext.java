@@ -9,7 +9,10 @@ public final class TooltipTranslationContext {
     private static final long WYNN_ITEM_STAT_CONTEXT_STALE_MILLIS = 500L;
     private static final long WYNN_QUEST_CONTEXT_STALE_MILLIS = 10_000L;
     private static final long RECENT_TRANSLATED_TOOLTIP_STALE_MILLIS = 750L;
+    private static final long DRAW_CONTEXT_SKIP_EXPECTATION_STALE_MILLIS = 750L;
     private static final ThreadLocal<Boolean> SKIP_DRAW_CONTEXT_TRANSLATION = ThreadLocal.withInitial(() -> false);
+    private static final ThreadLocal<Integer> SKIP_DRAW_CONTEXT_TOOLTIP_SIGNATURE = ThreadLocal.withInitial(() -> 0);
+    private static final ThreadLocal<Long> SKIP_DRAW_CONTEXT_TOOLTIP_RECORDED_AT = ThreadLocal.withInitial(() -> 0L);
     private static final ThreadLocal<Integer> WYNNMOD_TOOLTIP_RENDER_DEPTH = ThreadLocal.withInitial(() -> 0);
     private static final ThreadLocal<Integer> REI_TOOLTIP_RENDER_DEPTH = ThreadLocal.withInitial(() -> 0);
     private static final ThreadLocal<Long> REI_TOOLTIP_RENDER_ENTERED_AT = ThreadLocal.withInitial(() -> 0L);
@@ -24,6 +27,9 @@ public final class TooltipTranslationContext {
 
     public static void setSkipDrawContextTranslation(boolean skip) {
         SKIP_DRAW_CONTEXT_TRANSLATION.set(skip);
+        if (!skip) {
+            clearExpectedDrawContextTooltip();
+        }
     }
 
     public static boolean consumeSkipDrawContextTranslation() {
@@ -34,8 +40,34 @@ public final class TooltipTranslationContext {
         return shouldSkip;
     }
 
+    public static boolean consumeSkipDrawContextTranslation(List<Text> tooltipLines) {
+        boolean shouldSkip = consumeSkipDrawContextTranslation();
+        if (!shouldSkip) {
+            return false;
+        }
+
+        boolean matchesExpectedTooltip = matchesExpectedDrawContextTooltip(tooltipLines);
+        clearExpectedDrawContextTooltip();
+        return matchesExpectedTooltip;
+    }
+
+    public static void rememberExpectedDrawContextTooltip(List<Text> tooltipLines) {
+        if (tooltipLines == null || tooltipLines.isEmpty()) {
+            clearExpectedDrawContextTooltip();
+            return;
+        }
+
+        SKIP_DRAW_CONTEXT_TOOLTIP_SIGNATURE.set(computeTooltipSignature(tooltipLines));
+        SKIP_DRAW_CONTEXT_TOOLTIP_RECORDED_AT.set(System.currentTimeMillis());
+    }
+
     public static void pushWynnmodTooltipRender() {
-        WYNNMOD_TOOLTIP_RENDER_DEPTH.set(WYNNMOD_TOOLTIP_RENDER_DEPTH.get() + 1);
+        int depth = WYNNMOD_TOOLTIP_RENDER_DEPTH.get();
+        if (depth <= 0) {
+            WYNNMOD_TOOLTIP_RENDER_DEPTH.set(1);
+            return;
+        }
+        WYNNMOD_TOOLTIP_RENDER_DEPTH.set(depth + 1);
     }
 
     public static void popWynnmodTooltipRender() {
@@ -49,6 +81,29 @@ public final class TooltipTranslationContext {
 
     public static boolean isInWynnmodTooltipRender() {
         return WYNNMOD_TOOLTIP_RENDER_DEPTH.get() > 0;
+    }
+
+    private static boolean matchesExpectedDrawContextTooltip(List<Text> tooltipLines) {
+        if (tooltipLines == null || tooltipLines.isEmpty()) {
+            return false;
+        }
+
+        long recordedAt = SKIP_DRAW_CONTEXT_TOOLTIP_RECORDED_AT.get();
+        if (recordedAt <= 0L) {
+            return false;
+        }
+
+        long now = System.currentTimeMillis();
+        if (now - recordedAt > DRAW_CONTEXT_SKIP_EXPECTATION_STALE_MILLIS) {
+            return false;
+        }
+
+        return SKIP_DRAW_CONTEXT_TOOLTIP_SIGNATURE.get() == computeTooltipSignature(tooltipLines);
+    }
+
+    private static void clearExpectedDrawContextTooltip() {
+        SKIP_DRAW_CONTEXT_TOOLTIP_SIGNATURE.set(0);
+        SKIP_DRAW_CONTEXT_TOOLTIP_RECORDED_AT.set(0L);
     }
 
     public static void pushReiTooltipRender() {

@@ -107,6 +107,7 @@ public abstract class WynnmodStatsTooltipContextMixin {
                         sanitizedTooltip,
                         "Recent translated tooltip guard matched. showRefreshNotice=" + showRefreshNotice
                 );
+                TooltipTranslationContext.rememberExpectedDrawContextTooltip(currentTooltip);
                 TooltipTranslationContext.setSkipDrawContextTranslation(true);
                 return;
             }
@@ -124,6 +125,7 @@ public abstract class WynnmodStatsTooltipContextMixin {
                 List<Text> tooltipToDisplay = TooltipRefreshNoticeSupport.appendRefreshNoticeLine(sanitizedTooltip, showRefreshNotice);
                 if (tooltipToDisplay != currentTooltip && translate_allinone$setTooltipText(event, tooltipToDisplay)) {
                     TooltipRecentRenderGuardSupport.clearRememberedTooltip();
+                    TooltipTranslationContext.rememberExpectedDrawContextTooltip(tooltipToDisplay);
                     TooltipTranslationContext.setSkipDrawContextTranslation(true);
                 }
                 return;
@@ -143,6 +145,7 @@ public abstract class WynnmodStatsTooltipContextMixin {
                         translatedTooltipResult.tooltip(),
                         translatedTooltipResult.locallyStableForRecentGuard()
                 );
+                TooltipTranslationContext.rememberExpectedDrawContextTooltip(translatedTooltipResult.tooltip());
                 TooltipTranslationContext.setSkipDrawContextTranslation(true);
             }
         } finally {

@@ -12,6 +12,7 @@
     "mixinItem.DrawContextItemTooltipMixin",
     "mixinItem.DrawContextTooltipMixin",
     "mixinItem.ReiScreenOverlayContextMixin",
+    "mixinItem.WynnmodDrawItemTooltipSetTextMixin",
     "mixinItem.WynnmodStatsTooltipContextMixin",
     "mixinItem.WynntilsItemStatInfoContextMixin",
     "mixinItem.WynntilsQuestTooltipContextMixin",

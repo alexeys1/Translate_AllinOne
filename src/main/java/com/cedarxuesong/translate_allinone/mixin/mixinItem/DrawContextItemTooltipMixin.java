@@ -71,17 +71,6 @@ public abstract class DrawContextItemTooltipMixin {
             TooltipTranslationContext.setSkipDrawContextTranslation(false);
             return;
         }
-        if (useWynnmodTooltipTracking && TooltipRecentRenderGuardSupport.looksLikeDedicatedWynnmodTooltip(originalTooltip)) {
-            TooltipTextMatcherSupport.logTooltipGuardIfDev(
-                    Translate_AllinOne.getConfig().itemTranslate,
-                    "screen-mirror",
-                    "skip-dedicated-wynnmod-tooltip",
-                    originalTooltip,
-                    "Tooltip already looks like a dedicated Wynnmod-rendered tooltip."
-            );
-            TooltipTranslationContext.setSkipDrawContextTranslation(false);
-            return;
-        }
         TooltipTranslationSupport.TranslatedTooltipBuildResult mirrorResult =
                 translate_allinone$buildTooltipMirror(originalTooltip);
         List<Text> mirroredTooltip = mirrorResult.translatedTooltip();
@@ -92,7 +81,6 @@ public abstract class DrawContextItemTooltipMixin {
                     mirrorResult.locallyStableForRecentGuard()
             );
         }
-        TooltipTranslationContext.setSkipDrawContextTranslation(mirroredTooltip != originalTooltip);
         cir.setReturnValue(mirroredTooltip);
     }
 
