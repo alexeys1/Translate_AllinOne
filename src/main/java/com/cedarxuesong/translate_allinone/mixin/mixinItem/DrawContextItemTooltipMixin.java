@@ -71,6 +71,21 @@ public abstract class DrawContextItemTooltipMixin {
             TooltipTranslationContext.setSkipDrawContextTranslation(false);
             return;
         }
+        if (useWynnmodTooltipTracking) {
+            ItemTranslateConfig config = Translate_AllinOne.getConfig().itemTranslate;
+            // Only skip screen-mirror when Wynnmod has actually handed off this tooltip.
+            java.util.Set<String> translationTemplateKeys = TooltipTranslationSupport.collectTranslationTemplateKeys(originalTooltip, config);
+            if (TooltipTranslationContext.consumeSkipScreenMirrorTranslation(translationTemplateKeys)) {
+                TooltipTextMatcherSupport.logTooltipGuardIfDev(
+                        config,
+                        "screen-mirror",
+                        "skip-consume-wynnmod-handoff",
+                        originalTooltip,
+                        "TooltipTranslationContext.consumeSkipScreenMirrorTranslation(translationTemplateKeys) matched the expected tooltip."
+                );
+                return;
+            }
+        }
         TooltipTranslationSupport.TranslatedTooltipBuildResult mirrorResult =
                 translate_allinone$buildTooltipMirror(originalTooltip);
         List<Text> mirroredTooltip = mirrorResult.translatedTooltip();
@@ -80,6 +95,10 @@ public abstract class DrawContextItemTooltipMixin {
                     mirroredTooltip,
                     mirrorResult.locallyStableForRecentGuard()
             );
+        }
+        if (!translate_allinone$sameTooltipContent(originalTooltip, mirroredTooltip)) {
+            TooltipTranslationContext.rememberExpectedDrawContextTooltip(mirroredTooltip);
+            TooltipTranslationContext.setSkipDrawContextTranslation(true);
         }
         cir.setReturnValue(mirroredTooltip);
     }
@@ -152,5 +171,26 @@ public abstract class DrawContextItemTooltipMixin {
         } catch (ReflectiveOperationException | LinkageError ignored) {
             translate_allinone$wynnmodFeatureReflectionAvailable = false;
         }
+    }
+
+    @Unique
+    private static boolean translate_allinone$sameTooltipContent(List<Text> left, List<Text> right) {
+        if (left == right) {
+            return true;
+        }
+        if (left == null || right == null || left.size() != right.size()) {
+            return false;
+        }
+
+        for (int i = 0; i < left.size(); i++) {
+            Text leftLine = left.get(i);
+            Text rightLine = right.get(i);
+            String leftValue = leftLine == null ? "" : leftLine.getString();
+            String rightValue = rightLine == null ? "" : rightLine.getString();
+            if (!leftValue.equals(rightValue)) {
+                return false;
+            }
+        }
+        return true;
     }
 }

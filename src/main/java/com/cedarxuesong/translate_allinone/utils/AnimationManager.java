@@ -1,5 +1,6 @@
 package com.cedarxuesong.translate_allinone.utils;
 
+import com.cedarxuesong.translate_allinone.utils.text.StylePreserver;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Style;
 import net.minecraft.text.Text;
@@ -37,6 +38,9 @@ public class AnimationManager {
 
 
     public static String stripFormatting(String text) {
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
         return STRIP_FORMATTING_PATTERN.matcher(text).replaceAll("");
     }
 
@@ -64,30 +68,64 @@ public class AnimationManager {
 
     public static MutableText getAnimatedStyledText(Text originalText, String animationKey, boolean alertMissingKeys) {
         MutableText animatedText = Text.empty();
+        if (originalText == null) {
+            return animatedText;
+        }
         long time = System.currentTimeMillis();
         AtomicInteger charIndex = new AtomicInteger(0);
         float alertProgress = getAlertProgress(animationKey, alertMissingKeys, time);
 
         originalText.visit((style, s) -> {
-            for (int offset = 0; offset < s.length(); ) {
-                int codePoint = s.codePointAt(offset);
-                float baseSine = (float) (Math.sin(time / 200.0 + charIndex.get() / 5.0) + 1.0) / 2.0f;
-                float alertSine = (float) (Math.sin(time / 120.0 + charIndex.get() / 2.5) + 1.0) / 2.0f;
-
-                int baseColor = ColorHelper.lerp(baseSine, DARK_GREY, LIGHT_GREY);
-                int alertColor = ColorHelper.lerp(alertSine, DARK_RED, LIGHT_RED);
-                int color = ColorHelper.lerp(alertProgress, baseColor, alertColor);
-
-                Style newStyle = style.withColor(TextColor.fromRgb(color));
-
-                animatedText.append(Text.literal(new String(Character.toChars(codePoint))).setStyle(newStyle));
-                offset += Character.charCount(codePoint);
-                charIndex.incrementAndGet();
+            if (s == null || s.isEmpty()) {
+                return Optional.empty();
             }
+
+            if (!containsFormattingCodes(s)) {
+                appendAnimatedSegment(animatedText, style, s, time, charIndex, alertProgress);
+                return Optional.empty();
+            }
+
+            StylePreserver.fromLegacyText(s).visit((resolvedStyle, resolvedString) -> {
+                appendAnimatedSegment(animatedText, resolvedStyle, resolvedString, time, charIndex, alertProgress);
+                return Optional.empty();
+            }, style == null ? Style.EMPTY : style);
             return Optional.empty();
         }, Style.EMPTY);
 
         return animatedText;
+    }
+
+    private static boolean containsFormattingCodes(String text) {
+        return text != null && STRIP_FORMATTING_PATTERN.matcher(text).find();
+    }
+
+    private static void appendAnimatedSegment(
+            MutableText animatedText,
+            Style style,
+            String text,
+            long time,
+            AtomicInteger charIndex,
+            float alertProgress
+    ) {
+        if (animatedText == null || text == null || text.isEmpty()) {
+            return;
+        }
+
+        Style resolvedStyle = style == null ? Style.EMPTY : style;
+        for (int offset = 0; offset < text.length(); ) {
+            int codePoint = text.codePointAt(offset);
+            float baseSine = (float) (Math.sin(time / 200.0 + charIndex.get() / 5.0) + 1.0) / 2.0f;
+            float alertSine = (float) (Math.sin(time / 120.0 + charIndex.get() / 2.5) + 1.0) / 2.0f;
+
+            int baseColor = ColorHelper.lerp(baseSine, DARK_GREY, LIGHT_GREY);
+            int alertColor = ColorHelper.lerp(alertSine, DARK_RED, LIGHT_RED);
+            int color = ColorHelper.lerp(alertProgress, baseColor, alertColor);
+
+            Style newStyle = resolvedStyle.withColor(TextColor.fromRgb(color));
+            animatedText.append(Text.literal(new String(Character.toChars(codePoint))).setStyle(newStyle));
+            offset += Character.charCount(codePoint);
+            charIndex.incrementAndGet();
+        }
     }
 
     private static float getAlertProgress(String animationKey, boolean alertMissingKeys, long now) {

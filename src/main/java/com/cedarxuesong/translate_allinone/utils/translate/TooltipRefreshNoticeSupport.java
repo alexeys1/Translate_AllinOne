@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -16,8 +17,11 @@ import java.util.Set;
 public final class TooltipRefreshNoticeSupport {
     private static final String TOOLTIP_REFRESH_NOTICE_KEY = "text.translate_allinone.item.tooltip_refresh_forced";
     private static final long REFRESH_NOTICE_DURATION_MILLIS = 1500L;
+    private static final long REFRESH_HOLD_RELEASE_GRACE_MILLIS = 250L;
     private static final Logger LOGGER = LoggerFactory.getLogger("Translate_AllinOne/TooltipRefreshNoticeSupport");
     private static final Set<Integer> refreshedTooltipSignaturesThisHold = new HashSet<>();
+    private static volatile boolean refreshHoldActive = false;
+    private static volatile long refreshHoldGraceExpiresAtMillis = 0L;
     private static volatile int refreshNoticeTooltipSignature = 0;
     private static volatile long refreshNoticeExpiresAtMillis = 0L;
 
@@ -38,10 +42,8 @@ public final class TooltipRefreshNoticeSupport {
         boolean isRefreshPressed = config != null
                 && config.keybinding != null
                 && KeybindingManager.isPressed(config.keybinding.refreshBinding);
-        if (!isRefreshPressed) {
-            synchronized (refreshedTooltipSignaturesThisHold) {
-                refreshedTooltipSignaturesThisHold.clear();
-            }
+        long now = System.currentTimeMillis();
+        if (!updateRefreshHoldState(isRefreshPressed, now)) {
             return;
         }
 
@@ -60,7 +62,7 @@ public final class TooltipRefreshNoticeSupport {
         if (refreshedCount > 0) {
             TooltipTemplateRuntime.registerForceRefreshCompatBypass(keysToRefresh);
             refreshNoticeTooltipSignature = tooltipSignature;
-            refreshNoticeExpiresAtMillis = System.currentTimeMillis() + REFRESH_NOTICE_DURATION_MILLIS;
+            refreshNoticeExpiresAtMillis = now + REFRESH_NOTICE_DURATION_MILLIS;
             LOGGER.info("Forced refresh of {} current item tooltip translation key(s).", refreshedCount);
         }
     }
@@ -98,15 +100,26 @@ public final class TooltipRefreshNoticeSupport {
         return createRefreshNoticeLine().getString().equals(line.getString());
     }
 
+    public static boolean containsRefreshNoticeLine(List<Text> tooltip) {
+        if (tooltip == null || tooltip.isEmpty()) {
+            return false;
+        }
+
+        for (Text line : tooltip) {
+            if (isRefreshNoticeLine(line)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static List<Text> appendRefreshNoticeLine(List<Text> tooltip, boolean showRefreshNotice) {
         if (!showRefreshNotice || tooltip == null) {
             return tooltip;
         }
 
-        for (Text line : tooltip) {
-            if (isRefreshNoticeLine(line)) {
-                return tooltip;
-            }
+        if (containsRefreshNoticeLine(tooltip)) {
+            return tooltip;
         }
 
         List<Text> tooltipWithNotice = new ArrayList<>(tooltip.size() + 1);
@@ -115,11 +128,39 @@ public final class TooltipRefreshNoticeSupport {
         return tooltipWithNotice;
     }
 
-    private static int computeTooltipSignature(Set<String> keys) {
+    static int computeTooltipSignature(Set<String> keys) {
         int hash = 1;
+        List<String> orderedKeys = new ArrayList<>(keys.size());
         for (String key : keys) {
+            orderedKeys.add(key == null ? "" : key);
+        }
+        Collections.sort(orderedKeys);
+        for (String key : orderedKeys) {
             hash = 31 * hash + key.hashCode();
         }
         return 31 * hash + keys.size();
+    }
+
+    static boolean updateRefreshHoldState(boolean isRefreshPressed, long now) {
+        if (isRefreshPressed) {
+            refreshHoldActive = true;
+            refreshHoldGraceExpiresAtMillis = now + REFRESH_HOLD_RELEASE_GRACE_MILLIS;
+            return true;
+        }
+
+        if (refreshHoldActive && now <= refreshHoldGraceExpiresAtMillis) {
+            return true;
+        }
+
+        clearRefreshHoldState();
+        return false;
+    }
+
+    static void clearRefreshHoldState() {
+        refreshHoldActive = false;
+        refreshHoldGraceExpiresAtMillis = 0L;
+        synchronized (refreshedTooltipSignaturesThisHold) {
+            refreshedTooltipSignaturesThisHold.clear();
+        }
     }
 }

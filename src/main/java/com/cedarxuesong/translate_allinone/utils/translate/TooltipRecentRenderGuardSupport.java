@@ -71,9 +71,15 @@ public final class TooltipRecentRenderGuardSupport {
 
         boolean hasWynncraftFont = false;
         boolean hasMeaningfulLine = false;
+        boolean hasDecorativeGlyph = false;
         for (Text line : sanitizedTooltip) {
             if (line == null) {
                 continue;
+            }
+
+            String raw = line.getString();
+            if (!hasDecorativeGlyph && raw != null && TooltipTemplateRuntime.containsDecorativeGlyph(raw)) {
+                hasDecorativeGlyph = true;
             }
 
             if (!hasMeaningfulLine && TooltipTextMatcherSupport.hasMeaningfulContent(line)) {
@@ -91,7 +97,7 @@ public final class TooltipRecentRenderGuardSupport {
                 }
             }
         }
-        return hasWynncraftFont && hasMeaningfulLine;
+        return hasWynncraftFont && hasMeaningfulLine && hasDecorativeGlyph;
     }
 
     private static List<Text> stableTooltipForRemembering(List<Text> tooltip, boolean tooltipLocallyStable) {

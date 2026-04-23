@@ -19,6 +19,7 @@ import org.spongepowered.asm.mixin.injection.ModifyVariable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 @Pseudo
 @Mixin(targets = "com.wynnmod.mixin.events.ContainerEvents$DrawItemTooltip", remap = false)
@@ -40,6 +41,11 @@ public abstract class WynnmodDrawItemTooltipSetTextMixin {
         List<Text> sanitizedTooltip = TooltipInternalLineSupport.stripInternalGeneratedLines(tooltip);
         if (sanitizedTooltip == null || sanitizedTooltip.isEmpty()) {
             return tooltip;
+        }
+        Set<String> screenMirrorTranslationKeys = TooltipTranslationSupport.collectTranslationTemplateKeys(sanitizedTooltip, config);
+        if (!screenMirrorTranslationKeys.isEmpty()) {
+            TooltipTranslationContext.rememberExpectedScreenMirrorTooltip(screenMirrorTranslationKeys);
+            TooltipTranslationContext.setSkipScreenMirrorTranslation(true);
         }
 
         TooltipRefreshNoticeSupport.maybeForceRefreshCurrentTooltip(sanitizedTooltip, config);

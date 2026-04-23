@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 public final class TooltipTranslationSupport {
     private static final Logger LOGGER = LoggerFactory.getLogger("Translate_AllinOne/TooltipTranslationSupport");
@@ -56,6 +57,20 @@ public final class TooltipTranslationSupport {
 
     public static List<Text> buildTranslatedTooltip(List<Text> originalTooltip, String animationKey) {
         return buildTranslatedTooltipResult(originalTooltip, animationKey).translatedTooltip();
+    }
+
+    public static Set<String> collectTranslationTemplateKeys(List<Text> tooltip, ItemTranslateConfig config) {
+        if (tooltip == null || tooltip.isEmpty() || config == null || !config.enabled) {
+            return Set.of();
+        }
+
+        List<Text> sanitizedTooltip = TooltipInternalLineSupport.stripInternalGeneratedLines(tooltip);
+        if (sanitizedTooltip == null || sanitizedTooltip.isEmpty()) {
+            return Set.of();
+        }
+
+        boolean decorativeTooltipContext = TooltipDecorativeContextSupport.isDecorativeTooltipContext(sanitizedTooltip);
+        return TooltipRoutePlanner.planTooltip(sanitizedTooltip, config, decorativeTooltipContext).translationTemplateKeys();
     }
 
     public static TranslatedTooltipBuildResult buildTranslatedTooltipResult(List<Text> originalTooltip, String animationKey) {

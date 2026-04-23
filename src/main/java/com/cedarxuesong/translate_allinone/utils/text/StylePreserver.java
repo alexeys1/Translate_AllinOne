@@ -18,8 +18,6 @@ public class StylePreserver {
 
     private static final char PLACEHOLDER_START_CHAR = '\uE000';
     private static final Pattern STYLE_TAG_MARKER_PATTERN = Pattern.compile("</?s(\\d+)>");
-    // Regex to find a placeholder, its content, and the closing placeholder.
-    // Placeholders are characters in the Private Use Area.
     private static final Pattern PLACEHOLDER_PATTERN = Pattern.compile(
             "([\uE000-\uF8FF])(.*?)\\1",
             Pattern.DOTALL
@@ -63,18 +61,20 @@ public class StylePreserver {
         StringBuilder markedText = new StringBuilder();
         Map<Integer, Style> styleMap = new HashMap<>();
         AtomicInteger counter = new AtomicInteger(0);
+        TaggedExtractionWriter taggedWriter = new TaggedExtractionWriter(markedText, styleMap, counter);
 
         message.visit((style, string) -> {
             if (!string.isEmpty()) {
                 if (!style.isEmpty()) {
-                    appendTaggedSegments(markedText, styleMap, counter, style, string);
+                    appendTaggedSegments(taggedWriter, style, string);
                 } else {
-                    markedText.append(string);
+                    taggedWriter.appendPlain(string);
                 }
             }
             return Optional.empty();
         }, Style.EMPTY);
 
+        taggedWriter.flushPendingTaggedSegment();
         return new ExtractionResult(markedText.toString(), styleMap);
     }
 
@@ -165,10 +165,78 @@ public class StylePreserver {
         appendTaggedContent(target, content, originalStyle, stripFont);
     }
 
+    private static final class TaggedExtractionWriter {
+        private final StringBuilder markedText;
+        private final Map<Integer, Style> styleMap;
+        private final AtomicInteger counter;
+        private final StringBuilder pendingSegment = new StringBuilder();
+        private Style pendingStyle;
+        private Integer pendingStyleId;
+        private Boolean pendingDecorativeSegment;
+
+        private TaggedExtractionWriter(
+                StringBuilder markedText,
+                Map<Integer, Style> styleMap,
+                AtomicInteger counter
+        ) {
+            this.markedText = markedText;
+            this.styleMap = styleMap;
+            this.counter = counter;
+        }
+
+        private void appendPlain(String string) {
+            flushPendingTaggedSegment();
+            markedText.append(string);
+        }
+
+        private void appendTaggedSegment(Style style, String segment, boolean decorativeSegment) {
+            if (segment == null || segment.isEmpty()) {
+                return;
+            }
+
+            if (canMergePendingSegment(style, decorativeSegment)) {
+                pendingSegment.append(segment);
+                return;
+            }
+
+            flushPendingTaggedSegment();
+            pendingStyle = style;
+            pendingStyleId = counter.getAndIncrement();
+            pendingDecorativeSegment = decorativeSegment;
+            pendingSegment.append(segment);
+        }
+
+        private void flushPendingTaggedSegment() {
+            if (pendingStyleId == null || pendingSegment.length() == 0) {
+                clearPendingTaggedSegment();
+                return;
+            }
+
+            styleMap.put(pendingStyleId, pendingStyle);
+            markedText.append("<s").append(pendingStyleId).append(">");
+            markedText.append(pendingSegment);
+            markedText.append("</s").append(pendingStyleId).append(">");
+            clearPendingTaggedSegment();
+        }
+
+        private boolean canMergePendingSegment(Style style, boolean decorativeSegment) {
+            return pendingStyleId != null
+                    && pendingDecorativeSegment != null
+                    && pendingDecorativeSegment == decorativeSegment
+                    && pendingStyle != null
+                    && pendingStyle.equals(style);
+        }
+
+        private void clearPendingTaggedSegment() {
+            pendingStyle = null;
+            pendingStyleId = null;
+            pendingDecorativeSegment = null;
+            pendingSegment.setLength(0);
+        }
+    }
+
     private static void appendTaggedSegments(
-            StringBuilder markedText,
-            Map<Integer, Style> styleMap,
-            AtomicInteger counter,
+            TaggedExtractionWriter taggedWriter,
             Style style,
             String string
     ) {
@@ -180,7 +248,7 @@ public class StylePreserver {
             boolean isDecorativeGlyph = isDecorativeGlyphCodePoint(codePoint);
 
             if (privateUseSegment != null && privateUseSegment != isDecorativeGlyph && segment.length() > 0) {
-                appendTaggedSegment(markedText, styleMap, counter, style, segment.toString());
+                taggedWriter.appendTaggedSegment(style, segment.toString(), privateUseSegment);
                 segment.setLength(0);
             }
 
@@ -190,26 +258,8 @@ public class StylePreserver {
         }
 
         if (segment.length() > 0) {
-            appendTaggedSegment(markedText, styleMap, counter, style, segment.toString());
+            taggedWriter.appendTaggedSegment(style, segment.toString(), Boolean.TRUE.equals(privateUseSegment));
         }
-    }
-
-    private static void appendTaggedSegment(
-            StringBuilder markedText,
-            Map<Integer, Style> styleMap,
-            AtomicInteger counter,
-            Style style,
-            String segment
-    ) {
-        if (segment == null || segment.isEmpty()) {
-            return;
-        }
-
-        int id = counter.getAndIncrement();
-        styleMap.put(id, style);
-        markedText.append("<s").append(id).append(">");
-        markedText.append(segment);
-        markedText.append("</s").append(id).append(">");
     }
 
     private static void appendTaggedContent(MutableText target, String content, Style originalStyle, boolean stripFont) {

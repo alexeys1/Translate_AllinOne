@@ -113,7 +113,7 @@ public abstract class DrawContextTooltipMixin {
 
         boolean isKeyPressed = KeybindingManager.isPressed(config.keybinding.binding);
         if (TooltipTranslationSupport.shouldShowOriginal(config.keybinding.mode, isKeyPressed)) {
-            if (showRefreshNotice) {
+            if (showRefreshNotice && !TooltipRefreshNoticeSupport.containsRefreshNoticeLine(tooltipLines)) {
                 components.add(TooltipComponent.of(TooltipRefreshNoticeSupport.createRefreshNoticeLine().asOrderedText()));
             }
             return;
@@ -216,7 +216,7 @@ public abstract class DrawContextTooltipMixin {
             }
         }
 
-        if (showRefreshNotice) {
+        if (showRefreshNotice && !TooltipRefreshNoticeSupport.containsRefreshNoticeLine(sourceLines)) {
             components.add(TooltipComponent.of(TooltipRefreshNoticeSupport.createRefreshNoticeLine().asOrderedText()));
         }
 
