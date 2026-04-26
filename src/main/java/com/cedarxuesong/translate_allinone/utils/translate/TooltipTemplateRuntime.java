@@ -9,18 +9,25 @@ import com.cedarxuesong.translate_allinone.utils.text.TemplateProcessor;
 import com.cedarxuesong.translate_allinone.utils.textmatcher.FlatNode;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
+import net.minecraft.text.MutableText;
 import net.minecraft.text.Style;
+import net.minecraft.text.StyleSpriteSource;
 import net.minecraft.text.Text;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.Formatting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -33,15 +40,45 @@ final class TooltipTemplateRuntime {
     static final Pattern STYLE_TAG_ID_PATTERN = Pattern.compile("</?s(\\d+)>");
     private static final Pattern NUMERIC_PLACEHOLDER_ID_PATTERN = Pattern.compile("\\{d(\\d+)}");
     private static final Pattern GLYPH_PLACEHOLDER_ID_PATTERN = Pattern.compile("\\{g(\\d+)}");
+    private static final Pattern LEGACY_FORMATTING_CODE_PATTERN = Pattern.compile("§.");
+    private static final Pattern ENGLISH_WORD_PATTERN = Pattern.compile("[A-Za-z]+(?:'[A-Za-z]+)?");
     private static final Logger LOGGER = LoggerFactory.getLogger("Translate_AllinOne/TooltipTranslationSupport");
     private static final ConcurrentHashMap<CacheMigrationLogKey, CacheMigrationLogThrottleState> CACHE_MIGRATION_LOG_THROTTLE =
             new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<String, Long> FORCE_REFRESH_COMPAT_BYPASS_UNTIL_BY_KEY =
             new ConcurrentHashMap<>();
-    private static final ConcurrentHashMap<String, Long> SKILLS_LOCAL_HIT_LOG_TIMESTAMPS =
+    private static final ConcurrentHashMap<String, Long> ITEM_LOCAL_HIT_LOG_TIMESTAMPS =
             new ConcurrentHashMap<>();
-    private static final long SKILLS_LOCAL_HIT_LOG_THROTTLE_MILLIS = 5000L;
-    private static final WynncraftSkillLocalDictionary LOCAL_SKILL_DICTIONARY = WynncraftSkillLocalDictionary.getInstance();
+    private static final long ITEM_LOCAL_HIT_LOG_THROTTLE_MILLIS = 5000L;
+    private static final WynnSharedDictionaryService SHARED_DICTIONARY_SERVICE = WynnSharedDictionaryService.getInstance();
+    private static final Set<String> SUSPICIOUS_ENGLISH_CONNECTORS = Set.of(
+            "a",
+            "an",
+            "and",
+            "are",
+            "as",
+            "at",
+            "be",
+            "by",
+            "for",
+            "from",
+            "in",
+            "into",
+            "is",
+            "of",
+            "on",
+            "or",
+            "the",
+            "to",
+            "using",
+            "when",
+            "while",
+            "with",
+            "you",
+            "your"
+    );
+    private static final StyleSpriteSource.Font WYNNCRAFT_TOOLTIP_FONT =
+            new StyleSpriteSource.Font(Identifier.of("minecraft", "language/wynncraft"));
 
     private TooltipTemplateRuntime() {
     }
@@ -82,6 +119,20 @@ final class TooltipTemplateRuntime {
     private record DecodedStoredTranslation(String translation, CachedTranslationFormat format) {
     }
 
+    private record LocalDictionaryEvaluation(
+            WynnSharedDictionaryService.LookupResult lookupResult,
+            String rejectionReason,
+            String lookupSource
+    ) {
+        private boolean hit() {
+            return lookupResult != null && lookupResult.hit();
+        }
+
+        private boolean accepted() {
+            return hit() && rejectionReason == null;
+        }
+    }
+
     private record ResolvedTemplateLookup(
             ItemTemplateCache.LookupResult lookupResult,
             CachedTranslationFormat format,
@@ -104,6 +155,85 @@ final class TooltipTemplateRuntime {
 
     static TooltipTranslationSupport.TooltipLineResult translateLine(Text line, boolean useTagStylePreservation) {
         return translatePreparedTemplate(prepareTemplate(line, useTagStylePreservation));
+    }
+
+    static boolean hasLocalDictionaryTranslation(Text line) {
+        if (line == null) {
+            return false;
+        }
+        return evaluateLocalDictionaryLookup(line.getString()).accepted();
+    }
+
+    static String describeLocalDictionaryLookup(Text line) {
+        if (line == null) {
+            return "dictionary=miss";
+        }
+        return describeLocalDictionaryLookup(line.getString());
+    }
+
+    static String describeLocalDictionaryLookup(String sourceText) {
+        if (sourceText == null || sourceText.isBlank()) {
+            return "dictionary=miss";
+        }
+
+        LocalDictionaryEvaluation evaluation = evaluateLocalDictionaryLookup(sourceText);
+        if (!evaluation.hit()) {
+            return "dictionary=miss";
+        }
+
+        WynnSharedDictionaryService.LookupResult lookup = evaluation.lookupResult();
+        String dictionaryId = lookup.dictionaryId() == null || lookup.dictionaryId().isBlank()
+                ? "unknown"
+                : lookup.dictionaryId();
+        String matchType = lookup.matchType() == null ? "" : lookup.matchType().name();
+        String description = "dictionary=" + dictionaryId
+                + ", match=" + matchType
+                + ", translation=\"" + truncateForLog(lookup.translation(), 120) + "\"";
+        if (evaluation.lookupSource() != null && !evaluation.lookupSource().isBlank()) {
+            description += ", source=" + evaluation.lookupSource();
+        }
+        if (!evaluation.accepted()) {
+            description += ", rejected=\"" + truncateForLog(evaluation.rejectionReason(), 120) + "\"";
+        }
+        return description;
+    }
+
+    static boolean shouldAcceptLocalDictionaryTranslation(
+            String sourceText,
+            WynnSharedDictionaryService.LookupResult localLookup
+    ) {
+        return localLookup != null
+                && localLookup.hit()
+                && describeLocalDictionaryRejectionReason(sourceText, localLookup) == null;
+    }
+
+    static WynnSharedDictionaryService.LookupResult lookupAcceptedLocalDictionaryTranslation(String sourceText) {
+        return lookupAcceptedLocalDictionaryTranslation(sourceText, SHARED_DICTIONARY_SERVICE::lookupItemLine);
+    }
+
+    static WynnSharedDictionaryService.LookupResult lookupAcceptedLocalDictionaryTranslation(
+            String sourceText,
+            Function<String, WynnSharedDictionaryService.LookupResult> lookupFunction
+    ) {
+        LocalDictionaryEvaluation evaluation = evaluateLocalDictionaryLookup(sourceText, lookupFunction);
+        return evaluation.accepted() ? evaluation.lookupResult() : null;
+    }
+
+    static void logAcceptedLocalDictionaryHit(
+            ItemTranslateConfig config,
+            WynnSharedDictionaryService.LookupResult localLookup,
+            String sourceText
+    ) {
+        if (localLookup == null || !localLookup.hit()) {
+            return;
+        }
+
+        throttledItemLocalHitLog(
+                config,
+                localLookup.dictionaryId(),
+                sourceText,
+                localLookup.translation()
+        );
     }
 
     static TooltipTranslationSupport.TooltipLineResult translatePreparedTemplate(PreparedTooltipTemplate preparedTemplate) {
@@ -256,6 +386,31 @@ final class TooltipTemplateRuntime {
                 : StylePreserver.reapplyStyles(reassembledOriginal, preparedTemplate.styleResult().styleMap);
     }
 
+    static Text normalizeDecorativePassthroughText(Text text) {
+        if (text == null) {
+            return null;
+        }
+
+        StylePreserver.ExtractionResult styleResult = StylePreserver.extractAndMarkWithTags(text);
+        String normalized = TemplateProcessor.normalizeWynnInlineSpacerGlyphsInTaggedText(styleResult.markedText);
+        if (normalized == null || normalized.isEmpty()) {
+            return Text.empty();
+        }
+        return StylePreserver.reapplyStylesFromTags(normalized, styleResult.styleMap, true);
+    }
+
+    static Text preserveDecorativePrefixPassthroughText(Text text) {
+        if (text == null) {
+            return null;
+        }
+
+        StylePreserver.ExtractionResult styleResult = StylePreserver.extractAndMarkWithTags(text);
+        if (styleResult.markedText == null || styleResult.markedText.isEmpty()) {
+            return Text.empty();
+        }
+        return StylePreserver.reapplyStylesFromTags(styleResult.markedText, styleResult.styleMap, true);
+    }
+
     static void registerForceRefreshCompatBypass(Iterable<String> translationTemplateKeys) {
         if (translationTemplateKeys == null) {
             return;
@@ -320,13 +475,19 @@ final class TooltipTemplateRuntime {
         boolean invalidCurrentTranslation = false;
         ItemTranslateConfig config = Translate_AllinOne.getConfig().itemTranslate;
 
-        String localTranslation = LOCAL_SKILL_DICTIONARY.findTranslation(preparedTemplate.sourceLine().getString());
-        if (localTranslation != null && !localTranslation.isBlank()) {
-            throttledSkillsLocalHitLog(config, preparedTemplate.sourceLine().getString(), localTranslation);
+        LocalDictionaryEvaluation localEvaluation =
+                evaluateLocalDictionaryLookup(preparedTemplate.sourceLine().getString());
+        if (localEvaluation.accepted()) {
+            WynnSharedDictionaryService.LookupResult localLookup = localEvaluation.lookupResult();
+            logAcceptedLocalDictionaryHit(
+                    config,
+                    localLookup,
+                    preparedTemplate.sourceLine().getString()
+            );
             return new ResolvedTemplateLookup(
-                    translatedLookup(localTranslation),
+                    translatedLookup(localLookup.translation()),
                     CachedTranslationFormat.LEGACY,
-                    StylePreserver.fromLegacyText(localTranslation)
+                    renderLocalDictionaryTranslation(preparedTemplate, localLookup.translation())
             );
         }
 
@@ -501,6 +662,236 @@ final class TooltipTemplateRuntime {
         return new ResolvedTemplateLookup(cache.lookupOrQueue(preparedTemplate.translationTemplateKey()), currentFormat, null);
     }
 
+    private static LocalDictionaryEvaluation evaluateLocalDictionaryLookup(String sourceText) {
+        return evaluateLocalDictionaryLookup(sourceText, SHARED_DICTIONARY_SERVICE::lookupItemLine);
+    }
+
+    private static LocalDictionaryEvaluation evaluateLocalDictionaryLookup(
+            String sourceText,
+            Function<String, WynnSharedDictionaryService.LookupResult> lookupFunction
+    ) {
+        if (sourceText == null || sourceText.isBlank()) {
+            return new LocalDictionaryEvaluation(null, null, "");
+        }
+
+        String visibleSource = normalizeLocalDictionaryLookupSourceText(sourceText);
+        LocalDictionaryEvaluation visibleEvaluation = evaluateLocalDictionaryLookupCandidate(
+                sourceText,
+                visibleSource,
+                "visible",
+                lookupFunction
+        );
+        if (visibleEvaluation.accepted()) {
+            return visibleEvaluation;
+        }
+
+        LocalDictionaryEvaluation rawEvaluation = null;
+        if (!sameDictionaryLookupText(sourceText, visibleSource)) {
+            rawEvaluation = evaluateLocalDictionaryLookupCandidate(
+                    sourceText,
+                    sourceText,
+                    "raw",
+                    lookupFunction
+            );
+            if (rawEvaluation.accepted()) {
+                return rawEvaluation;
+            }
+        }
+
+        if (rawEvaluation != null && rawEvaluation.hit()) {
+            return rawEvaluation;
+        }
+        if (visibleEvaluation.hit()) {
+            return visibleEvaluation;
+        }
+        return rawEvaluation != null
+                ? rawEvaluation
+                : visibleEvaluation;
+    }
+
+    private static LocalDictionaryEvaluation evaluateLocalDictionaryLookupCandidate(
+            String originalSourceText,
+            String lookupSourceText,
+            String lookupSourceLabel,
+            Function<String, WynnSharedDictionaryService.LookupResult> lookupFunction
+    ) {
+        if (lookupSourceText == null || lookupSourceText.isBlank()) {
+            return new LocalDictionaryEvaluation(null, null, lookupSourceLabel);
+        }
+
+        WynnSharedDictionaryService.LookupResult lookup = lookupFunction == null
+                ? null
+                : lookupFunction.apply(lookupSourceText);
+        if (lookup == null || !lookup.hit()) {
+            return new LocalDictionaryEvaluation(lookup, null, lookupSourceLabel);
+        }
+        return new LocalDictionaryEvaluation(
+                lookup,
+                describeLocalDictionaryRejectionReason(originalSourceText, lookup),
+                lookupSourceLabel
+        );
+    }
+
+    private static boolean sameDictionaryLookupText(String rawSourceText, String normalizedVisibleSource) {
+        if (rawSourceText == null || normalizedVisibleSource == null) {
+            return false;
+        }
+        return normalizeLocalDictionaryLookupSourceText(rawSourceText).equals(normalizedVisibleSource)
+                && rawSourceText.equals(normalizedVisibleSource);
+    }
+
+    private static String describeLocalDictionaryRejectionReason(
+            String sourceText,
+            WynnSharedDictionaryService.LookupResult localLookup
+    ) {
+        if (!shouldApplyLocalDictionaryEnglishFallbackHeuristics()
+                || sourceText == null
+                || sourceText.isBlank()
+                || localLookup == null
+                || !localLookup.hit()) {
+            return null;
+        }
+
+        String visibleSource = normalizeLocalDictionaryLookupSourceText(sourceText);
+        String visibleTranslation = normalizeLocalDictionaryLookupSourceText(localLookup.translation());
+        if (visibleSource.isEmpty() || visibleTranslation.isEmpty()) {
+            return null;
+        }
+
+        LinkedHashSet<String> sourceEnglishWords = extractEnglishWordTokens(visibleSource);
+        LinkedHashSet<String> translatedEnglishWords = extractEnglishWordTokens(visibleTranslation);
+        if (sourceEnglishWords.isEmpty() || translatedEnglishWords.isEmpty()) {
+            return null;
+        }
+
+        LinkedHashSet<String> overlappingEnglishWords = new LinkedHashSet<>(translatedEnglishWords);
+        overlappingEnglishWords.retainAll(sourceEnglishWords);
+        if (overlappingEnglishWords.isEmpty()) {
+            return null;
+        }
+
+        boolean translatedContainsCjk = containsCjkText(visibleTranslation);
+        String connector = findSuspiciousEnglishConnector(overlappingEnglishWords);
+        if (translatedContainsCjk && connector != null) {
+            return "still contains source English connector: " + connector;
+        }
+        if (translatedContainsCjk && overlappingEnglishWords.size() >= 2) {
+            return "still contains source English words: " + summarizeEnglishWords(overlappingEnglishWords, 4);
+        }
+        if (localLookup.matchType() == WynnSharedDictionaryService.MatchType.PATTERN
+                && overlappingEnglishWords.size() >= 2) {
+            return "pattern translation still contains source English words: "
+                    + summarizeEnglishWords(overlappingEnglishWords, 4);
+        }
+        if (!translatedContainsCjk && overlappingEnglishWords.size() >= 3) {
+            return "still looks untranslated: " + summarizeEnglishWords(overlappingEnglishWords, 4);
+        }
+        return null;
+    }
+
+    private static boolean shouldApplyLocalDictionaryEnglishFallbackHeuristics() {
+        return TooltipParagraphSupport.shouldApplyChineseParagraphQualityHeuristics(resolveItemTranslateConfigOrDefault());
+    }
+
+    private static ItemTranslateConfig resolveItemTranslateConfigOrDefault() {
+        try {
+            if (Translate_AllinOne.getConfig() != null && Translate_AllinOne.getConfig().itemTranslate != null) {
+                return Translate_AllinOne.getConfig().itemTranslate;
+            }
+        } catch (RuntimeException ignored) {
+            // Unit tests can exercise tooltip helpers before config registration.
+        }
+        return new ItemTranslateConfig();
+    }
+
+    static String normalizeLocalDictionaryLookupSourceText(String text) {
+        if (text == null || text.isBlank()) {
+            return "";
+        }
+
+        String normalized = LEGACY_FORMATTING_CODE_PATTERN.matcher(text).replaceAll("");
+        normalized = normalized
+                .replace('\u00A0', ' ')
+                .replace('\u2018', '\'')
+                .replace('\u2019', '\'')
+                .replace('\u201C', '"')
+                .replace('\u201D', '"');
+        normalized = TooltipRoutePlanner.normalizeTooltipText(stripDecorativeGlyphsForHeuristics(normalized));
+        return normalized.replaceAll("\\s+", " ").trim();
+    }
+
+    private static LinkedHashSet<String> extractEnglishWordTokens(String text) {
+        LinkedHashSet<String> words = new LinkedHashSet<>();
+        if (text == null || text.isBlank()) {
+            return words;
+        }
+
+        Matcher matcher = ENGLISH_WORD_PATTERN.matcher(text);
+        while (matcher.find()) {
+            String word = matcher.group().toLowerCase(Locale.ROOT);
+            if (word.length() <= 1 && !SUSPICIOUS_ENGLISH_CONNECTORS.contains(word)) {
+                continue;
+            }
+            words.add(word);
+        }
+        return words;
+    }
+
+    private static String findSuspiciousEnglishConnector(Iterable<String> words) {
+        if (words == null) {
+            return null;
+        }
+
+        for (String word : words) {
+            if (word != null && SUSPICIOUS_ENGLISH_CONNECTORS.contains(word)) {
+                return word;
+            }
+        }
+        return null;
+    }
+
+    private static String summarizeEnglishWords(Iterable<String> words, int maxCount) {
+        if (words == null || maxCount <= 0) {
+            return "";
+        }
+
+        StringBuilder summary = new StringBuilder();
+        int count = 0;
+        for (String word : words) {
+            if (word == null || word.isBlank()) {
+                continue;
+            }
+            if (count >= maxCount) {
+                break;
+            }
+            if (!summary.isEmpty()) {
+                summary.append(", ");
+            }
+            summary.append(word);
+            count++;
+        }
+        return summary.toString();
+    }
+
+    private static boolean containsCjkText(String text) {
+        if (text == null || text.isEmpty()) {
+            return false;
+        }
+
+        for (int offset = 0; offset < text.length(); ) {
+            int codePoint = text.codePointAt(offset);
+            Character.UnicodeScript script = Character.UnicodeScript.of(codePoint);
+            if (script == Character.UnicodeScript.HAN
+                    || script == Character.UnicodeScript.HIRAGANA
+                    || script == Character.UnicodeScript.KATAKANA
+                    || script == Character.UnicodeScript.HANGUL) {
+                return true;
+            }
+            offset += Character.charCount(codePoint);
+        }
+        return false;
+    }
+
     private static ItemTemplateCache.LookupResult translatedLookup(String translation) {
         return new ItemTemplateCache.LookupResult(
                 ItemTemplateCache.TranslationStatus.TRANSLATED,
@@ -509,29 +900,205 @@ final class TooltipTemplateRuntime {
         );
     }
 
-    private static void throttledSkillsLocalHitLog(
+    private static void throttledItemLocalHitLog(
             ItemTranslateConfig config,
+            String dictionaryId,
             String originalText,
             String translation
     ) {
-        if (config == null || !config.log_skills_local_hits) {
+        if (!isItemLocalHitLoggingEnabled(config, dictionaryId)) {
             return;
         }
 
         String normalized = originalText == null ? "" : originalText.replaceAll("\\s+", " ").trim();
-        String logKey = "skills_local_hit:" + Integer.toHexString(normalized.hashCode());
+        String resolvedDictionaryId = dictionaryId == null || dictionaryId.isBlank() ? "items" : dictionaryId;
+        String logKey = resolvedDictionaryId + "_local_hit:" + Integer.toHexString(normalized.hashCode());
         long now = System.currentTimeMillis();
-        Long lastAt = SKILLS_LOCAL_HIT_LOG_TIMESTAMPS.get(logKey);
-        if (lastAt != null && now - lastAt < SKILLS_LOCAL_HIT_LOG_THROTTLE_MILLIS) {
+        Long lastAt = ITEM_LOCAL_HIT_LOG_TIMESTAMPS.get(logKey);
+        if (lastAt != null && now - lastAt < ITEM_LOCAL_HIT_LOG_THROTTLE_MILLIS) {
             return;
         }
 
-        SKILLS_LOCAL_HIT_LOG_TIMESTAMPS.put(logKey, now);
+        ITEM_LOCAL_HIT_LOG_TIMESTAMPS.put(logKey, now);
         Translate_AllinOne.LOGGER.info(
-                "[ItemTranslate] skills_local_hit original=\"{}\" translation=\"{}\"",
+                "[ItemTranslate] {}_local_hit original=\"{}\" translation=\"{}\"",
+                resolvedDictionaryId,
                 truncateForLog(originalText, 220),
                 truncateForLog(translation, 220)
         );
+    }
+
+    private static boolean isItemLocalHitLoggingEnabled(ItemTranslateConfig config, String dictionaryId) {
+        if (config == null || config.debug == null) {
+            return false;
+        }
+
+        String resolvedDictionaryId = dictionaryId == null ? "" : dictionaryId.trim().toLowerCase(Locale.ROOT);
+        return switch (resolvedDictionaryId) {
+            case "items" -> config.debug.log_items_local_hits;
+            case "skills" -> config.debug.log_skills_local_hits;
+            default -> config.debug.log_items_local_hits || config.debug.log_skills_local_hits;
+        };
+    }
+
+    static Text renderLocalDictionaryTranslation(
+            PreparedTooltipTemplate preparedTemplate,
+            String translation
+    ) {
+        if (translation == null || translation.isBlank()) {
+            return Text.empty();
+        }
+
+        if (containsLegacyFormattingCode(translation)) {
+            Text legacyRendered = renderLegacyFormattedLocalDictionaryTranslation(preparedTemplate, translation);
+            if (legacyRendered != null) {
+                return legacyRendered;
+            }
+            return StylePreserver.fromLegacyText(translation);
+        }
+
+        Style inheritedStyle = StylePreserver.sanitizeStyleForComparison(
+                resolveLeadingVisibleStyle(renderOriginalPreparedLine(preparedTemplate)),
+                true
+        );
+        return Text.literal(translation).setStyle(inheritedStyle);
+    }
+
+    private static Text renderLegacyFormattedLocalDictionaryTranslation(
+            PreparedTooltipTemplate preparedTemplate,
+            String translation
+    ) {
+        Text parsedLegacy = StylePreserver.fromLegacyText(translation);
+        if (parsedLegacy == null) {
+            return null;
+        }
+
+        Style decorativeSourceStyle = resolveDecorativeGlyphSourceStyle(preparedTemplate);
+        if (decorativeSourceStyle == null || decorativeSourceStyle.getFont() == null) {
+            return normalizeDecorativePassthroughText(parsedLegacy);
+        }
+
+        MutableText rebuilt = Text.empty();
+        parsedLegacy.visit((style, string) -> {
+            appendLegacyLocalDictionarySegment(rebuilt, string, style, decorativeSourceStyle);
+            return Optional.empty();
+        }, Style.EMPTY);
+        return rebuilt;
+    }
+
+    private static boolean containsLegacyFormattingCode(String value) {
+        return value != null && value.indexOf('§') >= 0;
+    }
+
+    private static Style resolveLeadingVisibleStyle(Text text) {
+        if (text == null) {
+            return Style.EMPTY;
+        }
+
+        final Style[] resolved = {Style.EMPTY};
+        text.visit((style, string) -> {
+            if (string == null || string.isBlank()) {
+                return Optional.empty();
+            }
+            resolved[0] = style == null ? Style.EMPTY : style;
+            return Optional.of(Boolean.TRUE);
+        }, Style.EMPTY);
+        return resolved[0] == null ? Style.EMPTY : resolved[0];
+    }
+
+    private static Style resolveDecorativeGlyphSourceStyle(PreparedTooltipTemplate preparedTemplate) {
+        if (preparedTemplate == null) {
+            return Style.EMPTY;
+        }
+
+        Text sourceLine = preparedTemplate.sourceLine();
+        if (sourceLine != null) {
+            final Style[] sourceResolved = {Style.EMPTY};
+            sourceLine.visit((style, string) -> {
+                if (style != null
+                        && style.getFont() != null
+                        && string != null
+                        && containsDecorativeGlyph(string)) {
+                    sourceResolved[0] = style;
+                    return Optional.of(Boolean.TRUE);
+                }
+                return Optional.empty();
+            }, Style.EMPTY);
+            if (sourceResolved[0] != null && sourceResolved[0].getFont() != null) {
+                return sourceResolved[0];
+            }
+        }
+
+        if (preparedTemplate.styleResult() != null && preparedTemplate.styleResult().styleMap != null) {
+            for (Style style : preparedTemplate.styleResult().styleMap.values()) {
+                if (style != null && style.getFont() != null) {
+                    return style;
+                }
+            }
+        }
+
+        Text originalText = renderOriginalPreparedLine(preparedTemplate);
+        if (originalText == null) {
+            return Style.EMPTY;
+        }
+
+        final Style[] resolved = {Style.EMPTY};
+        originalText.visit((style, string) -> {
+            if (style != null
+                    && style.getFont() != null
+                    && string != null
+                    && containsDecorativeGlyph(string)) {
+                resolved[0] = style;
+                return Optional.of(Boolean.TRUE);
+            }
+            return Optional.empty();
+        }, Style.EMPTY);
+        if (resolved[0] != null && resolved[0].getFont() != null) {
+            return resolved[0];
+        }
+
+        return sourceLine != null && containsDecorativeGlyph(sourceLine.getString())
+                ? Style.EMPTY.withFont(WYNNCRAFT_TOOLTIP_FONT)
+                : Style.EMPTY;
+    }
+
+    private static void appendLegacyLocalDictionarySegment(
+            MutableText target,
+            String content,
+            Style legacyStyle,
+            Style decorativeSourceStyle
+    ) {
+        if (target == null || content == null || content.isEmpty()) {
+            return;
+        }
+
+        String normalized = TemplateProcessor.collapseWynnInlineSpacerGlyphs(content);
+        if (normalized == null || normalized.isEmpty()) {
+            return;
+        }
+
+        Style readableStyle = StylePreserver.sanitizeStyleForComparison(legacyStyle, true);
+        Style decorativeStyle = readableStyle.withFont(decorativeSourceStyle.getFont());
+        StringBuilder run = new StringBuilder();
+        Boolean decorativeRun = null;
+
+        for (int offset = 0; offset < normalized.length(); ) {
+            int codePoint = normalized.codePointAt(offset);
+            boolean decorativeGlyph = isDecorativeGlyphCodePoint(codePoint);
+
+            if (decorativeRun != null && decorativeRun != decorativeGlyph && run.length() > 0) {
+                target.append(Text.literal(run.toString()).setStyle(Boolean.TRUE.equals(decorativeRun) ? decorativeStyle : readableStyle));
+                run.setLength(0);
+            }
+
+            decorativeRun = decorativeGlyph;
+            run.appendCodePoint(codePoint);
+            offset += Character.charCount(codePoint);
+        }
+
+        if (run.length() > 0) {
+            target.append(Text.literal(run.toString()).setStyle(Boolean.TRUE.equals(decorativeRun) ? decorativeStyle : readableStyle));
+        }
     }
 
     private static List<CompatibilityTemplateKey> collectCompatibilityKeys(PreparedTooltipTemplate preparedTemplate) {

@@ -241,7 +241,7 @@ final class TooltipRoutePlanner {
             int startIndex,
             boolean useTagStylePreservation
     ) {
-        if (!canStartParagraphBlock(candidates, startIndex)) {
+        if (!canStartParagraphBlock(candidates, startIndex, useTagStylePreservation)) {
             return null;
         }
 
@@ -252,7 +252,11 @@ final class TooltipRoutePlanner {
         ));
         int endExclusive = startIndex + 1;
         while (endExclusive < candidates.size()
-                && canExtendParagraphBlock(candidates.get(endExclusive - 1), candidates.get(endExclusive))) {
+                && canExtendParagraphBlock(
+                candidates.get(endExclusive - 1),
+                candidates.get(endExclusive),
+                useTagStylePreservation
+        )) {
             preparedLines.add(TooltipTemplateRuntime.prepareTemplate(
                     candidates.get(endExclusive).line(),
                     useTagStylePreservation
@@ -282,20 +286,42 @@ final class TooltipRoutePlanner {
         );
     }
 
-    private static boolean canStartParagraphBlock(List<TooltipLineCandidate> candidates, int startIndex) {
+    private static boolean canStartParagraphBlock(
+            List<TooltipLineCandidate> candidates,
+            int startIndex,
+            boolean useTagStylePreservation
+    ) {
         if (candidates == null || startIndex < 0 || startIndex + 1 >= candidates.size()) {
             return false;
         }
 
         TooltipLineCandidate current = candidates.get(startIndex);
         TooltipLineCandidate next = candidates.get(startIndex + 1);
-        return canExtendParagraphBlock(current, next);
+        return canExtendParagraphBlock(current, next, useTagStylePreservation);
     }
 
-    private static boolean canExtendParagraphBlock(TooltipLineCandidate previous, TooltipLineCandidate next) {
+    private static boolean canExtendParagraphBlock(
+            TooltipLineCandidate previous,
+            TooltipLineCandidate next,
+            boolean useTagStylePreservation
+    ) {
         return isParagraphLikeLine(previous)
                 && isParagraphLikeLine(next)
+                && !hasStructuredCaptureRoute(previous, useTagStylePreservation)
+                && !hasStructuredCaptureRoute(next, useTagStylePreservation)
                 && !endsWithStrongTerminalPunctuation(previous.decision().rawText());
+    }
+
+    private static boolean hasStructuredCaptureRoute(
+            TooltipLineCandidate candidate,
+            boolean useTagStylePreservation
+    ) {
+        return candidate != null
+                && candidate.line() != null
+                && !TooltipStructuredCaptureSupport.collectStructuredTemplateKeys(
+                candidate.line(),
+                useTagStylePreservation
+        ).isEmpty();
     }
 
     private static boolean isParagraphLikeLine(TooltipLineCandidate candidate) {
@@ -309,6 +335,9 @@ final class TooltipRoutePlanner {
 
         String raw = normalizeTooltipText(candidate.decision().rawText());
         if (raw.isEmpty() || raw.indexOf(':') >= 0 || raw.indexOf('：') >= 0) {
+            return false;
+        }
+        if (TooltipTemplateRuntime.hasLocalDictionaryTranslation(candidate.line())) {
             return false;
         }
         if (!containsLetterContent(raw)) {

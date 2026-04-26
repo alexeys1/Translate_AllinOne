@@ -11,8 +11,8 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public final class WynncraftDictionaryInstaller {
-    static final String RESOURCE_DIRECTORY = "assets/translate_allinone/lang/wynncraft_dictionary";
-    private static final String CONFIG_DIRECTORY_NAME = "wynncraft_dictionary";
+    static final String RESOURCE_DIRECTORY = "assets/translate_allinone/lang/dictionary";
+    private static final String CONFIG_DIRECTORY_NAME = "dictionary";
 
     private WynncraftDictionaryInstaller() {
     }

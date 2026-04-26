@@ -43,6 +43,7 @@ public final class WynnDialogueTranslationSupport {
     private static final long DIALOGUES_LOCAL_HIT_LOG_THROTTLE_MILLIS = 5000L;
 
     private static final Map<String, Long> DEBUG_LOG_TIMESTAMPS = new ConcurrentHashMap<>();
+    private static final WynnSharedDictionaryService SHARED_DICTIONARY_SERVICE = WynnSharedDictionaryService.getInstance();
 
     private static volatile DialogueCandidate currentCandidate;
     private static volatile String lastOverlayPreparedDialogue = "";
@@ -60,7 +61,7 @@ public final class WynnDialogueTranslationSupport {
     }
 
     public static void init() {
-        localDictionary().load();
+        SHARED_DICTIONARY_SERVICE.loadAll();
         WynnDialogueHudRenderer.init();
     }
 
@@ -361,10 +362,6 @@ public final class WynnDialogueTranslationSupport {
         return WynnDialogueTextCache.getInstance();
     }
 
-    private static WynnDialogueLocalDictionary localDictionary() {
-        return WynnDialogueLocalDictionary.getInstance();
-    }
-
     static boolean shouldShowOriginal(WynnCraftConfig.KeybindingMode mode, boolean isKeyPressed) {
         return WynnDialogueDisplayModeSupport.shouldShowOriginal(mode, isKeyPressed);
     }
@@ -409,7 +406,9 @@ public final class WynnDialogueTranslationSupport {
 
     private static boolean isDialoguesLocalHitLoggingEnabled() {
         WynnCraftConfig.NpcDialogueConfig config = getDialogueConfig();
-        return config != null && config.log_dialogues_local_hits;
+        return config != null
+                && ((config.debug != null && config.debug.log_dialogues_local_hits)
+                || config.log_dialogues_local_hits);
     }
 
     static void devLog(String message, Object... args) {
@@ -726,14 +725,15 @@ public final class WynnDialogueTranslationSupport {
 
         ConcurrentHashMap<String, Boolean> refreshKeys = new ConcurrentHashMap<>();
         String dialogueKey = buildDialogueCacheKey(candidate.dialogue());
-        if (!dialogueKey.isBlank() && !localDictionary().hasDialogueTranslation(prepareDialogueValue(candidate.dialogue()))) {
+        if (!dialogueKey.isBlank()
+                && !SHARED_DICTIONARY_SERVICE.hasPreparedDialogueTranslation(prepareDialogueValue(candidate.dialogue()))) {
             refreshKeys.put(dialogueKey, Boolean.TRUE);
         }
 
         if (shouldTranslateNpcNames()
                 && candidate.npcName() != null
                 && !candidate.npcName().isBlank()
-                && !localDictionary().hasNpcTranslation(prepareNpcValue(candidate.npcName()))) {
+                && !SHARED_DICTIONARY_SERVICE.hasPreparedNpcTranslation(prepareNpcValue(candidate.npcName()))) {
             refreshKeys.put(buildNpcCacheKey(candidate.npcName()), Boolean.TRUE);
         }
 
@@ -813,25 +813,29 @@ public final class WynnDialogueTranslationSupport {
         }
 
         String preparedDialogue = prepareDialogueValue(dialogue);
-        if (localDictionary().hasDialogueTranslation(preparedDialogue)) {
-            String localTranslation = localDictionary().findDialogueTranslation(preparedDialogue);
+        WynnSharedDictionaryService.LookupResult exactLookup =
+                SHARED_DICTIONARY_SERVICE.lookupPreparedDialogue(preparedDialogue);
+        if (exactLookup.hit()) {
             throttledDialoguesLocalHitLog(
                     "exact",
                     preparedDialogue,
-                    localTranslation == null ? "" : restorePlayerPlaceholders(localTranslation),
+                    restorePlayerPlaceholders(exactLookup.translation()),
                     "queue_skip"
             );
             return;
         }
-        if (allowLocalPrefixShortCircuit && localDictionary().findDialogueByPrefix(preparedDialogue) != null) {
-            String localTranslation = localDictionary().findDialogueByPrefix(preparedDialogue);
-            throttledDialoguesLocalHitLog(
-                    "prefix",
-                    preparedDialogue,
-                    localTranslation == null ? "" : restorePlayerPlaceholders(localTranslation),
-                    "queue_skip"
-            );
-            return;
+        if (allowLocalPrefixShortCircuit) {
+            WynnSharedDictionaryService.LookupResult prefixLookup =
+                    SHARED_DICTIONARY_SERVICE.lookupPreparedDialogueByPrefix(preparedDialogue);
+            if (prefixLookup.hit()) {
+                throttledDialoguesLocalHitLog(
+                        "prefix",
+                        preparedDialogue,
+                        restorePlayerPlaceholders(prefixLookup.translation()),
+                        "queue_skip"
+                );
+                return;
+            }
         }
 
         if (!hasConfiguredRoute()) {
@@ -868,12 +872,13 @@ public final class WynnDialogueTranslationSupport {
             );
             return;
         }
-        if (localDictionary().hasNpcTranslation(prepareNpcValue(npcName))) {
-            String localTranslation = localDictionary().findNpcTranslation(prepareNpcValue(npcName));
+        WynnSharedDictionaryService.LookupResult npcLookup =
+                SHARED_DICTIONARY_SERVICE.lookupPreparedNpc(prepareNpcValue(npcName));
+        if (npcLookup.hit()) {
             throttledDialoguesLocalHitLog(
                     "exact",
                     npcName,
-                    localTranslation == null ? "" : localTranslation,
+                    npcLookup.translation(),
                     "queue_skip_npc"
             );
             return;
@@ -892,10 +897,11 @@ public final class WynnDialogueTranslationSupport {
             return npcName == null ? "" : npcName;
         }
 
-        String localTranslation = localDictionary().findNpcTranslation(prepareNpcValue(npcName));
-        if (localTranslation != null && !localTranslation.isBlank()) {
-            throttledDialoguesLocalHitLog("exact", npcName, localTranslation, "resolve_npc");
-            return localTranslation;
+        WynnSharedDictionaryService.LookupResult npcLookup =
+                SHARED_DICTIONARY_SERVICE.lookupPreparedNpc(prepareNpcValue(npcName));
+        if (npcLookup.hit()) {
+            throttledDialoguesLocalHitLog("exact", npcName, npcLookup.translation(), "resolve_npc");
+            return npcLookup.translation();
         }
 
         WynnDialogueTextCache.LookupResult lookup = allowQueue && hasConfiguredRoute()
@@ -919,9 +925,10 @@ public final class WynnDialogueTranslationSupport {
         }
 
         String preparedDialogue = prepareDialogueValue(dialogue);
-        String localTranslation = localDictionary().findDialogueTranslation(preparedDialogue);
-        if (localTranslation != null && !localTranslation.isBlank()) {
-            String restoredTranslation = restorePlayerPlaceholders(localTranslation);
+        WynnSharedDictionaryService.LookupResult exactLookup =
+                SHARED_DICTIONARY_SERVICE.lookupPreparedDialogue(preparedDialogue);
+        if (exactLookup.hit()) {
+            String restoredTranslation = restorePlayerPlaceholders(exactLookup.translation());
             throttledDialoguesLocalHitLog("exact", preparedDialogue, restoredTranslation, "resolve");
             return DialogueDisplayState.of(restoredTranslation, false, "");
         }
@@ -960,9 +967,10 @@ public final class WynnDialogueTranslationSupport {
             return null;
         }
 
-        String localPrefixTranslation = localDictionary().findDialogueByPrefix(preparedDialogue);
-        if (localPrefixTranslation != null && !localPrefixTranslation.isBlank()) {
-            String restoredTranslation = restorePlayerPlaceholders(localPrefixTranslation);
+        WynnSharedDictionaryService.LookupResult prefixLookup =
+                SHARED_DICTIONARY_SERVICE.lookupPreparedDialogueByPrefix(preparedDialogue);
+        if (prefixLookup.hit()) {
+            String restoredTranslation = restorePlayerPlaceholders(prefixLookup.translation());
             throttledDialoguesLocalHitLog("prefix", preparedDialogue, restoredTranslation, "resolve");
             return restoredTranslation;
         }

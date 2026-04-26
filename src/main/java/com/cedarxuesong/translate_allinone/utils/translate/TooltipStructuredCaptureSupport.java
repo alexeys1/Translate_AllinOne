@@ -1,5 +1,6 @@
 package com.cedarxuesong.translate_allinone.utils.translate;
 
+import com.cedarxuesong.translate_allinone.utils.AnimationManager;
 import com.cedarxuesong.translate_allinone.utils.textmatcher.ContentMatcher;
 import com.cedarxuesong.translate_allinone.utils.textmatcher.FlatNode;
 import com.cedarxuesong.translate_allinone.utils.textmatcher.TextMatchResult;
@@ -51,6 +52,10 @@ final class TooltipStructuredCaptureSupport {
     }
 
     static StructuredTooltipLineResult tryTranslateStructuredLine(Text line, boolean useTagStylePreservation) {
+        if (containsEmbeddedLegacyFormattingCodes(line)) {
+            return null;
+        }
+
         List<FlatNode> splitNodes = splitStructuredNodes(line);
         if (splitNodes.isEmpty()) {
             return null;
@@ -65,6 +70,10 @@ final class TooltipStructuredCaptureSupport {
     }
 
     static Set<String> collectStructuredTemplateKeys(Text line, boolean useTagStylePreservation) {
+        if (containsEmbeddedLegacyFormattingCodes(line)) {
+            return Set.of();
+        }
+
         List<FlatNode> splitNodes = splitStructuredNodes(line);
         if (splitNodes.isEmpty()) {
             return Set.of();
@@ -79,17 +88,30 @@ final class TooltipStructuredCaptureSupport {
         return enchantListMatch == null ? Set.of() : enchantListMatch.translationTemplateKeys();
     }
 
+    private static boolean containsEmbeddedLegacyFormattingCodes(Text line) {
+        if (line == null) {
+            return false;
+        }
+
+        String raw = line.getString();
+        if (raw == null || raw.isEmpty() || raw.indexOf('§') < 0) {
+            return false;
+        }
+        return !AnimationManager.stripFormatting(raw).equals(raw);
+    }
+
     private static StructuredTooltipLineResult translateLabelValueStructuredLine(
             StructuredLineMatch structuredLine,
             boolean useTagStylePreservation
     ) {
+        String debugSummary = buildDetailedDebugSummary(structuredLine);
         TooltipTranslationSupport.TooltipLineResult labelTranslation =
                 TooltipTemplateRuntime.translateLine(structuredLine.labelTranslationText(), useTagStylePreservation);
         if (isErrorTranslation(labelTranslation.translatedLine())) {
             return new StructuredTooltipLineResult(
                     labelTranslation,
                     structuredLine.translationTemplateKeys(),
-                    buildDebugSummary(structuredLine)
+                    debugSummary
             );
         }
 
@@ -100,23 +122,21 @@ final class TooltipStructuredCaptureSupport {
                 return new StructuredTooltipLineResult(
                         valueTranslation,
                         structuredLine.translationTemplateKeys(),
-                        buildDebugSummary(structuredLine)
+                        debugSummary
                 );
             }
         }
 
         MutableText combined = Text.empty();
-        if (structuredLine.prefixText() != null) {
-            combined.append(structuredLine.prefixText());
+        appendPreservedPrefixPassThroughText(combined, structuredLine.prefixText());
+        if (labelTranslation.translatedLine() != null) {
+            combined.append(labelTranslation.translatedLine());
         }
-        combined.append(labelTranslation.translatedLine());
-        if (structuredLine.colonText() != null) {
-            combined.append(structuredLine.colonText());
-        }
-        if (structuredLine.spacingText() != null) {
-            combined.append(structuredLine.spacingText());
-        }
-        combined.append(valueTranslation == null ? structuredLine.valueText() : valueTranslation.translatedLine());
+        appendNormalizedPassThroughText(combined, structuredLine.colonText());
+        appendNormalizedPassThroughText(combined, structuredLine.spacingText());
+        combined.append(valueTranslation == null
+                ? TooltipTemplateRuntime.normalizeDecorativePassthroughText(structuredLine.valueText())
+                : valueTranslation.translatedLine());
         return new StructuredTooltipLineResult(
                 new TooltipTranslationSupport.TooltipLineResult(
                         combined,
@@ -124,11 +144,22 @@ final class TooltipStructuredCaptureSupport {
                         labelTranslation.missingKeyIssue() || (valueTranslation != null && valueTranslation.missingKeyIssue())
                 ),
                 structuredLine.translationTemplateKeys(),
-                buildDebugSummary(structuredLine)
+                debugSummary
         );
     }
 
     private static StructuredLineMatch matchStructuredLine(List<FlatNode> splitNodes, boolean useTagStylePreservation) {
+        StructuredLineMatch colonStructuredLine = matchColonStructuredLine(splitNodes, useTagStylePreservation);
+        if (colonStructuredLine != null) {
+            return colonStructuredLine;
+        }
+        return matchDecorativeStructuredLine(splitNodes, useTagStylePreservation);
+    }
+
+    private static StructuredLineMatch matchColonStructuredLine(
+            List<FlatNode> splitNodes,
+            boolean useTagStylePreservation
+    ) {
         TextMatchResult match = STRUCTURED_LABEL_VALUE_PATTERN.match(splitNodes);
         if (!match.success()) {
             return null;
@@ -145,7 +176,89 @@ final class TooltipStructuredCaptureSupport {
             return null;
         }
 
-        StructuredLineKind kind = classifyStructuredLineKind(labelText, valueText);
+        return buildStructuredLineMatch(
+                labelNodes,
+                valueNodes,
+                toText(match.groupNodes("prefix")),
+                toText(match.groupNodes("colon")),
+                toText(match.groupNodes("spacing")),
+                labelText,
+                valueText,
+                useTagStylePreservation,
+                false
+        );
+    }
+
+    private static StructuredLineMatch matchDecorativeStructuredLine(
+            List<FlatNode> splitNodes,
+            boolean useTagStylePreservation
+    ) {
+        if (splitNodes == null || splitNodes.isEmpty()) {
+            return null;
+        }
+
+        int prefixEnd = 0;
+        while (prefixEnd < splitNodes.size() && isStructuredPrefixSegment(splitNodes.get(prefixEnd))) {
+            prefixEnd++;
+        }
+        if (prefixEnd >= splitNodes.size()) {
+            return null;
+        }
+
+        int separatorStart = -1;
+        for (int index = prefixEnd; index < splitNodes.size(); index++) {
+            if (isDecorativeStructuredSeparatorSegment(splitNodes.get(index))) {
+                separatorStart = index;
+                break;
+            }
+        }
+        if (separatorStart <= prefixEnd || separatorStart >= splitNodes.size() - 1) {
+            return null;
+        }
+
+        int valueStart = separatorStart;
+        while (valueStart < splitNodes.size()
+                && (isDecorativeStructuredSeparatorSegment(splitNodes.get(valueStart))
+                || isWhitespaceOnlySegment(splitNodes.get(valueStart)))) {
+            valueStart++;
+        }
+        if (valueStart >= splitNodes.size()) {
+            return null;
+        }
+
+        List<FlatNode> labelNodes = trimWhitespaceNodes(splitNodes.subList(prefixEnd, separatorStart));
+        List<FlatNode> valueNodes = trimWhitespaceNodes(splitNodes.subList(valueStart, splitNodes.size()));
+        Text labelText = toText(labelNodes);
+        Text valueText = toText(valueNodes);
+        if (labelText == null || valueText == null) {
+            return null;
+        }
+
+        return buildStructuredLineMatch(
+                labelNodes,
+                valueNodes,
+                prefixEnd <= 0 ? null : toText(splitNodes.subList(0, prefixEnd)),
+                null,
+                toText(splitNodes.subList(separatorStart, valueStart)),
+                labelText,
+                valueText,
+                useTagStylePreservation,
+                true
+        );
+    }
+
+    private static StructuredLineMatch buildStructuredLineMatch(
+            List<FlatNode> labelNodes,
+            List<FlatNode> valueNodes,
+            Text prefixText,
+            Text colonText,
+            Text spacingText,
+            Text labelText,
+            Text valueText,
+            boolean useTagStylePreservation,
+            boolean allowWordPhraseValue
+    ) {
+        StructuredLineKind kind = classifyStructuredLineKind(labelText, valueText, allowWordPhraseValue);
         if (kind == null) {
             return null;
         }
@@ -231,7 +344,33 @@ final class TooltipStructuredCaptureSupport {
         );
     }
 
-    private static StructuredLineKind classifyStructuredLineKind(Text labelText, Text valueText) {
+    private static void appendNormalizedPassThroughText(MutableText target, Text text) {
+        if (target == null || text == null) {
+            return;
+        }
+
+        Text normalized = TooltipTemplateRuntime.normalizeDecorativePassthroughText(text);
+        if (normalized != null) {
+            target.append(normalized);
+        }
+    }
+
+    private static void appendPreservedPrefixPassThroughText(MutableText target, Text text) {
+        if (target == null || text == null) {
+            return;
+        }
+
+        Text preserved = TooltipTemplateRuntime.preserveDecorativePrefixPassthroughText(text);
+        if (preserved != null) {
+            target.append(preserved);
+        }
+    }
+
+    private static StructuredLineKind classifyStructuredLineKind(
+            Text labelText,
+            Text valueText,
+            boolean allowWordPhraseValue
+    ) {
         String normalizedLabel = normalizeLabel(textString(labelText));
         String normalizedValue = normalizeValue(textString(valueText));
         if (normalizedLabel.isEmpty() || normalizedValue.isEmpty()) {
@@ -249,6 +388,9 @@ final class TooltipStructuredCaptureSupport {
         }
         if (isGenericMeasuredValue(normalizedValue)) {
             return StructuredLineKind.MEASURED_VALUE;
+        }
+        if (allowWordPhraseValue && isWordPhraseValue(normalizedValue)) {
+            return StructuredLineKind.WORD_VALUE;
         }
         if (isSelectedLikeLabel(normalizedLabel) && isWordPhraseValue(normalizedValue)) {
             return StructuredLineKind.SELECTED_VALUE;
@@ -403,6 +545,29 @@ final class TooltipStructuredCaptureSupport {
                 + ", value=\"" + truncateForLog(textString(structuredLine.valueText()), 96) + "\""
                 + ", labelKey=\"" + truncateForLog(structuredLine.labelKey(), 140) + "\""
                 + (structuredLine.valueKey() == null ? "" : ", valueKey=\"" + truncateForLog(structuredLine.valueKey(), 140) + "\"");
+    }
+
+    private static String buildDetailedDebugSummary(StructuredLineMatch structuredLine) {
+        if (structuredLine == null) {
+            return "";
+        }
+
+        StringBuilder detail = new StringBuilder(buildDebugSummary(structuredLine));
+        detail.append(", labelLookup=\"")
+                .append(truncateForLog(
+                        TooltipTemplateRuntime.describeLocalDictionaryLookup(structuredLine.labelTranslationText()),
+                        180
+                ))
+                .append('"');
+        if (structuredLine.kind().translateValue()) {
+            detail.append(", valueLookup=\"")
+                    .append(truncateForLog(
+                            TooltipTemplateRuntime.describeLocalDictionaryLookup(structuredLine.valueTranslationText()),
+                            180
+                    ))
+                    .append('"');
+        }
+        return detail.toString();
     }
 
     private static String buildDebugSummary(EnchantListMatch enchantListMatch) {
@@ -747,6 +912,9 @@ final class TooltipStructuredCaptureSupport {
     }
 
     private static InlineSegmentType classifyInlineSegmentType(int codePoint) {
+        if (codePoint > 0xFFFF || isPrivateUseCodePoint(codePoint)) {
+            return InlineSegmentType.OTHER;
+        }
         if (codePoint == ':' || codePoint == '：') {
             return InlineSegmentType.COLON;
         }
@@ -797,13 +965,43 @@ final class TooltipStructuredCaptureSupport {
                 offset += Character.charCount(codePoint);
                 continue;
             }
+            if (isPrivateUseCodePoint(codePoint) || isDecorativePrefixCodePoint(codePoint)) {
+                sawDecorative = true;
+                offset += Character.charCount(codePoint);
+                continue;
+            }
             if (Character.isLetterOrDigit(codePoint) || codePoint == ':' || codePoint == '：') {
                 return false;
             }
-            if (!isPrivateUseCodePoint(codePoint) && !isDecorativePrefixCodePoint(codePoint)) {
+            return false;
+        }
+        return sawDecorative;
+    }
+
+    private static boolean isDecorativeStructuredSeparatorSegment(FlatNode node) {
+        String value = node == null ? "" : node.extractString();
+        if (value.isEmpty()) {
+            return false;
+        }
+
+        boolean sawDecorative = false;
+        for (int offset = 0; offset < value.length(); ) {
+            int codePoint = value.codePointAt(offset);
+            if (Character.isWhitespace(codePoint)) {
+                offset += Character.charCount(codePoint);
+                continue;
+            }
+            if (isPrivateUseCodePoint(codePoint) || isDecorativePrefixCodePoint(codePoint)) {
+                sawDecorative = true;
+                offset += Character.charCount(codePoint);
+                continue;
+            }
+            if (Character.isLetterOrDigit(codePoint) || codePoint == ':' || codePoint == '：') {
                 return false;
             }
-            sawDecorative = true;
+            if (!isStructuredValueSymbol(codePoint)) {
+                return false;
+            }
             offset += Character.charCount(codePoint);
         }
         return sawDecorative;
@@ -901,7 +1099,13 @@ final class TooltipStructuredCaptureSupport {
     }
 
     private static boolean isPrivateUseCodePoint(int codePoint) {
-        return Character.getType(codePoint) == Character.PRIVATE_USE;
+        int type = Character.getType(codePoint);
+        return type == Character.PRIVATE_USE
+                || type == Character.UNASSIGNED
+                || codePoint > 0xFFFF
+                || (codePoint >= 0xE000 && codePoint <= 0xF8FF)
+                || (codePoint >= 0xF0000 && codePoint <= 0xFFFFD)
+                || (codePoint >= 0x100000 && codePoint <= 0x10FFFF);
     }
 
     private enum InlineSegmentType {
@@ -917,6 +1121,7 @@ final class TooltipStructuredCaptureSupport {
         TIMED_VALUE("structured-timed", true),
         PRICE_VALUE("structured-price", true),
         MEASURED_VALUE("structured-measured", true),
+        WORD_VALUE("structured-word-value", true),
         SELECTED_VALUE("structured-selected", true),
         DONATED_STATUS("structured-donated", true),
         WORD_LIST("structured-list", true);

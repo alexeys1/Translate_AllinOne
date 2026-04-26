@@ -48,14 +48,18 @@ public final class TooltipTranslationContext {
     }
 
     public static boolean consumeSkipDrawContextTranslation(List<Text> tooltipLines) {
-        boolean shouldSkip = consumeSkipDrawContextTranslation();
-        if (!shouldSkip) {
+        if (!SKIP_DRAW_CONTEXT_TRANSLATION.get()) {
             return false;
         }
-
-        boolean matchesExpectedTooltip = matchesExpectedDrawContextTooltip(tooltipLines);
-        clearExpectedDrawContextTooltip();
-        return matchesExpectedTooltip;
+        if (isExpectedDrawContextTooltipUnavailableOrStale()) {
+            setSkipDrawContextTranslation(false);
+            return false;
+        }
+        if (!matchesExpectedDrawContextTooltip(tooltipLines)) {
+            return false;
+        }
+        setSkipDrawContextTranslation(false);
+        return true;
     }
 
     public static void rememberExpectedDrawContextTooltip(List<Text> tooltipLines) {
@@ -84,14 +88,18 @@ public final class TooltipTranslationContext {
     }
 
     public static boolean consumeSkipScreenMirrorTranslation(java.util.Set<String> translationTemplateKeys) {
-        boolean shouldSkip = consumeSkipScreenMirrorTranslation();
-        if (!shouldSkip) {
+        if (!SKIP_SCREEN_MIRROR_TRANSLATION.get()) {
             return false;
         }
-
-        boolean matchesExpectedTooltip = matchesExpectedScreenMirrorTooltip(translationTemplateKeys);
-        clearExpectedScreenMirrorTooltip();
-        return matchesExpectedTooltip;
+        if (isExpectedScreenMirrorTooltipUnavailableOrStale()) {
+            setSkipScreenMirrorTranslation(false);
+            return false;
+        }
+        if (!matchesExpectedScreenMirrorTooltip(translationTemplateKeys)) {
+            return false;
+        }
+        setSkipScreenMirrorTranslation(false);
+        return true;
     }
 
     public static void rememberExpectedScreenMirrorTooltip(java.util.Set<String> translationTemplateKeys) {
@@ -130,18 +138,17 @@ public final class TooltipTranslationContext {
         if (tooltipLines == null || tooltipLines.isEmpty()) {
             return false;
         }
+        return SKIP_DRAW_CONTEXT_TOOLTIP_SIGNATURE.get() == computeVisibleTooltipSignature(tooltipLines);
+    }
 
+    private static boolean isExpectedDrawContextTooltipUnavailableOrStale() {
         long recordedAt = SKIP_DRAW_CONTEXT_TOOLTIP_RECORDED_AT.get();
-        if (recordedAt <= 0L) {
-            return false;
+        if (recordedAt <= 0L || SKIP_DRAW_CONTEXT_TOOLTIP_SIGNATURE.get() == 0) {
+            return true;
         }
 
         long now = System.currentTimeMillis();
-        if (now - recordedAt > DRAW_CONTEXT_SKIP_EXPECTATION_STALE_MILLIS) {
-            return false;
-        }
-
-        return SKIP_DRAW_CONTEXT_TOOLTIP_SIGNATURE.get() == computeVisibleTooltipSignature(tooltipLines);
+        return now - recordedAt > DRAW_CONTEXT_SKIP_EXPECTATION_STALE_MILLIS;
     }
 
     private static void clearExpectedDrawContextTooltip() {
@@ -153,18 +160,17 @@ public final class TooltipTranslationContext {
         if (translationTemplateKeys == null || translationTemplateKeys.isEmpty()) {
             return false;
         }
+        return SKIP_SCREEN_MIRROR_TOOLTIP_SIGNATURE.get() == computeTemplateKeySignature(translationTemplateKeys);
+    }
 
+    private static boolean isExpectedScreenMirrorTooltipUnavailableOrStale() {
         long recordedAt = SKIP_SCREEN_MIRROR_TOOLTIP_RECORDED_AT.get();
-        if (recordedAt <= 0L) {
-            return false;
+        if (recordedAt <= 0L || SKIP_SCREEN_MIRROR_TOOLTIP_SIGNATURE.get() == 0) {
+            return true;
         }
 
         long now = System.currentTimeMillis();
-        if (now - recordedAt > SCREEN_MIRROR_SKIP_EXPECTATION_STALE_MILLIS) {
-            return false;
-        }
-
-        return SKIP_SCREEN_MIRROR_TOOLTIP_SIGNATURE.get() == computeTemplateKeySignature(translationTemplateKeys);
+        return now - recordedAt > SCREEN_MIRROR_SKIP_EXPECTATION_STALE_MILLIS;
     }
 
     private static void clearExpectedScreenMirrorTooltip() {
@@ -321,10 +327,44 @@ public final class TooltipTranslationContext {
     private static int computeVisibleTooltipSignature(List<Text> tooltipLines) {
         int hash = 1;
         for (Text line : tooltipLines) {
-            String value = line == null ? "" : AnimationManager.stripFormatting(line.getString());
+            String value = normalizeVisibleTooltipLine(line);
             hash = 31 * hash + value.hashCode();
         }
         return 31 * hash + tooltipLines.size();
+    }
+
+    private static String normalizeVisibleTooltipLine(Text line) {
+        if (line == null) {
+            return "";
+        }
+
+        String value = AnimationManager.stripFormatting(line.getString());
+        if (value.isEmpty()) {
+            return value;
+        }
+
+        StringBuilder builder = new StringBuilder(value.length());
+        for (int offset = 0; offset < value.length(); ) {
+            int codePoint = value.codePointAt(offset);
+            if (isTooltipSignatureIgnorableCodePoint(codePoint)) {
+                builder.append(' ');
+            } else {
+                builder.appendCodePoint(codePoint);
+            }
+            offset += Character.charCount(codePoint);
+        }
+        return TooltipRoutePlanner.normalizeTooltipText(builder.toString().replaceAll("\\s+", " "));
+    }
+
+    private static boolean isTooltipSignatureIgnorableCodePoint(int codePoint) {
+        if (codePoint == '\uFFFD' || codePoint > 0xFFFF) {
+            return true;
+        }
+
+        int type = Character.getType(codePoint);
+        return type == Character.PRIVATE_USE
+                || type == Character.UNASSIGNED
+                || (codePoint >= 0xE000 && codePoint <= 0xF8FF);
     }
 
     private static int computeTemplateKeySignature(java.util.Set<String> translationTemplateKeys) {

@@ -382,25 +382,46 @@ public final class TooltipTextMatcherSupport {
             boolean emitDevLog,
             String source,
             int lineIndex,
+            Text sourceLine,
             TooltipTranslationSupport.TooltipLineResult lineResult,
             String route,
             String detail,
             long startedAtNanos
     ) {
-        if (!emitDevLog || !shouldLogTooltipTiming(config) || lineResult == null) {
+        boolean logTiming = shouldLogTooltipTiming(config);
+        boolean logRouteResult = shouldLogTooltipFilterResult(config);
+        if (!emitDevLog || !(logTiming || logRouteResult) || lineResult == null) {
+            return;
+        }
+
+        String input = truncate(sourceLine == null ? "" : sourceLine.getString(), 180);
+        String result = truncate(lineResult.translatedLine() == null ? "" : lineResult.translatedLine().getString(), 180);
+        if (logTiming) {
+            LOGGER.info(
+                    "[TooltipDev:{}] line={} route={} translateLine={}ms pending={} missingKeyIssue={} detail=\"{}\" input=\"{}\" result=\"{}\"",
+                    source,
+                    lineIndex + 1,
+                    emptyIfBlank(route),
+                    formatDurationMillis(startedAtNanos),
+                    lineResult.pending(),
+                    lineResult.missingKeyIssue(),
+                    truncate(detail, 220),
+                    input,
+                    result
+            );
             return;
         }
 
         LOGGER.info(
-                "[TooltipDev:{}] line={} route={} translateLine={}ms pending={} missingKeyIssue={} detail=\"{}\" result=\"{}\"",
+                "[TooltipDev:{}] line={} route={} pending={} missingKeyIssue={} detail=\"{}\" input=\"{}\" result=\"{}\"",
                 source,
                 lineIndex + 1,
                 emptyIfBlank(route),
-                formatDurationMillis(startedAtNanos),
                 lineResult.pending(),
                 lineResult.missingKeyIssue(),
                 truncate(detail, 220),
-                truncate(lineResult.translatedLine() == null ? "" : lineResult.translatedLine().getString(), 180)
+                input,
+                result
         );
     }
 

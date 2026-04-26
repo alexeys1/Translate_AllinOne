@@ -20,6 +20,8 @@ import java.util.regex.Pattern;
 
 final class WynncraftPlaceholderDictionary {
     private static final Pattern PLACEHOLDER_PATTERN = Pattern.compile("\\{([A-Za-z_][A-Za-z0-9_]*)}");
+    private static final String SIGNED_DECIMAL_CAPTURE = "([+\\-\\u2212\\u00B1]?\\d+(?:[.,]\\d+)?)";
+    private static final String UNSIGNED_DECIMAL_CAPTURE = "(\\d+(?:[.,]\\d+)?)";
 
     private final Path dictionaryPath;
     private final String dictionaryLabel;
@@ -38,7 +40,7 @@ final class WynncraftPlaceholderDictionary {
         loadAttempted = true;
     }
 
-    public String findTranslation(String sourceText) {
+    LookupResult lookupTranslation(String sourceText) {
         ensureLoaded();
         if (sourceText == null || sourceText.isBlank()) {
             return null;
@@ -51,7 +53,7 @@ final class WynncraftPlaceholderDictionary {
 
         String exact = snapshot.exactTranslations().get(normalizedSource.toLowerCase(Locale.ROOT));
         if (exact != null && !exact.isBlank()) {
-            return exact;
+            return new LookupResult(exact, MatchType.EXACT);
         }
 
         for (PatternEntry entry : snapshot.patternEntries()) {
@@ -62,10 +64,20 @@ final class WynncraftPlaceholderDictionary {
 
             String translated = applyTranslationTemplate(entry.translationTemplate(), matcher, entry.placeholders());
             if (translated != null && !translated.isBlank()) {
-                return translated;
+                return new LookupResult(translated, MatchType.PATTERN);
             }
         }
         return null;
+    }
+
+    public String findTranslation(String sourceText) {
+        LookupResult lookupResult = lookupTranslation(sourceText);
+        return lookupResult == null ? null : lookupResult.translation();
+    }
+
+    boolean hasEntries() {
+        ensureLoaded();
+        return !snapshot.exactTranslations().isEmpty() || !snapshot.patternEntries().isEmpty();
     }
 
     private synchronized void ensureLoaded() {
@@ -170,8 +182,9 @@ final class WynncraftPlaceholderDictionary {
         int lastEnd = 0;
         while (matcher.find()) {
             regex.append(Pattern.quote(sourceTemplate.substring(lastEnd, matcher.start())));
-            regex.append("(.+?)");
-            placeholders.add(matcher.group(1));
+            String placeholder = matcher.group(1);
+            regex.append(resolvePlaceholderCapturePattern(sourceTemplate, matcher.start(), placeholder));
+            placeholders.add(placeholder);
             lastEnd = matcher.end();
         }
         regex.append(Pattern.quote(sourceTemplate.substring(lastEnd)));
@@ -181,6 +194,43 @@ final class WynncraftPlaceholderDictionary {
                 translationTemplate,
                 List.copyOf(placeholders)
         );
+    }
+
+    private static String resolvePlaceholderCapturePattern(
+            String sourceTemplate,
+            int placeholderStart,
+            String placeholder
+    ) {
+        if (!isNumericPlaceholder(placeholder)) {
+            return "(.+?)";
+        }
+        return hasExplicitNumericSignPrefix(sourceTemplate, placeholderStart)
+                ? UNSIGNED_DECIMAL_CAPTURE
+                : SIGNED_DECIMAL_CAPTURE;
+    }
+
+    private static boolean isNumericPlaceholder(String placeholder) {
+        if (placeholder == null || placeholder.isBlank()) {
+            return false;
+        }
+
+        String normalized = placeholder.trim().toLowerCase(Locale.ROOT);
+        return "n".equals(normalized)
+                || "m".equals(normalized)
+                || "x".equals(normalized)
+                || "y".equals(normalized);
+    }
+
+    private static boolean hasExplicitNumericSignPrefix(String sourceTemplate, int placeholderStart) {
+        if (sourceTemplate == null || sourceTemplate.isEmpty() || placeholderStart <= 0) {
+            return false;
+        }
+
+        int previousCodePoint = sourceTemplate.codePointBefore(placeholderStart);
+        return previousCodePoint == '+'
+                || previousCodePoint == '-'
+                || previousCodePoint == '\u2212'
+                || previousCodePoint == '\u00B1';
     }
 
     private static String applyTranslationTemplate(String template, Matcher matcher, List<String> placeholders) {
@@ -195,9 +245,96 @@ final class WynncraftPlaceholderDictionary {
             if (placeholder == null || placeholder.isBlank() || value == null) {
                 continue;
             }
-            translated = translated.replace("{" + placeholder + "}", value);
+            translated = translated.replace(
+                    "{" + placeholder + "}",
+                    sanitizeTranslationPlaceholderValue(placeholder, value)
+            );
         }
         return translated;
+    }
+
+    private static String sanitizeTranslationPlaceholderValue(String placeholder, String value) {
+        if (value == null || value.isEmpty() || placeholder == null || placeholder.isBlank()) {
+            return value;
+        }
+
+        String normalizedPlaceholder = placeholder.trim().toLowerCase(Locale.ROOT);
+        if (normalizedPlaceholder.contains("separator")) {
+            return sanitizeSeparatorPlaceholderValue(value);
+        }
+        if (normalizedPlaceholder.contains("prefix")) {
+            return sanitizePrefixPlaceholderValue(value);
+        }
+        if ("name".equals(normalizedPlaceholder)) {
+            return sanitizeNamePlaceholderValue(value);
+        }
+        return value;
+    }
+
+    private static String sanitizePrefixPlaceholderValue(String value) {
+        if (value == null || value.isEmpty()) {
+            return value;
+        }
+
+        StringBuilder visible = new StringBuilder(value.length());
+        for (int offset = 0; offset < value.length(); ) {
+            int codePoint = value.codePointAt(offset);
+            if (isVisibleBmpDecorativeCodePoint(codePoint)) {
+                visible.appendCodePoint(codePoint);
+            }
+            offset += Character.charCount(codePoint);
+        }
+        return visible.toString();
+    }
+
+    private static String sanitizeSeparatorPlaceholderValue(String value) {
+        if (value == null || value.isEmpty()) {
+            return value;
+        }
+
+        for (int offset = 0; offset < value.length(); ) {
+            int codePoint = value.codePointAt(offset);
+            if (Character.isLetterOrDigit(codePoint)) {
+                return value;
+            }
+            offset += Character.charCount(codePoint);
+        }
+        return " ";
+    }
+
+    private static String sanitizeNamePlaceholderValue(String value) {
+        if (value == null || value.isEmpty()) {
+            return value;
+        }
+
+        int start = 0;
+        while (start < value.length()) {
+            int codePoint = value.codePointAt(start);
+            if (Character.isWhitespace(codePoint) || !isHumanReadableNameCodePoint(codePoint)) {
+                start += Character.charCount(codePoint);
+                continue;
+            }
+            break;
+        }
+        return start <= 0 ? value : value.substring(start);
+    }
+
+    private static boolean isHumanReadableNameCodePoint(int codePoint) {
+        if (!Character.isLetterOrDigit(codePoint)) {
+            return false;
+        }
+
+        Character.UnicodeScript script = Character.UnicodeScript.of(codePoint);
+        return script == Character.UnicodeScript.LATIN
+                || script == Character.UnicodeScript.HAN
+                || script == Character.UnicodeScript.HIRAGANA
+                || script == Character.UnicodeScript.KATAKANA
+                || script == Character.UnicodeScript.HANGUL
+                || script == Character.UnicodeScript.COMMON;
+    }
+
+    private static boolean isVisibleBmpDecorativeCodePoint(int codePoint) {
+        return codePoint >= 0xE000 && codePoint <= 0xF8FF;
     }
 
     private static String normalizeSourceText(String value) {
@@ -226,6 +363,17 @@ final class WynncraftPlaceholderDictionary {
             Pattern pattern,
             String translationTemplate,
             List<String> placeholders
+    ) {
+    }
+
+    enum MatchType {
+        EXACT,
+        PATTERN
+    }
+
+    record LookupResult(
+            String translation,
+            MatchType matchType
     ) {
     }
 

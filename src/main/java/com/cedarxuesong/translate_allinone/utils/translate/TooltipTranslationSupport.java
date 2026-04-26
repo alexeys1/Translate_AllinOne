@@ -203,6 +203,7 @@ public final class TooltipTranslationSupport {
                             emitDevLog,
                             devSource,
                             paragraphBlock.startLineIndex() + offset,
+                            paragraphBlock.preparedLines().get(offset).sourceLine(),
                             lineResult,
                             "paragraph-block",
                             "paragraphKey=" + (paragraphBlock.paragraphTemplate().translationTemplateKey() == null
@@ -253,7 +254,8 @@ public final class TooltipTranslationSupport {
                 route = "line-template";
                 detail = "templateKey=" + (preparedTemplate.translationTemplateKey() == null
                         ? ""
-                        : preparedTemplate.translationTemplateKey());
+                        : preparedTemplate.translationTemplateKey())
+                        + ", " + TooltipTemplateRuntime.describeLocalDictionaryLookup(segment.candidate().line());
             }
 
             if (lineResult.pending()) {
@@ -268,6 +270,7 @@ public final class TooltipTranslationSupport {
                     emitDevLog,
                     devSource,
                     segment.candidate().lineIndex(),
+                    segment.candidate().line(),
                     lineResult,
                     route,
                     detail,

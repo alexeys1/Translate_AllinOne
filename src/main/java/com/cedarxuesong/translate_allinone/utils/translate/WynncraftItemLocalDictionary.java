@@ -1,20 +1,20 @@
 package com.cedarxuesong.translate_allinone.utils.translate;
 
-final class WynncraftSkillLocalDictionary {
+final class WynncraftItemLocalDictionary {
     private final WynncraftPlaceholderDictionary delegate;
 
-    private WynncraftSkillLocalDictionary() {
+    private WynncraftItemLocalDictionary() {
         this(new WynncraftPlaceholderDictionary(
-                WynncraftDictionaryInstaller.resolveConfigDictionaryFile("skills.json"),
-                "wynncraft-skills-dictionary"
+                WynncraftDictionaryInstaller.resolveConfigDictionaryFile("items.json"),
+                "wynncraft-items-dictionary"
         ));
     }
 
-    WynncraftSkillLocalDictionary(WynncraftPlaceholderDictionary delegate) {
+    WynncraftItemLocalDictionary(WynncraftPlaceholderDictionary delegate) {
         this.delegate = delegate;
     }
 
-    static WynncraftSkillLocalDictionary getInstance() {
+    static WynncraftItemLocalDictionary getInstance() {
         return Holder.INSTANCE;
     }
 
@@ -35,6 +35,6 @@ final class WynncraftSkillLocalDictionary {
     }
 
     private static final class Holder {
-        private static final WynncraftSkillLocalDictionary INSTANCE = new WynncraftSkillLocalDictionary();
+        private static final WynncraftItemLocalDictionary INSTANCE = new WynncraftItemLocalDictionary();
     }
 }

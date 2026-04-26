@@ -166,15 +166,20 @@ public class ConfigManager {
         if (configToUse.wynnCraft.npc_dialogue.debug == null) {
             configToUse.wynnCraft.npc_dialogue.debug = new WynnCraftConfig.DebugConfig();
         }
-        if (!configToUse.wynnCraft.npc_dialogue.log_dialogues_local_hits
-                && configToUse.wynnCraft.npc_dialogue.debug.log_local_dictionary_hits) {
-            configToUse.wynnCraft.npc_dialogue.log_dialogues_local_hits = true;
+        if (!configToUse.wynnCraft.npc_dialogue.debug.log_dialogues_local_hits
+                && (configToUse.wynnCraft.npc_dialogue.log_dialogues_local_hits
+                || configToUse.wynnCraft.npc_dialogue.debug.log_local_dictionary_hits)) {
+            configToUse.wynnCraft.npc_dialogue.debug.log_dialogues_local_hits = true;
         }
         if (configToUse.wynnCraft.wynntils_task_tracker == null) {
             configToUse.wynnCraft.wynntils_task_tracker = new WynnCraftConfig.WynntilsTaskTrackerConfig();
         }
         if (configToUse.wynnCraft.wynntils_task_tracker.debug == null) {
             configToUse.wynnCraft.wynntils_task_tracker.debug = new WynnCraftConfig.DebugConfig();
+        }
+        if (!configToUse.wynnCraft.wynntils_task_tracker.debug.log_quests_local_hits
+                && configToUse.wynnCraft.wynntils_task_tracker.debug.log_local_dictionary_hits) {
+            configToUse.wynnCraft.wynntils_task_tracker.debug.log_quests_local_hits = true;
         }
         if (configToUse.wynnCraft.wynntils_task_tracker.keybinding == null) {
             configToUse.wynnCraft.wynntils_task_tracker.keybinding = new WynnCraftConfig.KeybindingConfig();
@@ -230,11 +235,20 @@ public class ConfigManager {
         if (configToUse.itemTranslate.debug == null) {
             configToUse.itemTranslate.debug = new ItemTranslateConfig.DebugConfig();
         }
+        if (!configToUse.itemTranslate.debug.log_items_local_hits
+                && !configToUse.itemTranslate.debug.log_skills_local_hits
+                && configToUse.itemTranslate.log_skills_local_hits) {
+            configToUse.itemTranslate.debug.log_items_local_hits = true;
+            configToUse.itemTranslate.debug.log_skills_local_hits = true;
+        }
         if (configToUse.scoreboardTranslate.keybinding == null) {
             configToUse.scoreboardTranslate.keybinding = new ScoreboardConfig.KeybindingConfig();
         }
         if (configToUse.scoreboardTranslate.keybinding.binding == null) {
             configToUse.scoreboardTranslate.keybinding.binding = new InputBindingConfig();
+        }
+        if (configToUse.scoreboardTranslate.debug == null) {
+            configToUse.scoreboardTranslate.debug = new ScoreboardConfig.DebugConfig();
         }
         configToUse.wynnCraft.npc_dialogue.hud.scale_percent = clamp(
                 configToUse.wynnCraft.npc_dialogue.hud.scale_percent,

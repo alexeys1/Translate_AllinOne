@@ -12,6 +12,7 @@ public class WynnCraftConfig {
     public static class NpcDialogueConfig {
         public boolean enabled = false;
         public boolean translate_npc_name = true;
+        // Legacy compatibility only. Dialogue local-hit logging now uses debug.log_dialogues_local_hits.
         public boolean log_dialogues_local_hits = false;
         public HudConfig hud = new HudConfig();
         @SerializedName(value = "debug", alternate = {"dev"})
@@ -47,6 +48,8 @@ public class WynnCraftConfig {
         public boolean enabled = false;
         // Legacy compatibility only. Dialogue local-hit logging now uses npc_dialogue.log_dialogues_local_hits.
         public boolean log_local_dictionary_hits = false;
+        public boolean log_dialogues_local_hits = false;
+        public boolean log_quests_local_hits = false;
     }
 
     public enum KeybindingMode {

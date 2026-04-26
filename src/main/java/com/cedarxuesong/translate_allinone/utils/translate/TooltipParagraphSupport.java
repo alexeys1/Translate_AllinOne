@@ -67,6 +67,25 @@ final class TooltipParagraphSupport {
             boolean emitDevLog,
             String devSource
     ) {
+        WynnSharedDictionaryService.LookupResult localLookup = lookupAcceptedLocalDictionaryTranslation(block);
+        if (localLookup != null && localLookup.hit()) {
+            TooltipTemplateRuntime.logAcceptedLocalDictionaryHit(
+                    config,
+                    localLookup,
+                    buildParagraphLocalDictionaryLookupSource(block)
+            );
+            List<TooltipTranslationSupport.TooltipLineResult> localResults = renderTranslatedParagraphBlock(
+                    block,
+                    localLookup.translation(),
+                    config,
+                    emitDevLog,
+                    devSource
+            );
+            if (localResults != null) {
+                return new ParagraphTranslationAttempt(localResults, false, false);
+            }
+        }
+
         ItemTemplateCache cache = ItemTemplateCache.getInstance();
         ItemTemplateCache.LookupResult blockLookup = cache.lookupOrQueue(block.paragraphTemplate().translationTemplateKey());
         if (blockLookup.status() == ItemTemplateCache.TranslationStatus.TRANSLATED) {
@@ -105,6 +124,57 @@ final class TooltipParagraphSupport {
             fallbackResults.add(new TooltipTranslationSupport.TooltipLineResult(originalLine, pending, missingKeyIssue));
         }
         return new ParagraphTranslationAttempt(fallbackResults, pending, missingKeyIssue);
+    }
+
+    static WynnSharedDictionaryService.LookupResult lookupAcceptedLocalDictionaryTranslation(TooltipParagraphBlock block) {
+        return lookupAcceptedLocalDictionaryTranslation(
+                block,
+                TooltipTemplateRuntime::lookupAcceptedLocalDictionaryTranslation
+        );
+    }
+
+    static WynnSharedDictionaryService.LookupResult lookupAcceptedLocalDictionaryTranslation(
+            TooltipParagraphBlock block,
+            java.util.function.Function<String, WynnSharedDictionaryService.LookupResult> lookupFunction
+    ) {
+        if (lookupFunction == null) {
+            return null;
+        }
+
+        String sourceText = buildParagraphLocalDictionaryLookupSource(block);
+        if (sourceText.isBlank()) {
+            return null;
+        }
+
+        WynnSharedDictionaryService.LookupResult lookupResult = lookupFunction.apply(sourceText);
+        return TooltipTemplateRuntime.shouldAcceptLocalDictionaryTranslation(sourceText, lookupResult)
+                ? lookupResult
+                : null;
+    }
+
+    private static String buildParagraphLocalDictionaryLookupSource(TooltipParagraphBlock block) {
+        if (block == null || block.preparedLines() == null || block.preparedLines().isEmpty()) {
+            return "";
+        }
+
+        StringBuilder builder = new StringBuilder();
+        for (PreparedTooltipTemplate preparedLine : block.preparedLines()) {
+            if (preparedLine == null || preparedLine.sourceLine() == null) {
+                continue;
+            }
+
+            String normalizedLine = TooltipTemplateRuntime.normalizeLocalDictionaryLookupSourceText(
+                    preparedLine.sourceLine().getString()
+            );
+            if (normalizedLine.isBlank()) {
+                continue;
+            }
+            if (!builder.isEmpty()) {
+                builder.append(' ');
+            }
+            builder.append(normalizedLine);
+        }
+        return builder.toString();
     }
 
     static boolean paragraphRenderDropsTooManyLines(

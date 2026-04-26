@@ -24,6 +24,9 @@ import java.util.Optional;
 import java.util.Set;
 public final class WynntilsTaskTrackerTranslationSupport {
     private static final Set<String> refreshedTrackerKeysThisHold = new HashSet<>();
+    private static final WynnSharedDictionaryService SHARED_DICTIONARY_SERVICE = WynnSharedDictionaryService.getInstance();
+    private static final java.util.Map<String, Long> QUEST_LOCAL_HIT_LOG_TIMESTAMPS = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final long QUEST_LOCAL_HIT_LOG_THROTTLE_MILLIS = 5000L;
 
     private WynntilsTaskTrackerTranslationSupport() {
     }
@@ -63,13 +66,21 @@ public final class WynntilsTaskTrackerTranslationSupport {
             return originalText;
         }
 
+        Text originalTextObject = legacyFormatted
+                ? mergeAdjacentStyleRuns(StylePreserver.fromLegacyText(originalText))
+                : Text.literal(originalText);
+        WynnSharedDictionaryService.LookupResult localLookup = SHARED_DICTIONARY_SERVICE.lookupQuestText(
+                originalTextObject.getString()
+        );
+        if (localLookup.hit()) {
+            logQuestLocalHit(originalTextObject.getString(), localLookup.translation(), localLookup);
+            return renderQuestLocalTranslation(localLookup.translation(), legacyFormatted, originalTextObject);
+        }
+
         if (!hasConfiguredRoute()) {
             return originalText;
         }
 
-        Text originalTextObject = legacyFormatted
-                ? mergeAdjacentStyleRuns(StylePreserver.fromLegacyText(originalText))
-                : Text.literal(originalText);
         boolean useTagStylePreservation = legacyFormatted;
         StylePreserver.ExtractionResult styleResult = useTagStylePreservation
                 ? StylePreserver.extractAndMarkWithTags(originalTextObject)
@@ -147,7 +158,7 @@ public final class WynntilsTaskTrackerTranslationSupport {
         WynnCraftConfig.WynntilsTaskTrackerConfig trackerConfig = getTrackerConfig();
         return shouldTranslateField(trackerConfig, trackerConfig != null && trackerConfig.translate_title)
                 && LifecycleEventManager.isReadyForTranslation
-                && hasConfiguredRoute();
+                && (hasConfiguredRoute() || SHARED_DICTIONARY_SERVICE.hasQuestDictionaryEntries());
     }
 
     private static boolean hasConfiguredRoute() {
@@ -212,6 +223,13 @@ public final class WynntilsTaskTrackerTranslationSupport {
         Translate_AllinOne.LOGGER.info("[WynntilsTaskTracker] " + message, args);
     }
 
+    private static boolean isQuestLocalHitLoggingEnabled() {
+        WynnCraftConfig.WynntilsTaskTrackerConfig trackerConfig = getTrackerConfig();
+        return trackerConfig != null
+                && trackerConfig.debug != null
+                && trackerConfig.debug.log_quests_local_hits;
+    }
+
     private static void maybeForceRefreshCurrentTemplate(String translationTemplateKey) {
         WynnCraftConfig.WynntilsTaskTrackerConfig trackerConfig = getTrackerConfig();
         boolean isRefreshPressed = trackerConfig != null
@@ -269,6 +287,75 @@ public final class WynntilsTaskTrackerTranslationSupport {
     }
 
     private record StyleRun(Style style, StringBuilder text) {
+    }
+
+    private static String renderQuestLocalTranslation(String translation, boolean legacyFormatted, Text originalTextObject) {
+        if (!legacyFormatted) {
+            return translation;
+        }
+
+        if (translation == null || translation.isBlank()) {
+            return "";
+        }
+
+        if (translation.contains("§")) {
+            return translation;
+        }
+
+        Style primaryStyle = resolvePrimaryStyle(originalTextObject);
+        Text translatedTextObject = Text.literal(translation).setStyle(primaryStyle);
+        return toLegacyStringPreservingResets(translatedTextObject);
+    }
+
+    private static Style resolvePrimaryStyle(Text sourceText) {
+        if (sourceText == null) {
+            return Style.EMPTY;
+        }
+
+        final Style[] resolvedStyle = {Style.EMPTY};
+        sourceText.visit((style, string) -> {
+            if (string == null || string.isEmpty()) {
+                return Optional.empty();
+            }
+
+            resolvedStyle[0] = style == null ? Style.EMPTY : style;
+            return Optional.of(Boolean.TRUE);
+        }, Style.EMPTY);
+        return resolvedStyle[0] == null ? Style.EMPTY : resolvedStyle[0];
+    }
+
+    private static void logQuestLocalHit(
+            String originalText,
+            String translation,
+            WynnSharedDictionaryService.LookupResult lookupResult
+    ) {
+        if (!isQuestLocalHitLoggingEnabled()) {
+            return;
+        }
+
+        String normalizedInput = normalizeForLog(originalText);
+        String logKey = "quests_local_hit:" + Integer.toHexString(normalizedInput.hashCode());
+        long now = System.currentTimeMillis();
+        Long lastAt = QUEST_LOCAL_HIT_LOG_TIMESTAMPS.get(logKey);
+        if (lastAt != null && now - lastAt < QUEST_LOCAL_HIT_LOG_THROTTLE_MILLIS) {
+            return;
+        }
+
+        QUEST_LOCAL_HIT_LOG_TIMESTAMPS.put(logKey, now);
+        Translate_AllinOne.LOGGER.info(
+                "[WynntilsTaskTracker] quests_local_hit dictionary={} match={} input=\"{}\" output=\"{}\"",
+                lookupResult.dictionaryId(),
+                lookupResult.matchType() == null ? "" : lookupResult.matchType().name().toLowerCase(),
+                TooltipTemplateRuntime.truncateForLog(normalizedInput, 220),
+                TooltipTemplateRuntime.truncateForLog(normalizeForLog(translation), 220)
+        );
+    }
+
+    private static String normalizeForLog(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+        return AnimationManager.stripFormatting(value).replaceAll("\\s+", " ").trim();
     }
 
     private static String toLegacyStringPreservingResets(Text text) {

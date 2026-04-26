@@ -4,6 +4,8 @@ import com.cedarxuesong.translate_allinone.gui.configui.model.ConfigSection;
 import com.cedarxuesong.translate_allinone.gui.configui.model.RouteSlot;
 import com.cedarxuesong.translate_allinone.utils.cache.ItemTemplateCache;
 import com.cedarxuesong.translate_allinone.utils.cache.ScoreboardTextCache;
+import com.cedarxuesong.translate_allinone.utils.cache.WynnDialogueTextCache;
+import com.cedarxuesong.translate_allinone.utils.cache.WynntilsTaskTrackerTextCache;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ChatTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.CacheBackupConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.DebugConfig;
@@ -414,15 +416,6 @@ public final class ConfigSectionContentSupport {
                         value -> resolvedWynnCraft.npc_dialogue.debug.enabled = value
                 );
                 y += ROW_STEP;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.wynn_npc_dialogue_log_dialogues_local_hits"),
-                        () -> resolvedWynnCraft.npc_dialogue.log_dialogues_local_hits,
-                        value -> resolvedWynnCraft.npc_dialogue.log_dialogues_local_hits = value
-                );
-                y += ROW_STEP;
                 addGroupBox(
                         groupBoxAdder,
                         translator.t("group.wynn_npc_dialogue_debug"),
@@ -442,13 +435,58 @@ public final class ConfigSectionContentSupport {
                         value -> resolvedWynnCraft.wynntils_task_tracker.debug.enabled = value
                 );
                 y += ROW_STEP;
-
                 addGroupBox(
                         groupBoxAdder,
                         translator.t("group.wynntils_task_tracker_debug"),
                         x,
                         width,
                         trackerDebugStart,
+                        y);
+
+                y += GROUP_GAP;
+                int localHitLogsStart = y;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.item_dev_log_items_local_hits"),
+                        () -> item.debug.log_items_local_hits,
+                        value -> item.debug.log_items_local_hits = value
+                );
+                y += ROW_STEP;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.item_dev_log_skills_local_hits"),
+                        () -> item.debug.log_skills_local_hits,
+                        value -> item.debug.log_skills_local_hits = value
+                );
+                y += ROW_STEP;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.wynn_npc_dialogue_log_dialogues_local_hits"),
+                        () -> resolvedWynnCraft.npc_dialogue.debug.log_dialogues_local_hits,
+                        value -> resolvedWynnCraft.npc_dialogue.debug.log_dialogues_local_hits = value
+                );
+                y += ROW_STEP;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.wynntils_task_tracker_log_quests_local_hits"),
+                        () -> resolvedWynnCraft.wynntils_task_tracker.debug.log_quests_local_hits,
+                        value -> resolvedWynnCraft.wynntils_task_tracker.debug.log_quests_local_hits = value
+                );
+                y += ROW_STEP;
+                addGroupBox(
+                        groupBoxAdder,
+                        translator.t("group.log_hits"),
+                        x,
+                        width,
+                        localHitLogsStart,
                         y);
                 return y;
             }
@@ -724,8 +762,18 @@ public final class ConfigSectionContentSupport {
                 y += GROUP_GAP;
                 ItemTemplateCache.CacheStats itemStats = ItemTemplateCache.getInstance().getCacheStats();
                 ScoreboardTextCache.CacheStats scoreboardStats = ScoreboardTextCache.getInstance().getCacheStats();
-                int totalTranslated = itemStats.translated() + scoreboardStats.translated();
-                int totalTracked = itemStats.total() + scoreboardStats.total();
+                WynnDialogueTextCache.CacheStats dialogueStats = WynnDialogueTextCache.getInstance().getCacheStats();
+                WynntilsTaskTrackerTextCache.CacheStats taskTrackerStats = WynntilsTaskTrackerTextCache.getInstance().getCacheStats();
+                int totalTranslated =
+                        itemStats.translated()
+                                + scoreboardStats.translated()
+                                + dialogueStats.translated()
+                                + taskTrackerStats.translated();
+                int totalTracked =
+                        itemStats.total()
+                                + scoreboardStats.total()
+                                + dialogueStats.total()
+                                + taskTrackerStats.total();
 
                 int statsStart = y;
                 textFieldRowAdder.add(
@@ -749,6 +797,34 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.cache_entries_scoreboard"),
                         64,
                         translator.t("value.cache_entries", scoreboardStats.translated(), scoreboardStats.total()).getString(),
+                        Text.empty(),
+                        value -> {
+                        },
+                        value -> true,
+                        false
+                );
+                y += ROW_STEP;
+                textFieldRowAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.cache_entries_wynn_dialogue"),
+                        64,
+                        translator.t("value.cache_entries", dialogueStats.translated(), dialogueStats.total()).getString(),
+                        Text.empty(),
+                        value -> {
+                        },
+                        value -> true,
+                        false
+                );
+                y += ROW_STEP;
+                textFieldRowAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.cache_entries_wynntils_task_tracker"),
+                        64,
+                        translator.t("value.cache_entries", taskTrackerStats.translated(), taskTrackerStats.total()).getString(),
                         Text.empty(),
                         value -> {
                         },

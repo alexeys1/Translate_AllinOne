@@ -1,5 +1,7 @@
 package com.cedarxuesong.translate_allinone.utils.config.pojos;
 
+import com.google.gson.annotations.SerializedName;
+
 public class ScoreboardConfig {
     public boolean enabled = false;
     public boolean enabled_translate_prefix_and_suffix_name = true;
@@ -9,6 +11,8 @@ public class ScoreboardConfig {
     public int max_batch_size = 10;
     public String target_language = "Chinese";
     public KeybindingConfig keybinding = new KeybindingConfig();
+    @SerializedName(value = "debug", alternate = {"dev"})
+    public DebugConfig debug = new DebugConfig();
 
     public enum KeybindingMode {
         HOLD_TO_TRANSLATE,
@@ -19,5 +23,13 @@ public class ScoreboardConfig {
     public static class KeybindingConfig {
         public KeybindingMode mode = KeybindingMode.DISABLED;
         public InputBindingConfig binding = new InputBindingConfig();
+    }
+
+    public static class DebugConfig {
+        public boolean enabled = false;
+        public boolean log_batch_lifecycle = false;
+        public boolean log_response_validation = false;
+        public boolean log_retry_flow = false;
+        public boolean log_batch_timing = false;
     }
 }
