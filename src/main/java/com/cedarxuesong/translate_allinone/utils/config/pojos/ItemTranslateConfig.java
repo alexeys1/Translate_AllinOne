@@ -10,6 +10,7 @@ public class ItemTranslateConfig {
     public int requests_per_minute = 60;
     public int max_batch_size = 10;
     public String target_language = "Chinese";
+    public boolean log_skills_local_hits = false;
     public KeybindingConfig keybinding = new KeybindingConfig();
     @SerializedName(value = "debug", alternate = {"dev"})
     public DebugConfig debug = new DebugConfig();

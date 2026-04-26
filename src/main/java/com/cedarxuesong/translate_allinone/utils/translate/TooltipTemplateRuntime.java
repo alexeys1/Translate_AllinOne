@@ -38,6 +38,10 @@ final class TooltipTemplateRuntime {
             new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<String, Long> FORCE_REFRESH_COMPAT_BYPASS_UNTIL_BY_KEY =
             new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, Long> SKILLS_LOCAL_HIT_LOG_TIMESTAMPS =
+            new ConcurrentHashMap<>();
+    private static final long SKILLS_LOCAL_HIT_LOG_THROTTLE_MILLIS = 5000L;
+    private static final WynncraftSkillLocalDictionary LOCAL_SKILL_DICTIONARY = WynncraftSkillLocalDictionary.getInstance();
 
     private TooltipTemplateRuntime() {
     }
@@ -316,6 +320,16 @@ final class TooltipTemplateRuntime {
         boolean invalidCurrentTranslation = false;
         ItemTranslateConfig config = Translate_AllinOne.getConfig().itemTranslate;
 
+        String localTranslation = LOCAL_SKILL_DICTIONARY.findTranslation(preparedTemplate.sourceLine().getString());
+        if (localTranslation != null && !localTranslation.isBlank()) {
+            throttledSkillsLocalHitLog(config, preparedTemplate.sourceLine().getString(), localTranslation);
+            return new ResolvedTemplateLookup(
+                    translatedLookup(localTranslation),
+                    CachedTranslationFormat.LEGACY,
+                    StylePreserver.fromLegacyText(localTranslation)
+            );
+        }
+
         ItemTemplateCache.LookupResult currentLookup = cache.peek(preparedTemplate.translationTemplateKey());
         DecodedStoredTranslation decodedCurrentTranslation = decodeStoredTranslation(currentLookup.translation(), currentFormat);
         if (currentLookup.status() == ItemTemplateCache.TranslationStatus.TRANSLATED
@@ -492,6 +506,31 @@ final class TooltipTemplateRuntime {
                 ItemTemplateCache.TranslationStatus.TRANSLATED,
                 translation,
                 null
+        );
+    }
+
+    private static void throttledSkillsLocalHitLog(
+            ItemTranslateConfig config,
+            String originalText,
+            String translation
+    ) {
+        if (config == null || !config.log_skills_local_hits) {
+            return;
+        }
+
+        String normalized = originalText == null ? "" : originalText.replaceAll("\\s+", " ").trim();
+        String logKey = "skills_local_hit:" + Integer.toHexString(normalized.hashCode());
+        long now = System.currentTimeMillis();
+        Long lastAt = SKILLS_LOCAL_HIT_LOG_TIMESTAMPS.get(logKey);
+        if (lastAt != null && now - lastAt < SKILLS_LOCAL_HIT_LOG_THROTTLE_MILLIS) {
+            return;
+        }
+
+        SKILLS_LOCAL_HIT_LOG_TIMESTAMPS.put(logKey, now);
+        Translate_AllinOne.LOGGER.info(
+                "[ItemTranslate] skills_local_hit original=\"{}\" translation=\"{}\"",
+                truncateForLog(originalText, 220),
+                truncateForLog(translation, 220)
         );
     }
 
