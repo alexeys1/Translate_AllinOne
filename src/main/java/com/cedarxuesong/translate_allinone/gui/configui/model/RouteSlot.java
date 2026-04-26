@@ -3,6 +3,8 @@ package com.cedarxuesong.translate_allinone.gui.configui.model;
 public enum RouteSlot {
     ITEM("item"),
     SCOREBOARD("scoreboard"),
+    WYNNCRAFT("wynncraft"),
+    WYNN_NPC_DIALOGUE("wynn_npc_dialogue"),
     WYNNTILS_TASK_TRACKER("wynntils_task_tracker"),
     CHAT_INPUT("chat_input"),
     CHAT_OUTPUT("chat_output");

@@ -634,6 +634,7 @@ public class ModConfigScreen extends Screen {
                 this::clearHotkeyBinding,
                 this::cycleHotkeyMode,
                 this::openCacheDirectory,
+                this::openWynnDialogueHudEditor,
                 this::addRouteModelSelector,
                 this::addProviderManagerActions
         );
@@ -1612,6 +1613,13 @@ public class ModConfigScreen extends Screen {
             Translate_AllinOne.LOGGER.warn("Failed to open cache directory {}", cacheDirectory, e);
             setStatus(t("status.failed_open_cache_directory"), COLOR_STATUS_ERROR);
         }
+    }
+
+    private void openWynnDialogueHudEditor() {
+        if (this.client == null) {
+            return;
+        }
+        this.client.setScreen(new WynnDialogueHudEditorScreen(this));
     }
 
     private void openRepositoryLink() {

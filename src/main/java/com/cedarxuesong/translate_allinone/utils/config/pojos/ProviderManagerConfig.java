@@ -34,7 +34,16 @@ public class ProviderManagerConfig {
 
         routes.item = normalizeRouteValue(routes.item);
         routes.scoreboard = normalizeRouteValue(routes.scoreboard);
+        routes.wynn_npc_dialogue = normalizeRouteValue(routes.wynn_npc_dialogue);
         routes.wynntils_task_tracker = normalizeRouteValue(routes.wynntils_task_tracker);
+        routes.wynncraft = normalizeRouteValue(routes.wynncraft);
+        if (routes.wynncraft.isBlank()) {
+            if (!routes.wynn_npc_dialogue.isBlank()) {
+                routes.wynncraft = routes.wynn_npc_dialogue;
+            } else if (!routes.wynntils_task_tracker.isBlank()) {
+                routes.wynncraft = routes.wynntils_task_tracker;
+            }
+        }
         routes.chat_input = normalizeRouteValue(routes.chat_input);
         routes.chat_output = normalizeRouteValue(routes.chat_output);
     }
@@ -113,6 +122,8 @@ public class ProviderManagerConfig {
     public static class Routes {
         public String item = "";
         public String scoreboard = "";
+        public String wynncraft = "";
+        public String wynn_npc_dialogue = "";
         public String wynntils_task_tracker = "";
         public String chat_input = "";
         public String chat_output = "";

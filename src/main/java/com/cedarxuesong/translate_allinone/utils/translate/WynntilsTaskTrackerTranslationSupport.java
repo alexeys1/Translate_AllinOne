@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-
 public final class WynntilsTaskTrackerTranslationSupport {
     private static final Set<String> refreshedTrackerKeysThisHold = new HashSet<>();
 
@@ -130,11 +129,13 @@ public final class WynntilsTaskTrackerTranslationSupport {
     }
 
     public static String getTargetLanguage() {
-        WynnCraftConfig.WynntilsTaskTrackerConfig trackerConfig = getTrackerConfig();
-        if (trackerConfig == null || trackerConfig.target_language == null || trackerConfig.target_language.isBlank()) {
-            return "Chinese";
+        ModConfig config = Translate_AllinOne.getConfig();
+        if (config == null || config.wynnCraft == null
+                || config.wynnCraft.target_language == null
+                || config.wynnCraft.target_language.isBlank()) {
+            return WynnCraftConfig.DEFAULT_TARGET_LANGUAGE;
         }
-        return trackerConfig.target_language.trim();
+        return config.wynnCraft.target_language.trim();
     }
 
     public static boolean isDebugEnabled() {
@@ -153,9 +154,6 @@ public final class WynntilsTaskTrackerTranslationSupport {
         ModConfig config = Translate_AllinOne.getConfig();
         return config != null
                 && config.providerManager != null
-                && config.providerManager.routes != null
-                && config.providerManager.routes.wynntils_task_tracker != null
-                && !config.providerManager.routes.wynntils_task_tracker.isBlank()
                 && ProviderRouteResolver.resolve(config, ProviderRouteResolver.Route.WYNNTILS_TASK_TRACKER) != null;
     }
 

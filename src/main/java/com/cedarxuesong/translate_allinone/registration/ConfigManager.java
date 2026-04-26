@@ -90,13 +90,17 @@ public class ConfigManager {
             ModConfig loadedConfig = normalizeConfig(parsedConfig);
             boolean migratedLegacyItemDebugConfig = migrateLegacyItemDebugConfig(rawConfig, loadedConfig);
             boolean migratedLegacyItemWynnCompatibilityConfig = ConfigMigrationSupport.hasDeprecatedWynnItemCompatibilityConfig(rawConfig);
+            boolean migratedLegacyWynnTargetLanguageConfig = migrateLegacyWynnTargetLanguageConfig(rawConfig, loadedConfig);
             loadedConfig = normalizeConfig(loadedConfig);
 
             if (shouldRewriteConfig) {
                 Translate_AllinOne.LOGGER.warn("Config file is empty or invalid, using defaults: {}", configPath);
             }
 
-            if (shouldRewriteConfig || migratedLegacyItemDebugConfig || migratedLegacyItemWynnCompatibilityConfig) {
+            if (shouldRewriteConfig
+                    || migratedLegacyItemDebugConfig
+                    || migratedLegacyItemWynnCompatibilityConfig
+                    || migratedLegacyWynnTargetLanguageConfig) {
                 writeConfigBestEffort(
                         configPath,
                         loadedConfig,
@@ -147,6 +151,24 @@ public class ConfigManager {
         }
         if (configToUse.wynnCraft == null) {
             configToUse.wynnCraft = new WynnCraftConfig();
+        }
+        if (configToUse.wynnCraft.target_language == null || configToUse.wynnCraft.target_language.isBlank()) {
+            configToUse.wynnCraft.target_language = WynnCraftConfig.DEFAULT_TARGET_LANGUAGE;
+        } else {
+            configToUse.wynnCraft.target_language = configToUse.wynnCraft.target_language.trim();
+        }
+        if (configToUse.wynnCraft.npc_dialogue == null) {
+            configToUse.wynnCraft.npc_dialogue = new WynnCraftConfig.NpcDialogueConfig();
+        }
+        if (configToUse.wynnCraft.npc_dialogue.hud == null) {
+            configToUse.wynnCraft.npc_dialogue.hud = new WynnCraftConfig.HudConfig();
+        }
+        if (configToUse.wynnCraft.npc_dialogue.debug == null) {
+            configToUse.wynnCraft.npc_dialogue.debug = new WynnCraftConfig.DebugConfig();
+        }
+        if (!configToUse.wynnCraft.npc_dialogue.log_dialogues_local_hits
+                && configToUse.wynnCraft.npc_dialogue.debug.log_local_dictionary_hits) {
+            configToUse.wynnCraft.npc_dialogue.log_dialogues_local_hits = true;
         }
         if (configToUse.wynnCraft.wynntils_task_tracker == null) {
             configToUse.wynnCraft.wynntils_task_tracker = new WynnCraftConfig.WynntilsTaskTrackerConfig();
@@ -208,13 +230,27 @@ public class ConfigManager {
         if (configToUse.itemTranslate.debug == null) {
             configToUse.itemTranslate.debug = new ItemTranslateConfig.DebugConfig();
         }
-
         if (configToUse.scoreboardTranslate.keybinding == null) {
             configToUse.scoreboardTranslate.keybinding = new ScoreboardConfig.KeybindingConfig();
         }
         if (configToUse.scoreboardTranslate.keybinding.binding == null) {
             configToUse.scoreboardTranslate.keybinding.binding = new InputBindingConfig();
         }
+        configToUse.wynnCraft.npc_dialogue.hud.scale_percent = clamp(
+                configToUse.wynnCraft.npc_dialogue.hud.scale_percent,
+                WynnCraftConfig.HudConfig.MIN_SCALE_PERCENT,
+                WynnCraftConfig.HudConfig.MAX_SCALE_PERCENT
+        );
+        configToUse.wynnCraft.npc_dialogue.hud.x_offset = clamp(
+                configToUse.wynnCraft.npc_dialogue.hud.x_offset,
+                WynnCraftConfig.HudConfig.MIN_X_OFFSET,
+                WynnCraftConfig.HudConfig.MAX_X_OFFSET
+        );
+        configToUse.wynnCraft.npc_dialogue.hud.y_offset = clamp(
+                configToUse.wynnCraft.npc_dialogue.hud.y_offset,
+                WynnCraftConfig.HudConfig.MIN_Y_OFFSET,
+                WynnCraftConfig.HudConfig.MAX_Y_OFFSET
+        );
 
         configToUse.cacheBackup.backup_interval_minutes = clamp(
                 configToUse.cacheBackup.backup_interval_minutes,
@@ -296,6 +332,30 @@ public class ConfigManager {
         return migratedLegacyItemDevMode || shouldRewriteLegacyItemDebugObject(rawConfig);
     }
 
+    private static boolean migrateLegacyWynnTargetLanguageConfig(JsonElement rawConfig, ModConfig loadedConfig) {
+        if (loadedConfig == null) {
+            return false;
+        }
+        if (loadedConfig.wynnCraft == null) {
+            loadedConfig.wynnCraft = new WynnCraftConfig();
+        }
+
+        JsonObject wynnCraftObject = getWynnCraftObject(rawConfig);
+        if (wynnCraftObject == null) {
+            return false;
+        }
+
+        String explicitSharedTargetLanguage = getOptionalString(wynnCraftObject, "target_language");
+        String legacyDialogueTargetLanguage = getOptionalString(getNestedObject(wynnCraftObject, "npc_dialogue"), "target_language");
+        String legacyTrackerTargetLanguage = getOptionalString(getNestedObject(wynnCraftObject, "wynntils_task_tracker"), "target_language");
+        loadedConfig.wynnCraft.target_language = resolveSharedWynnTargetLanguage(
+                explicitSharedTargetLanguage,
+                legacyDialogueTargetLanguage,
+                legacyTrackerTargetLanguage
+        );
+        return legacyDialogueTargetLanguage != null || legacyTrackerTargetLanguage != null;
+    }
+
     private static boolean hasExplicitItemDebugEnabled(JsonElement rawConfig) {
         JsonObject debugObject = getItemDebugObject(rawConfig);
         if (debugObject != null && debugObject.has("enabled")) {
@@ -321,6 +381,87 @@ public class ConfigManager {
 
     private static JsonObject getItemTranslateObject(JsonElement rawConfig) {
         return ConfigMigrationSupport.getItemTranslateObject(rawConfig);
+    }
+
+    private static JsonObject getWynnCraftObject(JsonElement rawConfig) {
+        if (rawConfig == null || !rawConfig.isJsonObject()) {
+            return null;
+        }
+        JsonObject root = rawConfig.getAsJsonObject();
+        JsonElement wynnCraft = root.get("wynnCraft");
+        if (wynnCraft == null || !wynnCraft.isJsonObject()) {
+            return null;
+        }
+        return wynnCraft.getAsJsonObject();
+    }
+
+    private static JsonObject getNestedObject(JsonObject parent, String memberName) {
+        if (parent == null || memberName == null || memberName.isBlank()) {
+            return null;
+        }
+        JsonElement nested = parent.get(memberName);
+        if (nested == null || !nested.isJsonObject()) {
+            return null;
+        }
+        return nested.getAsJsonObject();
+    }
+
+    private static String getOptionalString(JsonObject object, String memberName) {
+        if (object == null || memberName == null || memberName.isBlank() || !object.has(memberName)) {
+            return null;
+        }
+        JsonElement value = object.get(memberName);
+        if (value == null || !value.isJsonPrimitive()) {
+            return null;
+        }
+        String text = value.getAsString();
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        return text.trim();
+    }
+
+    private static String resolveSharedWynnTargetLanguage(
+            String currentSharedTargetLanguage,
+            String legacyDialogueTargetLanguage,
+            String legacyTrackerTargetLanguage
+    ) {
+        String shared = sanitizeOptionalTargetLanguage(currentSharedTargetLanguage);
+        if (shared != null) {
+            return shared;
+        }
+
+        String dialogue = sanitizeOptionalTargetLanguage(legacyDialogueTargetLanguage);
+        String tracker = sanitizeOptionalTargetLanguage(legacyTrackerTargetLanguage);
+        if (dialogue == null && tracker == null) {
+            return WynnCraftConfig.DEFAULT_TARGET_LANGUAGE;
+        }
+        if (dialogue == null) {
+            return tracker;
+        }
+        if (tracker == null) {
+            return dialogue;
+        }
+        if (dialogue.equalsIgnoreCase(tracker)) {
+            return dialogue;
+        }
+
+        boolean dialogueUsesDefault = dialogue.equalsIgnoreCase(WynnCraftConfig.DEFAULT_TARGET_LANGUAGE);
+        boolean trackerUsesDefault = tracker.equalsIgnoreCase(WynnCraftConfig.DEFAULT_TARGET_LANGUAGE);
+        if (dialogueUsesDefault && !trackerUsesDefault) {
+            return tracker;
+        }
+        if (trackerUsesDefault && !dialogueUsesDefault) {
+            return dialogue;
+        }
+        return dialogue;
+    }
+
+    private static String sanitizeOptionalTargetLanguage(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
     }
 
     private static JsonObject getItemDebugObject(JsonElement rawConfig) {

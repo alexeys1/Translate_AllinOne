@@ -44,6 +44,8 @@ public final class RouteModelSectionSupport {
         return switch (routeSlot) {
             case ITEM -> manager.routes.item;
             case SCOREBOARD -> manager.routes.scoreboard;
+            case WYNNCRAFT -> manager.routes.wynncraft;
+            case WYNN_NPC_DIALOGUE -> manager.routes.wynn_npc_dialogue;
             case WYNNTILS_TASK_TRACKER -> manager.routes.wynntils_task_tracker;
             case CHAT_INPUT -> manager.routes.chat_input;
             case CHAT_OUTPUT -> manager.routes.chat_output;
@@ -54,6 +56,8 @@ public final class RouteModelSectionSupport {
         switch (routeSlot) {
             case ITEM -> manager.routes.item = routeKey;
             case SCOREBOARD -> manager.routes.scoreboard = routeKey;
+            case WYNNCRAFT -> manager.routes.wynncraft = routeKey;
+            case WYNN_NPC_DIALOGUE -> manager.routes.wynn_npc_dialogue = routeKey;
             case WYNNTILS_TASK_TRACKER -> manager.routes.wynntils_task_tracker = routeKey;
             case CHAT_INPUT -> manager.routes.chat_input = routeKey;
             case CHAT_OUTPUT -> manager.routes.chat_output = routeKey;
@@ -97,6 +101,12 @@ public final class RouteModelSectionSupport {
         }
         if (ProviderManagerConfig.extractProviderId(manager.routes.scoreboard).equals(providerId)) {
             manager.routes.scoreboard = "";
+        }
+        if (ProviderManagerConfig.extractProviderId(manager.routes.wynncraft).equals(providerId)) {
+            manager.routes.wynncraft = "";
+        }
+        if (ProviderManagerConfig.extractProviderId(manager.routes.wynn_npc_dialogue).equals(providerId)) {
+            manager.routes.wynn_npc_dialogue = "";
         }
         if (ProviderManagerConfig.extractProviderId(manager.routes.wynntils_task_tracker).equals(providerId)) {
             manager.routes.wynntils_task_tracker = "";

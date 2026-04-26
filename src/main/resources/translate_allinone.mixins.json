@@ -21,6 +21,7 @@
     "mixinWynntils.ActivityTaskFunctionMixin",
     "mixinWynntils.ActivityTypeFunctionMixin",
     "mixinWynntils.ContentTrackerOverlayMixin",
+    "mixinWynnDialogue.ClientPlayNetworkHandlerMixin",
     "mixinInGameGui.InGameHudMixin",
     "mixinInGameGui.InGameHudAccessor",
     "mixinChatScreen.ChatScreenMixin"

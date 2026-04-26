@@ -2,10 +2,13 @@ package com.cedarxuesong.translate_allinone.registration;
 
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.utils.cache.ScoreboardTextCache;
+import com.cedarxuesong.translate_allinone.utils.cache.WynnDialogueTextCache;
 import com.cedarxuesong.translate_allinone.utils.cache.ItemTemplateCache;
 import com.cedarxuesong.translate_allinone.utils.cache.WynntilsTaskTrackerTextCache;
 import com.cedarxuesong.translate_allinone.utils.translate.ItemTranslateManager;
 import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardTranslateManager;
+import com.cedarxuesong.translate_allinone.utils.translate.WynnDialogueTranslateManager;
+import com.cedarxuesong.translate_allinone.utils.translate.WynnDialogueTranslationSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.WynntilsTaskTrackerTranslateManager;
 import com.cedarxuesong.translate_allinone.utils.update.UpdateCheckManager;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -65,6 +68,7 @@ public class LifecycleEventManager {
 
             if (isReadyForTranslation) {
                 UpdateCheckManager.tryNotifyInChat(client);
+                WynnDialogueTranslationSupport.tick();
             }
         });
     }
@@ -81,7 +85,9 @@ public class LifecycleEventManager {
     private static void stopTranslationManagers() {
         ItemTranslateManager.getInstance().stop();
         ScoreboardTranslateManager.getInstance().stop();
+        WynnDialogueTranslateManager.getInstance().stop();
         WynntilsTaskTrackerTranslateManager.getInstance().stop();
+        WynnDialogueTranslationSupport.resetSession();
     }
 
     private static void loadCachesAndStartTranslationManagers() {
@@ -89,6 +95,8 @@ public class LifecycleEventManager {
         ItemTranslateManager.getInstance().start();
         ScoreboardTextCache.getInstance().load();
         ScoreboardTranslateManager.getInstance().start();
+        WynnDialogueTextCache.getInstance().load();
+        WynnDialogueTranslateManager.getInstance().start();
         WynntilsTaskTrackerTextCache.getInstance().load();
         WynntilsTaskTrackerTranslateManager.getInstance().start();
     }
@@ -96,6 +104,7 @@ public class LifecycleEventManager {
     private static void saveCaches() {
         ItemTemplateCache.getInstance().save();
         ScoreboardTextCache.getInstance().save();
+        WynnDialogueTextCache.getInstance().save();
         WynntilsTaskTrackerTextCache.getInstance().save();
     }
 

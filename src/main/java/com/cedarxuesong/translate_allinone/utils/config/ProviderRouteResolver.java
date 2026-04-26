@@ -14,6 +14,8 @@ public final class ProviderRouteResolver {
     public enum Route {
         ITEM,
         SCOREBOARD,
+        WYNNCRAFT,
+        WYNN_NPC_DIALOGUE,
         WYNNTILS_TASK_TRACKER,
         CHAT_INPUT,
         CHAT_OUTPUT
@@ -30,7 +32,9 @@ public final class ProviderRouteResolver {
         String routeKey = switch (route) {
             case ITEM -> manager.routes.item;
             case SCOREBOARD -> manager.routes.scoreboard;
-            case WYNNTILS_TASK_TRACKER -> manager.routes.wynntils_task_tracker;
+            case WYNNCRAFT -> resolveWynncraftRouteKey(manager.routes.wynncraft, "", "");
+            case WYNN_NPC_DIALOGUE -> resolveWynncraftRouteKey(manager.routes.wynncraft, manager.routes.wynn_npc_dialogue, "");
+            case WYNNTILS_TASK_TRACKER -> resolveWynncraftRouteKey(manager.routes.wynncraft, manager.routes.wynntils_task_tracker, "");
             case CHAT_INPUT -> manager.routes.chat_input;
             case CHAT_OUTPUT -> manager.routes.chat_output;
         };
@@ -57,6 +61,16 @@ public final class ProviderRouteResolver {
         }
 
         return snapshotForModel(provider, modelSettings);
+    }
+
+    private static String resolveWynncraftRouteKey(String sharedRoute, String primaryRoute, String fallbackRoute) {
+        if (sharedRoute != null && !sharedRoute.isBlank()) {
+            return sharedRoute;
+        }
+        if (primaryRoute != null && !primaryRoute.isBlank()) {
+            return primaryRoute;
+        }
+        return fallbackRoute == null ? "" : fallbackRoute;
     }
 
     private static ApiProviderProfile snapshotForModel(ApiProviderProfile source, ApiProviderProfile.ModelSettings modelSettings) {

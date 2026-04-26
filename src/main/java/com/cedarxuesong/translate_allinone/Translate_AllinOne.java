@@ -5,6 +5,8 @@ import com.cedarxuesong.translate_allinone.registration.ConfigManager;
 import com.cedarxuesong.translate_allinone.registration.LifecycleEventManager;
 import com.cedarxuesong.translate_allinone.utils.backup.VersionUpgradeBackupManager;
 import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
+import com.cedarxuesong.translate_allinone.utils.translate.WynncraftDictionaryInstaller;
+import com.cedarxuesong.translate_allinone.utils.translate.WynnDialogueTranslationSupport;
 import com.cedarxuesong.translate_allinone.utils.update.UpdateCheckManager;
 import net.fabricmc.api.ModInitializer;
 import org.slf4j.Logger;
@@ -20,9 +22,11 @@ public class Translate_AllinOne implements ModInitializer {
 		LOGGER.info("Translate All in One is initializing...");
 		VersionUpgradeBackupManager.backupIfVersionChanged();
 		ConfigManager.register();
+		WynncraftDictionaryInstaller.ensureInstalled();
 		UpdateCheckManager.startStartupCheck();
 		CommandManager.register();
 		LifecycleEventManager.register();
+		WynnDialogueTranslationSupport.init();
 	}
 
 	public static ModConfig getConfig() {

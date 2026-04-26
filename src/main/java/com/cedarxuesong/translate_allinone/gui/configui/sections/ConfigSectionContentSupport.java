@@ -52,6 +52,7 @@ public final class ConfigSectionContentSupport {
             HotkeyAction hotkeyClearBinding,
             HotkeyAction hotkeyCycleMode,
             Runnable openCacheDirectoryAction,
+            Runnable openWynnDialogueHudEditorAction,
             RouteSelectorAdder routeSelectorAdder,
             ProviderSectionAdder providerSectionAdder
     ) {
@@ -261,6 +262,18 @@ public final class ConfigSectionContentSupport {
                     wynnCraft = new WynnCraftConfig();
                     config.wynnCraft = wynnCraft;
                 }
+                if (wynnCraft.npc_dialogue == null) {
+                    wynnCraft.npc_dialogue = new WynnCraftConfig.NpcDialogueConfig();
+                }
+                if (wynnCraft.npc_dialogue.hud == null) {
+                    wynnCraft.npc_dialogue.hud = new WynnCraftConfig.HudConfig();
+                }
+                if (wynnCraft.npc_dialogue.debug == null) {
+                    wynnCraft.npc_dialogue.debug = new WynnCraftConfig.DebugConfig();
+                }
+                if (wynnCraft.npc_dialogue.hud == null) {
+                    wynnCraft.npc_dialogue.hud = new WynnCraftConfig.HudConfig();
+                }
                 if (wynnCraft.wynntils_task_tracker == null) {
                     wynnCraft.wynntils_task_tracker = new WynnCraftConfig.WynntilsTaskTrackerConfig();
                 }
@@ -391,6 +404,34 @@ public final class ConfigSectionContentSupport {
                 addGroupBox(groupBoxAdder, translator.t("group.item_debug"), x, width, itemDebugStart, y);
 
                 y += GROUP_GAP;
+                int dialogueDebugStart = y;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.wynn_npc_dialogue_dev_enabled"),
+                        () -> resolvedWynnCraft.npc_dialogue.debug.enabled,
+                        value -> resolvedWynnCraft.npc_dialogue.debug.enabled = value
+                );
+                y += ROW_STEP;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.wynn_npc_dialogue_log_dialogues_local_hits"),
+                        () -> resolvedWynnCraft.npc_dialogue.log_dialogues_local_hits,
+                        value -> resolvedWynnCraft.npc_dialogue.log_dialogues_local_hits = value
+                );
+                y += ROW_STEP;
+                addGroupBox(
+                        groupBoxAdder,
+                        translator.t("group.wynn_npc_dialogue_debug"),
+                        x,
+                        width,
+                        dialogueDebugStart,
+                        y);
+
+                y += GROUP_GAP;
                 int trackerDebugStart = y;
                 toggleAdder.add(
                         x,
@@ -401,6 +442,7 @@ public final class ConfigSectionContentSupport {
                         value -> resolvedWynnCraft.wynntils_task_tracker.debug.enabled = value
                 );
                 y += ROW_STEP;
+
                 addGroupBox(
                         groupBoxAdder,
                         translator.t("group.wynntils_task_tracker_debug"),
@@ -470,6 +512,12 @@ public final class ConfigSectionContentSupport {
                     config.wynnCraft = resolvedWynnCraft;
                 }
                 WynnCraftConfig wynnCraft = resolvedWynnCraft;
+                if (wynnCraft.npc_dialogue == null) {
+                    wynnCraft.npc_dialogue = new WynnCraftConfig.NpcDialogueConfig();
+                }
+                if (wynnCraft.npc_dialogue.debug == null) {
+                    wynnCraft.npc_dialogue.debug = new WynnCraftConfig.DebugConfig();
+                }
                 if (wynnCraft.wynntils_task_tracker == null) {
                     wynnCraft.wynntils_task_tracker = new WynnCraftConfig.WynntilsTaskTrackerConfig();
                 }
@@ -485,8 +533,40 @@ public final class ConfigSectionContentSupport {
                 if (wynnCraft.wynntils_task_tracker.keybinding.refreshBinding == null) {
                     wynnCraft.wynntils_task_tracker.keybinding.refreshBinding = new InputBindingConfig();
                 }
+                if (wynnCraft.target_language == null || wynnCraft.target_language.isBlank()) {
+                    wynnCraft.target_language = WynnCraftConfig.DEFAULT_TARGET_LANGUAGE;
+                }
 
+                int dialogueStart = y;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.enabled"),
+                        () -> wynnCraft.npc_dialogue.enabled,
+                        value -> wynnCraft.npc_dialogue.enabled = value
+                );
+                y += ROW_STEP;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.translate_wynn_npc_dialogue_npc_name"),
+                        () -> wynnCraft.npc_dialogue.translate_npc_name,
+                        value -> wynnCraft.npc_dialogue.translate_npc_name = value
+                );
+                y += ROW_STEP;
+                actionAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("button.edit_hud"),
+                        openWynnDialogueHudEditorAction
+                );
+                y += ROW_STEP;
+                addGroupBox(groupBoxAdder, translator.t("group.wynn_npc_dialogue"), x, width, dialogueStart, y);
 
+                y += GROUP_GAP;
                 int trackerStart = y;
                 toggleAdder.add(
                         x,
@@ -513,19 +593,6 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.translate_wynntils_task_tracker_description"),
                         () -> wynnCraft.wynntils_task_tracker.translate_description,
                         value -> wynnCraft.wynntils_task_tracker.translate_description = value
-                );
-                y += ROW_STEP;
-                textFieldRowAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.target_language"),
-                        48,
-                        wynnCraft.wynntils_task_tracker.target_language,
-                        translator.t("placeholder.target_language"),
-                        value -> wynnCraft.wynntils_task_tracker.target_language = sanitizeLanguage(value),
-                        value -> true,
-                        true
                 );
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.wynntils_task_tracker"), x, width, trackerStart, y);
@@ -572,9 +639,23 @@ public final class ConfigSectionContentSupport {
 
                 y += GROUP_GAP;
                 int routeStart = y;
-                routeSelectorAdder.add(config.providerManager, RouteSlot.WYNNTILS_TASK_TRACKER, x, y, width);
-                addGroupBox(groupBoxAdder, translator.t("group.route"), x, width, routeStart, routeStart + ROW_STEP);
-                return routeStart + ROW_STEP;
+                textFieldRowAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.target_language"),
+                        48,
+                        wynnCraft.target_language,
+                        translator.t("placeholder.target_language"),
+                        value -> wynnCraft.target_language = sanitizeLanguage(value),
+                        value -> true,
+                        true
+                );
+                y += ROW_STEP;
+                routeSelectorAdder.add(config.providerManager, RouteSlot.WYNNCRAFT, x, y, width);
+                y += ROW_STEP;
+                addGroupBox(groupBoxAdder, translator.t("group.route"), x, width, routeStart, y);
+                return y;
             }
             case CACHE -> {
                 CacheBackupConfig resolvedCacheBackup = config.cacheBackup;

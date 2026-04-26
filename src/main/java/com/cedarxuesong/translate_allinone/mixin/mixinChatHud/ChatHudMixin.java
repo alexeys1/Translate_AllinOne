@@ -6,6 +6,7 @@ import com.cedarxuesong.translate_allinone.utils.AnimationManager;
 import com.cedarxuesong.translate_allinone.utils.MessageUtils;
 import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
 import com.cedarxuesong.translate_allinone.utils.translate.ChatOutputTranslateManager;
+import com.cedarxuesong.translate_allinone.utils.translate.WynnDialogueTranslationSupport;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.hud.ChatHud;
 import net.minecraft.text.Text;
@@ -36,6 +37,8 @@ public abstract class ChatHudMixin {
             isModifyingMessage.set(true);
 
             ModConfig config = Translate_AllinOne.getConfig();
+            WynnDialogueTranslationSupport.traceChatEntry(message);
+            WynnDialogueTranslationSupport.handleChatMessage(message);
             if (config.chatTranslate.output.enabled) {
                 String plainText = AnimationManager.stripFormatting(message.getString()).trim();
                 if (plainText.isEmpty()) {
