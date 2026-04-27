@@ -88,6 +88,69 @@ final class TooltipStructuredCaptureSupport {
         return enchantListMatch == null ? Set.of() : enchantListMatch.translationTemplateKeys();
     }
 
+    static Set<String> collectRemoteStructuredTemplateKeys(Text line, boolean useTagStylePreservation) {
+        if (containsEmbeddedLegacyFormattingCodes(line)) {
+            return Set.of();
+        }
+
+        List<FlatNode> splitNodes = splitStructuredNodes(line);
+        if (splitNodes.isEmpty()) {
+            return Set.of();
+        }
+
+        StructuredLineMatch structuredLine = matchStructuredLine(splitNodes, useTagStylePreservation);
+        if (structuredLine != null) {
+            return structuredLine.remoteTranslationTemplateKeys();
+        }
+
+        EnchantListMatch enchantListMatch = matchEnchantListLine(splitNodes, useTagStylePreservation);
+        return enchantListMatch == null ? Set.of() : enchantListMatch.remoteTranslationTemplateKeys();
+    }
+
+    static List<StructuredTextDebugSegment> collectStructuredTextDebugSegments(
+            Text line,
+            boolean useTagStylePreservation
+    ) {
+        if (containsEmbeddedLegacyFormattingCodes(line)) {
+            return List.of();
+        }
+
+        List<FlatNode> splitNodes = splitStructuredNodes(line);
+        if (splitNodes.isEmpty()) {
+            return List.of();
+        }
+
+        StructuredLineMatch structuredLine = matchStructuredLine(splitNodes, useTagStylePreservation);
+        if (structuredLine != null) {
+            List<StructuredTextDebugSegment> segments = new ArrayList<>(2);
+            addStructuredTextDebugSegment(segments, structuredLine.labelTranslationText());
+            if (structuredLine.kind().translateValue()) {
+                addStructuredTextDebugSegment(segments, structuredLine.valueTranslationText());
+            }
+            return segments;
+        }
+
+        EnchantListMatch enchantListMatch = matchEnchantListLine(splitNodes, useTagStylePreservation);
+        if (enchantListMatch == null || enchantListMatch.entries() == null || enchantListMatch.entries().isEmpty()) {
+            return List.of();
+        }
+
+        List<StructuredTextDebugSegment> segments = new ArrayList<>(enchantListMatch.entries().size());
+        for (EnchantListEntry entry : enchantListMatch.entries()) {
+            if (entry != null) {
+                addStructuredTextDebugSegment(segments, entry.nameTranslationText());
+            }
+        }
+        return segments;
+    }
+
+    private static void addStructuredTextDebugSegment(List<StructuredTextDebugSegment> segments, Text text) {
+        if (segments == null || text == null || text.getString().isBlank()) {
+            return;
+        }
+        segments.add(new StructuredTextDebugSegment(text));
+    }
+
     private static boolean containsEmbeddedLegacyFormattingCodes(Text line) {
         if (line == null) {
             return false;
@@ -1156,6 +1219,9 @@ final class TooltipStructuredCaptureSupport {
         }
     }
 
+    record StructuredTextDebugSegment(Text text) {
+    }
+
     private record StructuredLineMatch(
             StructuredLineKind kind,
             Text prefixText,
@@ -1178,6 +1244,21 @@ final class TooltipStructuredCaptureSupport {
             }
             return keys;
         }
+
+        private Set<String> remoteTranslationTemplateKeys() {
+            LinkedHashSet<String> keys = new LinkedHashSet<>();
+            if (labelKey != null
+                    && !labelKey.isBlank()
+                    && !TooltipTemplateRuntime.hasLocalDictionaryTranslation(labelTranslationText)) {
+                keys.add(labelKey);
+            }
+            if (valueKey != null
+                    && !valueKey.isBlank()
+                    && !TooltipTemplateRuntime.hasLocalDictionaryTranslation(valueTranslationText)) {
+                keys.add(valueKey);
+            }
+            return keys;
+        }
     }
 
     private record EnchantListMatch(List<EnchantListEntry> entries) {
@@ -1189,6 +1270,24 @@ final class TooltipStructuredCaptureSupport {
 
             for (EnchantListEntry entry : entries) {
                 if (entry == null || entry.nameKey() == null || entry.nameKey().isBlank()) {
+                    continue;
+                }
+                keys.add(entry.nameKey());
+            }
+            return keys;
+        }
+
+        private Set<String> remoteTranslationTemplateKeys() {
+            LinkedHashSet<String> keys = new LinkedHashSet<>();
+            if (entries == null) {
+                return keys;
+            }
+
+            for (EnchantListEntry entry : entries) {
+                if (entry == null
+                        || entry.nameKey() == null
+                        || entry.nameKey().isBlank()
+                        || TooltipTemplateRuntime.hasLocalDictionaryTranslation(entry.nameTranslationText())) {
                     continue;
                 }
                 keys.add(entry.nameKey());

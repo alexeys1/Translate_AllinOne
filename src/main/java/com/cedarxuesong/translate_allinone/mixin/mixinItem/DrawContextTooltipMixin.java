@@ -7,6 +7,7 @@ import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipDecorativeContextSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipInternalLineSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipRefreshNoticeSupport;
+import com.cedarxuesong.translate_allinone.utils.translate.TooltipTextDebugCopySupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTextMatcherSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTranslationContext;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTranslationSupport;
@@ -81,10 +82,6 @@ public abstract class DrawContextTooltipMixin {
         }
 
         ItemTranslateConfig config = Translate_AllinOne.getConfig().itemTranslate;
-        if (!config.enabled) {
-            return;
-        }
-
         if (!translate_allinone$isSupportedExternalTooltip(positioner, isWynntilsItemStatTooltip)) {
             return;
         }
@@ -97,6 +94,10 @@ public abstract class DrawContextTooltipMixin {
         List<Text> tooltipLines = new ArrayList<>(parsedTooltip.orderedLines().size());
         for (OrderedTooltipLine orderedLine : parsedTooltip.orderedLines()) {
             tooltipLines.add(orderedLine.text());
+        }
+        TooltipTextDebugCopySupport.maybeCopyCurrentTooltip(tooltipLines);
+        if (config == null || !config.enabled) {
+            return;
         }
         if (TooltipTranslationContext.consumeSkipDrawContextTranslation(tooltipLines)) {
             TooltipTextMatcherSupport.logTooltipGuardIfDev(

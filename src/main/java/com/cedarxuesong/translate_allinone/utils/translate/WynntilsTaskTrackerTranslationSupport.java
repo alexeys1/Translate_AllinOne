@@ -76,6 +76,7 @@ public final class WynntilsTaskTrackerTranslationSupport {
             logQuestLocalHit(originalTextObject.getString(), localLookup.translation(), localLookup);
             return renderQuestLocalTranslation(localLookup.translation(), legacyFormatted, originalTextObject);
         }
+        logQuestLocalMiss(originalTextObject.getString(), legacyFormatted);
 
         if (!hasConfiguredRoute()) {
             return originalText;
@@ -348,6 +349,32 @@ public final class WynntilsTaskTrackerTranslationSupport {
                 lookupResult.matchType() == null ? "" : lookupResult.matchType().name().toLowerCase(),
                 TooltipTemplateRuntime.truncateForLog(normalizedInput, 220),
                 TooltipTemplateRuntime.truncateForLog(normalizeForLog(translation), 220)
+        );
+    }
+
+    private static void logQuestLocalMiss(String originalText, boolean legacyFormatted) {
+        if (!isQuestLocalHitLoggingEnabled()) {
+            return;
+        }
+
+        String normalizedInput = normalizeForLog(originalText);
+        if (normalizedInput.isBlank()) {
+            return;
+        }
+
+        String logKey = "quests_local_miss:" + Integer.toHexString((normalizedInput + "|" + legacyFormatted).hashCode());
+        long now = System.currentTimeMillis();
+        Long lastAt = QUEST_LOCAL_HIT_LOG_TIMESTAMPS.get(logKey);
+        if (lastAt != null && now - lastAt < QUEST_LOCAL_HIT_LOG_THROTTLE_MILLIS) {
+            return;
+        }
+
+        QUEST_LOCAL_HIT_LOG_TIMESTAMPS.put(logKey, now);
+        Translate_AllinOne.LOGGER.info(
+                "[WynntilsTaskTracker] quests_local_miss legacyFormatted={} input=\"{}\" normalized=\"{}\"",
+                legacyFormatted,
+                TooltipTemplateRuntime.truncateForLog(originalText, 220),
+                TooltipTemplateRuntime.truncateForLog(normalizedInput, 220)
         );
     }
 

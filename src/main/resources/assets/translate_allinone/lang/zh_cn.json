@@ -297,6 +297,7 @@
   "text.translate_allinone.configscreen.group.log_hits": "日志命中",
   "text.translate_allinone.configscreen.group.route": "路由设置",
   "text.translate_allinone.configscreen.group.wynncraft": "WynnCraft",
+  "text.translate_allinone.tooltip_debug.copied": "[TAIO] 该物品tooltip已复制",
   "text.translate_allinone.configscreen.group.wynn_npc_dialogue": "Wynn NPC 对话",
   "text.translate_allinone.configscreen.group.wynn_npc_dialogue_debug": "Wynn NPC 对话调试",
   "text.translate_allinone.configscreen.group.wynntils_task_tracker": "Wynntils任务追踪",

@@ -67,6 +67,17 @@ final class TooltipParagraphSupport {
             boolean emitDevLog,
             String devSource
     ) {
+        logParagraphPlanIfDev(config, emitDevLog, devSource, block);
+        logParagraphStyleMapIfDev(
+                config,
+                emitDevLog,
+                devSource,
+                block,
+                "source",
+                block == null || block.paragraphTemplate() == null
+                        ? ""
+                        : block.paragraphTemplate().translationTemplateKey()
+        );
         WynnSharedDictionaryService.LookupResult localLookup = lookupAcceptedLocalDictionaryTranslation(block);
         if (localLookup != null && localLookup.hit()) {
             TooltipTemplateRuntime.logAcceptedLocalDictionaryHit(
@@ -79,7 +90,8 @@ final class TooltipParagraphSupport {
                     localLookup.translation(),
                     config,
                     emitDevLog,
-                    devSource
+                    devSource,
+                    true
             );
             if (localResults != null) {
                 return new ParagraphTranslationAttempt(localResults, false, false);
@@ -94,7 +106,8 @@ final class TooltipParagraphSupport {
                     blockLookup.translation(),
                     config,
                     emitDevLog,
-                    devSource
+                    devSource,
+                    false
             );
             if (blockResults != null) {
                 return new ParagraphTranslationAttempt(blockResults, false, false);
@@ -133,6 +146,11 @@ final class TooltipParagraphSupport {
         );
     }
 
+    static boolean hasAcceptedLocalDictionaryTranslation(TooltipParagraphBlock block) {
+        String sourceText = buildParagraphLocalDictionaryLookupSource(block);
+        return TooltipTemplateRuntime.hasLocalDictionaryTranslation(sourceText);
+    }
+
     static WynnSharedDictionaryService.LookupResult lookupAcceptedLocalDictionaryTranslation(
             TooltipParagraphBlock block,
             java.util.function.Function<String, WynnSharedDictionaryService.LookupResult> lookupFunction
@@ -152,7 +170,7 @@ final class TooltipParagraphSupport {
                 : null;
     }
 
-    private static String buildParagraphLocalDictionaryLookupSource(TooltipParagraphBlock block) {
+    static String buildParagraphLocalDictionaryLookupSource(TooltipParagraphBlock block) {
         if (block == null || block.preparedLines() == null || block.preparedLines().isEmpty()) {
             return "";
         }
@@ -297,6 +315,24 @@ final class TooltipParagraphSupport {
             boolean emitDevLog,
             String devSource
     ) {
+        return renderTranslatedParagraphBlock(
+                block,
+                translatedBlockTemplate,
+                config,
+                emitDevLog,
+                devSource,
+                false
+        );
+    }
+
+    private static List<TooltipTranslationSupport.TooltipLineResult> renderTranslatedParagraphBlock(
+            TooltipParagraphBlock block,
+            String translatedBlockTemplate,
+            ItemTranslateConfig config,
+            boolean emitDevLog,
+            String devSource,
+            boolean trustedLocalDictionary
+    ) {
         if (translatedBlockTemplate == null || translatedBlockTemplate.isBlank()) {
             logParagraphRenderIfDev(
                     config,
@@ -335,7 +371,8 @@ final class TooltipParagraphSupport {
                 normalizedTemplate,
                 config,
                 emitDevLog,
-                devSource
+                devSource,
+                trustedLocalDictionary
         );
         if (renderedParagraphText == null) {
             return null;
@@ -447,7 +484,8 @@ final class TooltipParagraphSupport {
             String normalizedTemplate,
             ItemTranslateConfig config,
             boolean emitDevLog,
-            String devSource
+            String devSource,
+            boolean trustedLocalDictionary
     ) {
         PreparedParagraphTemplate paragraphTemplate = block.paragraphTemplate();
         String reassembledTranslated = TemplateProcessor.reassembleDecorativeGlyphs(
@@ -466,6 +504,7 @@ final class TooltipParagraphSupport {
                 emitDevLog,
                 devSource,
                 block,
+                "rendered",
                 reassembledTranslated
         );
         if (TooltipTemplateRuntime.containsNumericPlaceholder(reassembledTranslated)) {
@@ -484,21 +523,43 @@ final class TooltipParagraphSupport {
             return null;
         }
 
-        String paragraphQualityIssue = describeParagraphQualityIssue(block, reassembledTranslated, config);
-        if (paragraphQualityIssue != null) {
-            logParagraphRenderIfDev(
-                    config,
-                    emitDevLog,
-                    devSource,
-                    block,
-                    "reject-low-quality",
-                    true,
-                    paragraphQualityIssue,
-                    normalizedTemplate,
-                    reassembledTranslated,
-                    List.of()
-            );
-            return null;
+        if (trustedLocalDictionary && !containsParagraphStyleTags(reassembledTranslated)) {
+            Text localRenderedText = renderTrustedPlainOrLegacyLocalParagraphText(block, reassembledTranslated);
+            if (localRenderedText == null || localRenderedText.getString().isBlank()) {
+                logParagraphRenderIfDev(
+                        config,
+                        emitDevLog,
+                        devSource,
+                        block,
+                        "reject-empty-local-styled-text",
+                        true,
+                        "Local dictionary paragraph rendering produced a blank text.",
+                        normalizedTemplate,
+                        reassembledTranslated,
+                        List.of()
+                );
+                return null;
+            }
+            return localRenderedText;
+        }
+
+        if (!trustedLocalDictionary) {
+            String paragraphQualityIssue = describeParagraphQualityIssue(block, reassembledTranslated, config);
+            if (paragraphQualityIssue != null) {
+                logParagraphRenderIfDev(
+                        config,
+                        emitDevLog,
+                        devSource,
+                        block,
+                        "reject-low-quality",
+                        true,
+                        paragraphQualityIssue,
+                        normalizedTemplate,
+                        reassembledTranslated,
+                        List.of()
+                );
+                return null;
+            }
         }
 
         Text renderedText = StylePreserver.reapplyStylesFromTags(
@@ -522,6 +583,30 @@ final class TooltipParagraphSupport {
             return null;
         }
         return renderedText;
+    }
+
+    private static Text renderTrustedPlainOrLegacyLocalParagraphText(
+            TooltipParagraphBlock block,
+            String reassembledTranslated
+    ) {
+        if (reassembledTranslated == null || reassembledTranslated.isBlank()) {
+            return Text.empty();
+        }
+
+        if (containsLegacyFormattingCode(reassembledTranslated)) {
+            return StylePreserver.fromLegacyText(reassembledTranslated);
+        }
+
+        Style inheritedStyle = resolveParagraphBodyVisualStyle(block);
+        return Text.literal(reassembledTranslated).setStyle(inheritedStyle == null ? Style.EMPTY : inheritedStyle);
+    }
+
+    private static boolean containsLegacyFormattingCode(String text) {
+        return text != null && text.indexOf('§') >= 0;
+    }
+
+    private static boolean containsParagraphStyleTags(String text) {
+        return text != null && TooltipTemplateRuntime.STYLE_TAG_ID_PATTERN.matcher(text).find();
     }
 
     private static String postProcessTranslatedParagraphText(
@@ -555,6 +640,21 @@ final class TooltipParagraphSupport {
             Integer bodyStyleId
     ) {
         return postProcessTranslatedParagraphText(translatedText, config, styleMap, bodyStyleId);
+    }
+
+    static List<TooltipTranslationSupport.TooltipLineResult> renderTrustedLocalDictionaryParagraphBlockForTest(
+            TooltipParagraphBlock block,
+            String translatedBlockTemplate,
+            ItemTranslateConfig config
+    ) {
+        return renderTranslatedParagraphBlock(
+                block,
+                translatedBlockTemplate,
+                config,
+                false,
+                "test",
+                true
+        );
     }
 
     private static String normalizeParagraphTranslatedTemplate(String translatedBlockTemplate) {
@@ -1720,11 +1820,36 @@ final class TooltipParagraphSupport {
         );
     }
 
+    private static void logParagraphPlanIfDev(
+            ItemTranslateConfig config,
+            boolean emitDevLog,
+            String source,
+            TooltipParagraphBlock block
+    ) {
+        if (!emitDevLog || !TooltipTextMatcherSupport.shouldLogTooltipParagraphResult(config) || block == null) {
+            return;
+        }
+
+        LOGGER.info(
+                "[TooltipDev:{}:paragraph] lines={}-{} phase=plan key=\"{}\" source=\"{}\" lineCount={} wrapWidth={} bodyStyleId={} detail=\"{}\"",
+                source,
+                block.startLineIndex() + 1,
+                block.endLineIndex() + 1,
+                TooltipTemplateRuntime.truncateForLog(block.paragraphTemplate() == null ? "" : block.paragraphTemplate().translationTemplateKey(), 220),
+                TooltipTemplateRuntime.truncateForLog(summarizeParagraphSource(block), 220),
+                block.preparedLines() == null ? 0 : block.preparedLines().size(),
+                block.paragraphTemplate() == null ? -1 : block.paragraphTemplate().wrapWidth(),
+                block.paragraphTemplate() == null ? "null" : String.valueOf(block.paragraphTemplate().bodyStyleId()),
+                "Paragraph block planned before cache/local-dictionary resolution."
+        );
+    }
+
     private static void logParagraphStyleMapIfDev(
             ItemTranslateConfig config,
             boolean emitDevLog,
             String source,
             TooltipParagraphBlock block,
+            String phase,
             String taggedText
     ) {
         if (!emitDevLog
@@ -1737,10 +1862,41 @@ final class TooltipParagraphSupport {
         Map<Integer, Style> styleMap = block.paragraphTemplate().styleMap();
         LinkedHashSet<Integer> usedStyleIds = collectUsedStyleIdsFromTaggedText(taggedText);
         LOGGER.info(
-                "[TooltipDev:{}:style-map] lines={}-{} styleCount={} usedStyleIds={} styles=\"{}\" tagged=\"{}\"",
+                "[TooltipDev:{}:style-map] lines={}-{} phase={} styleCount={} usedStyleIds={} styles=\"{}\" tagged=\"{}\"",
                 source,
                 block.startLineIndex() + 1,
                 block.endLineIndex() + 1,
+                phase == null || phase.isBlank() ? "unknown" : phase,
+                styleMap == null ? 0 : styleMap.size(),
+                summarizeStyleIdSet(usedStyleIds),
+                TooltipTemplateRuntime.truncateForLog(summarizeStyleMapForLog(styleMap, usedStyleIds), 700),
+                TooltipTemplateRuntime.truncateForLog(taggedText, 320)
+        );
+    }
+
+    static void logLineStyleMapIfDev(
+            ItemTranslateConfig config,
+            boolean emitDevLog,
+            String source,
+            int lineIndex,
+            String route,
+            PreparedTooltipTemplate preparedTemplate
+    ) {
+        if (!emitDevLog
+                || !TooltipTextMatcherSupport.shouldLogTooltipStyleMap(config)
+                || preparedTemplate == null
+                || preparedTemplate.styleResult() == null) {
+            return;
+        }
+
+        Map<Integer, Style> styleMap = preparedTemplate.styleResult().styleMap;
+        String taggedText = preparedTemplate.styleResult().markedText;
+        LinkedHashSet<Integer> usedStyleIds = collectUsedStyleIdsFromTaggedText(taggedText);
+        LOGGER.info(
+                "[TooltipDev:{}:style-map] line={} route={} phase=source styleCount={} usedStyleIds={} styles=\"{}\" tagged=\"{}\"",
+                source,
+                lineIndex + 1,
+                route == null || route.isBlank() ? "line-template" : route,
                 styleMap == null ? 0 : styleMap.size(),
                 summarizeStyleIdSet(usedStyleIds),
                 TooltipTemplateRuntime.truncateForLog(summarizeStyleMapForLog(styleMap, usedStyleIds), 700),

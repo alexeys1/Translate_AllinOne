@@ -122,7 +122,8 @@ final class TooltipTemplateRuntime {
     private record LocalDictionaryEvaluation(
             WynnSharedDictionaryService.LookupResult lookupResult,
             String rejectionReason,
-            String lookupSource
+            String lookupSource,
+            String lookupText
     ) {
         private boolean hit() {
             return lookupResult != null && lookupResult.hit();
@@ -161,7 +162,14 @@ final class TooltipTemplateRuntime {
         if (line == null) {
             return false;
         }
-        return evaluateLocalDictionaryLookup(line.getString()).accepted();
+        return hasLocalDictionaryTranslation(line.getString());
+    }
+
+    static boolean hasLocalDictionaryTranslation(String sourceText) {
+        if (sourceText == null || sourceText.isBlank()) {
+            return false;
+        }
+        return evaluateLocalDictionaryLookup(sourceText).accepted();
     }
 
     static String describeLocalDictionaryLookup(Text line) {
@@ -186,11 +194,14 @@ final class TooltipTemplateRuntime {
                 ? "unknown"
                 : lookup.dictionaryId();
         String matchType = lookup.matchType() == null ? "" : lookup.matchType().name();
-        String description = "dictionary=" + dictionaryId
+            String description = "dictionary=" + dictionaryId
                 + ", match=" + matchType
                 + ", translation=\"" + truncateForLog(lookup.translation(), 120) + "\"";
         if (evaluation.lookupSource() != null && !evaluation.lookupSource().isBlank()) {
             description += ", source=" + evaluation.lookupSource();
+        }
+        if (evaluation.lookupText() != null && !evaluation.lookupText().isBlank()) {
+            description += ", lookupText=\"" + truncateForLog(evaluation.lookupText(), 120) + "\"";
         }
         if (!evaluation.accepted()) {
             description += ", rejected=\"" + truncateForLog(evaluation.rejectionReason(), 120) + "\"";
@@ -216,6 +227,9 @@ final class TooltipTemplateRuntime {
             Function<String, WynnSharedDictionaryService.LookupResult> lookupFunction
     ) {
         LocalDictionaryEvaluation evaluation = evaluateLocalDictionaryLookup(sourceText, lookupFunction);
+        if (!evaluation.accepted()) {
+            logItemLocalDictionaryEvaluation(currentItemTranslateConfig(), "paragraph", sourceText, evaluation);
+        }
         return evaluation.accepted() ? evaluation.lookupResult() : null;
     }
 
@@ -228,10 +242,15 @@ final class TooltipTemplateRuntime {
             return;
         }
 
-        throttledItemLocalHitLog(
+        throttledItemLocalLookupLog(
                 config,
                 localLookup.dictionaryId(),
+                "hit",
                 sourceText,
+                "paragraph",
+                sourceText,
+                localLookup.matchType() == null ? "" : localLookup.matchType().name().toLowerCase(Locale.ROOT),
+                "",
                 localLookup.translation()
         );
     }
@@ -477,13 +496,14 @@ final class TooltipTemplateRuntime {
 
         LocalDictionaryEvaluation localEvaluation =
                 evaluateLocalDictionaryLookup(preparedTemplate.sourceLine().getString());
+        logItemLocalDictionaryEvaluation(
+                config,
+                "line-template",
+                preparedTemplate.sourceLine().getString(),
+                localEvaluation
+        );
         if (localEvaluation.accepted()) {
             WynnSharedDictionaryService.LookupResult localLookup = localEvaluation.lookupResult();
-            logAcceptedLocalDictionaryHit(
-                    config,
-                    localLookup,
-                    preparedTemplate.sourceLine().getString()
-            );
             return new ResolvedTemplateLookup(
                     translatedLookup(localLookup.translation()),
                     CachedTranslationFormat.LEGACY,
@@ -671,7 +691,7 @@ final class TooltipTemplateRuntime {
             Function<String, WynnSharedDictionaryService.LookupResult> lookupFunction
     ) {
         if (sourceText == null || sourceText.isBlank()) {
-            return new LocalDictionaryEvaluation(null, null, "");
+            return new LocalDictionaryEvaluation(null, null, "", "");
         }
 
         String visibleSource = normalizeLocalDictionaryLookupSourceText(sourceText);
@@ -716,19 +736,20 @@ final class TooltipTemplateRuntime {
             Function<String, WynnSharedDictionaryService.LookupResult> lookupFunction
     ) {
         if (lookupSourceText == null || lookupSourceText.isBlank()) {
-            return new LocalDictionaryEvaluation(null, null, lookupSourceLabel);
+            return new LocalDictionaryEvaluation(null, null, lookupSourceLabel, "");
         }
 
         WynnSharedDictionaryService.LookupResult lookup = lookupFunction == null
                 ? null
                 : lookupFunction.apply(lookupSourceText);
         if (lookup == null || !lookup.hit()) {
-            return new LocalDictionaryEvaluation(lookup, null, lookupSourceLabel);
+            return new LocalDictionaryEvaluation(lookup, null, lookupSourceLabel, lookupSourceText);
         }
         return new LocalDictionaryEvaluation(
                 lookup,
                 describeLocalDictionaryRejectionReason(originalSourceText, lookup),
-                lookupSourceLabel
+                lookupSourceLabel,
+                lookupSourceText
         );
     }
 
@@ -900,19 +921,61 @@ final class TooltipTemplateRuntime {
         );
     }
 
-    private static void throttledItemLocalHitLog(
+    private static void logItemLocalDictionaryEvaluation(
+            ItemTranslateConfig config,
+            String phase,
+            String originalText,
+            LocalDictionaryEvaluation evaluation
+    ) {
+        if (evaluation == null) {
+            return;
+        }
+
+        WynnSharedDictionaryService.LookupResult lookupResult = evaluation.lookupResult();
+        boolean hit = lookupResult != null && lookupResult.hit();
+        String status = evaluation.accepted() ? "hit" : (hit ? "rejected" : "miss");
+        String dictionaryId = hit ? lookupResult.dictionaryId() : "";
+        throttledItemLocalLookupLog(
+                config,
+                dictionaryId,
+                status,
+                originalText,
+                evaluation.lookupSource(),
+                evaluation.lookupText(),
+                lookupResult == null || lookupResult.matchType() == null
+                        ? ""
+                        : lookupResult.matchType().name().toLowerCase(Locale.ROOT),
+                hit ? evaluation.rejectionReason() : "dictionary miss",
+                hit ? lookupResult.translation() : ""
+        );
+    }
+
+    private static void throttledItemLocalLookupLog(
             ItemTranslateConfig config,
             String dictionaryId,
+            String status,
             String originalText,
+            String lookupSource,
+            String lookupText,
+            String match,
+            String rejectionReason,
             String translation
     ) {
-        if (!isItemLocalHitLoggingEnabled(config, dictionaryId)) {
+        String resolvedStatus = status == null || status.isBlank() ? "hit" : status;
+        String resolvedDictionaryId = resolveItemLocalLookupLogDictionaryId(config, dictionaryId);
+        if (!isItemLocalHitLoggingEnabled(config, resolvedDictionaryId)) {
             return;
         }
 
         String normalized = originalText == null ? "" : originalText.replaceAll("\\s+", " ").trim();
-        String resolvedDictionaryId = dictionaryId == null || dictionaryId.isBlank() ? "items" : dictionaryId;
-        String logKey = resolvedDictionaryId + "_local_hit:" + Integer.toHexString(normalized.hashCode());
+        String normalizedLookup = lookupText == null || lookupText.isBlank()
+                ? ""
+                : lookupText.replaceAll("\\s+", " ").trim();
+        String logKey = resolvedDictionaryId
+                + "_local_"
+                + resolvedStatus
+                + ':'
+                + Integer.toHexString((normalized + "|" + normalizedLookup + "|" + rejectionReason).hashCode());
         long now = System.currentTimeMillis();
         Long lastAt = ITEM_LOCAL_HIT_LOG_TIMESTAMPS.get(logKey);
         if (lastAt != null && now - lastAt < ITEM_LOCAL_HIT_LOG_THROTTLE_MILLIS) {
@@ -921,11 +984,32 @@ final class TooltipTemplateRuntime {
 
         ITEM_LOCAL_HIT_LOG_TIMESTAMPS.put(logKey, now);
         Translate_AllinOne.LOGGER.info(
-                "[ItemTranslate] {}_local_hit original=\"{}\" translation=\"{}\"",
+                "[ItemTranslate] {}_local_{} source={} match={} original=\"{}\" lookupText=\"{}\" translation=\"{}\" reason=\"{}\"",
                 resolvedDictionaryId,
+                resolvedStatus,
+                lookupSource == null ? "" : lookupSource,
+                match == null ? "" : match,
                 truncateForLog(originalText, 220),
-                truncateForLog(translation, 220)
+                truncateForLog(normalizedLookup, 220),
+                truncateForLog(translation, 220),
+                truncateForLog(rejectionReason, 220)
         );
+    }
+
+    private static String resolveItemLocalLookupLogDictionaryId(ItemTranslateConfig config, String dictionaryId) {
+        if (dictionaryId != null && !dictionaryId.isBlank()) {
+            return dictionaryId;
+        }
+        if (config == null || config.debug == null) {
+            return "item_skill";
+        }
+        if (config.debug.log_items_local_hits && !config.debug.log_skills_local_hits) {
+            return "items";
+        }
+        if (config.debug.log_skills_local_hits && !config.debug.log_items_local_hits) {
+            return "skills";
+        }
+        return "item_skill";
     }
 
     private static boolean isItemLocalHitLoggingEnabled(ItemTranslateConfig config, String dictionaryId) {
@@ -935,10 +1019,19 @@ final class TooltipTemplateRuntime {
 
         String resolvedDictionaryId = dictionaryId == null ? "" : dictionaryId.trim().toLowerCase(Locale.ROOT);
         return switch (resolvedDictionaryId) {
-            case "items" -> config.debug.log_items_local_hits;
-            case "skills" -> config.debug.log_skills_local_hits;
+            case "item", "items" -> config.debug.log_items_local_hits;
+            case "skill", "skills" -> config.debug.log_skills_local_hits;
+            case "item_skill" -> config.debug.log_items_local_hits || config.debug.log_skills_local_hits;
             default -> config.debug.log_items_local_hits || config.debug.log_skills_local_hits;
         };
+    }
+
+    private static ItemTranslateConfig currentItemTranslateConfig() {
+        try {
+            return Translate_AllinOne.getConfig().itemTranslate;
+        } catch (IllegalStateException ignored) {
+            return null;
+        }
     }
 
     static Text renderLocalDictionaryTranslation(
@@ -1315,7 +1408,7 @@ final class TooltipTemplateRuntime {
         );
     }
 
-    private static String buildLegacyCompatibilityKey(Text line) {
+    static String buildLegacyCompatibilityKey(Text line) {
         if (line == null) {
             return null;
         }

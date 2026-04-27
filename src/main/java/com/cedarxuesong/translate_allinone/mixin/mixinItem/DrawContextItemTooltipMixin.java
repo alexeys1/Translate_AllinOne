@@ -3,6 +3,7 @@ package com.cedarxuesong.translate_allinone.mixin.mixinItem;
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipRecentRenderGuardSupport;
+import com.cedarxuesong.translate_allinone.utils.translate.TooltipTextDebugCopySupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTextMatcherSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTranslationContext;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTranslationSupport;
@@ -59,6 +60,7 @@ public abstract class DrawContextItemTooltipMixin {
             CallbackInfoReturnable<List<Text>> cir
     ) {
         List<Text> originalTooltip = cir.getReturnValue();
+        TooltipTextDebugCopySupport.maybeCopyCurrentTooltip(originalTooltip);
         boolean useWynnmodTooltipTracking = translate_allinone$shouldUseWynnmodTooltipTracking();
         if (useWynnmodTooltipTracking && TooltipTranslationContext.isInWynnmodTooltipRender()) {
             TooltipTextMatcherSupport.logTooltipGuardIfDev(

@@ -29,16 +29,16 @@ public final class TooltipRefreshNoticeSupport {
     }
 
     public static void maybeForceRefreshCurrentTooltip(List<Text> tooltip, ItemTranslateConfig config) {
-        boolean decorativeTooltipContext = TooltipDecorativeContextSupport.isDecorativeTooltipContext(tooltip);
-        Set<String> keysToRefresh = TooltipRoutePlanner.planTooltip(
-                tooltip,
-                config,
-                decorativeTooltipContext
-        ).translationTemplateKeys();
+        Set<String> keysToRefresh = TooltipTranslationSupport.collectRemoteTranslationTemplateKeys(tooltip, config);
         maybeForceRefreshCurrentTooltip(keysToRefresh, config);
     }
 
     static void maybeForceRefreshCurrentTooltip(Set<String> keysToRefresh, ItemTranslateConfig config) {
+        boolean hasKeysToRefresh = keysToRefresh != null && !keysToRefresh.isEmpty();
+        if (hasKeysToRefresh) {
+            TooltipTranslationSupport.queueRemoteTranslationTemplateKeys(keysToRefresh);
+        }
+
         boolean isRefreshPressed = config != null
                 && config.keybinding != null
                 && KeybindingManager.isPressed(config.keybinding.refreshBinding);
@@ -47,7 +47,7 @@ public final class TooltipRefreshNoticeSupport {
             return;
         }
 
-        if (keysToRefresh.isEmpty()) {
+        if (!hasKeysToRefresh) {
             return;
         }
 
@@ -68,12 +68,7 @@ public final class TooltipRefreshNoticeSupport {
     }
 
     public static boolean shouldShowRefreshNotice(List<Text> tooltip, ItemTranslateConfig config) {
-        boolean decorativeTooltipContext = TooltipDecorativeContextSupport.isDecorativeTooltipContext(tooltip);
-        Set<String> keys = TooltipRoutePlanner.planTooltip(
-                tooltip,
-                config,
-                decorativeTooltipContext
-        ).translationTemplateKeys();
+        Set<String> keys = TooltipTranslationSupport.collectRemoteTranslationTemplateKeys(tooltip, config);
         return shouldShowRefreshNotice(keys);
     }
 

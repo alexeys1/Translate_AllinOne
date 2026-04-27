@@ -7,6 +7,7 @@ import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipInternalLineSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipRecentRenderGuardSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipRefreshNoticeSupport;
+import com.cedarxuesong.translate_allinone.utils.translate.TooltipTextDebugCopySupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTextMatcherSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTranslationContext;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTranslationSupport;
@@ -34,12 +35,16 @@ public abstract class WynnmodDrawItemTooltipSetTextMixin {
     )
     private List<Text> translate_allinone$translateDecoratedTooltipAtSetText(List<Text> tooltip) {
         ItemTranslateConfig config = Translate_AllinOne.getConfig().itemTranslate;
-        if (config == null || !config.enabled || tooltip == null || tooltip.isEmpty()) {
+        if (tooltip == null || tooltip.isEmpty()) {
             return tooltip;
         }
 
         List<Text> sanitizedTooltip = TooltipInternalLineSupport.stripInternalGeneratedLines(tooltip);
         if (sanitizedTooltip == null || sanitizedTooltip.isEmpty()) {
+            return tooltip;
+        }
+        TooltipTextDebugCopySupport.maybeCopyCurrentTooltip(sanitizedTooltip);
+        if (config == null || !config.enabled) {
             return tooltip;
         }
         Set<String> screenMirrorTranslationKeys = TooltipTranslationSupport.collectTranslationTemplateKeys(sanitizedTooltip, config);

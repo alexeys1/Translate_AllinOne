@@ -6,6 +6,7 @@ import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipInternalLineSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipRecentRenderGuardSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipRefreshNoticeSupport;
+import com.cedarxuesong.translate_allinone.utils.translate.TooltipTextDebugCopySupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTextMatcherSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTranslationContext;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTranslationSupport;
@@ -49,7 +50,7 @@ public abstract class WynnmodStatsTooltipContextMixin {
             remap = false
     )
     private void translate_allinone$prepareWynnmodTooltip(@Coerce Object event, CallbackInfo ci) {
-        if (!translate_allinone$shouldUseWynnmodTooltipTracking()) {
+        if (!translate_allinone$shouldProcessWynnmodTooltip()) {
             TooltipTextMatcherSupport.logTooltipGuardIfDev(
                     Translate_AllinOne.getConfig().itemTranslate,
                     "wynnmod",
@@ -70,9 +71,10 @@ public abstract class WynnmodStatsTooltipContextMixin {
             remap = false
     )
     private void translate_allinone$translateDecoratedWynnmodTooltip(@Coerce Object event, CallbackInfo ci) {
+        boolean processingWynnmodTooltip = translate_allinone$shouldProcessWynnmodTooltip();
         boolean usingWynnmodTooltipTracking = translate_allinone$shouldUseWynnmodTooltipTracking();
         try {
-            if (!usingWynnmodTooltipTracking) {
+            if (!processingWynnmodTooltip) {
                 TooltipTextMatcherSupport.logTooltipGuardIfDev(
                         Translate_AllinOne.getConfig().itemTranslate,
                         "wynnmod",
@@ -97,6 +99,10 @@ public abstract class WynnmodStatsTooltipContextMixin {
             }
 
             List<Text> sanitizedTooltip = TooltipInternalLineSupport.stripInternalGeneratedLines(currentTooltip);
+            TooltipTextDebugCopySupport.maybeCopyCurrentTooltip(sanitizedTooltip);
+            if (!usingWynnmodTooltipTracking) {
+                return;
+            }
             TooltipRefreshNoticeSupport.maybeForceRefreshCurrentTooltip(sanitizedTooltip, config);
             boolean showRefreshNotice = TooltipRefreshNoticeSupport.shouldShowRefreshNotice(sanitizedTooltip, config);
             if (TooltipRecentRenderGuardSupport.shouldSkipDuplicateRender(sanitizedTooltip, showRefreshNotice)) {
@@ -149,10 +155,16 @@ public abstract class WynnmodStatsTooltipContextMixin {
                 TooltipTranslationContext.setSkipDrawContextTranslation(true);
             }
         } finally {
-            if (usingWynnmodTooltipTracking) {
+            if (processingWynnmodTooltip) {
                 TooltipTranslationContext.popWynnmodTooltipRender();
             }
         }
+    }
+
+    @Unique
+    private static boolean translate_allinone$shouldProcessWynnmodTooltip() {
+        return FabricLoader.getInstance().isModLoaded("wynnmod")
+                && (translate_allinone$shouldUseWynnmodTooltipTracking() || TooltipTextDebugCopySupport.isEnabled());
     }
 
     @Unique

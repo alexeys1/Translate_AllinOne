@@ -5,6 +5,7 @@ import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ChatTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.CacheBackupConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.DebugConfig;
+import com.cedarxuesong.translate_allinone.utils.config.pojos.DictionaryConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.InputBindingConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ProviderManagerConfig;
@@ -152,6 +153,10 @@ public class ConfigManager {
         if (configToUse.wynnCraft == null) {
             configToUse.wynnCraft = new WynnCraftConfig();
         }
+        if (configToUse.dictionary == null) {
+            configToUse.dictionary = new DictionaryConfig();
+        }
+        configToUse.dictionary.normalize();
         if (configToUse.wynnCraft.target_language == null || configToUse.wynnCraft.target_language.isBlank()) {
             configToUse.wynnCraft.target_language = WynnCraftConfig.DEFAULT_TARGET_LANGUAGE;
         } else {
@@ -343,7 +348,11 @@ public class ConfigManager {
             migratedLegacyItemDevMode = true;
         }
 
-        return migratedLegacyItemDevMode || shouldRewriteLegacyItemDebugObject(rawConfig);
+        boolean migratedLegacyLocalHitLogging = migrateLegacyItemLocalHitLogging(rawConfig, loadedConfig);
+
+        return migratedLegacyItemDevMode
+                || migratedLegacyLocalHitLogging
+                || shouldRewriteLegacyItemDebugObject(rawConfig);
     }
 
     private static boolean migrateLegacyWynnTargetLanguageConfig(JsonElement rawConfig, ModConfig loadedConfig) {
@@ -392,6 +401,34 @@ public class ConfigManager {
         JsonElement legacyDevMode = itemTranslateObject.get("dev_mode");
         return legacyDevMode != null && legacyDevMode.isJsonPrimitive() && legacyDevMode.getAsBoolean();
     }
+    private static boolean migrateLegacyItemLocalHitLogging(JsonElement rawConfig, ModConfig loadedConfig) {
+        if (!hasLegacyItemLocalHitLogging(rawConfig)) {
+            return false;
+        }
+
+        if (isLegacyItemLocalHitLoggingEnabled(rawConfig)
+                && !loadedConfig.itemTranslate.debug.log_items_local_hits
+                && !loadedConfig.itemTranslate.debug.log_skills_local_hits) {
+            loadedConfig.itemTranslate.debug.log_items_local_hits = true;
+            loadedConfig.itemTranslate.debug.log_skills_local_hits = true;
+        }
+        return true;
+    }
+
+    private static boolean hasLegacyItemLocalHitLogging(JsonElement rawConfig) {
+        JsonObject itemTranslateObject = getItemTranslateObject(rawConfig);
+        return hasBooleanField(itemTranslateObject, "log_local_dictionary_hits")
+                || hasBooleanField(getItemDebugObject(rawConfig), "log_local_dictionary_hits")
+                || hasBooleanField(getLegacyItemDevObject(rawConfig), "log_local_dictionary_hits");
+    }
+
+    private static boolean isLegacyItemLocalHitLoggingEnabled(JsonElement rawConfig) {
+        JsonObject itemTranslateObject = getItemTranslateObject(rawConfig);
+        return getBooleanField(itemTranslateObject, "log_local_dictionary_hits")
+                || getBooleanField(getItemDebugObject(rawConfig), "log_local_dictionary_hits")
+                || getBooleanField(getLegacyItemDevObject(rawConfig), "log_local_dictionary_hits");
+    }
+
 
     private static JsonObject getItemTranslateObject(JsonElement rawConfig) {
         return ConfigMigrationSupport.getItemTranslateObject(rawConfig);
@@ -401,6 +438,19 @@ public class ConfigManager {
         if (rawConfig == null || !rawConfig.isJsonObject()) {
             return null;
         }
+    private static boolean hasBooleanField(JsonObject object, String fieldName) {
+        JsonElement element = object == null || fieldName == null ? null : object.get(fieldName);
+        return element != null && element.isJsonPrimitive() && element.getAsJsonPrimitive().isBoolean();
+    }
+
+    private static boolean getBooleanField(JsonObject object, String fieldName) {
+        JsonElement element = object == null || fieldName == null ? null : object.get(fieldName);
+        return element != null
+                && element.isJsonPrimitive()
+                && element.getAsJsonPrimitive().isBoolean()
+                && element.getAsBoolean();
+    }
+
         JsonObject root = rawConfig.getAsJsonObject();
         JsonElement wynnCraft = root.get("wynnCraft");
         if (wynnCraft == null || !wynnCraft.isJsonObject()) {

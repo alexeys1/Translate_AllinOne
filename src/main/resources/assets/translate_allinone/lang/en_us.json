@@ -301,6 +301,7 @@
   "text.translate_allinone.configscreen.group.log_hits": "Hit Logs",
   "text.translate_allinone.configscreen.group.route": "Routing",
   "text.translate_allinone.configscreen.group.wynncraft": "WynnCraft",
+  "text.translate_allinone.tooltip_debug.copied": "[TAIO] This item tooltip has been copied",
   "text.translate_allinone.configscreen.group.wynn_npc_dialogue": "Wynn NPC Dialogue",
   "text.translate_allinone.configscreen.group.wynn_npc_dialogue_debug": "Wynn NPC Dialogue Debug",
   "text.translate_allinone.configscreen.group.wynntils_task_tracker": "Wynntils Task Tracker",
