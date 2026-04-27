@@ -248,7 +248,6 @@
   "text.translate_allinone.configscreen.label.enabled": "启用",
   "text.translate_allinone.configscreen.label.auto_translate": "自动翻译",
   "text.translate_allinone.configscreen.label.streaming": "流式响应",
-  "text.translate_allinone.configscreen.label.chat_interaction_offset_fix": "修复聊天翻译互动偏移",
   "text.translate_allinone.configscreen.label.translate_item_name": "翻译物品名称",
   "text.translate_allinone.configscreen.label.translate_item_lore": "翻译物品简介",
   "text.translate_allinone.configscreen.label.translate_wynn_npc_dialogue_npc_name": "翻译 NPC 名称",

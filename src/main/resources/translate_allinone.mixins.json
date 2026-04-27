@@ -7,7 +7,6 @@
   ],
   "client": [
     "mixinChatHud.ChatHudAccessor",
-    "mixinChatHud.ChatHudInteractionMixin",
     "mixinChatHud.ChatHudMixin",
     "mixinItem.DrawContextItemTooltipMixin",
     "mixinItem.DrawContextTooltipMixin",
