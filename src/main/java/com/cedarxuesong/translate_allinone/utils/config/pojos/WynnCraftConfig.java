@@ -23,14 +23,15 @@ public class WynnCraftConfig {
     public static class HudConfig {
         public static final int MIN_SCALE_PERCENT = 50;
         public static final int MAX_SCALE_PERCENT = 200;
-        public static final int DEFAULT_SCALE_PERCENT = 100;
+        public static final int DEFAULT_SCALE_PERCENT = 90;
         public static final int MIN_X_OFFSET = -300;
         public static final int MAX_X_OFFSET = 300;
-        public static final int DEFAULT_X_OFFSET = 130;
         public static final int MIN_Y_OFFSET = -300;
         public static final int MAX_Y_OFFSET = 300;
+        public static final int DEFAULT_X_OFFSET = 0;
         public static final int DEFAULT_Y_OFFSET = 0;
-        public static final int DEFAULT_OPTIONS_Y_OFFSET = -85;
+        public static final int DEFAULT_OPTIONS_X_OFFSET = 190;
+        public static final int DEFAULT_OPTIONS_Y_OFFSET = -70;
 
         public int scale_percent = DEFAULT_SCALE_PERCENT;
         public int x_offset = DEFAULT_X_OFFSET;
@@ -46,7 +47,7 @@ public class WynnCraftConfig {
         }
 
         public static HudConfig optionsDefaults() {
-            return new HudConfig(DEFAULT_SCALE_PERCENT, DEFAULT_X_OFFSET, DEFAULT_OPTIONS_Y_OFFSET);
+            return new HudConfig(DEFAULT_SCALE_PERCENT, DEFAULT_OPTIONS_X_OFFSET, DEFAULT_OPTIONS_Y_OFFSET);
         }
     }
 

@@ -388,7 +388,7 @@
   "text.translate_allinone.configscreen.preview.wynn_npc_dialogue_npc": "NPC Name",
   "text.translate_allinone.configscreen.preview.wynn_npc_dialogue_body": "sample line for NPC dialogue.",
   "text.translate_allinone.configscreen.preview.wynn_npc_dialogue_options": "1,sample line for options.\n2,sample line for options.\n3,sample line for options.",
-  "text.translate_allinone.wynn_dialogue.options_title": "Options:",
+
   "text.translate_allinone.configscreen.hud_editor.title": "HUD Edit Mode",
   "text.translate_allinone.configscreen.hud_editor.instruction.drag": "Click and drag a window to move it",
   "text.translate_allinone.configscreen.hud_editor.instruction.scroll": "Use the mouse wheel to resize the current window",

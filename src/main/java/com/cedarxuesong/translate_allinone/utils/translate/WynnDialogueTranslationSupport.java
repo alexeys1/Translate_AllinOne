@@ -1360,11 +1360,12 @@ public final class WynnDialogueTranslationSupport {
         if (original.isBlank()) {
             return;
         }
-        displayLines.add(original);
 
         String translated = normalizeDisplayText(translatedLine);
         if (!translated.isBlank() && isMeaningfullyTranslated(original, translated)) {
             displayLines.add(translated);
+        } else {
+            displayLines.add(original);
         }
     }
 

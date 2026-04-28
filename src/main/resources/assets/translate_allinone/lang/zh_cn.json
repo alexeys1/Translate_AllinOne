@@ -384,7 +384,7 @@
   "text.translate_allinone.configscreen.preview.wynn_npc_dialogue_npc": "NPC 名字",
   "text.translate_allinone.configscreen.preview.wynn_npc_dialogue_body": "对话示例文本。",
   "text.translate_allinone.configscreen.preview.wynn_npc_dialogue_options": "1，选项示例文本.\n2，选项示例文本。\n3，选项示例文本。",
-  "text.translate_allinone.wynn_dialogue.options_title": "选项：",
+
   "text.translate_allinone.configscreen.hud_editor.title": "HUD 编辑模式",
   "text.translate_allinone.configscreen.hud_editor.instruction.drag": "点击并拖动窗口即可调整位置",
   "text.translate_allinone.configscreen.hud_editor.instruction.scroll": "滚动鼠标滚轮即可调整当前窗口大小",
