@@ -262,9 +262,6 @@ public final class ConfigSectionContentSupport {
                 if (wynnCraft.npc_dialogue.debug == null) {
                     wynnCraft.npc_dialogue.debug = new WynnCraftConfig.DebugConfig();
                 }
-                if (wynnCraft.npc_dialogue.hud == null) {
-                    wynnCraft.npc_dialogue.hud = new WynnCraftConfig.HudConfig();
-                }
                 if (wynnCraft.wynntils_task_tracker == null) {
                     wynnCraft.wynntils_task_tracker = new WynnCraftConfig.WynntilsTaskTrackerConfig();
                 }

@@ -279,24 +279,6 @@ public class ConfigManager {
         return Math.max(min, Math.min(max, value));
     }
 
-    private static void normalizeHudConfig(WynnCraftConfig.HudConfig hud) {
-        hud.scale_percent = clamp(
-                hud.scale_percent,
-                WynnCraftConfig.HudConfig.MIN_SCALE_PERCENT,
-                WynnCraftConfig.HudConfig.MAX_SCALE_PERCENT
-        );
-        hud.x_offset = clamp(
-                hud.x_offset,
-                WynnCraftConfig.HudConfig.MIN_X_OFFSET,
-                WynnCraftConfig.HudConfig.MAX_X_OFFSET
-        );
-        hud.y_offset = clamp(
-                hud.y_offset,
-                WynnCraftConfig.HudConfig.MIN_Y_OFFSET,
-                WynnCraftConfig.HudConfig.MAX_Y_OFFSET
-        );
-    }
-
     private static ModConfig loadFallbackConfig(Path configPath, Exception cause) {
         Translate_AllinOne.LOGGER.error("Failed to load config file, using defaults: {}", configPath, cause);
         ModConfig fallback = normalizeConfig(new ModConfig());
