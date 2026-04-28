@@ -385,19 +385,15 @@ public final class WynnDialogueTranslateManager {
     }
 
     private String buildSystemPrompt(String targetLanguage, String suffix) {
-        String basePrompt = "Translate WynnCraft NPC dialogue or quest text into " + targetLanguage + ".\n"
-                + "\n"
-                + "Input is a JSON object; output one valid JSON object only.\n"
+        String basePrompt = "Translate WynnCraft NPC dialogue into " + targetLanguage
+                + ". Output valid JSON only, keys unchanged.\n"
                 + "\n"
                 + "Rules:\n"
-                + "1) Keep all keys and key count unchanged; translate values only.\n"
-                + "2) Preserve original semantics, logic, and paragraph format. Use natural target-language phrasing — no mixed-language output.\n"
-                + "3) Do not translate proper nouns: place names (e.g. Ragni, Troms, Detlas), character names, item names, and [bracketed] item references.\n"
-                + "4) Render poetic or literary dialogue with rhythmic expression (e.g. \"To what end?\").\n"
-                + "5) Preserve special characters including zalgo/corrupted text exactly as-is.\n"
-                + "6) Preserve tokens exactly: § codes {player} {d1} %s %d %f URLs numbers <...> {...} <s0> </s0> \\n \\t.\n"
-                + "7) If unsure, keep the value unchanged.\n"
-                + "8) No extra text outside JSON.";
+                + "1) Natural " + targetLanguage + ", keep original meaning and paragraph breaks. No mixed-language.\n"
+                + "2) Do not translate: place names (Ragni, Troms), character names, [bracketed] items.\n"
+                + "3) Poetic lines: use rhythmic " + targetLanguage + ".\n"
+                + "4) Preserve exactly: § codes, {tokens}, %s %d %f, URLs, numbers, <...>, <s0> </s0>, \\n, \\t, zalgo text.\n"
+                + "5) If unsure, keep original. No extra text.";
         return PromptMessageBuilder.appendSystemPromptSuffix(basePrompt, suffix);
     }
 
