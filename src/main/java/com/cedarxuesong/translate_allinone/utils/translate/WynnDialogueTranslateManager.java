@@ -17,6 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -319,12 +320,14 @@ public final class WynnDialogueTranslateManager {
 
                 if (!finalTranslatedMap.isEmpty()) {
                     cache.updateTranslations(finalTranslatedMap);
-                    WynnDialogueTranslationSupport.onCacheTranslationsUpdated(finalTranslatedMap);
+                    Map<String, String> acceptedTranslatedMap = retainAcceptedCacheTranslations(finalTranslatedMap);
+                    WynnDialogueTranslationSupport.onCacheTranslationsUpdated(acceptedTranslatedMap);
                     WynnDialogueTranslationSupport.throttledDevLog(
                             "cache_updated",
                             1000L,
-                            "cache_updated count={} context={}",
+                            "cache_updated count={} accepted={} context={}",
                             finalTranslatedMap.size(),
+                            acceptedTranslatedMap.size(),
                             requestContext
                     );
                 }
@@ -348,6 +351,24 @@ public final class WynnDialogueTranslateManager {
                 );
             }
         });
+    }
+
+    private Map<String, String> retainAcceptedCacheTranslations(Map<String, String> translations) {
+        if (translations == null || translations.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<String, String> acceptedTranslations = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : translations.entrySet()) {
+            String key = entry.getKey();
+            String value = entry.getValue();
+            WynnDialogueTextCache.LookupResult lookupResult = cache.peek(key);
+            if (lookupResult.status() == WynnDialogueTextCache.TranslationStatus.TRANSLATED
+                    && Objects.equals(lookupResult.translation(), value)) {
+                acceptedTranslations.put(key, value);
+            }
+        }
+        return acceptedTranslations;
     }
 
     private boolean isSessionActive(long expectedEpoch) {

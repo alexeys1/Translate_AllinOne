@@ -583,6 +583,15 @@ public final class ConfigSectionContentSupport {
                         value -> wynnCraft.npc_dialogue.translate_npc_name = value
                 );
                 y += ROW_STEP;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.translate_wynn_npc_dialogue_options"),
+                        () -> wynnCraft.npc_dialogue.translate_options,
+                        value -> wynnCraft.npc_dialogue.translate_options = value
+                );
+                y += ROW_STEP;
                 actionAdder.add(
                         x,
                         y,

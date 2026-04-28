@@ -12,6 +12,7 @@ import net.minecraft.client.render.RenderTickCounter;
 import net.minecraft.text.OrderedText;
 import net.minecraft.text.Text;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -34,6 +35,7 @@ public final class WynnDialogueHudRenderer {
     private static String currentNpcName = "";
     private static String currentDialogue = "";
     private static String currentTranslation = "";
+    private static String currentOptionsText = "";
     private static boolean currentTranslationPending;
     private static String currentAnimationKey = "";
     private static long displayUntil;
@@ -62,11 +64,24 @@ public final class WynnDialogueHudRenderer {
             boolean pending,
             String animationKey
     ) {
+        showDialogue(pageInfo, npcName, dialogue, translation, pending, animationKey, "");
+    }
+
+    public static synchronized void showDialogue(
+            String pageInfo,
+            String npcName,
+            String dialogue,
+            String translation,
+            boolean pending,
+            String animationKey,
+            String optionsText
+    ) {
         String safePageInfo = pageInfo == null ? "" : pageInfo;
         String safeNpcName = npcName == null ? "" : npcName;
         String safeDialogue = dialogue == null ? "" : dialogue;
         String safeTranslation = translation == null ? "" : translation.trim();
         String safeAnimationKey = animationKey == null ? "" : animationKey;
+        String safeOptionsText = optionsText == null ? "" : optionsText.trim();
         if (safeTranslation.isEmpty()) {
             return;
         }
@@ -75,6 +90,7 @@ public final class WynnDialogueHudRenderer {
                 && Objects.equals(currentNpcName, safeNpcName)
                 && Objects.equals(currentDialogue, safeDialogue)
                 && Objects.equals(currentTranslation, safeTranslation)
+                && Objects.equals(currentOptionsText, safeOptionsText)
                 && currentTranslationPending == pending
                 && Objects.equals(currentAnimationKey, safeAnimationKey)) {
             return;
@@ -84,17 +100,19 @@ public final class WynnDialogueHudRenderer {
         currentNpcName = safeNpcName;
         currentDialogue = safeDialogue;
         currentTranslation = safeTranslation;
+        currentOptionsText = safeOptionsText;
         currentTranslationPending = pending;
         currentAnimationKey = safeAnimationKey;
         displayUntil = System.currentTimeMillis() + DISPLAY_DURATION_MILLIS;
         WynnDialogueTranslationSupport.throttledDevLog(
                 "hud_state_set",
                 1000L,
-                "hud_state_set page={} npc=\"{}\" dialogue=\"{}\" display=\"{}\" pending={} animationKey=\"{}\"",
+                "hud_state_set page={} npc=\"{}\" dialogue=\"{}\" display=\"{}\" options=\"{}\" pending={} animationKey=\"{}\"",
                 safePageInfo,
                 safeNpcName,
                 safeDialogue,
                 safeTranslation,
+                safeOptionsText,
                 pending,
                 safeAnimationKey
         );
@@ -105,6 +123,7 @@ public final class WynnDialogueHudRenderer {
         currentNpcName = "";
         currentDialogue = "";
         currentTranslation = "";
+        currentOptionsText = "";
         currentTranslationPending = false;
         currentAnimationKey = "";
         displayUntil = 0L;
@@ -116,25 +135,68 @@ public final class WynnDialogueHudRenderer {
             int viewportWidth,
             int viewportHeight
     ) {
+        return getEditorPreviewLayout(textRenderer, viewportWidth, viewportHeight).dialogue();
+    }
+
+    public static EditorPreviewLayout getEditorPreviewLayout(
+            TextRenderer textRenderer,
+            int viewportWidth,
+            int viewportHeight
+    ) {
         if (textRenderer == null || viewportWidth <= 0 || viewportHeight <= 0) {
-            return new EditorPreviewSnapshot(0, 0, 0, 0, WynnCraftConfig.HudConfig.DEFAULT_SCALE_PERCENT, 0, 0);
+            return new EditorPreviewLayout(
+                    new EditorPreviewSnapshot(
+                            0,
+                            0,
+                            0,
+                            0,
+                            WynnCraftConfig.HudConfig.DEFAULT_SCALE_PERCENT,
+                            WynnCraftConfig.HudConfig.DEFAULT_X_OFFSET,
+                            WynnCraftConfig.HudConfig.DEFAULT_Y_OFFSET
+                    ),
+                    new EditorPreviewSnapshot(
+                            0,
+                            0,
+                            0,
+                            0,
+                            WynnCraftConfig.HudConfig.DEFAULT_SCALE_PERCENT,
+                            WynnCraftConfig.HudConfig.DEFAULT_X_OFFSET,
+                            WynnCraftConfig.HudConfig.DEFAULT_OPTIONS_Y_OFFSET
+                    )
+            );
         }
 
+        DialogueContent content = resolveEditorContent();
         DialogueRenderData renderData = prepareDialogueRenderData(
                 textRenderer,
                 viewportWidth,
                 viewportHeight,
-                resolveEditorContent(),
+                content,
                 resolveHudLayout()
         );
-        return new EditorPreviewSnapshot(
-                renderData.x(),
-                renderData.y(),
-                renderData.scaledBoxWidth(),
-                renderData.scaledBoxHeight(),
-                renderData.hudLayout().scalePercent(),
-                renderData.hudLayout().xOffset(),
-                renderData.hudLayout().yOffset()
+        HudLayout optionsHudLayout = resolveOptionsHudLayout();
+        EditorPreviewSnapshot optionsSnapshot = new EditorPreviewSnapshot(
+                0,
+                0,
+                0,
+                0,
+                optionsHudLayout.scalePercent(),
+                optionsHudLayout.xOffset(),
+                optionsHudLayout.yOffset()
+        );
+        if (content.optionsText().getString() != null && !content.optionsText().getString().isBlank()) {
+            DialogueRenderData optionsRenderData = prepareOptionsRenderData(
+                    textRenderer,
+                    viewportWidth,
+                    viewportHeight,
+                    content.optionsText(),
+                    optionsHudLayout
+            );
+            optionsSnapshot = toEditorPreviewSnapshot(optionsRenderData);
+        }
+        return new EditorPreviewLayout(
+                toEditorPreviewSnapshot(renderData),
+                optionsSnapshot
         );
     }
 
@@ -148,14 +210,26 @@ public final class WynnDialogueHudRenderer {
             return;
         }
 
+        DialogueContent content = resolveEditorContent();
+        HudLayout hudLayout = resolveHudLayout();
         DialogueRenderData renderData = prepareDialogueRenderData(
                 textRenderer,
                 viewportWidth,
                 viewportHeight,
-                resolveEditorContent(),
-                resolveHudLayout()
+                content,
+                hudLayout
         );
         drawDialogueBox(drawContext, textRenderer, renderData, 0, 0);
+        if (content.optionsText().getString() != null && !content.optionsText().getString().isBlank()) {
+            DialogueRenderData optionsRenderData = prepareOptionsRenderData(
+                    textRenderer,
+                    viewportWidth,
+                    viewportHeight,
+                    content.optionsText(),
+                    resolveOptionsHudLayout()
+            );
+            drawDialogueBox(drawContext, textRenderer, optionsRenderData, 0, 0);
+        }
     }
 
     private static void render(DrawContext drawContext, RenderTickCounter tickCounter) {
@@ -165,6 +239,7 @@ public final class WynnDialogueHudRenderer {
         }
 
         String translation;
+        String optionsText;
         String pageInfo;
         String npcName;
         boolean pending;
@@ -172,6 +247,7 @@ public final class WynnDialogueHudRenderer {
         long visibleUntil;
         synchronized (WynnDialogueHudRenderer.class) {
             translation = currentTranslation;
+            optionsText = shouldRenderOptionsHud() ? currentOptionsText : "";
             pageInfo = currentPageInfo;
             npcName = currentNpcName;
             pending = currentTranslationPending;
@@ -193,6 +269,7 @@ public final class WynnDialogueHudRenderer {
         }
 
         TextRenderer textRenderer = client.textRenderer;
+        HudLayout hudLayout = resolveHudLayout();
         DialogueRenderData renderData = prepareDialogueRenderData(
                 textRenderer,
                 drawContext.getScaledWindowWidth(),
@@ -202,23 +279,39 @@ public final class WynnDialogueHudRenderer {
                         npcName,
                         pending
                                 ? AnimationManager.getAnimatedStyledText(Text.literal(translation), animationKey, false)
-                                : Text.literal(translation)
+                                : Text.literal(translation),
+                        Text.literal(optionsText)
                 ),
-                resolveHudLayout()
+                hudLayout
         );
         drawDialogueBox(drawContext, textRenderer, renderData, 0, 0);
+        DialogueRenderData optionsRenderData = null;
+        if (optionsText != null && !optionsText.isBlank()) {
+            optionsRenderData = prepareOptionsRenderData(
+                    textRenderer,
+                    drawContext.getScaledWindowWidth(),
+                    drawContext.getScaledWindowHeight(),
+                    Text.literal(optionsText),
+                    resolveOptionsHudLayout()
+            );
+            drawDialogueBox(drawContext, textRenderer, optionsRenderData, 0, 0);
+        }
 
         String renderPayload = pageInfo + "\n" + npcName + "\n" + translation
+                + "\n" + optionsText
                 + "\n" + pending
                 + "\n" + animationKey
                 + "\n" + renderData.hudLayout().scalePercent()
                 + "\n" + renderData.hudLayout().xOffset()
-                + "\n" + renderData.hudLayout().yOffset();
+                + "\n" + renderData.hudLayout().yOffset()
+                + "\n" + (optionsRenderData == null ? "" : optionsRenderData.hudLayout().scalePercent())
+                + "\n" + (optionsRenderData == null ? "" : optionsRenderData.hudLayout().xOffset())
+                + "\n" + (optionsRenderData == null ? "" : optionsRenderData.hudLayout().yOffset());
         if (!renderPayload.equals(lastRenderedPayload)) {
             WynnDialogueTranslationSupport.throttledDevLog(
                     "hud_rendered",
                     1000L,
-                    "hud_rendered x={} y={} width={} height={} scale={} xOffset={} yOffset={} title=\"{}\"",
+                    "hud_rendered x={} y={} width={} height={} scale={} xOffset={} yOffset={} title=\"{}\" options=\"{}\"",
                     renderData.x(),
                     renderData.y(),
                     renderData.scaledBoxWidth(),
@@ -226,7 +319,8 @@ public final class WynnDialogueHudRenderer {
                     renderData.hudLayout().scalePercent(),
                     renderData.hudLayout().xOffset(),
                     renderData.hudLayout().yOffset(),
-                    renderData.title().getString()
+                    renderData.title().getString(),
+                    optionsText
             );
             lastRenderedPayload = renderPayload;
         }
@@ -242,7 +336,7 @@ public final class WynnDialogueHudRenderer {
         Text title = buildTitle(content.pageInfo(), content.npcName());
         int widthBudget = (int) Math.floor((viewportWidth - SCREEN_MARGIN) / hudLayout.scale()) - PADDING * 2;
         int maxContentWidth = Math.min(MAX_BOX_WIDTH, Math.max(MIN_CONTENT_WIDTH, widthBudget));
-        List<OrderedText> wrappedLines = textRenderer.wrapLines(content.translation(), maxContentWidth);
+        List<OrderedText> wrappedLines = wrapTextLines(textRenderer, content.translation(), maxContentWidth);
         if (wrappedLines.isEmpty()) {
             wrappedLines = List.of(content.translation().asOrderedText());
         }
@@ -271,26 +365,93 @@ public final class WynnDialogueHudRenderer {
         return new DialogueRenderData(title, wrappedLines, boxWidth, boxHeight, scaledBoxWidth, scaledBoxHeight, x, y, hudLayout);
     }
 
+    private static DialogueRenderData prepareOptionsRenderData(
+            TextRenderer textRenderer,
+            int viewportWidth,
+            int viewportHeight,
+            Text optionsText,
+            HudLayout hudLayout
+    ) {
+        Text title = Text.translatable("text.translate_allinone.wynn_dialogue.options_title");
+        int widthBudget = (int) Math.floor((viewportWidth - SCREEN_MARGIN) / hudLayout.scale()) - PADDING * 2;
+        int maxContentWidth = Math.min(MAX_BOX_WIDTH, Math.max(MIN_CONTENT_WIDTH, widthBudget));
+        List<OrderedText> wrappedLines = wrapTextLines(textRenderer, optionsText, maxContentWidth);
+        if (wrappedLines.isEmpty()) {
+            wrappedLines = List.of(optionsText.asOrderedText());
+        }
+
+        int contentWidth = textRenderer.getWidth(title.asOrderedText());
+        for (OrderedText line : wrappedLines) {
+            contentWidth = Math.max(contentWidth, textRenderer.getWidth(line));
+        }
+
+        int boxWidth = Math.min(maxContentWidth + PADDING * 2, contentWidth + PADDING * 2);
+        int boxHeight = PADDING * 2 + 9 + TITLE_GAP + wrappedLines.size() * LINE_HEIGHT;
+        int scaledBoxWidth = Math.max(1, Math.round(boxWidth * hudLayout.scale()));
+        int scaledBoxHeight = Math.max(1, Math.round(boxHeight * hudLayout.scale()));
+        int anchorCenterX = viewportWidth / 2 + hudLayout.xOffset();
+        int anchorCenterY = Math.round(viewportHeight * 0.55F) + hudLayout.yOffset();
+        int x = clamp(
+                anchorCenterX - scaledBoxWidth / 2,
+                SCREEN_EDGE_PADDING,
+                Math.max(SCREEN_EDGE_PADDING, viewportWidth - scaledBoxWidth - SCREEN_EDGE_PADDING)
+        );
+        int y = clamp(
+                anchorCenterY - scaledBoxHeight / 2,
+                SCREEN_EDGE_PADDING,
+                Math.max(SCREEN_EDGE_PADDING, viewportHeight - scaledBoxHeight - SCREEN_EDGE_PADDING)
+        );
+        return new DialogueRenderData(title, wrappedLines, boxWidth, boxHeight, scaledBoxWidth, scaledBoxHeight, x, y, hudLayout);
+    }
+
+    private static List<OrderedText> wrapTextLines(TextRenderer textRenderer, Text text, int maxContentWidth) {
+        if (text == null) {
+            return List.of();
+        }
+
+        String plain = text.getString();
+        if (plain.indexOf('\n') < 0) {
+            return textRenderer.wrapLines(text, maxContentWidth);
+        }
+
+        List<OrderedText> wrappedLines = new ArrayList<>();
+        for (String line : plain.split("\\n", -1)) {
+            if (line.isEmpty()) {
+                wrappedLines.add(Text.empty().asOrderedText());
+                continue;
+            }
+            wrappedLines.addAll(textRenderer.wrapLines(Text.literal(line), maxContentWidth));
+        }
+        return wrappedLines;
+    }
+
     private static DialogueContent resolveEditorContent() {
         String pageInfo;
         String npcName;
         String translation;
+        String optionsText;
         long visibleUntil;
         synchronized (WynnDialogueHudRenderer.class) {
             pageInfo = currentPageInfo;
             npcName = currentNpcName;
             translation = currentTranslation;
+            optionsText = shouldRenderOptionsHud() ? currentOptionsText : "";
             visibleUntil = displayUntil;
         }
 
+        Text previewOptionsText = Text.translatable("text.translate_allinone.configscreen.preview.wynn_npc_dialogue_options");
         if (translation != null && !translation.isBlank() && System.currentTimeMillis() <= visibleUntil) {
-            return new DialogueContent(pageInfo, npcName, Text.literal(translation));
+            Text visibleOptionsText = optionsText == null || optionsText.isBlank()
+                    ? previewOptionsText
+                    : Text.literal(optionsText);
+            return new DialogueContent(pageInfo, npcName, Text.literal(translation), visibleOptionsText);
         }
 
         return new DialogueContent(
                 "",
                 Text.translatable("text.translate_allinone.configscreen.preview.wynn_npc_dialogue_npc").getString(),
-                Text.translatable("text.translate_allinone.configscreen.preview.wynn_npc_dialogue_body")
+                Text.translatable("text.translate_allinone.configscreen.preview.wynn_npc_dialogue_body"),
+                previewOptionsText
         );
     }
 
@@ -345,10 +506,48 @@ public final class WynnDialogueHudRenderer {
             return HudLayout.defaults();
         }
 
+        return toHudLayout(hud);
+    }
+
+    private static HudLayout resolveOptionsHudLayout() {
+        ModConfig config = Translate_AllinOne.getConfig();
+        if (config == null || config.wynnCraft == null || config.wynnCraft.npc_dialogue == null) {
+            return HudLayout.optionsDefaults();
+        }
+
+        WynnCraftConfig.HudConfig hud = config.wynnCraft.npc_dialogue.options_hud;
+        if (hud == null) {
+            return HudLayout.optionsDefaults();
+        }
+
+        return toHudLayout(hud);
+    }
+
+    private static boolean shouldRenderOptionsHud() {
+        ModConfig config = Translate_AllinOne.getConfig();
+        return config != null
+                && config.wynnCraft != null
+                && config.wynnCraft.npc_dialogue != null
+                && config.wynnCraft.npc_dialogue.translate_options;
+    }
+
+    private static HudLayout toHudLayout(WynnCraftConfig.HudConfig hud) {
         int scalePercent = clamp(hud.scale_percent, WynnCraftConfig.HudConfig.MIN_SCALE_PERCENT, WynnCraftConfig.HudConfig.MAX_SCALE_PERCENT);
         int xOffset = clamp(hud.x_offset, WynnCraftConfig.HudConfig.MIN_X_OFFSET, WynnCraftConfig.HudConfig.MAX_X_OFFSET);
         int yOffset = clamp(hud.y_offset, WynnCraftConfig.HudConfig.MIN_Y_OFFSET, WynnCraftConfig.HudConfig.MAX_Y_OFFSET);
         return new HudLayout(scalePercent / 100.0F, scalePercent, xOffset, yOffset);
+    }
+
+    private static EditorPreviewSnapshot toEditorPreviewSnapshot(DialogueRenderData renderData) {
+        return new EditorPreviewSnapshot(
+                renderData.x(),
+                renderData.y(),
+                renderData.scaledBoxWidth(),
+                renderData.scaledBoxHeight(),
+                renderData.hudLayout().scalePercent(),
+                renderData.hudLayout().xOffset(),
+                renderData.hudLayout().yOffset()
+        );
     }
 
     private static int clamp(int value, int min, int max) {
@@ -362,6 +561,15 @@ public final class WynnDialogueHudRenderer {
                     WynnCraftConfig.HudConfig.DEFAULT_SCALE_PERCENT,
                     WynnCraftConfig.HudConfig.DEFAULT_X_OFFSET,
                     WynnCraftConfig.HudConfig.DEFAULT_Y_OFFSET
+            );
+        }
+
+        private static HudLayout optionsDefaults() {
+            return new HudLayout(
+                    WynnCraftConfig.HudConfig.DEFAULT_SCALE_PERCENT / 100.0F,
+                    WynnCraftConfig.HudConfig.DEFAULT_SCALE_PERCENT,
+                    WynnCraftConfig.HudConfig.DEFAULT_X_OFFSET,
+                    WynnCraftConfig.HudConfig.DEFAULT_OPTIONS_Y_OFFSET
             );
         }
     }
@@ -379,7 +587,7 @@ public final class WynnDialogueHudRenderer {
     ) {
     }
 
-    private record DialogueContent(String pageInfo, String npcName, Text translation) {
+    private record DialogueContent(String pageInfo, String npcName, Text translation, Text optionsText) {
     }
 
     public record EditorPreviewSnapshot(
@@ -391,5 +599,8 @@ public final class WynnDialogueHudRenderer {
             int xOffset,
             int yOffset
     ) {
+    }
+
+    public record EditorPreviewLayout(EditorPreviewSnapshot dialogue, EditorPreviewSnapshot options) {
     }
 }

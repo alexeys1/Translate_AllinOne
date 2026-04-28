@@ -168,6 +168,9 @@ public class ConfigManager {
         if (configToUse.wynnCraft.npc_dialogue.hud == null) {
             configToUse.wynnCraft.npc_dialogue.hud = new WynnCraftConfig.HudConfig();
         }
+        if (configToUse.wynnCraft.npc_dialogue.options_hud == null) {
+            configToUse.wynnCraft.npc_dialogue.options_hud = WynnCraftConfig.HudConfig.optionsDefaults();
+        }
         if (configToUse.wynnCraft.npc_dialogue.debug == null) {
             configToUse.wynnCraft.npc_dialogue.debug = new WynnCraftConfig.DebugConfig();
         }
@@ -254,21 +257,8 @@ public class ConfigManager {
         if (configToUse.scoreboardTranslate.debug == null) {
             configToUse.scoreboardTranslate.debug = new ScoreboardConfig.DebugConfig();
         }
-        configToUse.wynnCraft.npc_dialogue.hud.scale_percent = clamp(
-                configToUse.wynnCraft.npc_dialogue.hud.scale_percent,
-                WynnCraftConfig.HudConfig.MIN_SCALE_PERCENT,
-                WynnCraftConfig.HudConfig.MAX_SCALE_PERCENT
-        );
-        configToUse.wynnCraft.npc_dialogue.hud.x_offset = clamp(
-                configToUse.wynnCraft.npc_dialogue.hud.x_offset,
-                WynnCraftConfig.HudConfig.MIN_X_OFFSET,
-                WynnCraftConfig.HudConfig.MAX_X_OFFSET
-        );
-        configToUse.wynnCraft.npc_dialogue.hud.y_offset = clamp(
-                configToUse.wynnCraft.npc_dialogue.hud.y_offset,
-                WynnCraftConfig.HudConfig.MIN_Y_OFFSET,
-                WynnCraftConfig.HudConfig.MAX_Y_OFFSET
-        );
+        normalizeHudConfig(configToUse.wynnCraft.npc_dialogue.hud);
+        normalizeHudConfig(configToUse.wynnCraft.npc_dialogue.options_hud);
 
         configToUse.cacheBackup.backup_interval_minutes = clamp(
                 configToUse.cacheBackup.backup_interval_minutes,
@@ -287,6 +277,24 @@ public class ConfigManager {
 
     private static int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
+    }
+
+    private static void normalizeHudConfig(WynnCraftConfig.HudConfig hud) {
+        hud.scale_percent = clamp(
+                hud.scale_percent,
+                WynnCraftConfig.HudConfig.MIN_SCALE_PERCENT,
+                WynnCraftConfig.HudConfig.MAX_SCALE_PERCENT
+        );
+        hud.x_offset = clamp(
+                hud.x_offset,
+                WynnCraftConfig.HudConfig.MIN_X_OFFSET,
+                WynnCraftConfig.HudConfig.MAX_X_OFFSET
+        );
+        hud.y_offset = clamp(
+                hud.y_offset,
+                WynnCraftConfig.HudConfig.MIN_Y_OFFSET,
+                WynnCraftConfig.HudConfig.MAX_Y_OFFSET
+        );
     }
 
     private static ModConfig loadFallbackConfig(Path configPath, Exception cause) {
@@ -437,6 +445,14 @@ public class ConfigManager {
         if (rawConfig == null || !rawConfig.isJsonObject()) {
             return null;
         }
+        JsonObject root = rawConfig.getAsJsonObject();
+        JsonElement wynnCraft = root.get("wynnCraft");
+        if (wynnCraft == null || !wynnCraft.isJsonObject()) {
+            return null;
+        }
+        return wynnCraft.getAsJsonObject();
+    }
+
     private static boolean hasBooleanField(JsonObject object, String fieldName) {
         JsonElement element = object == null || fieldName == null ? null : object.get(fieldName);
         return element != null && element.isJsonPrimitive() && element.getAsJsonPrimitive().isBoolean();
@@ -448,14 +464,6 @@ public class ConfigManager {
                 && element.isJsonPrimitive()
                 && element.getAsJsonPrimitive().isBoolean()
                 && element.getAsBoolean();
-    }
-
-        JsonObject root = rawConfig.getAsJsonObject();
-        JsonElement wynnCraft = root.get("wynnCraft");
-        if (wynnCraft == null || !wynnCraft.isJsonObject()) {
-            return null;
-        }
-        return wynnCraft.getAsJsonObject();
     }
 
     private static JsonObject getNestedObject(JsonObject parent, String memberName) {

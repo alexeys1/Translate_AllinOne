@@ -36,6 +36,7 @@ public class WynnDialogueHudEditorScreen extends Screen {
     private final List<ActionBlock> actionBlocks = new ArrayList<>();
     private final ActionBlockRegistry actionBlockRegistry = new ActionBlockRegistry(actionBlocks, COLOR_BUTTON, COLOR_BUTTON_HOVER, COLOR_TEXT);
 
+    private HudTarget selectedTarget = HudTarget.DIALOGUE;
     private boolean draggingHud;
     private int dragGrabOffsetX;
     private int dragGrabOffsetY;
@@ -82,8 +83,11 @@ public class WynnDialogueHudEditorScreen extends Screen {
             return true;
         }
 
-        WynnDialogueHudRenderer.EditorPreviewSnapshot snapshot = currentSnapshot();
-        if (contains(snapshot, click.x(), click.y())) {
+        WynnDialogueHudRenderer.EditorPreviewLayout layout = currentLayout();
+        HudTarget target = targetAt(layout, click.x(), click.y());
+        if (target != null) {
+            selectedTarget = target;
+            WynnDialogueHudRenderer.EditorPreviewSnapshot snapshot = currentSnapshot(layout, selectedTarget);
             draggingHud = true;
             dragGrabOffsetX = (int) Math.round(click.x()) - snapshot.x();
             dragGrabOffsetY = (int) Math.round(click.y()) - snapshot.y();
@@ -118,7 +122,13 @@ public class WynnDialogueHudEditorScreen extends Screen {
             return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
         }
 
-        WynnCraftConfig.HudConfig hud = ensureHudConfig();
+        WynnDialogueHudRenderer.EditorPreviewLayout layout = currentLayout();
+        HudTarget hoverTarget = targetAt(layout, mouseX, mouseY);
+        if (hoverTarget != null) {
+            selectedTarget = hoverTarget;
+        }
+
+        WynnCraftConfig.HudConfig hud = ensureHudConfig(selectedTarget);
         int direction = verticalAmount > 0.0 ? 1 : -1;
         int steps = Math.max(1, (int) Math.round(Math.abs(verticalAmount)));
         hud.scale_percent = clamp(
@@ -132,10 +142,20 @@ public class WynnDialogueHudEditorScreen extends Screen {
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         WynnDialogueHudRenderer.drawHudEditorPreview(context, this.textRenderer, this.width, this.height);
-        WynnDialogueHudRenderer.EditorPreviewSnapshot snapshot = currentSnapshot();
+        WynnDialogueHudRenderer.EditorPreviewLayout layout = currentLayout();
+        HudTarget hoverTarget = targetAt(layout, mouseX, mouseY);
 
-        drawSelection(context, snapshot, contains(snapshot, mouseX, mouseY) || draggingHud);
-        drawInfoPanel(context, snapshot);
+        drawSelection(
+                context,
+                layout.dialogue(),
+                selectedTarget == HudTarget.DIALOGUE || hoverTarget == HudTarget.DIALOGUE || draggingHud && selectedTarget == HudTarget.DIALOGUE
+        );
+        drawSelection(
+                context,
+                layout.options(),
+                selectedTarget == HudTarget.OPTIONS || hoverTarget == HudTarget.OPTIONS || draggingHud && selectedTarget == HudTarget.OPTIONS
+        );
+        drawInfoPanel(context, currentSnapshot(layout, selectedTarget), selectedTarget);
         ConfigUiControlRenderer.drawActionBlocks(context, this.textRenderer, actionBlocks, mouseX, mouseY, COLOR_PANEL_BORDER);
     }
 
@@ -207,19 +227,20 @@ public class WynnDialogueHudEditorScreen extends Screen {
         context.fill(x, y, x + size, y + size, COLOR_SELECTION);
     }
 
-    private void drawInfoPanel(DrawContext context, WynnDialogueHudRenderer.EditorPreviewSnapshot snapshot) {
+    private void drawInfoPanel(DrawContext context, WynnDialogueHudRenderer.EditorPreviewSnapshot snapshot, HudTarget target) {
         int panelX = 14;
         int panelY = 14;
         int panelWidth = 310;
-        int panelHeight = 72;
+        int panelHeight = 84;
 
         context.fill(panelX, panelY, panelX + panelWidth, panelY + panelHeight, COLOR_PANEL_BG);
         ConfigUiDraw.drawOutline(context, panelX, panelY, panelWidth, panelHeight, COLOR_PANEL_BORDER);
 
         context.drawText(this.textRenderer, this.title, panelX + 10, panelY + 8, COLOR_TEXT_ACCENT, false);
-        context.drawText(this.textRenderer, t("instruction.drag"), panelX + 10, panelY + 24, COLOR_TEXT, false);
-        context.drawText(this.textRenderer, t("instruction.scroll"), panelX + 10, panelY + 36, COLOR_TEXT, false);
-        context.drawText(this.textRenderer, t("instruction.close"), panelX + 10, panelY + 48, COLOR_TEXT_MUTED, false);
+        context.drawText(this.textRenderer, t("status.target", targetName(target).getString()), panelX + 10, panelY + 24, COLOR_TEXT_ACCENT, false);
+        context.drawText(this.textRenderer, t("instruction.drag"), panelX + 10, panelY + 38, COLOR_TEXT, false);
+        context.drawText(this.textRenderer, t("instruction.scroll"), panelX + 10, panelY + 50, COLOR_TEXT, false);
+        context.drawText(this.textRenderer, t("instruction.close"), panelX + 10, panelY + 62, COLOR_TEXT_MUTED, false);
 
         String layoutValue = t("status.layout", snapshot.scalePercent(), snapshot.xOffset(), snapshot.yOffset()).getString();
         int layoutWidth = this.textRenderer.getWidth(layoutValue);
@@ -227,18 +248,26 @@ public class WynnDialogueHudEditorScreen extends Screen {
                 this.textRenderer,
                 layoutValue,
                 this.width - 14 - layoutWidth,
-                40,
+                42,
                 COLOR_TEXT_ACCENT,
                 false
         );
     }
 
-    private WynnDialogueHudRenderer.EditorPreviewSnapshot currentSnapshot() {
-        return WynnDialogueHudRenderer.getEditorPreviewSnapshot(this.textRenderer, this.width, this.height);
+    private WynnDialogueHudRenderer.EditorPreviewLayout currentLayout() {
+        return WynnDialogueHudRenderer.getEditorPreviewLayout(this.textRenderer, this.width, this.height);
+    }
+
+    private WynnDialogueHudRenderer.EditorPreviewSnapshot currentSnapshot(
+            WynnDialogueHudRenderer.EditorPreviewLayout layout,
+            HudTarget target
+    ) {
+        return target == HudTarget.OPTIONS ? layout.options() : layout.dialogue();
     }
 
     private void moveHudTo(double mouseX, double mouseY) {
-        WynnDialogueHudRenderer.EditorPreviewSnapshot snapshot = currentSnapshot();
+        WynnDialogueHudRenderer.EditorPreviewLayout layout = currentLayout();
+        WynnDialogueHudRenderer.EditorPreviewSnapshot snapshot = currentSnapshot(layout, selectedTarget);
         if (snapshot.width() <= 0 || snapshot.height() <= 0) {
             return;
         }
@@ -254,7 +283,7 @@ public class WynnDialogueHudEditorScreen extends Screen {
                 Math.max(SCREEN_EDGE_PADDING, this.height - snapshot.height() - SCREEN_EDGE_PADDING)
         );
 
-        WynnCraftConfig.HudConfig hud = ensureHudConfig();
+        WynnCraftConfig.HudConfig hud = ensureHudConfig(selectedTarget);
         hud.x_offset = clamp(
                 clampedBoxX + snapshot.width() / 2 - this.width / 2,
                 WynnCraftConfig.HudConfig.MIN_X_OFFSET,
@@ -268,13 +297,16 @@ public class WynnDialogueHudEditorScreen extends Screen {
     }
 
     private void resetHudLayout() {
-        WynnCraftConfig.HudConfig hud = ensureHudConfig();
-        hud.scale_percent = WynnCraftConfig.HudConfig.DEFAULT_SCALE_PERCENT;
-        hud.x_offset = WynnCraftConfig.HudConfig.DEFAULT_X_OFFSET;
-        hud.y_offset = WynnCraftConfig.HudConfig.DEFAULT_Y_OFFSET;
+        WynnCraftConfig.HudConfig hud = ensureHudConfig(selectedTarget);
+        WynnCraftConfig.HudConfig defaults = selectedTarget == HudTarget.OPTIONS
+                ? WynnCraftConfig.HudConfig.optionsDefaults()
+                : new WynnCraftConfig.HudConfig();
+        hud.scale_percent = defaults.scale_percent;
+        hud.x_offset = defaults.x_offset;
+        hud.y_offset = defaults.y_offset;
     }
 
-    private WynnCraftConfig.HudConfig ensureHudConfig() {
+    private WynnCraftConfig.HudConfig ensureHudConfig(HudTarget target) {
         ModConfig config = Translate_AllinOne.getConfig();
         if (config.wynnCraft == null) {
             config.wynnCraft = new WynnCraftConfig();
@@ -285,7 +317,26 @@ public class WynnDialogueHudEditorScreen extends Screen {
         if (config.wynnCraft.npc_dialogue.hud == null) {
             config.wynnCraft.npc_dialogue.hud = new WynnCraftConfig.HudConfig();
         }
-        return config.wynnCraft.npc_dialogue.hud;
+        if (config.wynnCraft.npc_dialogue.options_hud == null) {
+            config.wynnCraft.npc_dialogue.options_hud = WynnCraftConfig.HudConfig.optionsDefaults();
+        }
+        return target == HudTarget.OPTIONS
+                ? config.wynnCraft.npc_dialogue.options_hud
+                : config.wynnCraft.npc_dialogue.hud;
+    }
+
+    private HudTarget targetAt(WynnDialogueHudRenderer.EditorPreviewLayout layout, double mouseX, double mouseY) {
+        if (contains(layout.options(), mouseX, mouseY)) {
+            return HudTarget.OPTIONS;
+        }
+        if (contains(layout.dialogue(), mouseX, mouseY)) {
+            return HudTarget.DIALOGUE;
+        }
+        return null;
+    }
+
+    private Text targetName(HudTarget target) {
+        return t(target == HudTarget.OPTIONS ? "target.options" : "target.dialogue");
     }
 
     private boolean contains(WynnDialogueHudRenderer.EditorPreviewSnapshot snapshot, double mouseX, double mouseY) {
@@ -299,5 +350,10 @@ public class WynnDialogueHudEditorScreen extends Screen {
 
     private static int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
+    }
+
+    private enum HudTarget {
+        DIALOGUE,
+        OPTIONS
     }
 }

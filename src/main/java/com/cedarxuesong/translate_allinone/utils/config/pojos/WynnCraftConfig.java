@@ -12,9 +12,10 @@ public class WynnCraftConfig {
     public static class NpcDialogueConfig {
         public boolean enabled = false;
         public boolean translate_npc_name = true;
-        // Legacy compatibility only. Dialogue local-hit logging now uses debug.log_dialogues_local_hits.
+        public boolean translate_options = false;
         public boolean log_dialogues_local_hits = false;
         public HudConfig hud = new HudConfig();
+        public HudConfig options_hud = HudConfig.optionsDefaults();
         @SerializedName(value = "debug", alternate = {"dev"})
         public DebugConfig debug = new DebugConfig();
     }
@@ -25,14 +26,28 @@ public class WynnCraftConfig {
         public static final int DEFAULT_SCALE_PERCENT = 100;
         public static final int MIN_X_OFFSET = -300;
         public static final int MAX_X_OFFSET = 300;
-        public static final int DEFAULT_X_OFFSET = 0;
+        public static final int DEFAULT_X_OFFSET = 130;
         public static final int MIN_Y_OFFSET = -300;
         public static final int MAX_Y_OFFSET = 300;
         public static final int DEFAULT_Y_OFFSET = 0;
+        public static final int DEFAULT_OPTIONS_Y_OFFSET = -85;
 
         public int scale_percent = DEFAULT_SCALE_PERCENT;
         public int x_offset = DEFAULT_X_OFFSET;
         public int y_offset = DEFAULT_Y_OFFSET;
+
+        public HudConfig() {
+        }
+
+        public HudConfig(int scalePercent, int xOffset, int yOffset) {
+            this.scale_percent = scalePercent;
+            this.x_offset = xOffset;
+            this.y_offset = yOffset;
+        }
+
+        public static HudConfig optionsDefaults() {
+            return new HudConfig(DEFAULT_SCALE_PERCENT, DEFAULT_X_OFFSET, DEFAULT_OPTIONS_Y_OFFSET);
+        }
     }
 
     public static class WynntilsTaskTrackerConfig {
@@ -46,7 +61,6 @@ public class WynnCraftConfig {
 
     public static class DebugConfig {
         public boolean enabled = false;
-        // Legacy compatibility only. Dialogue local-hit logging now uses npc_dialogue.log_dialogues_local_hits.
         public boolean log_local_dictionary_hits = false;
         public boolean log_dialogues_local_hits = false;
         public boolean log_quests_local_hits = false;
