@@ -84,9 +84,7 @@ public final class WynnDialogueLocalDictionary {
                 return translation;
             }
 
-            boolean candidateStartsWithInput = lowerCandidate.startsWith(lowerInput);
-            boolean inputStartsWithCandidate = lowerInput.startsWith(lowerCandidate);
-            if (!candidateStartsWithInput && !inputStartsWithCandidate) {
+            if (!lowerCandidate.startsWith(lowerInput)) {
                 continue;
             }
 

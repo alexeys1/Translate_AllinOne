@@ -254,11 +254,14 @@ public final class WynnDialogueTranslationSupport {
                 describeForLog(raw),
                 describeForLog(readableText)
         );
-        OverlayReadableParse readableParse = parseReadableOverlayText(
-                readableText,
-                resolveOverlayParseCandidate(readableText),
-                readableSegments
-        );
+        OverlayReadableParse readableParse = tryFontBasedOverlayParse(message, readableText, readableSegments, shouldTranslateOptions);
+        if (readableParse == null) {
+            readableParse = parseReadableOverlayText(
+                    readableText,
+                    resolveOverlayParseCandidate(readableText),
+                    readableSegments
+            );
+        }
         if (!readableParse.matched()) {
             throttledDevLog(
                     readableParse.choicePrompt() ? "overlay_choice_rejected" : "overlay_fallback_rejected",
@@ -314,7 +317,11 @@ public final class WynnDialogueTranslationSupport {
         preparedDialogue = prepareDialogueValue(dialogue);
         DialogueCandidate previousCandidate = currentCandidate;
         boolean sameCandidate = isSameOverlayDialogueCandidate(previousCandidate, npcName, dialogue);
-        String previousOptionsText = sameCandidate ? previousCandidate.optionsText() : "";
+        boolean sameDialogueCandidate = sameDialogue && sameCandidate;
+        if (sameDialogue && !sameCandidate && overlayDialogueQueued) {
+            overlayDialogueQueued = false;
+        }
+        String previousOptionsText = sameDialogueCandidate ? previousCandidate.optionsText() : "";
         String optionsText = shouldTranslateOptions && readableParse.choicePrompt()
                 ? chooseOverlayChoiceOptionsDisplayText(
                         previousOptionsText,
@@ -1764,6 +1771,81 @@ public final class WynnDialogueTranslationSupport {
         return String.join("\n", displayLines);
     }
 
+    private static OverlayReadableParse tryFontBasedOverlayParse(
+            Text message,
+            String readableText,
+            List<String> readableSegments,
+            boolean shouldTranslateOptions
+    ) {
+        WynnDialogueFontExtractor.FontExtractionResult fontResult = WynnDialogueFontExtractor.extract(message);
+        if (!fontResult.matched()) {
+            return null;
+        }
+
+        String body = fontResult.dialogue();
+        if (body.isBlank()) {
+            return null;
+        }
+
+        String npcName = normalizeDisplayText(fontResult.npcName());
+        String dialogue = normalizeDisplayText(body);
+
+        if (dialogue.length() < MIN_OVERLAY_DIALOGUE_LENGTH) {
+            return null;
+        }
+
+        String optionsText = "";
+        if (shouldTranslateOptions) {
+            optionsText = normalizeOverlayChoiceOptionsText(fontResult.optionsText());
+        }
+
+        String mode = resolveFontOverlayMode(readableText);
+        int promptIndex = findOverlayPromptIndex(readableText);
+
+        throttledDevLog(
+                "overlay_font_matched",
+                DEBUG_OVERLAY_LOG_THROTTLE_MILLIS,
+                "overlay_font_matched npc=\"{}\" dialogue=\"{}\" options=\"{}\" mode={}",
+                describeForLog(npcName),
+                describeForLog(dialogue),
+                describeForLog(optionsText),
+                mode
+        );
+
+        return OverlayReadableParse.matched(
+                mode,
+                promptIndex,
+                !optionsText.isBlank(),
+                npcName,
+                dialogue,
+                optionsText
+        );
+    }
+
+    private static String resolveFontOverlayMode(String readableText) {
+        if (readableText == null) {
+            return "font";
+        }
+        if (readableText.contains(CHOOSE_OPTION_MARKER)) {
+            return "font::" + CHOOSE_OPTION_MARKER;
+        }
+        if (readableText.contains(CONFIRM_MARKER)) {
+            return "font::" + CONFIRM_MARKER;
+        }
+        if (readableText.contains(CONTINUE_MARKER)) {
+            return "font::" + CONTINUE_MARKER;
+        }
+        return "font";
+    }
+
+    private static int findOverlayPromptIndex(String readableText) {
+        if (readableText == null) {
+            return -1;
+        }
+        OverlayPromptMarker marker = findOverlayPromptMarker(readableText);
+        return marker != null ? marker.index() : -1;
+    }
+
     private static OverlayReadableParse parseReadableOverlayText(String readableText, DialogueCandidate existingCandidate) {
         return parseReadableOverlayText(readableText, existingCandidate, List.of());
     }
@@ -1910,8 +1992,18 @@ public final class WynnDialogueTranslationSupport {
                 || !inferredDialogue.startsWith(candidateDialogue)) {
             return false;
         }
-        return endsWithDialogueCompletionPunctuation(existingCandidate.dialogue())
-                || hasCompletedSentenceBeforeEnd(inferredDialogue.substring(candidateDialogue.length()));
+        if (endsWithDialogueCompletionPunctuation(existingCandidate.dialogue())) {
+            if (candidateDialogue.endsWith("...") && inferredDialogue.length() > candidateDialogue.length()) {
+                String continuation = inferredDialogue.substring(candidateDialogue.length()).stripLeading();
+                if (!continuation.isBlank()
+                        && Character.isLetter(continuation.charAt(0))
+                        && !OVERLAY_CHOICE_OPTION_START_PATTERN.matcher(continuation).lookingAt()) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return hasCompletedSentenceBeforeEnd(inferredDialogue.substring(candidateDialogue.length()));
     }
 
     private static boolean shouldPreferInferredChoicePayload(
@@ -1939,7 +2031,15 @@ public final class WynnDialogueTranslationSupport {
             return false;
         }
         if (endsWithDialogueCompletionPunctuation(existingCandidate.dialogue())) {
-            return false;
+            if (!(candidateDialogue.endsWith("...") && inferredDialogue.length() > candidateDialogue.length())) {
+                return false;
+            }
+            String continuation = inferredDialogue.substring(candidateDialogue.length()).stripLeading();
+            if (continuation.isBlank()
+                    || !Character.isLetter(continuation.charAt(0))
+                    || OVERLAY_CHOICE_OPTION_START_PATTERN.matcher(continuation).lookingAt()) {
+                return false;
+            }
         }
         if (hasCompletedSentenceBeforeEnd(inferredDialogue.substring(candidateDialogue.length()))) {
             return false;
@@ -2189,12 +2289,24 @@ public final class WynnDialogueTranslationSupport {
         if (normalizedDialogue.isBlank() || normalizedPayload.isBlank()) {
             return normalizedDialogue;
         }
-        if (endsWithDialogueCompletionPunctuation(normalizedDialogue)
-                || !normalizedPayload.startsWith(normalizedDialogue)
+        if (!normalizedPayload.startsWith(normalizedDialogue)
                 || normalizedPayload.length() <= normalizedDialogue.length()) {
             return normalizedDialogue;
         }
 
+        String remainder = normalizedPayload.substring(normalizedDialogue.length());
+        Matcher optionStartMatcher = OVERLAY_CHOICE_OPTION_START_PATTERN.matcher(remainder);
+        if (optionStartMatcher.find() && optionStartMatcher.start() > 0
+                && hasDialogueCompletionBefore(normalizedPayload, normalizedDialogue.length() + optionStartMatcher.start())) {
+            String extraDialogue = remainder.substring(0, optionStartMatcher.start()).stripTrailing();
+            if (!extraDialogue.isBlank()) {
+                return (normalizedDialogue + extraDialogue).trim();
+            }
+        }
+
+        if (endsWithDialogueCompletionPunctuation(normalizedDialogue)) {
+            return normalizedDialogue;
+        }
         char nextChar = normalizedPayload.charAt(normalizedDialogue.length());
         if (isDialogueCompletionPunctuation(nextChar)) {
             return normalizedDialogue + nextChar;
