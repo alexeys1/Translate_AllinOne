@@ -385,19 +385,19 @@ public final class WynnDialogueTranslateManager {
     }
 
     private String buildSystemPrompt(String targetLanguage, String suffix) {
-        String basePrompt = "You are a deterministic JSON value translator.\n"
-                + "Target language: " + targetLanguage + ".\n"
+        String basePrompt = "Translate WynnCraft NPC dialogue or quest text into " + targetLanguage + ".\n"
                 + "\n"
-                + "Input is a JSON object with string keys and string values.\n"
-                + "Output must be one valid JSON object only.\n"
+                + "Input is a JSON object; output one valid JSON object only.\n"
                 + "\n"
                 + "Rules:\n"
-                + "1) Keep all keys unchanged.\n"
-                + "2) Keep key count unchanged.\n"
-                + "3) Translate values only.\n"
-                + "4) Preserve tokens exactly: {player} %s %d %f URLs numbers <...> {...} \\n \\t.\n"
-                + "5) If unsure, keep the value unchanged.\n"
-                + "6) No extra text outside JSON.";
+                + "1) Keep all keys and key count unchanged; translate values only.\n"
+                + "2) Preserve original semantics, logic, and paragraph format. Use natural target-language phrasing — no mixed-language output.\n"
+                + "3) Do not translate proper nouns: place names (e.g. Ragni, Troms, Detlas), character names, item names, and [bracketed] item references.\n"
+                + "4) Render poetic or literary dialogue with rhythmic expression (e.g. \"To what end?\").\n"
+                + "5) Preserve special characters including zalgo/corrupted text exactly as-is.\n"
+                + "6) Preserve tokens exactly: § codes {player} {d1} %s %d %f URLs numbers <...> {...} <s0> </s0> \\n \\t.\n"
+                + "7) If unsure, keep the value unchanged.\n"
+                + "8) No extra text outside JSON.";
         return PromptMessageBuilder.appendSystemPromptSuffix(basePrompt, suffix);
     }
 
