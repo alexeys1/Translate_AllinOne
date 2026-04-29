@@ -158,6 +158,13 @@ public final class WynnSharedDictionaryService {
         return new LookupResult(translation, "dialogues", MatchType.PREFIX);
     }
 
+    boolean hasDialoguePrefixCandidate(String preparedDialogue) {
+        if (!isDictionaryEnabled()) {
+            return false;
+        }
+        return dialogueDictionary.hasPrefixCandidate(preparedDialogue);
+    }
+
     boolean hasPreparedNpcTranslation(String preparedNpcName) {
         if (!isDictionaryEnabled()) {
             return false;

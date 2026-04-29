@@ -43,6 +43,7 @@ public final class WynnDialogueTranslationSupport {
     private static final int MIN_OVERLAY_RAW_LENGTH = 150;
     private static final int MIN_OVERLAY_DIALOGUE_LENGTH = 15;
     private static final int MIN_PREFIX_MATCH_LENGTH = 5;
+    private static final int MIN_DIALOGUE_DICTIONARY_WORD_COUNT = 2;
     private static final int MIN_OVERLAY_CHOICE_FRAGMENT_LENGTH = 4;
     private static final int MIN_OVERLAY_CHOICE_MERGE_OVERLAP = 5;
     private static final int MIN_OVERLAY_CHOICE_DISPLAY_QUALITY_GAIN = 12;
@@ -478,8 +479,8 @@ public final class WynnDialogueTranslationSupport {
     private static boolean isDialoguesLocalHitLoggingEnabled() {
         WynnCraftConfig.NpcDialogueConfig config = getDialogueConfig();
         return config != null
-                && ((config.debug != null && config.debug.log_dialogues_local_hits)
-                || config.log_dialogues_local_hits);
+                && config.debug != null
+                && config.debug.log_dialogues_local_hits;
     }
 
     static void devLog(String message, Object... args) {
@@ -935,6 +936,27 @@ public final class WynnDialogueTranslationSupport {
                 && candidate.dialogue().length() < MIN_OVERLAY_DIALOGUE_LENGTH;
     }
 
+    private static boolean hasMinWordCount(String text, int minWords) {
+        if (text == null) {
+            return false;
+        }
+        int words = 0;
+        boolean inWord = false;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (Character.isWhitespace(c)) {
+                inWord = false;
+            } else if (!inWord) {
+                inWord = true;
+                words++;
+                if (words >= minWords) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private static boolean looksLikeCompleteOverlayDialogue(String dialogue) {
         if (dialogue == null) {
             return false;
@@ -950,7 +972,7 @@ public final class WynnDialogueTranslationSupport {
 
         char lastChar = trimmed.charAt(trimmed.length() - 1);
         return switch (lastChar) {
-            case '.', '!', '?', '"', '\'', '”', '’', '。', '！', '？' -> true;
+            case '.', '!', '?', '"', '\'', '”', '’', '。', '！', '？', '-', '—' -> true;
             default -> false;
         };
     }
@@ -1149,18 +1171,20 @@ public final class WynnDialogueTranslationSupport {
         }
 
         String preparedDialogue = prepareDialogueValue(dialogue);
-        WynnSharedDictionaryService.LookupResult exactLookup =
-                SHARED_DICTIONARY_SERVICE.lookupPreparedDialogue(preparedDialogue);
-        if (exactLookup.hit()) {
-            throttledDialoguesLocalHitLog(
-                    "exact",
-                    preparedDialogue,
-                    restorePlayerPlaceholders(exactLookup.translation()),
-                    "queue_skip"
-            );
-            return true;
+        if (hasMinWordCount(preparedDialogue, MIN_DIALOGUE_DICTIONARY_WORD_COUNT)) {
+            WynnSharedDictionaryService.LookupResult exactLookup =
+                    SHARED_DICTIONARY_SERVICE.lookupPreparedDialogue(preparedDialogue);
+            if (exactLookup.hit()) {
+                throttledDialoguesLocalHitLog(
+                        "exact",
+                        preparedDialogue,
+                        restorePlayerPlaceholders(exactLookup.translation()),
+                        "queue_skip"
+                );
+                return true;
+            }
+            throttledDialoguesLocalMissLog("exact", preparedDialogue, "queue", "prepared dialogue was not found in dialogues dictionary");
         }
-        throttledDialoguesLocalMissLog("exact", preparedDialogue, "queue", "prepared dialogue was not found in dialogues dictionary");
         if (allowLocalPrefixShortCircuit) {
             WynnSharedDictionaryService.LookupResult prefixLookup =
                     SHARED_DICTIONARY_SERVICE.lookupPreparedDialogueByPrefix(preparedDialogue);
@@ -1174,6 +1198,16 @@ public final class WynnDialogueTranslationSupport {
                 return true;
             }
             throttledDialoguesLocalMissLog("prefix", preparedDialogue, "queue", "no prepared dialogue prefix entry matched");
+
+            if (SHARED_DICTIONARY_SERVICE.hasDialoguePrefixCandidate(preparedDialogue)) {
+                throttledDevLog(
+                        "queue_dialogue_prefix_candidate",
+                        DEBUG_HUD_LOG_THROTTLE_MILLIS,
+                        "queue_skipped type=dialogue reason=prefix_candidate_exists dialogue=\"{}\"",
+                        describeForLog(dialogue)
+                );
+                return false;
+            }
         }
 
         if (!hasConfiguredRoute()) {
@@ -1343,14 +1377,16 @@ public final class WynnDialogueTranslationSupport {
         }
 
         String preparedDialogue = prepareDialogueValue(dialogue);
-        WynnSharedDictionaryService.LookupResult exactLookup =
-                SHARED_DICTIONARY_SERVICE.lookupPreparedDialogue(preparedDialogue);
-        if (exactLookup.hit()) {
-            String restoredTranslation = restorePlayerPlaceholders(exactLookup.translation());
-            throttledDialoguesLocalHitLog("exact", preparedDialogue, restoredTranslation, "resolve");
-            return DialogueDisplayState.of(restoredTranslation, false, "");
+        if (hasMinWordCount(preparedDialogue, MIN_DIALOGUE_DICTIONARY_WORD_COUNT)) {
+            WynnSharedDictionaryService.LookupResult exactLookup =
+                    SHARED_DICTIONARY_SERVICE.lookupPreparedDialogue(preparedDialogue);
+            if (exactLookup.hit()) {
+                String restoredTranslation = restorePlayerPlaceholders(exactLookup.translation());
+                throttledDialoguesLocalHitLog("exact", preparedDialogue, restoredTranslation, "resolve");
+                return DialogueDisplayState.of(restoredTranslation, false, "");
+            }
+            throttledDialoguesLocalMissLog("exact", preparedDialogue, "resolve", "prepared dialogue was not found in dialogues dictionary");
         }
-        throttledDialoguesLocalMissLog("exact", preparedDialogue, "resolve", "prepared dialogue was not found in dialogues dictionary");
 
         if (allowPrefixFallback) {
             String prefixTranslation = findDialogueByPrefix(preparedDialogue);
@@ -1358,8 +1394,11 @@ public final class WynnDialogueTranslationSupport {
                 return DialogueDisplayState.of(prefixTranslation, false, "");
             }
 
-            // Overlay 打字机展开阶段的短半句宁可先显示原文，也不要吃到旧的半句缓存。
             if (dialogue.length() < MIN_OVERLAY_DIALOGUE_LENGTH) {
+                return DialogueDisplayState.of(dialogue, false, "");
+            }
+
+            if (SHARED_DICTIONARY_SERVICE.hasDialoguePrefixCandidate(preparedDialogue)) {
                 return DialogueDisplayState.of(dialogue, false, "");
             }
         }

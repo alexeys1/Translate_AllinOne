@@ -56,6 +56,25 @@ public final class WynnDialogueLocalDictionary {
         return lookupTranslation(snapshot.dialogueLookups(), buildDialogueLookupKeys(dialogue));
     }
 
+    boolean hasPrefixCandidate(String dialogue) {
+        ensureLoaded();
+
+        String searchInput = normalizeDialogueSearchText(dialogue);
+        if (searchInput.isBlank() || searchInput.length() < MIN_PREFIX_MATCH_LENGTH) {
+            return false;
+        }
+
+        String lowerInput = searchInput.toLowerCase(Locale.ROOT);
+        for (DialoguePrefixEntry entry : snapshot.prefixDialogues().values()) {
+            String candidateSearch = entry.searchSource();
+            if (candidateSearch != null && !candidateSearch.isBlank()
+                    && candidateSearch.toLowerCase(Locale.ROOT).startsWith(lowerInput)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public String findDialogueByPrefix(String dialogue) {
         ensureLoaded();
 
