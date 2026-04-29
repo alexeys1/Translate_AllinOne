@@ -12,6 +12,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public final class WynncraftDictionaryInstaller {
     static final String RESOURCE_DIRECTORY = "assets/translate_allinone/lang/dictionary";
+    static final String DIALOGUE_FILE_NAME = "wynncraft_dialogues.json";
+    static final String ITEM_FILE_NAME = "wynncraft_items.json";
+    static final String QUEST_FILE_NAME = "wynncraft_quests.json";
+    static final String SKILL_FILE_NAME = "wynncraft_skills.json";
     private static final String CONFIG_DIRECTORY_NAME = "dictionary";
 
     private WynncraftDictionaryInstaller() {
@@ -105,6 +109,22 @@ public final class WynncraftDictionaryInstaller {
             return configDirectory;
         }
         return configDirectory.resolve(fileName);
+    }
+
+    static Path resolveDialogueDictionaryFile() {
+        return resolveConfigDictionaryFile(DIALOGUE_FILE_NAME);
+    }
+
+    static Path resolveItemDictionaryFile() {
+        return resolveConfigDictionaryFile(ITEM_FILE_NAME);
+    }
+
+    static Path resolveQuestDictionaryFile() {
+        return resolveConfigDictionaryFile(QUEST_FILE_NAME);
+    }
+
+    static Path resolveSkillDictionaryFile() {
+        return resolveConfigDictionaryFile(SKILL_FILE_NAME);
     }
 
     private static Path resolveBundledDictionaryDirectory() {

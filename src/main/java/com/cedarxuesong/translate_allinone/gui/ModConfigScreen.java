@@ -43,12 +43,14 @@ import com.cedarxuesong.translate_allinone.utils.config.pojos.ApiProviderProfile
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ApiProviderType;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.CacheBackupConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.CustomParameterEntry;
+import com.cedarxuesong.translate_allinone.utils.config.pojos.DictionaryConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.InputBindingConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ProviderManagerConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ScoreboardConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.WynnCraftConfig;
 import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
+import com.cedarxuesong.translate_allinone.utils.translate.DictionaryFileSelectionSupport;
 import com.cedarxuesong.translate_allinone.utils.update.UpdateCheckManager;
 import com.google.gson.Gson;
 import net.fabricmc.loader.api.FabricLoader;
@@ -79,6 +81,7 @@ public class ModConfigScreen extends Screen {
     private static final String I18N_PREFIX = "text.translate_allinone.configscreen.";
     private static final Gson CONFIG_STATE_GSON = new Gson();
     private static final String DEBUG_SECTION_ACCOUNT_UUID = "ef7acee7-f759-4d1e-a1ba-5a8dc7656d01";
+    private static final String SCREEN_STATE_FILE_NAME = "config_screen_state.json";
 
     private static final int COLOR_BG = 0xFF0C0C0C;
     private static final int COLOR_TOP_BAR = 0xFF151515;
@@ -306,6 +309,7 @@ public class ModConfigScreen extends Screen {
     private List<CustomParameterEntry> modelSettingsCustomParametersDraft = new ArrayList<>();
     private List<CustomParameterEntry> customParametersBackup = new ArrayList<>();
     private boolean customParametersModalOpen;
+    private boolean dictionaryFilesModalOpen;
     private boolean resetConfirmModalOpen;
     private boolean updateNoticeModalOpen;
     private boolean unsavedChangesConfirmModalOpen;
@@ -314,6 +318,8 @@ public class ModConfigScreen extends Screen {
     private TextFieldWidget customParameterNameField;
     private TextFieldWidget customParameterValueField;
     private boolean modelSettingsSetDefault;
+    private DictionaryFileSelectionSupport.Slot dictionaryFilesModalSlot = DictionaryFileSelectionSupport.Slot.WYNNCRAFT_DIALOGUE;
+    private List<String> dictionaryFilesSelectionBackup = new ArrayList<>();
 
     private FocusTarget pendingFocusTarget = FocusTarget.NONE;
     private ConfigSectionContentSupport.HotkeyTarget hotkeyCaptureTarget;
@@ -336,7 +342,7 @@ public class ModConfigScreen extends Screen {
     private boolean restoreSnapshotOnClose = true;
 
     public ModConfigScreen(Screen parent) {
-        this(parent, ConfigSection.CHAT_OUTPUT);
+        this(parent, loadPersistedSelectedSection());
     }
 
     private ModConfigScreen(Screen parent, ConfigSection selectedSection) {
@@ -352,6 +358,55 @@ public class ModConfigScreen extends Screen {
 
     private static Text t(String key, Object... args) {
         return Text.translatable(I18N_PREFIX + key, args);
+    }
+
+    private static Path resolveScreenStatePath() {
+        return ConfigManager.getConfigPath().resolveSibling(SCREEN_STATE_FILE_NAME);
+    }
+
+    private static ConfigSection loadPersistedSelectedSection() {
+        try {
+            Path statePath = resolveScreenStatePath();
+            if (!Files.exists(statePath)) {
+                return ConfigSection.CHAT_OUTPUT;
+            }
+
+            PersistedScreenState state = CONFIG_STATE_GSON.fromJson(Files.readString(statePath), PersistedScreenState.class);
+            if (state == null) {
+                return ConfigSection.CHAT_OUTPUT;
+            }
+            return resolveSectionByKey(state.selectedSectionKey());
+        } catch (Exception e) {
+            Translate_AllinOne.LOGGER.warn("Failed to load config screen state", e);
+            return ConfigSection.CHAT_OUTPUT;
+        }
+    }
+
+    private static ConfigSection resolveSectionByKey(String key) {
+        if (key == null || key.isBlank()) {
+            return ConfigSection.CHAT_OUTPUT;
+        }
+
+        for (ConfigSection section : ConfigSection.values()) {
+            if (section.key().equalsIgnoreCase(key)) {
+                return section;
+            }
+        }
+        return ConfigSection.CHAT_OUTPUT;
+    }
+
+    private void persistScreenState() {
+        try {
+            Path statePath = resolveScreenStatePath();
+            Path parent = statePath.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            ConfigSection section = selectedSection == null ? ConfigSection.CHAT_OUTPUT : selectedSection;
+            Files.writeString(statePath, CONFIG_STATE_GSON.toJson(new PersistedScreenState(section.key())));
+        } catch (Exception e) {
+            Translate_AllinOne.LOGGER.warn("Failed to persist config screen state", e);
+        }
     }
 
     private static String resolveCurrentVersion() {
@@ -432,6 +487,7 @@ public class ModConfigScreen extends Screen {
                 addProviderModalOpen,
                 modelSettingsModalOpen,
                 customParametersModalOpen,
+                dictionaryFilesModalOpen,
                 resetConfirmModalOpen,
                 updateNoticeModalOpen,
                 unsavedChangesConfirmModalOpen
@@ -447,6 +503,7 @@ public class ModConfigScreen extends Screen {
                 addProviderModalOpen,
                 modelSettingsModalOpen,
                 customParametersModalOpen,
+                dictionaryFilesModalOpen,
                 resetConfirmModalOpen,
                 updateNoticeModalOpen,
                 unsavedChangesConfirmModalOpen
@@ -454,6 +511,7 @@ public class ModConfigScreen extends Screen {
     }
 
     private void finishClose() {
+        persistScreenState();
         if (restoreSnapshotOnClose) {
             ConfigManager.replaceConfig(originalConfigSnapshot);
         }
@@ -548,7 +606,9 @@ public class ModConfigScreen extends Screen {
         );
 
         addSectionSpecificActions();
-        if (updateNoticeModalOpen) {
+        if (dictionaryFilesModalOpen) {
+            addDictionaryFilesModal();
+        } else if (updateNoticeModalOpen) {
             addUpdateNoticeModal();
         } else if (resetConfirmModalOpen) {
             addResetConfirmModal();
@@ -633,6 +693,8 @@ public class ModConfigScreen extends Screen {
                 this::startHotkeyCapture,
                 this::clearHotkeyBinding,
                 this::cycleHotkeyMode,
+                this::openDictionaryFilesModal,
+                this::openDictionaryDirectory,
                 this::openCacheDirectory,
                 this::openWynnDialogueHudEditor,
                 this::addRouteModelSelector,
@@ -1615,6 +1677,21 @@ public class ModConfigScreen extends Screen {
         }
     }
 
+    private void openDictionaryDirectory() {
+        Path dictionaryDirectory = FabricLoader.getInstance()
+                .getConfigDir()
+                .resolve(Translate_AllinOne.MOD_ID)
+                .resolve("dictionary");
+        try {
+            Files.createDirectories(dictionaryDirectory);
+            Util.getOperatingSystem().open(dictionaryDirectory.toUri());
+            setStatus(t("status.opened_dictionary_directory", Text.literal(dictionaryDirectory.toString())), COLOR_STATUS_OK);
+        } catch (IOException e) {
+            Translate_AllinOne.LOGGER.warn("Failed to open dictionary directory {}", dictionaryDirectory, e);
+            setStatus(t("status.failed_open_dictionary_directory"), COLOR_STATUS_ERROR);
+        }
+    }
+
     private void openWynnDialogueHudEditor() {
         if (this.client == null) {
             return;
@@ -1674,8 +1751,31 @@ public class ModConfigScreen extends Screen {
         addProviderTypeDropdownOpen = false;
     }
 
+    private void openDictionaryFilesModal(DictionaryFileSelectionSupport.Slot slot) {
+        dictionaryFilesModalSlot = slot == null ? DictionaryFileSelectionSupport.Slot.WYNNCRAFT_DIALOGUE : slot;
+        dictionaryFilesModalOpen = true;
+        dictionaryFilesSelectionBackup = new ArrayList<>(
+                DictionaryFileSelectionSupport.getSelectedFiles(ensureDictionaryConfig(), dictionaryFilesModalSlot)
+        );
+        routeDropdownSlot = null;
+        addProviderTypeDropdownOpen = false;
+        rebuildActionBlocks();
+    }
+
     private void closeUpdateNoticeModal() {
         updateNoticeModalOpen = false;
+    }
+
+    private void closeDictionaryFilesModal(boolean keepChanges) {
+        if (!keepChanges) {
+            DictionaryFileSelectionSupport.setSelectedFiles(
+                    ensureDictionaryConfig(),
+                    dictionaryFilesModalSlot,
+                    dictionaryFilesSelectionBackup
+            );
+        }
+        dictionaryFilesModalOpen = false;
+        dictionaryFilesSelectionBackup = new ArrayList<>();
     }
 
     private void closeResetConfirmModal() {
@@ -1827,6 +1927,164 @@ public class ModConfigScreen extends Screen {
         );
     }
 
+    private void addDictionaryFilesModal() {
+        UiRect modalRect = ConfigUiModalSupport.dictionaryFilesModalRect(this.width, this.height);
+        int contentX = modalRect.x + 16;
+        int contentWidth = modalRect.width - 32;
+        int rowY = modalRect.y + 48;
+        int rowHeight = 20;
+        int rowGap = 4;
+        int maxRowsBottom = modalRect.bottom() - 58;
+
+        DictionaryConfig dictionaryConfig = ensureDictionaryConfig();
+        List<String> availableFiles = DictionaryFileSelectionSupport.listAvailableFiles();
+        List<String> selectedFiles = DictionaryFileSelectionSupport.getSelectedFiles(dictionaryConfig, dictionaryFilesModalSlot);
+
+        floatingActionBlockRegistry.add(
+                contentX,
+                rowY,
+                contentWidth,
+                rowHeight,
+                t("modal.dictionary_files.current", dictionaryFileDisplayValue(dictionaryConfig, dictionaryFilesModalSlot)),
+                () -> {
+                },
+                COLOR_BLOCK_MUTED,
+                COLOR_BLOCK_MUTED,
+                COLOR_TEXT,
+                false
+        );
+        rowY += rowHeight + rowGap;
+
+        floatingActionBlockRegistry.add(
+                contentX,
+                rowY,
+                contentWidth,
+                rowHeight,
+                t("modal.dictionary_files.instructions"),
+                () -> {
+                },
+                COLOR_BLOCK_MUTED,
+                COLOR_BLOCK_MUTED,
+                COLOR_TEXT_MUTED,
+                false
+        );
+        rowY += rowHeight + 8;
+
+        if (availableFiles.isEmpty()) {
+            floatingActionBlockRegistry.add(
+                    contentX,
+                    rowY,
+                    contentWidth,
+                    rowHeight,
+                    t("modal.dictionary_files.empty"),
+                    () -> {
+                    },
+                    COLOR_BLOCK_MUTED,
+                    COLOR_BLOCK_MUTED,
+                    COLOR_TEXT_MUTED,
+                    false
+            );
+        } else {
+            for (String fileName : availableFiles) {
+                if (rowY + rowHeight > maxRowsBottom) {
+                    break;
+                }
+                boolean selected = selectedFiles.contains(fileName);
+                Text label = selected
+                        ? t("modal.dictionary_files.entry_selected", fileName)
+                        : Text.literal(fileName);
+                floatingActionBlockRegistry.add(
+                        contentX,
+                        rowY,
+                        contentWidth,
+                        rowHeight,
+                        label,
+                        () -> {
+                            if (DictionaryFileSelectionSupport.isMultiSelect(dictionaryFilesModalSlot)) {
+                                DictionaryFileSelectionSupport.toggleSelectedFile(
+                                        ensureDictionaryConfig(),
+                                        dictionaryFilesModalSlot,
+                                        fileName
+                                );
+                            } else {
+                                DictionaryFileSelectionSupport.setSelectedFile(
+                                        ensureDictionaryConfig(),
+                                        dictionaryFilesModalSlot,
+                                        fileName
+                                );
+                            }
+                            rebuildActionBlocks();
+                        },
+                        selected ? COLOR_BLOCK_SELECTED : COLOR_BLOCK,
+                        selected ? COLOR_BLOCK_SELECTED_HOVER : COLOR_BLOCK_HOVER,
+                        selected ? COLOR_TEXT_ACCENT : COLOR_TEXT,
+                        false
+                );
+                rowY += rowHeight + rowGap;
+            }
+        }
+
+        int buttonWidth = 104;
+        int buttonHeight = 20;
+        int buttonGap = 8;
+        int buttonY = modalRect.bottom() - 30;
+        int doneX = modalRect.right() - 16 - buttonWidth;
+        int cancelX = doneX - buttonGap - buttonWidth;
+        int clearX = cancelX - buttonGap - buttonWidth;
+
+        floatingActionBlockRegistry.add(
+                clearX,
+                buttonY,
+                buttonWidth,
+                buttonHeight,
+                t("button.clear_selection"),
+                () -> {
+                    DictionaryFileSelectionSupport.setSelectedFiles(
+                            ensureDictionaryConfig(),
+                            dictionaryFilesModalSlot,
+                            List.of()
+                    );
+                    rebuildActionBlocks();
+                },
+                COLOR_BLOCK_DANGER,
+                COLOR_BLOCK_DANGER_HOVER,
+                COLOR_TEXT,
+                true
+        );
+
+        floatingActionBlockRegistry.add(
+                cancelX,
+                buttonY,
+                buttonWidth,
+                buttonHeight,
+                t("button.cancel"),
+                () -> {
+                    closeDictionaryFilesModal(false);
+                    rebuildActionBlocks();
+                },
+                COLOR_BLOCK,
+                COLOR_BLOCK_HOVER,
+                COLOR_TEXT,
+                true
+        );
+
+        floatingActionBlockRegistry.add(
+                doneX,
+                buttonY,
+                buttonWidth,
+                buttonHeight,
+                t("button.done"),
+                () -> {
+                    closeDictionaryFilesModal(true);
+                    rebuildActionBlocks();
+                },
+                COLOR_BLOCK_ACCENT,
+                COLOR_BLOCK_ACCENT_HOVER,
+                COLOR_TEXT,
+                true
+        );
+    }
+
     private void renderResetConfirmModalMessage(DrawContext context) {
         UiRect modalRect = ConfigUiModalSupport.resetConfirmModalRect(this.width, this.height);
         int textX = modalRect.x + 16;
@@ -1894,6 +2152,7 @@ public class ModConfigScreen extends Screen {
                 addProviderModalOpen,
                 modelSettingsModalOpen,
                 customParametersModalOpen,
+                dictionaryFilesModalOpen,
                 resetConfirmModalOpen,
                 updateNoticeModalOpen,
                 unsavedChangesConfirmModalOpen
@@ -1912,6 +2171,11 @@ public class ModConfigScreen extends Screen {
             }
             case CLOSE_UNSAVED_CHANGES -> {
                 closeUnsavedChangesConfirmModal();
+                rebuildActionBlocks();
+                return;
+            }
+            case CLOSE_DICTIONARY_FILES -> {
+                closeDictionaryFilesModal(false);
                 rebuildActionBlocks();
                 return;
             }
@@ -1969,6 +2233,7 @@ public class ModConfigScreen extends Screen {
                         addProviderModalOpen,
                         modelSettingsModalOpen,
                         customParametersModalOpen,
+                        dictionaryFilesModalOpen,
                         resetConfirmModalOpen,
                         updateNoticeModalOpen,
                         unsavedChangesConfirmModalOpen
@@ -1986,6 +2251,11 @@ public class ModConfigScreen extends Screen {
                     }
                     case CLOSE_UNSAVED_CHANGES -> {
                         closeUnsavedChangesConfirmModal();
+                        rebuildActionBlocks();
+                        return true;
+                    }
+                    case CLOSE_DICTIONARY_FILES -> {
+                        closeDictionaryFilesModal(false);
                         rebuildActionBlocks();
                         return true;
                     }
@@ -2255,12 +2525,14 @@ public class ModConfigScreen extends Screen {
                 addProviderModalOpen,
                 modelSettingsModalOpen,
                 customParametersModalOpen,
+                dictionaryFilesModalOpen,
                 resetConfirmModalOpen,
                 updateNoticeModalOpen,
                 unsavedChangesConfirmModalOpen,
                 t("modal.add_provider.title"),
                 t("modal.model.title"),
                 t("custom_params.title"),
+                t("modal.dictionary_files.title", dictionarySlotLabel(dictionaryFilesModalSlot)),
                 t("modal.reset_confirm.title"),
                 t("modal.update_notice.title"),
                 t("modal.unsaved_changes.title"),
@@ -2280,6 +2552,31 @@ public class ModConfigScreen extends Screen {
         }
         ConfigUiControlRenderer.drawCheckboxBlocks(context, this.textRenderer, floatingCheckboxBlocks, mouseX, mouseY);
         ConfigUiControlRenderer.drawActionBlocks(context, this.textRenderer, floatingActionBlocks, mouseX, mouseY, COLOR_BORDER);
+    }
+
+    private Text dictionarySlotLabel(DictionaryFileSelectionSupport.Slot slot) {
+        return switch (slot) {
+            case ITEM_SKILL -> t("label.dictionary_slot_item_skill");
+            case WYNNCRAFT_DIALOGUE -> t("label.dictionary_slot_dialogue");
+            case WYNNCRAFT_QUEST -> t("label.dictionary_slot_quest");
+        };
+    }
+
+    private Text dictionaryFileDisplayValue(DictionaryConfig dictionaryConfig, DictionaryFileSelectionSupport.Slot slot) {
+        String effectiveSelection = DictionaryFileSelectionSupport.describeEffectiveSelection(dictionaryConfig, slot);
+        if (effectiveSelection == null || effectiveSelection.isBlank()) {
+            return t("value.dictionary_file_none_selected");
+        }
+        return Text.literal(effectiveSelection);
+    }
+
+    private DictionaryConfig ensureDictionaryConfig() {
+        ModConfig config = Translate_AllinOne.getConfig();
+        if (config.dictionary == null) {
+            config.dictionary = new DictionaryConfig();
+        }
+        config.dictionary.normalize();
+        return config.dictionary;
     }
 
     private void updateControlAnimations() {
@@ -2320,6 +2617,9 @@ public class ModConfigScreen extends Screen {
         if (afterRenderOffset != beforeRenderOffset) {
             rebuildActionBlocks();
         }
+    }
+
+    private record PersistedScreenState(String selectedSectionKey) {
     }
 
 }

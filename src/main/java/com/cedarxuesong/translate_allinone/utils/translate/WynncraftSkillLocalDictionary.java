@@ -5,7 +5,7 @@ final class WynncraftSkillLocalDictionary {
 
     private WynncraftSkillLocalDictionary() {
         this(new WynncraftPlaceholderDictionary(
-                WynncraftDictionaryInstaller.resolveConfigDictionaryFile("skills.json"),
+                DictionaryFileSelectionSupport::resolveItemSkillDictionaryPaths,
                 "wynncraft-skills-dictionary"
         ));
     }

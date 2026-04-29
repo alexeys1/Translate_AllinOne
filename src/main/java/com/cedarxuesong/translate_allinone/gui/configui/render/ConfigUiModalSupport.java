@@ -15,6 +15,7 @@ public final class ConfigUiModalSupport {
             boolean addProviderModalOpen,
             boolean modelSettingsModalOpen,
             boolean customParametersModalOpen,
+            boolean dictionaryFilesModalOpen,
             boolean resetConfirmModalOpen,
             boolean updateNoticeModalOpen,
             boolean unsavedChangesConfirmModalOpen
@@ -22,6 +23,7 @@ public final class ConfigUiModalSupport {
         return addProviderModalOpen
                 || modelSettingsModalOpen
                 || customParametersModalOpen
+                || dictionaryFilesModalOpen
                 || resetConfirmModalOpen
                 || updateNoticeModalOpen
                 || unsavedChangesConfirmModalOpen;
@@ -35,6 +37,7 @@ public final class ConfigUiModalSupport {
             boolean addProviderModalOpen,
             boolean modelSettingsModalOpen,
             boolean customParametersModalOpen,
+            boolean dictionaryFilesModalOpen,
             boolean resetConfirmModalOpen,
             boolean updateNoticeModalOpen,
             boolean unsavedChangesConfirmModalOpen
@@ -49,6 +52,9 @@ public final class ConfigUiModalSupport {
             return true;
         }
         if (customParametersModalOpen && customParametersModalRect(screenWidth, screenHeight).contains(x, y)) {
+            return true;
+        }
+        if (dictionaryFilesModalOpen && dictionaryFilesModalRect(screenWidth, screenHeight).contains(x, y)) {
             return true;
         }
         if (addProviderModalOpen && addProviderModalRect(screenWidth, screenHeight).contains(x, y)) {
@@ -76,6 +82,14 @@ public final class ConfigUiModalSupport {
     public static UiRect customParametersModalRect(int screenWidth, int screenHeight) {
         int width = Math.min(900, screenWidth - 80);
         int height = Math.min(520, screenHeight - 90);
+        int x = (screenWidth - width) / 2;
+        int y = (screenHeight - height) / 2;
+        return new UiRect(x, y, width, height);
+    }
+
+    public static UiRect dictionaryFilesModalRect(int screenWidth, int screenHeight) {
+        int width = Math.min(760, screenWidth - 90);
+        int height = Math.min(460, screenHeight - 100);
         int x = (screenWidth - width) / 2;
         int y = (screenHeight - height) / 2;
         return new UiRect(x, y, width, height);

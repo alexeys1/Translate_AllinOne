@@ -1,8 +1,14 @@
 package com.cedarxuesong.translate_allinone.utils.translate;
 
+import java.nio.file.Path;
+import java.util.List;
+
 final class WynntilsQuestLocalDictionary {
     private final WynncraftPlaceholderDictionary delegate = new WynncraftPlaceholderDictionary(
-            WynncraftDictionaryInstaller.resolveConfigDictionaryFile("quests.json"),
+            () -> {
+                Path path = DictionaryFileSelectionSupport.resolveQuestDictionaryPath();
+                return path == null ? List.of() : List.of(path);
+            },
             "wynncraft-quests-dictionary"
     );
 

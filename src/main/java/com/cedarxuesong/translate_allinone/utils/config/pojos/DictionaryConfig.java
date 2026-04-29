@@ -5,7 +5,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 
 public class DictionaryConfig {
-    public static final boolean DEFAULT_ENABLED = true;
+    public static final boolean DEFAULT_ENABLED = false;
     public static final boolean DEFAULT_TEXT_DEBUG_ENABLED = false;
 
     public Boolean enabled = DEFAULT_ENABLED;

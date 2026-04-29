@@ -9,12 +9,14 @@ import com.cedarxuesong.translate_allinone.utils.cache.WynntilsTaskTrackerTextCa
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ChatTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.CacheBackupConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.DebugConfig;
+import com.cedarxuesong.translate_allinone.utils.config.pojos.DictionaryConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.InputBindingConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ProviderManagerConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ScoreboardConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.WynnCraftConfig;
+import com.cedarxuesong.translate_allinone.utils.translate.DictionaryFileSelectionSupport;
 import net.minecraft.text.Text;
 
 import java.util.function.BooleanSupplier;
@@ -53,6 +55,8 @@ public final class ConfigSectionContentSupport {
             HotkeyAction hotkeyStartBinding,
             HotkeyAction hotkeyClearBinding,
             HotkeyAction hotkeyCycleMode,
+            DictionaryFilePickerAction dictionaryFilePickerAction,
+            Runnable openDictionaryDirectoryAction,
             Runnable openCacheDirectoryAction,
             Runnable openWynnDialogueHudEditorAction,
             RouteSelectorAdder routeSelectorAdder,
@@ -690,6 +694,92 @@ public final class ConfigSectionContentSupport {
                 addGroupBox(groupBoxAdder, translator.t("group.route"), x, width, routeStart, y);
                 return y;
             }
+            case DICTIONARY -> {
+                DictionaryConfig dictionaryConfig = config.dictionary;
+                if (dictionaryConfig == null) {
+                    dictionaryConfig = new DictionaryConfig();
+                    config.dictionary = dictionaryConfig;
+                }
+
+                int masterStart = y;
+                DictionaryConfig resolvedDictionaryConfig = dictionaryConfig;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.dictionary_enabled"),
+                        resolvedDictionaryConfig::isEnabled,
+                        value -> resolvedDictionaryConfig.enabled = value
+                );
+                y += ROW_STEP;
+                addGroupBox(groupBoxAdder, translator.t("group.dictionary_general"), x, width, masterStart, y);
+
+                y += GROUP_GAP;
+                int generalStart = y;
+                y = addDictionaryFileSelector(
+                        x,
+                        y,
+                        width,
+                        translator,
+                        toggleAdder,
+                        actionAdder,
+                        textFieldRowAdder,
+                        dictionaryFilePickerAction,
+                        dictionaryConfig,
+                        DictionaryFileSelectionSupport.Slot.ITEM_SKILL,
+                        "label.dictionary_slot_item_skill_enabled",
+                        "label.dictionary_slot_item_skill"
+                );
+                addGroupBox(groupBoxAdder, translator.t("group.dictionary_skyblock"), x, width, generalStart, y);
+
+                y += GROUP_GAP;
+                int wynncraftStart = y;
+                y = addDictionaryFileSelector(
+                        x,
+                        y,
+                        width,
+                        translator,
+                        toggleAdder,
+                        actionAdder,
+                        textFieldRowAdder,
+                        dictionaryFilePickerAction,
+                        dictionaryConfig,
+                        DictionaryFileSelectionSupport.Slot.WYNNCRAFT_DIALOGUE,
+                        "label.dictionary_slot_dialogue_enabled",
+                        "label.dictionary_slot_dialogue"
+                );
+                y = addDictionaryFileSelector(
+                        x,
+                        y,
+                        width,
+                        translator,
+                        toggleAdder,
+                        actionAdder,
+                        textFieldRowAdder,
+                        dictionaryFilePickerAction,
+                        dictionaryConfig,
+                        DictionaryFileSelectionSupport.Slot.WYNNCRAFT_QUEST,
+                        "label.dictionary_slot_quest_enabled",
+                        "label.dictionary_slot_quest"
+                );
+                addGroupBox(groupBoxAdder, translator.t("group.dictionary_wynncraft"), x, width, wynncraftStart, y);
+
+                y += GROUP_GAP;
+                int toolsStart = y;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.dictionary_text_debug_enabled"),
+                        resolvedDictionaryConfig::isTextDebugEnabled,
+                        value -> resolvedDictionaryConfig.text_debug_enabled = value
+                );
+                y += ROW_STEP;
+                actionAdder.add(x, y, width, translator.t("button.open_dictionary_directory"), openDictionaryDirectoryAction);
+                y += ROW_STEP;
+                addGroupBox(groupBoxAdder, translator.t("group.dictionary_tools"), x, width, toolsStart, y);
+                return y;
+            }
             case CACHE -> {
                 CacheBackupConfig resolvedCacheBackup = config.cacheBackup;
                 if (resolvedCacheBackup == null) {
@@ -889,6 +979,66 @@ public final class ConfigSectionContentSupport {
         return language.trim();
     }
 
+    private static int addDictionaryFileSelector(
+            int x,
+            int y,
+            int width,
+            Translator translator,
+            ToggleAdder toggleAdder,
+            ActionAdder actionAdder,
+            TextFieldRowAdder textFieldRowAdder,
+            DictionaryFilePickerAction dictionaryFilePickerAction,
+            DictionaryConfig dictionaryConfig,
+            DictionaryFileSelectionSupport.Slot slot,
+            String enabledLabelKey,
+            String labelKey
+    ) {
+        toggleAdder.add(
+                x,
+                y,
+                width,
+                translator.t(enabledLabelKey),
+                () -> DictionaryFileSelectionSupport.isSlotEnabled(dictionaryConfig, slot),
+                value -> DictionaryFileSelectionSupport.setSlotEnabled(dictionaryConfig, slot, value)
+        );
+        y += ROW_STEP;
+        textFieldRowAdder.add(
+                x,
+                y,
+                width,
+                translator.t(labelKey),
+                256,
+                selectedFileSummary(translator, dictionaryConfig, slot),
+                Text.empty(),
+                value -> {
+                },
+                value -> true,
+                false
+        );
+        y += ROW_STEP;
+        actionAdder.add(
+                x,
+                y,
+                width,
+                translator.t("button.select_dictionary_files"),
+                () -> dictionaryFilePickerAction.handle(slot)
+        );
+        y += ROW_STEP;
+        return y;
+    }
+
+    private static String selectedFileSummary(
+            Translator translator,
+            DictionaryConfig dictionaryConfig,
+            DictionaryFileSelectionSupport.Slot slot
+    ) {
+        String selectedFile = DictionaryFileSelectionSupport.describeEffectiveSelection(dictionaryConfig, slot);
+        if (selectedFile == null || selectedFile.isBlank()) {
+            return translator.t("value.dictionary_file_none_selected").getString();
+        }
+        return translator.t("value.dictionary_file_selected", selectedFile).getString();
+    }
+
     private static Integer tryParseNonNegativeInt(String value) {
         if (value == null || value.isBlank()) {
             return null;
@@ -968,6 +1118,11 @@ public final class ConfigSectionContentSupport {
     @FunctionalInterface
     public interface HotkeyAction {
         void handle(HotkeyTarget target);
+    }
+
+    @FunctionalInterface
+    public interface DictionaryFilePickerAction {
+        void handle(DictionaryFileSelectionSupport.Slot slot);
     }
 
     @FunctionalInterface

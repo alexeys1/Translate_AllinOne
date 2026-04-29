@@ -56,12 +56,14 @@ public final class ConfigUiScreenRenderSupport {
             boolean addProviderModalOpen,
             boolean modelSettingsModalOpen,
             boolean customParametersModalOpen,
+            boolean dictionaryFilesModalOpen,
             boolean resetConfirmModalOpen,
             boolean updateNoticeModalOpen,
             boolean unsavedChangesConfirmModalOpen,
             Text addProviderTitle,
             Text modelSettingsTitle,
             Text customParametersTitle,
+            Text dictionaryFilesTitle,
             Text resetConfirmTitle,
             Text updateNoticeTitle,
             Text unsavedChangesConfirmTitle,
@@ -71,6 +73,7 @@ public final class ConfigUiScreenRenderSupport {
                 addProviderModalOpen,
                 modelSettingsModalOpen,
                 customParametersModalOpen,
+                dictionaryFilesModalOpen,
                 resetConfirmModalOpen,
                 updateNoticeModalOpen,
                 unsavedChangesConfirmModalOpen
@@ -115,6 +118,16 @@ public final class ConfigUiScreenRenderSupport {
                     textRenderer,
                     ConfigUiModalSupport.customParametersModalRect(screenWidth, screenHeight),
                     customParametersTitle,
+                    style.colorMainPanel(),
+                    style.colorBorder(),
+                    style.colorText()
+            );
+        } else if (dictionaryFilesModalOpen) {
+            ConfigUiModalSupport.renderModalShell(
+                    context,
+                    textRenderer,
+                    ConfigUiModalSupport.dictionaryFilesModalRect(screenWidth, screenHeight),
+                    dictionaryFilesTitle,
                     style.colorMainPanel(),
                     style.colorBorder(),
                     style.colorText()

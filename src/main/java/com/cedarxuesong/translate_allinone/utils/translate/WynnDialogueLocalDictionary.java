@@ -17,7 +17,6 @@ import java.util.Map;
 import java.util.Set;
 
 public final class WynnDialogueLocalDictionary {
-    private static final String CONFIG_FILE_NAME = "dialogues.json";
     private static final int MIN_PREFIX_MATCH_LENGTH = 5;
     private static final int MIN_VISIBLE_PREFIX_LENGTH = 20;
     private static final double MIN_PREFIX_PROGRESS_RATIO = 0.55D;
@@ -121,9 +120,14 @@ public final class WynnDialogueLocalDictionary {
         return cropTranslatedPrefix(bestCandidateSearch, searchInput, bestTranslation);
     }
 
-    private synchronized void ensureLoaded() {
-        if (!loadAttempted) {
-            load();
+    private void ensureLoaded() {
+        if (loadAttempted) {
+            return;
+        }
+        synchronized (this) {
+            if (!loadAttempted) {
+                load();
+            }
         }
     }
 
@@ -226,7 +230,7 @@ public final class WynnDialogueLocalDictionary {
         if (override != null) {
             return override;
         }
-        return WynncraftDictionaryInstaller.resolveConfigDictionaryFile(CONFIG_FILE_NAME);
+        return DictionaryFileSelectionSupport.resolveDialogueDictionaryPath();
     }
 
     static void setTestDictionaryFileOverride(Path path) {

@@ -8,6 +8,7 @@ public final class ConfigUiModalInteractionSupport {
             boolean addProviderModalOpen,
             boolean modelSettingsModalOpen,
             boolean customParametersModalOpen,
+            boolean dictionaryFilesModalOpen,
             boolean resetConfirmModalOpen,
             boolean updateNoticeModalOpen,
             boolean unsavedChangesConfirmModalOpen
@@ -20,6 +21,9 @@ public final class ConfigUiModalInteractionSupport {
         }
         if (unsavedChangesConfirmModalOpen) {
             return ModalCloseAction.CLOSE_UNSAVED_CHANGES;
+        }
+        if (dictionaryFilesModalOpen) {
+            return ModalCloseAction.CLOSE_DICTIONARY_FILES;
         }
         if (customParametersModalOpen) {
             return ModalCloseAction.CLOSE_CUSTOM_PARAMETERS;
@@ -37,6 +41,7 @@ public final class ConfigUiModalInteractionSupport {
             boolean addProviderModalOpen,
             boolean modelSettingsModalOpen,
             boolean customParametersModalOpen,
+            boolean dictionaryFilesModalOpen,
             boolean resetConfirmModalOpen,
             boolean updateNoticeModalOpen,
             boolean unsavedChangesConfirmModalOpen
@@ -49,6 +54,9 @@ public final class ConfigUiModalInteractionSupport {
         }
         if (unsavedChangesConfirmModalOpen) {
             return ModalCloseAction.CLOSE_UNSAVED_CHANGES;
+        }
+        if (dictionaryFilesModalOpen) {
+            return ModalCloseAction.CLOSE_DICTIONARY_FILES;
         }
         if (addProviderModalOpen) {
             return ModalCloseAction.CLOSE_ADD_PROVIDER;
@@ -67,6 +75,7 @@ public final class ConfigUiModalInteractionSupport {
         CLOSE_UPDATE_NOTICE,
         CLOSE_RESET_CONFIRM,
         CLOSE_UNSAVED_CHANGES,
+        CLOSE_DICTIONARY_FILES,
         CLOSE_ADD_PROVIDER,
         CLOSE_MODEL_SETTINGS,
         CLOSE_CUSTOM_PARAMETERS

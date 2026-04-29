@@ -5,7 +5,7 @@ final class WynncraftItemLocalDictionary {
 
     private WynncraftItemLocalDictionary() {
         this(new WynncraftPlaceholderDictionary(
-                WynncraftDictionaryInstaller.resolveConfigDictionaryFile("items.json"),
+                DictionaryFileSelectionSupport::resolveItemSkillDictionaryPaths,
                 "wynncraft-items-dictionary"
         ));
     }

@@ -7,6 +7,7 @@ public enum ConfigSection {
     ITEM("item"),
     SCOREBOARD("scoreboard"),
     WYNNCRAFT("wynncraft"),
+    DICTIONARY("dictionary"),
     CACHE("cache"),
     DEBUG("debug");
 
