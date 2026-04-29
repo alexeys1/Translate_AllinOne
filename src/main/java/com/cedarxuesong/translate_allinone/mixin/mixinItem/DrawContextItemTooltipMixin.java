@@ -4,7 +4,6 @@ import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipRecentRenderGuardSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTextDebugCopySupport;
-import com.cedarxuesong.translate_allinone.utils.translate.TooltipTextMatcherSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTranslationContext;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTranslationSupport;
 import net.fabricmc.loader.api.FabricLoader;
@@ -61,43 +60,22 @@ public abstract class DrawContextItemTooltipMixin {
     ) {
         List<Text> originalTooltip = cir.getReturnValue();
         TooltipTextDebugCopySupport.maybeCopyCurrentTooltip(originalTooltip);
-        boolean useWynnmodTooltipTracking = translate_allinone$shouldUseWynnmodTooltipTracking();
-        if (useWynnmodTooltipTracking && TooltipTranslationContext.isInWynnmodTooltipRender()) {
-            TooltipTextMatcherSupport.logTooltipGuardIfDev(
-                    Translate_AllinOne.getConfig().itemTranslate,
-                    "screen-mirror",
-                    "skip-inside-wynnmod-render",
-                    originalTooltip,
-                    "Draw-context mirror skipped because Wynnmod tooltip render is already active."
-            );
+        if (translate_allinone$shouldUseWynnmodTooltipTracking() && TooltipTranslationContext.isInWynnmodTooltipRender()) {
             TooltipTranslationContext.setSkipDrawContextTranslation(false);
             return;
         }
-        if (useWynnmodTooltipTracking) {
-            ItemTranslateConfig config = Translate_AllinOne.getConfig().itemTranslate;
-            // Only skip screen-mirror when Wynnmod has actually handed off this tooltip.
-            java.util.Set<String> translationTemplateKeys = TooltipTranslationSupport.collectTranslationTemplateKeys(originalTooltip, config);
-            if (TooltipTranslationContext.consumeSkipScreenMirrorTranslation(translationTemplateKeys)) {
-                TooltipTextMatcherSupport.logTooltipGuardIfDev(
-                        config,
-                        "screen-mirror",
-                        "skip-consume-wynnmod-handoff",
-                        originalTooltip,
-                        "TooltipTranslationContext.consumeSkipScreenMirrorTranslation(translationTemplateKeys) matched the expected tooltip."
-                );
-                return;
-            }
+        if (translate_allinone$shouldUseWynnmodTooltipTracking()
+                && TooltipTranslationContext.consumeSkipScreenMirrorTranslation()) {
+            return;
         }
         TooltipTranslationSupport.TranslatedTooltipBuildResult mirrorResult =
                 translate_allinone$buildTooltipMirror(originalTooltip);
         List<Text> mirroredTooltip = mirrorResult.translatedTooltip();
-        if (useWynnmodTooltipTracking) {
-            TooltipRecentRenderGuardSupport.rememberMirroredTooltip(
-                    originalTooltip,
-                    mirroredTooltip,
-                    mirrorResult.locallyStableForRecentGuard()
-            );
-        }
+        TooltipRecentRenderGuardSupport.rememberMirroredTooltip(
+                originalTooltip,
+                mirroredTooltip,
+                mirrorResult.locallyStableForRecentGuard()
+        );
         if (!translate_allinone$sameTooltipContent(originalTooltip, mirroredTooltip)) {
             TooltipTranslationContext.rememberExpectedDrawContextTooltip(mirroredTooltip);
             TooltipTranslationContext.setSkipDrawContextTranslation(true);

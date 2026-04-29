@@ -125,7 +125,6 @@ public abstract class WynnmodStatsTooltipContextMixin {
                 return;
             }
 
-            TooltipRefreshNoticeSupport.queueRemoteTranslationForCurrentTooltip(sanitizedTooltip, config);
             if (TooltipRecentRenderGuardSupport.shouldSkipDuplicateRender(sanitizedTooltip, showRefreshNotice)) {
                 TooltipTextMatcherSupport.logTooltipGuardIfDev(
                         config,
@@ -138,6 +137,7 @@ public abstract class WynnmodStatsTooltipContextMixin {
                 TooltipTranslationContext.setSkipDrawContextTranslation(true);
                 return;
             }
+            TooltipRefreshNoticeSupport.queueRemoteTranslationForCurrentTooltip(sanitizedTooltip, config);
 
             boolean emitDevLog = TooltipTextMatcherSupport.beginTooltipDevPass(config, "wynnmod", sanitizedTooltip);
             long tooltipStartedAtNanos = emitDevLog ? System.nanoTime() : 0L;

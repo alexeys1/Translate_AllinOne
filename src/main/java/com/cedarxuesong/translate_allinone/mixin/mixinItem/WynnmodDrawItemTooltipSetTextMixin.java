@@ -61,9 +61,8 @@ public abstract class WynnmodDrawItemTooltipSetTextMixin {
             return TooltipRefreshNoticeSupport.appendRefreshNoticeLine(tooltip, showRefreshNotice);
         }
 
-        TooltipRefreshNoticeSupport.queueRemoteTranslationForCurrentTooltip(sanitizedTooltip, config);
-        if (TooltipRecentRenderGuardSupport.shouldSkipDuplicateRender(sanitizedTooltip, showRefreshNotice)) {
-            return tooltip;
+        if (!TooltipRecentRenderGuardSupport.shouldSkipDuplicateRender(sanitizedTooltip, showRefreshNotice)) {
+            TooltipRefreshNoticeSupport.queueRemoteTranslationForCurrentTooltip(sanitizedTooltip, config);
         }
 
         boolean emitDevLog = TooltipTextMatcherSupport.beginTooltipDevPass(config, "wynnmod-setText", sanitizedTooltip);
@@ -93,6 +92,7 @@ public abstract class WynnmodDrawItemTooltipSetTextMixin {
         );
 
         boolean locallyStableForRecentGuard = !processedTooltip.pending() && !processedTooltip.missingKeyIssue();
+        TooltipRecentRenderGuardSupport.rememberTooltipIfStable(sanitizedTooltip, locallyStableForRecentGuard);
         TooltipRecentRenderGuardSupport.rememberTooltipIfStable(translatedTooltip, locallyStableForRecentGuard);
         if (!translate_allinone$sameTooltipContent(tooltip, translatedTooltip)) {
             TooltipTranslationContext.rememberExpectedDrawContextTooltip(translatedTooltip);

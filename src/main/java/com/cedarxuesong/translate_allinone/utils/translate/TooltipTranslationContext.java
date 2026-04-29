@@ -31,8 +31,13 @@ public final class TooltipTranslationContext {
     private static final ThreadLocal<Long> WYNN_ITEM_STAT_TOOLTIP_MARKED_AT = ThreadLocal.withInitial(() -> 0L);
     private static final ThreadLocal<Integer> WYNN_QUEST_TOOLTIP_RENDER_DEPTH = ThreadLocal.withInitial(() -> 0);
     private static final ThreadLocal<Long> WYNN_QUEST_TOOLTIP_RENDER_ENTERED_AT = ThreadLocal.withInitial(() -> 0L);
-    private static final ThreadLocal<Integer> RECENT_TRANSLATED_TOOLTIP_SIGNATURE = ThreadLocal.withInitial(() -> 0);
-    private static final ThreadLocal<Long> RECENT_TRANSLATED_TOOLTIP_RECORDED_AT = ThreadLocal.withInitial(() -> 0L);
+    private static final int MAX_RECENT_TOOLTIPS = 4;
+
+    private record RecentTooltipEntry(int signature, long recordedAt) {
+    }
+
+    private static final ThreadLocal<List<RecentTooltipEntry>> RECENT_TRANSLATED_TOOLTIPS =
+            ThreadLocal.withInitial(() -> new ArrayList<>(MAX_RECENT_TOOLTIPS));
 
     private static final Logger LOGGER = LoggerFactory.getLogger("Translate_AllinOne/TooltipTranslationContext");
 
@@ -47,11 +52,15 @@ public final class TooltipTranslationContext {
     }
 
     public static boolean consumeSkipDrawContextTranslation() {
-        boolean shouldSkip = SKIP_DRAW_CONTEXT_TRANSLATION.get();
-        if (shouldSkip) {
-            SKIP_DRAW_CONTEXT_TRANSLATION.set(false);
+        if (!SKIP_DRAW_CONTEXT_TRANSLATION.get()) {
+            return false;
         }
-        return shouldSkip;
+        if (isExpectedDrawContextTooltipUnavailableOrStale()) {
+            setSkipDrawContextTranslation(false);
+            return false;
+        }
+        setSkipDrawContextTranslation(false);
+        return true;
     }
 
     public static boolean consumeSkipDrawContextTranslation(List<Text> tooltipLines) {
@@ -96,11 +105,15 @@ public final class TooltipTranslationContext {
     }
 
     public static boolean consumeSkipScreenMirrorTranslation() {
-        boolean shouldSkip = SKIP_SCREEN_MIRROR_TRANSLATION.get();
-        if (shouldSkip) {
-            SKIP_SCREEN_MIRROR_TRANSLATION.set(false);
+        if (!SKIP_SCREEN_MIRROR_TRANSLATION.get()) {
+            return false;
         }
-        return shouldSkip;
+        if (isExpectedScreenMirrorTooltipUnavailableOrStale()) {
+            setSkipScreenMirrorTranslation(false);
+            return false;
+        }
+        setSkipScreenMirrorTranslation(false);
+        return true;
     }
 
     public static boolean consumeSkipScreenMirrorTranslation(java.util.Set<String> translationTemplateKeys) {
@@ -308,13 +321,18 @@ public final class TooltipTranslationContext {
 
     public static void rememberRecentTranslatedTooltip(List<Text> tooltipLines) {
         if (tooltipLines == null || tooltipLines.isEmpty()) {
-            RECENT_TRANSLATED_TOOLTIP_SIGNATURE.set(0);
-            RECENT_TRANSLATED_TOOLTIP_RECORDED_AT.set(0L);
+            RECENT_TRANSLATED_TOOLTIPS.get().clear();
             return;
         }
 
-        RECENT_TRANSLATED_TOOLTIP_SIGNATURE.set(computeTooltipSignature(tooltipLines));
-        RECENT_TRANSLATED_TOOLTIP_RECORDED_AT.set(System.currentTimeMillis());
+        int signature = computeTooltipSignature(tooltipLines);
+        long now = System.currentTimeMillis();
+        List<RecentTooltipEntry> entries = RECENT_TRANSLATED_TOOLTIPS.get();
+        entries.removeIf(e -> now - e.recordedAt() > RECENT_TRANSLATED_TOOLTIP_STALE_MILLIS || e.signature() == signature);
+        entries.add(new RecentTooltipEntry(signature, now));
+        while (entries.size() > MAX_RECENT_TOOLTIPS) {
+            entries.removeFirst();
+        }
     }
 
     public static boolean matchesRecentTranslatedTooltip(List<Text> tooltipLines) {
@@ -322,19 +340,21 @@ public final class TooltipTranslationContext {
             return false;
         }
 
-        long recordedAt = RECENT_TRANSLATED_TOOLTIP_RECORDED_AT.get();
-        if (recordedAt <= 0L) {
+        List<RecentTooltipEntry> entries = RECENT_TRANSLATED_TOOLTIPS.get();
+        if (entries.isEmpty()) {
             return false;
         }
 
+        int signature = computeTooltipSignature(tooltipLines);
         long now = System.currentTimeMillis();
-        if (now - recordedAt > RECENT_TRANSLATED_TOOLTIP_STALE_MILLIS) {
-            RECENT_TRANSLATED_TOOLTIP_SIGNATURE.set(0);
-            RECENT_TRANSLATED_TOOLTIP_RECORDED_AT.set(0L);
-            return false;
-        }
+        entries.removeIf(e -> now - e.recordedAt() > RECENT_TRANSLATED_TOOLTIP_STALE_MILLIS);
 
-        return RECENT_TRANSLATED_TOOLTIP_SIGNATURE.get() == computeTooltipSignature(tooltipLines);
+        for (RecentTooltipEntry entry : entries) {
+            if (entry.signature() == signature) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static int computeTooltipSignature(List<Text> tooltipLines) {

@@ -27,7 +27,7 @@ public final class TooltipRecentRenderGuardSupport {
             clearRememberedTooltip();
             return;
         }
-        rememberTooltipIfStable(mirroredTooltip, tooltipLocallyStable);
+        rememberTooltipIfStable(originalTooltip, tooltipLocallyStable);
     }
 
     public static void rememberTooltipIfStable(List<Text> tooltip) {

@@ -6,6 +6,7 @@ import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfi
 import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipDecorativeContextSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipInternalLineSupport;
+import com.cedarxuesong.translate_allinone.utils.translate.TooltipRecentRenderGuardSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipRefreshNoticeSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTextDebugCopySupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTextMatcherSupport;
@@ -99,13 +100,13 @@ public abstract class DrawContextTooltipMixin {
         if (config == null || !config.enabled) {
             return;
         }
-        if (TooltipTranslationContext.consumeSkipDrawContextTranslation(tooltipLines)) {
+        if (TooltipTranslationContext.consumeSkipDrawContextTranslation()) {
             TooltipTextMatcherSupport.logTooltipGuardIfDev(
                     config,
                     "draw-context",
                     "skip-consume-shared-guard",
                     tooltipLines,
-                    "TooltipTranslationContext.consumeSkipDrawContextTranslation(tooltipLines) matched the expected tooltip."
+                    "TooltipTranslationContext.consumeSkipDrawContextTranslation() returned true."
             );
             return;
         }
@@ -117,14 +118,17 @@ public abstract class DrawContextTooltipMixin {
             return;
         }
 
-        TooltipRefreshNoticeSupport.queueRemoteTranslationForCurrentTooltip(tooltipLines, config);
+        if (!TooltipRecentRenderGuardSupport.shouldSkipDuplicateRender(tooltipLines, showRefreshNotice)) {
+            TooltipRefreshNoticeSupport.queueRemoteTranslationForCurrentTooltip(tooltipLines, config);
+        }
 
         boolean emitDevLog = TooltipTextMatcherSupport.beginTooltipDevPass(config, "draw-context", tooltipLines);
         long tooltipStartedAtNanos = emitDevLog ? System.nanoTime() : 0L;
 
+        boolean locallyStable = false;
         try {
             translate_allinone$isProcessing.set(true);
-            translate_allinone$translateComponentsInPlace(
+            locallyStable = translate_allinone$translateComponentsInPlace(
                     parsedTooltip.orderedLines(),
                     components,
                     config,
@@ -136,6 +140,9 @@ public abstract class DrawContextTooltipMixin {
             LOGGER.error("Failed to translate DrawContext tooltip components", e);
         } finally {
             translate_allinone$isProcessing.set(false);
+        }
+        if (locallyStable) {
+            TooltipRecentRenderGuardSupport.rememberTooltipIfStable(tooltipLines, true);
         }
     }
 
@@ -157,7 +164,7 @@ public abstract class DrawContextTooltipMixin {
     }
 
     @Unique
-    private void translate_allinone$translateComponentsInPlace(
+    private boolean translate_allinone$translateComponentsInPlace(
             List<OrderedTooltipLine> orderedLines,
             List<TooltipComponent> components,
             ItemTranslateConfig config,
@@ -228,6 +235,7 @@ public abstract class DrawContextTooltipMixin {
                 processedTooltip.translatableLines(),
                 tooltipStartedAtNanos
         );
+        return !processedTooltip.pending() && !processedTooltip.missingKeyIssue();
     }
 
     @Unique

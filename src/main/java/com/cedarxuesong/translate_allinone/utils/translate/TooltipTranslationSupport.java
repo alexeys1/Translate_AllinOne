@@ -176,7 +176,9 @@ public final class TooltipTranslationSupport {
             return new TranslatedTooltipBuildResult(tooltipWithNotice, false);
         }
 
-        queueRemoteTranslationTemplateKeys(remoteTranslationTemplateKeys);
+        if (!TooltipRecentRenderGuardSupport.shouldSkipDuplicateRender(tooltip, showRefreshNotice)) {
+            queueRemoteTranslationTemplateKeys(remoteTranslationTemplateKeys);
+        }
 
         boolean emitDevLog = TooltipTextMatcherSupport.beginTooltipDevPass(config, "screen-mirror", tooltip);
         long tooltipStartedAtNanos = emitDevLog ? System.nanoTime() : 0L;
