@@ -38,7 +38,7 @@ public final class WynntilsTaskTrackerTextCache {
 
     public record LookupResult(TranslationStatus status, String translation, String errorMessage) {}
 
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
     private static final String CACHE_FILE_NAME = CACHE_LABEL;
     private static final long SAVE_DEBOUNCE_MILLIS = 1500L;
 

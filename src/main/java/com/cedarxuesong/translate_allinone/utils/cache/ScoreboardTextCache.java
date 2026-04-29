@@ -49,7 +49,7 @@ public class ScoreboardTextCache {
             Charset sourceCharset
     ) {}
 
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
     private static final String CACHE_FILE_NAME = "scoreboard_translate_cache.json";
     private static final Charset CACHE_CHARSET = StandardCharsets.UTF_8;
     private static final long SAVE_DEBOUNCE_MILLIS = 1500L;
