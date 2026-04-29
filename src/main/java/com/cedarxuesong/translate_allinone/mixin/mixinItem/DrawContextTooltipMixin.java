@@ -114,11 +114,10 @@ public abstract class DrawContextTooltipMixin {
 
         boolean isKeyPressed = KeybindingManager.isPressed(config.keybinding.binding);
         if (TooltipTranslationSupport.shouldShowOriginal(config.keybinding.mode, isKeyPressed)) {
-            if (showRefreshNotice && !TooltipRefreshNoticeSupport.containsRefreshNoticeLine(tooltipLines)) {
-                components.add(TooltipComponent.of(TooltipRefreshNoticeSupport.createRefreshNoticeLine().asOrderedText()));
-            }
             return;
         }
+
+        TooltipRefreshNoticeSupport.queueRemoteTranslationForCurrentTooltip(tooltipLines, config);
 
         boolean emitDevLog = TooltipTextMatcherSupport.beginTooltipDevPass(config, "draw-context", tooltipLines);
         long tooltipStartedAtNanos = emitDevLog ? System.nanoTime() : 0L;

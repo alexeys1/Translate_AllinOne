@@ -23,6 +23,26 @@ import java.util.function.Consumer;
 public final class TooltipTranslationSupport {
     private static final Logger LOGGER = LoggerFactory.getLogger("Translate_AllinOne/TooltipTranslationSupport");
 
+    private static final class TooltipFrameCache {
+        int fingerprint;
+        TooltipPlan plan;
+        Set<String> remoteTranslationTemplateKeys;
+        boolean decorativeTooltipContext;
+
+        boolean match(int fp) {
+            return fp != 0 && fingerprint == fp;
+        }
+
+        void set(int fp, TooltipPlan p, Set<String> keys, boolean decorative) {
+            this.fingerprint = fp;
+            this.plan = p;
+            this.remoteTranslationTemplateKeys = keys;
+            this.decorativeTooltipContext = decorative;
+        }
+    }
+
+    private static final TooltipFrameCache FRAME_CACHE = new TooltipFrameCache();
+
     private TooltipTranslationSupport() {
     }
 
@@ -131,19 +151,32 @@ public final class TooltipTranslationSupport {
             return new TranslatedTooltipBuildResult(tooltip, false);
         }
 
-        boolean decorativeTooltipContext = TooltipDecorativeContextSupport.isDecorativeTooltipContext(tooltip);
-        TooltipPlan tooltipPlan = TooltipRoutePlanner.planTooltip(tooltip, config, decorativeTooltipContext);
-        Set<String> remoteTranslationTemplateKeys = collectRemoteTranslationTemplateKeys(tooltipPlan, decorativeTooltipContext);
+        int fingerprint = computeTooltipFingerprint(tooltip, config);
+        TooltipPlan tooltipPlan;
+        Set<String> remoteTranslationTemplateKeys;
+        boolean decorativeTooltipContext;
+
+        if (FRAME_CACHE.match(fingerprint)) {
+            tooltipPlan = FRAME_CACHE.plan;
+            remoteTranslationTemplateKeys = FRAME_CACHE.remoteTranslationTemplateKeys;
+            decorativeTooltipContext = FRAME_CACHE.decorativeTooltipContext;
+        } else {
+            decorativeTooltipContext = TooltipDecorativeContextSupport.isDecorativeTooltipContext(tooltip);
+            tooltipPlan = TooltipRoutePlanner.planTooltip(tooltip, config, decorativeTooltipContext);
+            remoteTranslationTemplateKeys = collectRemoteTranslationTemplateKeys(tooltipPlan, decorativeTooltipContext);
+            FRAME_CACHE.set(fingerprint, tooltipPlan, remoteTranslationTemplateKeys, decorativeTooltipContext);
+        }
+
         TooltipRefreshNoticeSupport.maybeForceRefreshCurrentTooltip(remoteTranslationTemplateKeys, config);
         boolean showRefreshNotice = TooltipRefreshNoticeSupport.shouldShowRefreshNotice(remoteTranslationTemplateKeys);
 
         boolean isKeyPressed = KeybindingManager.isPressed(config.keybinding.binding);
         if (shouldShowOriginal(config.keybinding.mode, isKeyPressed)) {
-            return new TranslatedTooltipBuildResult(
-                    TooltipRefreshNoticeSupport.appendRefreshNoticeLine(tooltip, showRefreshNotice),
-                    false
-            );
+            List<Text> tooltipWithNotice = TooltipRefreshNoticeSupport.appendRefreshNoticeLine(tooltip, showRefreshNotice);
+            return new TranslatedTooltipBuildResult(tooltipWithNotice, false);
         }
+
+        queueRemoteTranslationTemplateKeys(remoteTranslationTemplateKeys);
 
         boolean emitDevLog = TooltipTextMatcherSupport.beginTooltipDevPass(config, "screen-mirror", tooltip);
         long tooltipStartedAtNanos = emitDevLog ? System.nanoTime() : 0L;
@@ -331,6 +364,18 @@ public final class TooltipTranslationSupport {
         }
 
         return new TooltipProcessingResult(translatedLines, translatableLines, hasPending, hasMissingKeyIssue);
+    }
+
+    private static int computeTooltipFingerprint(List<Text> tooltip, ItemTranslateConfig config) {
+        int hash = config.enabled ? 1 : 0;
+        hash = 31 * hash + Long.hashCode(WynnSharedDictionaryService.getInstance().getItemSkillVersion());
+        for (Text line : tooltip) {
+            if (line != null) {
+                hash = 31 * hash + line.getString().hashCode();
+                hash = 31 * hash + line.getStyle().hashCode();
+            }
+        }
+        return hash;
     }
 
     private static Set<String> collectRemoteTranslationTemplateKeys(

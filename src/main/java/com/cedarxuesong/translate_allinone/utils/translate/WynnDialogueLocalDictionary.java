@@ -340,7 +340,11 @@ public final class WynnDialogueLocalDictionary {
     }
 
     private static String normalizeTranslationText(String value) {
-        return normalizeLookupText(value);
+        String normalized = normalizeLookupText(value);
+        if (!normalized.isEmpty() && normalized.replaceAll("§[0-9a-fk-or]", "").trim().isEmpty()) {
+            return "";
+        }
+        return normalized;
     }
 
     private static String normalizeDialogueSearchText(String value) {

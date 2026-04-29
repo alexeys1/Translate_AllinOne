@@ -55,13 +55,15 @@ public abstract class WynnmodDrawItemTooltipSetTextMixin {
 
         TooltipRefreshNoticeSupport.maybeForceRefreshCurrentTooltip(sanitizedTooltip, config);
         boolean showRefreshNotice = TooltipRefreshNoticeSupport.shouldShowRefreshNotice(sanitizedTooltip, config);
-        if (TooltipRecentRenderGuardSupport.shouldSkipDuplicateRender(sanitizedTooltip, showRefreshNotice)) {
-            return tooltip;
-        }
 
         boolean isKeyPressed = KeybindingManager.isPressed(config.keybinding.binding);
         if (TooltipTranslationSupport.shouldShowOriginal(config.keybinding.mode, isKeyPressed)) {
             return TooltipRefreshNoticeSupport.appendRefreshNoticeLine(tooltip, showRefreshNotice);
+        }
+
+        TooltipRefreshNoticeSupport.queueRemoteTranslationForCurrentTooltip(sanitizedTooltip, config);
+        if (TooltipRecentRenderGuardSupport.shouldSkipDuplicateRender(sanitizedTooltip, showRefreshNotice)) {
+            return tooltip;
         }
 
         boolean emitDevLog = TooltipTextMatcherSupport.beginTooltipDevPass(config, "wynnmod-setText", sanitizedTooltip);

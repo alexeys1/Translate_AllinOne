@@ -33,11 +33,8 @@ public final class TooltipRefreshNoticeSupport {
         maybeForceRefreshCurrentTooltip(keysToRefresh, config);
     }
 
-    static void maybeForceRefreshCurrentTooltip(Set<String> keysToRefresh, ItemTranslateConfig config) {
+    public static void maybeForceRefreshCurrentTooltip(Set<String> keysToRefresh, ItemTranslateConfig config) {
         boolean hasKeysToRefresh = keysToRefresh != null && !keysToRefresh.isEmpty();
-        if (hasKeysToRefresh) {
-            TooltipTranslationSupport.queueRemoteTranslationTemplateKeys(keysToRefresh);
-        }
 
         boolean isRefreshPressed = config != null
                 && config.keybinding != null
@@ -64,6 +61,13 @@ public final class TooltipRefreshNoticeSupport {
             refreshNoticeTooltipSignature = tooltipSignature;
             refreshNoticeExpiresAtMillis = now + REFRESH_NOTICE_DURATION_MILLIS;
             LOGGER.info("Forced refresh of {} current item tooltip translation key(s).", refreshedCount);
+        }
+    }
+
+    public static void queueRemoteTranslationForCurrentTooltip(List<Text> tooltip, ItemTranslateConfig config) {
+        Set<String> keysToQueue = TooltipTranslationSupport.collectRemoteTranslationTemplateKeys(tooltip, config);
+        if (keysToQueue != null && !keysToQueue.isEmpty()) {
+            TooltipTranslationSupport.queueRemoteTranslationTemplateKeys(keysToQueue);
         }
     }
 

@@ -105,18 +105,6 @@ public abstract class WynnmodStatsTooltipContextMixin {
             }
             TooltipRefreshNoticeSupport.maybeForceRefreshCurrentTooltip(sanitizedTooltip, config);
             boolean showRefreshNotice = TooltipRefreshNoticeSupport.shouldShowRefreshNotice(sanitizedTooltip, config);
-            if (TooltipRecentRenderGuardSupport.shouldSkipDuplicateRender(sanitizedTooltip, showRefreshNotice)) {
-                TooltipTextMatcherSupport.logTooltipGuardIfDev(
-                        config,
-                        "wynnmod",
-                        "skip-duplicate-render",
-                        sanitizedTooltip,
-                        "Recent translated tooltip guard matched. showRefreshNotice=" + showRefreshNotice
-                );
-                TooltipTranslationContext.rememberExpectedDrawContextTooltip(currentTooltip);
-                TooltipTranslationContext.setSkipDrawContextTranslation(true);
-                return;
-            }
 
             boolean isKeyPressed = KeybindingManager.isPressed(config.keybinding.binding);
             if (TooltipTranslationSupport.shouldShowOriginal(config.keybinding.mode, isKeyPressed)) {
@@ -134,6 +122,20 @@ public abstract class WynnmodStatsTooltipContextMixin {
                     TooltipTranslationContext.rememberExpectedDrawContextTooltip(tooltipToDisplay);
                     TooltipTranslationContext.setSkipDrawContextTranslation(true);
                 }
+                return;
+            }
+
+            TooltipRefreshNoticeSupport.queueRemoteTranslationForCurrentTooltip(sanitizedTooltip, config);
+            if (TooltipRecentRenderGuardSupport.shouldSkipDuplicateRender(sanitizedTooltip, showRefreshNotice)) {
+                TooltipTextMatcherSupport.logTooltipGuardIfDev(
+                        config,
+                        "wynnmod",
+                        "skip-duplicate-render",
+                        sanitizedTooltip,
+                        "Recent translated tooltip guard matched. showRefreshNotice=" + showRefreshNotice
+                );
+                TooltipTranslationContext.rememberExpectedDrawContextTooltip(currentTooltip);
+                TooltipTranslationContext.setSkipDrawContextTranslation(true);
                 return;
             }
 
