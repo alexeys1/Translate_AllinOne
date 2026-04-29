@@ -159,8 +159,8 @@ public final class UpdateCheckManager {
             throw new IllegalStateException("No numeric tags found in repository");
         }
 
-        latestVersion = latestTag.raw();
-        latestReleaseUrl = RELEASE_URL_PREFIX + latestTag.raw();
+        latestVersion = latestTag.originalName();
+        latestReleaseUrl = RELEASE_URL_PREFIX + latestTag.originalName();
         updateAvailable = latestTag.version().compareTo(current) > 0;
         lastError = "";
 
@@ -194,7 +194,7 @@ public final class UpdateCheckManager {
                 continue;
             }
 
-            LatestTag candidate = new LatestTag(parsed.raw(), parsed);
+            LatestTag candidate = new LatestTag(parsed.raw(), name, parsed);
             if (best == null || candidate.version().compareTo(best.version()) > 0) {
                 best = candidate;
             }
@@ -209,6 +209,6 @@ public final class UpdateCheckManager {
                 .orElse("unknown");
     }
 
-    private record LatestTag(String raw, NumericVersion version) {
+    private record LatestTag(String raw, String originalName, NumericVersion version) {
     }
 }

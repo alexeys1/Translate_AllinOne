@@ -25,7 +25,23 @@ public final class NumericVersion implements Comparable<NumericVersion> {
         }
 
         String normalized = value.trim();
-        if (normalized.isEmpty() || !NUMERIC_VERSION_PATTERN.matcher(normalized).matches()) {
+        if (normalized.isEmpty()) {
+            return null;
+        }
+
+        // Strip leading 'v'/'V' prefix (e.g. "v2.5.3" → "2.5.3")
+        if (normalized.length() > 1 && (normalized.charAt(0) == 'v' || normalized.charAt(0) == 'V')
+                && Character.isDigit(normalized.charAt(1))) {
+            normalized = normalized.substring(1);
+        }
+
+        // Strip pre-release suffix (e.g. "2.6.1-beta" → "2.6.1")
+        int dashIdx = normalized.indexOf('-');
+        if (dashIdx > 0) {
+            normalized = normalized.substring(0, dashIdx);
+        }
+
+        if (!NUMERIC_VERSION_PATTERN.matcher(normalized).matches()) {
             return null;
         }
 

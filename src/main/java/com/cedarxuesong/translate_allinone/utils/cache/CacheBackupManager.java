@@ -69,16 +69,16 @@ public final class CacheBackupManager {
             return;
         }
 
-        String fileName = cacheFilePath.getFileName().toString();
         Instant now = Instant.now();
         Duration backupInterval = getBackupInterval();
 
         try {
-            List<BackupEntry> existingBackups = listBackups(fileName);
-            BackupEntry latestBackup = existingBackups.stream()
-                    .max(Comparator.comparing(BackupEntry::backupTime))
-                    .orElse(null);
+            List<Path> cacheFiles = listCurrentCacheFiles();
+            if (cacheFiles.isEmpty()) {
+                return;
+            }
 
+            BackupDirectorySummary latestBackup = latestBackupDirectory();
             if (latestBackup != null && Duration.between(latestBackup.backupTime(), now).compareTo(backupInterval) < 0) {
                 return;
             }
@@ -86,19 +86,23 @@ public final class CacheBackupManager {
             Path backupDirectory = BACKUP_ROOT.resolve(BACKUP_TIME_FORMATTER.format(LocalDateTime.ofInstant(now, BACKUP_ZONE)));
             ensureManagedBackupDirectory(backupDirectory);
 
-            Path backupFilePath = backupDirectory.resolve(fileName);
-            Files.copy(cacheFilePath, backupFilePath, StandardCopyOption.REPLACE_EXISTING);
+            for (Path sourceFile : cacheFiles) {
+                Path backupFilePath = backupDirectory.resolve(sourceFile.getFileName().toString());
+                Files.copy(sourceFile, backupFilePath, StandardCopyOption.REPLACE_EXISTING);
+            }
 
             Translate_AllinOne.LOGGER.info(
-                    "Created passive backup for {} cache at {}.",
+                    "Created passive cache snapshot at {} with {} file(s), triggered by {} cache file {}.",
+                    backupDirectory,
+                    cacheFiles.size(),
                     cacheTypeLabel,
-                    backupFilePath
+                    cacheFilePath.getFileName()
             );
 
-            cleanupBackups(fileName);
+            cleanupBackupDirectories();
         } catch (IOException e) {
             Translate_AllinOne.LOGGER.warn(
-                    "Failed to create passive backup for {} cache file {}.",
+                    "Failed to create passive cache snapshot triggered by {} cache file {}.",
                     cacheTypeLabel,
                     cacheFilePath,
                     e
@@ -106,48 +110,53 @@ public final class CacheBackupManager {
         }
     }
 
-    private static void cleanupBackups(String fileName) throws IOException {
-        List<BackupEntry> backups = new ArrayList<>(listBackups(fileName));
-        int maxBackupsPerFile = getMaxBackupsPerFile();
-        if (backups.size() <= maxBackupsPerFile) {
-            return;
-        }
-
-        backups.sort(Comparator.comparing(BackupEntry::backupTime));
-        int overflowCount = backups.size() - maxBackupsPerFile;
-        for (int index = 0; index < overflowCount; index++) {
-            BackupEntry oldestBackup = backups.get(index);
-            Files.deleteIfExists(oldestBackup.path());
-            deleteDirectoryIfUnused(oldestBackup.directory());
-        }
-    }
-
-    private static List<BackupEntry> listBackups(String fileName) throws IOException {
-        if (!Files.isDirectory(BACKUP_ROOT)) {
+    private static List<Path> listCurrentCacheFiles() throws IOException {
+        if (!Files.isDirectory(CACHE_ROOT)) {
             return List.of();
         }
 
-        try (Stream<Path> directories = Files.list(BACKUP_ROOT)) {
-            return directories
-                    .filter(CacheBackupManager::isManagedBackupDirectory)
-                    .map(directory -> toBackupEntry(directory, fileName))
-                    .filter(entry -> entry != null)
+        try (Stream<Path> files = Files.list(CACHE_ROOT)) {
+            return files
+                    .filter(Files::isRegularFile)
+                    .filter(CacheBackupManager::isCacheFile)
+                    .sorted(Comparator.comparing(path -> path.getFileName().toString()))
                     .toList();
         }
     }
 
-    private static BackupEntry toBackupEntry(Path directory, String fileName) {
-        Path backupFilePath = directory.resolve(fileName);
-        if (!Files.isRegularFile(backupFilePath)) {
-            return null;
+    private static boolean isCacheFile(Path path) {
+        String fileName = path.getFileName().toString();
+        return fileName.endsWith("_cache.json");
+    }
+
+    private static BackupDirectorySummary latestBackupDirectory() {
+        List<BackupDirectorySummary> backups = listManagedBackupDirectories();
+        return backups.isEmpty() ? null : backups.get(0);
+    }
+
+    private static void cleanupBackupDirectories() throws IOException {
+        List<BackupDirectorySummary> backups = new ArrayList<>(listManagedBackupDirectories());
+        int maxBackupDirectories = getMaxBackupDirectories();
+        if (backups.size() <= maxBackupDirectories) {
+            return;
         }
 
-        Instant backupTime = parseBackupTime(directory.getFileName().toString());
-        if (backupTime == null) {
-            return null;
+        backups.sort(Comparator.comparing(BackupDirectorySummary::backupTime).reversed());
+        for (int index = maxBackupDirectories; index < backups.size(); index++) {
+            deleteBackupDirectory(BACKUP_ROOT.resolve(backups.get(index).directoryName()));
+        }
+    }
+
+    private static void deleteBackupDirectory(Path directory) throws IOException {
+        if (!Files.isDirectory(directory)) {
+            return;
         }
 
-        return new BackupEntry(directory, backupFilePath, backupTime);
+        try (Stream<Path> contents = Files.walk(directory)) {
+            for (Path entry : contents.sorted(Comparator.reverseOrder()).toList()) {
+                Files.deleteIfExists(entry);
+            }
+        }
     }
 
     private static BackupDirectorySummary toBackupDirectorySummary(Path directory) {
@@ -214,28 +223,11 @@ public final class CacheBackupManager {
         return Files.isRegularFile(directory.resolve(BACKUP_MARKER_FILE_NAME));
     }
 
-    private static void deleteDirectoryIfUnused(Path directory) {
-        try (Stream<Path> contents = Files.list(directory)) {
-            List<Path> entries = contents.toList();
-            if (entries.isEmpty()) {
-                Files.deleteIfExists(directory);
-                return;
-            }
-
-            if (entries.size() == 1 && BACKUP_MARKER_FILE_NAME.equals(entries.get(0).getFileName().toString())) {
-                Files.deleteIfExists(entries.get(0));
-                Files.deleteIfExists(directory);
-            }
-        } catch (IOException e) {
-            Translate_AllinOne.LOGGER.warn("Failed to clean up backup directory {}", directory, e);
-        }
-    }
-
     private static Duration getBackupInterval() {
         return Duration.ofMinutes(getConfiguredBackupIntervalMinutes());
     }
 
-    private static int getMaxBackupsPerFile() {
+    private static int getMaxBackupDirectories() {
         return getConfiguredSettings().max_backup_count;
     }
 
@@ -280,9 +272,6 @@ public final class CacheBackupManager {
             return fallback;
         }
         return Math.max(min, Math.min(max, value));
-    }
-
-    private record BackupEntry(Path directory, Path path, Instant backupTime) {
     }
 
     public record BackupDirectorySummary(

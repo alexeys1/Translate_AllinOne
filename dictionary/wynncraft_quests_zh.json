@@ -1,0 +1,1642 @@
+{
+  "Enzan's Brother": {
+    "Enzan's Brother": "恩赞的兄弟",
+    "Talk to Enzan close to the exit of Ragni at {coords}": "在拉格尼出口附近与恩赞交谈，坐标 {coords}",
+    "Find Enzan's brother near the Item Identifier on the Emerald Trail at {coords}": "在翡翠小径的物品鉴定器附近找到恩赞的兄弟，坐标 {coords}",
+    "Descend into the cave at {coords} and bring [1 Energy Mushroom] to Therck": "进入 {coords} 的洞穴，将 [1 个能量蘑菇] 带给瑟克"
+  },
+
+  "King's Recruit": {
+    "King's Recruit": "国王的新兵",
+    "Awaken": "苏醒",
+    "Exit the caravan and talk to the Caravan Driver at {coords}": "离开马车，与 {coords} 的马车夫交谈",
+    "Walk down the path towards the gate to the Wynn Province at {coords}": "沿着小路走向通往温恩省的大门，坐标 {coords}",
+    "Enter the Province of Wynn at {coords}": "进入温恩省，坐标 {coords}",
+    "Continue through the Wynn Province to the castle": "穿过温恩省前往城堡",
+    "Talk to the Soldier at {coords}": "与 {coords} 的士兵交谈",
+    "Cross the bridge at {coords}": "穿过 {coords} 的桥",
+    "Search for another way across the ravine at {coords}": "在 {coords} 寻找另一条越过峡谷的路",
+    "Continue onwards to {coords}": "继续前往 {coords}",
+    "Talk to the Guard at {coords}": "与 {coords} 的守卫交谈",
+    "Enter the cave and find some armour at {coords}": "进入洞穴，在 {coords} 找到一些盔甲",
+    "Enter the underpass at {coords}": "进入 {coords} 的地下通道",
+    "Continue through the underpass to {coords}": "穿过地下通道前往 {coords}",
+    "Defeat the Skeleton!": "击败骷髅！",
+    "Talk to the Lieutenant at {coords}": "与 {coords} 的中尉交谈",
+    "Chase the Goliath to {coords}!": "追逐巨人到 {coords}！",
+    "Defeat the Goliath and free the Lieutenant": "击败巨人并释放中尉",
+    "Pick up the loot dropped by the Goliath": "捡起巨人掉落的战利品",
+    "Enter the castle at {coords}": "进入 {coords} 的城堡",
+    "Talk to Ragni's King at {coords}": "与 {coords} 的拉格尼国王交谈"
+  },
+
+  "Poisoning the Pest": {
+    "Poisoning the Pest": "毒害害虫",
+    "Talk to Farmer Cevalus at {coords}": "与 {coords} 的农夫塞瓦卢斯交谈",
+    "Take the [1 Crate of Rat Poison] and enter the farm": "带上 [1 箱老鼠药] 并进入农场",
+    "Dump the crate of rat poison into the water reservoir on the other side of the farm at {coords}": "将老鼠药倒入农场另一侧的水库中，坐标 {coords}",
+    "Kill the corrupt farmer": "杀死腐化的农夫"
+  },
+
+  "Cook Assistant": {
+    "Cook Assistant": "厨师助手",
+    "Talk to the Cook in Ragni at {coords}": "与 {coords} 拉格尼的厨师交谈",
+    "Follow the pesky Grook.": "跟随烦人的格鲁克。",
+    "Find where the Grook flew up to at {coords}": "在 {coords} 找到格鲁克飞上去的地方",
+    "Return to the cook at {coords} Use a Scroll to get there faster": "返回 {coords} 的厨师处，使用卷轴可以更快到达"
+  },
+
+  "Infested Plants": {
+    "Infested Plants": "受感染的植物",
+    "Meet up with Tasim at the entrance to Nivla Woods at {coords}": "在 {coords} 的尼夫拉森林入口与塔西姆碰面",
+    "Follow Ope to the cave at {coords}": "跟随奥佩前往 {coords} 的洞穴",
+    "Locate the medicine in the spider cave behind Ope at {coords}": "在奥佩身后的蜘蛛洞穴中找到药物，坐标 {coords}",
+    "Exit the cave at {coords} with the medicinal herb": "带着药草离开 {coords} 的洞穴",
+    "Speak to Mayor Alvin in Alekin Village at {coords}": "与 {coords} 阿莱金村的村长阿尔文交谈"
+  },
+
+  "Mushroom Man": {
+    "Mushroom Man": "蘑菇人",
+    "Talk to Tasim in Alekin Village at {coords}": "与 {coords} 阿莱金村的塔西姆交谈",
+    "Speak to the strange man at {coords}": "与 {coords} 的奇怪男人交谈",
+    "Follow Yahya to his infested mushroom patch at {coords}": "跟随叶海亚前往他受感染的蘑菇地，坐标 {coords}",
+    "Clear out the spiders from Yahya's favorite mushroom patch at {coords}, then return and talk to Yahya.": "清除 {coords} 叶海亚最喜欢的蘑菇地上的蜘蛛，然后回来与叶海亚交谈。",
+    "Return to Mayor Alvin at {coords} with news about the spiders": "带着蜘蛛的消息返回 {coords} 的村长阿尔文处",
+    "Travel to Detlas to request the help of their military at {coords}": "前往德特拉斯请求他们军队的帮助，坐标 {coords}"
+  },
+
+  "Elemental Exercise": {
+    "Elemental Exercise": "元素训练",
+    "Talk to Captain Ragon in the Detlas Barracks at {coords}": "与 {coords} 德特拉斯兵营的拉贡上尉交谈",
+    "Follow Captain Ragon to the Training Room at {coords}": "跟随拉贡上尉前往 {coords} 的训练室",
+    "Test out the elemental training weapons on the dummies, then speak to Captain Ragon at {coords}": "在假人上测试元素训练武器，然后与 {coords} 的拉贡上尉交谈",
+    "Return to Tasim at {coords} for a duel": "返回 {coords} 与塔西姆决斗",
+    "Fight Tasim in a friendly duel": "与塔西姆进行友谊对决",
+    "Speak to Captain Ragon at {coords}": "与 {coords} 的拉贡上尉交谈",
+    "Follow Captain Ragon to Detlas' north gate at {coords} to face the undead forces": "跟随拉贡上尉前往德特拉斯北门 {coords} 迎战不死军团",
+    "Defeat the Corrupted Captain and the force threatening Detlas": "击败腐化上尉和威胁德特拉斯的部队",
+    "Return to the Detlas Barracks and talk to Captain Ragon at {coords}": "返回德特拉斯兵营，与 {coords} 的拉贡上尉交谈"
+  },
+
+  "Underwater": {
+    "Underwater": "水下",
+    "Talk to Omango located at the North of Maltic at {coords}": "与马尔蒂克北部的奥曼戈交谈，坐标 {coords}",
+    "Go through the cave at {coords} to find Sayrr on his boat on the other side": "穿过 {coords} 的洞穴，找到另一侧船上的赛尔",
+    "Bring back [10 Gudgeon Meat] found in the cave at {coords} to Sayrr": "将在 {coords} 洞穴中找到的 [10 个鲦鱼肉] 带给赛尔",
+    "Explore the crashed ship for a lost treasure at {coords}": "探索 {coords} 的失事船只，寻找丢失的宝藏",
+    "Break the crate and bring [4 Old Treasure] to Omango at {coords}": "打破箱子，将 [4 个古老宝藏] 带给 {coords} 的奥曼戈"
+  },
+
+  "Dwelling Walls": {
+    "Dwelling Walls": "居住之墙",
+    "Talk to Leucsaa at {coords}": "与 {coords} 的卢克萨交谈",
+    "Enter the mansion": "进入宅邸",
+    "Navigate the mansion to the room holding the journal": "穿过宅邸找到存放日记的房间",
+    "Talk to Leucsaa": "与卢克萨交谈"
+  },
+
+  "Creeper Infiltration": {
+    "Creeper Infiltration": "苦力怕渗透",
+    "Talk to Thomas in Tempo Town at {coords}.": "与 {coords} 节奏镇的托马斯交谈。",
+    "Enter the tunnel at {coords} and reach the top of the ravine": "进入 {coords} 的隧道，到达峡谷顶部",
+    "Bring back the [Creeper Skin] to Thomas at {coords}": "将 [苦力怕皮] 带回给 {coords} 的托马斯",
+    "Retrieve [1 Pigman Hide] from the Pigman Overlord near {coords} and return to Thomas": "从 {coords} 附近的猪人霸主那里获取 [1 张猪人皮] 并还给托马斯",
+    "Buy the creeper mask from the merchant and enter the creeper hideout at {coords}": "从商人那里购买苦力怕面具，进入 {coords} 的苦力怕藏身处",
+    "Bring Thomas [1 Creeper Powder] to prove him creepers exist in Wynn at {coords}": "将 [1 份苦力怕粉末] 带给托马斯，向他证明温恩存在苦力怕，坐标 {coords}"
+  },
+
+  "The Sewers of Ragni": {
+    "The Sewers of Ragni": "拉格尼下水道",
+    "The Lieutenant at {coords} needs help.": "{coords} 的中尉需要帮助。",
+    "Enter the sewer at {coords} and find the blockage.": "进入 {coords} 的下水道，找到堵塞物。",
+    "Explore the sewer and find the blockage.": "探索下水道，找到堵塞物。",
+    "Find a way to fix the blockage.": "找到清除堵塞的方法。",
+    "Find a way out of the spooky sewer.": "找到离开恐怖下水道的路。",
+    "Talk to Jenprest at {coords}": "与 {coords} 的詹普雷斯特交谈"
+  },
+
+  "Potion Making": {
+    "Potion Making": "药水制作",
+    "Talk to The Assistant in Detlas at {coords}": "与 {coords} 德特拉斯的助手交谈",
+    "Bring back [8 Red Mushrooms] to The Assistant in Detlas": "将 [8 个红蘑菇] 带回给德特拉斯的助手",
+    "Enter the hut at {coords}, slay Essren, and take his coat": "进入 {coords} 的小屋，杀死埃斯伦，拿走他的外套",
+    "Bring back Essren's Dusty Coat to The Assistant in Detlas": "将埃斯伦的积灰外套带回给德特拉斯的助手"
+  },
+
+  "Arachnids' Ascent": {
+    "Arachnids' Ascent": "蛛形纲的崛起",
+    "Talk to Admiral Aegis in the Detlas Barracks at {coords}.": "与 {coords} 德特拉斯兵营的埃吉斯上将交谈。",
+    "Speak to Private Cob in the Savannah at {coords} to receive supplies.": "与 {coords} 热带草原的科布列兵交谈以获取补给。",
+    "Bring the supplies to Captain Enduyn at {coords}.": "将补给带给 {coords} 的恩杜因上尉。",
+    "Decide who to bring with you into Mount Wynn at {coords}.": "决定带谁一起进入 {coords} 的温恩山。",
+    "Enter Mount Wynn and reach the summit through the cave at {coords}.": "进入温恩山，穿过 {coords} 的洞穴到达山顶。",
+    "Return to Captain Enduyn with the flame at {coords}.": "带着火焰返回 {coords} 的恩杜因上尉处。"
+  },
+
+  "The Dark Descent": {
+    "The Dark Descent": "黑暗降临",
+    "Talk to General Graken at {coords}": "与 {coords} 的格拉肯将军交谈",
+    "Investigate the house in Ancient Nemract at {coords}.": "调查 {coords} 远古尼姆拉克特的房子。",
+    "Explore the tunnel in the basement of the house.": "探索房子地下室里的隧道。",
+    "Investigate the strange dark realm.": "调查奇怪的黑暗领域。",
+    "Leave the strange dark realm.": "离开奇怪的黑暗领域。",
+    "Return the ruby to Graken at {coords}": "将红宝石归还给 {coords} 的格拉肯"
+  },
+
+  "Clearing the Camps": {
+    "Clearing the Camps": "清理营地",
+    "Talk to Captain Kymer outside Llevigar at {coords}": "与 {coords} 莱维加尔外的凯默上尉交谈",
+    "Find and kill Orc Chieftains Elisu, Veltu, and Ceifko in the camps around Llevigar- look for green flags": "在莱维加尔周围的营地中找到并杀死兽人酋长埃利苏、维尔图和塞夫科——寻找绿色旗帜",
+    "Report back to Captain Kymer once you have the three heads.": "拿到三个头颅后向凯默上尉报告。"
+  },
+
+  "Tunnel Trouble": {
+    "Tunnel Trouble": "隧道麻烦",
+    "Talk to Captain Fenor in front of Detlas at {coords}.": "与 {coords} 德特拉斯前的费诺上尉交谈。",
+    "Enter the cave behind Captain Fenor at {coords}.": "进入 {coords} 费诺上尉身后的洞穴。",
+    "Help Miner Linton remove the debris blocking the path.": "帮助矿工林顿清理挡住道路的碎石。",
+    "Clear the cave of possible roadblocks.": "清除洞穴中可能的障碍。",
+    "Investigate the small hole to the right of the large pile of debris.": "调查大堆碎石右侧的小洞。",
+    "Free the cows without being seen by the farmer.": "在不被农夫发现的情况下释放奶牛。",
+    "Defeat the farmer's Guard Golem.": "击败农夫的守卫魔像。",
+    "Return to Drale about your success.": "向德雷尔汇报你的成功。",
+    "Help Drale push the raft with the cows out to sea.": "帮助德雷尔将载有奶牛的筏子推入大海。",
+    "Return to Miner Linton back in the abandoned cave.": "返回废弃洞穴中的矿工林顿处。",
+    "Speak to Sergeant Klafson next to the Ragni entrance of the cave.": "与洞穴拉格尼入口旁的克拉夫森中士交谈。"
+  },
+
+  "Taking the Tower": {
+    "Taking the Tower": "夺取高塔",
+    "Speak to Aledar in the Detlas Barracks at {coords}.": "与 {coords} 德特拉斯兵营的阿勒达交谈。",
+    "Follow Aledar to the Powder Master at {coords}.": "跟随阿勒达前往 {coords} 的粉末大师处。",
+    "Apply a Water Powder to your weapon, then let Aledar know at {coords}.": "将水之粉末附到武器上，然后在 {coords} 告知阿勒达。",
+    "Meet up with Lieutenant Van's squad near the Raging Tower at {coords}.": "在 {coords} 的怒塔附近与范中尉的小队会合。",
+    "Assault the Raging Tower at {coords} and defeat the monster at the top.": "进攻 {coords} 的怒塔，击败顶部的怪物。",
+    "Report back to Lieutenant Van about your success at {coords}": "在 {coords} 向范中尉汇报你的成功"
+  },
+
+  "Maltic's Well": {
+    "Maltic's Well": "马尔蒂克的井",
+    "Talk to Rynend located in Maltic at {coords}.": "与 {coords} 马尔蒂克的赖南德交谈。",
+    "Investigate the old Maltic well at {coords} and bring [1 Witch's Empty Bottle] to Rynend": "调查 {coords} 的马尔蒂克旧井，将 [1 个女巫空瓶] 带给赖南德"
+  },
+
+  "Stable Story": {
+    "Stable Story": "马厩故事",
+    "Talk to Enkser outside Detlas at {coords}.": "与 {coords} 德特拉斯外的恩克瑟交谈。",
+    "Bring back [1 Stable Key] to Enkser from the tunnel at {coords}.": "从 {coords} 的隧道中将 [1 把马厩钥匙] 带给恩克瑟。"
+  },
+
+  "Supply and Delivery": {
+    "Supply and Delivery": "补给与运送",
+    "Talk to Ope in Detlas at {coords}.": "与 {coords} 德特拉斯的奥佩交谈。",
+    "Purchase the supply crate from the Trade Market at {coords}.": "从 {coords} 的贸易市场购买补给箱。",
+    "Find Tasim at {coords} and convince him to buy the supply crate for you.": "在 {coords} 找到塔西姆，说服他为你购买补给箱。",
+    "Bring Tasim to the Trade Market at {coords}.": "带塔西姆到 {coords} 的贸易市场。",
+    "Return to Ope with the supply crate at {coords}.": "带着补给箱返回 {coords} 的奥佩处。",
+    "Bring the supply crate to Mayor Alvin in Alekin Village at {coords}.": "将补给箱带给 {coords} 阿莱金村的村长阿尔文。"
+  },
+
+  "Lava Springs": {
+    "Lava Springs": "熔岩温泉",
+    "Talk to Colonel Gailard at {coords}": "与 {coords} 的盖拉德上校交谈",
+    "Look for three pieces of corrupted evidence around the Lava Spring at {coords}": "在 {coords} 的熔岩温泉周围寻找三件腐化证据",
+    "Go back to Colonel Gailard at {coords}": "返回 {coords} 的盖拉德上校处",
+    "Talk to Gregor outside the Bremminglar well at {coords}": "与 {coords} 布雷明格拉尔井外的格雷戈交谈",
+    "Enter the Bremminglar well and talk to the healer at {coords}": "进入布雷明格拉尔的井，与 {coords} 的治疗师交谈",
+    "Report back to Colonel Gailard at {coords}": "向 {coords} 的盖拉德上校报告",
+    "Drink the Potion of Obsidian Skin, then enter the lava spring through the borehole at {coords} and look for a corrupted heart": "喝下黑曜石皮肤药水，然后通过 {coords} 的钻孔进入熔岩温泉，寻找腐化心脏",
+    "Tell Colonel Gailard at {coords} that you destroyed the heart": "告诉 {coords} 的盖拉德上校你已经摧毁了心脏"
+  },
+
+  "Grave Digger": {
+    "Grave Digger": "掘墓人",
+    "Talk to Sayleros in Detlas at {coords}": "与 {coords} 德特拉斯的塞勒罗斯交谈",
+    "Find Drucksh in Nemract at {coords} and make him talk about Sayleros' dead brother using [Nemract Whiskey]": "在 {coords} 尼姆拉克特找到德拉克什，用 [尼姆拉克特威士忌] 让他说出塞勒罗斯死去的兄弟的事",
+    "Talk to The Priest in the old cathedral at {coords}": "与 {coords} 旧大教堂的牧师交谈",
+    "Kill Sayleros' Brother and retrieve his will in the Nemract cathedral's crypt at {coords}": "杀死塞勒罗斯的兄弟，在 {coords} 尼姆拉克特大教堂的地下室取回他的遗嘱",
+    "Bring Sayleros' brother's will to Sayleros at {coords} in the Nemract cathedral": "将塞勒罗斯兄弟的遗嘱带给 {coords} 尼姆拉克特大教堂的塞勒罗斯"
+  },
+
+  "Pit of the Dead": {
+    "Pit of the Dead": "死者之坑",
+    "Talk to Merloni in Nemract at {coords}": "与 {coords} 尼姆拉克特的梅洛尼交谈",
+    "Explore the pit at {coords} and find the shrine": "探索 {coords} 的坑，找到神殿",
+    "Go back to Nemract and tell Merloni that you succeeded": "返回尼姆拉克特，告诉梅洛尼你成功了"
+  },
+
+  "Cluck Cluck": {
+    "Cluck Cluck": "咯咯哒",
+    "Talk to Nohno on Rooster Island at {coords}": "与 {coords} 公鸡岛的诺诺交谈",
+    "Bring back [1 Cluckles' Favourite Feather] to Nohno": "将 [1 根克勒克斯最爱的羽毛] 带给诺诺"
+  },
+
+  "Lost Tower": {
+    "Lost Tower": "失落之塔",
+    "Talk to Laen in Nemract at {coords}": "与 {coords} 尼姆拉克特的莱恩交谈",
+    "Find the lost tower in Ancient Nemract at {coords}": "在 {coords} 远古尼姆拉克特找到失落之塔",
+    "Find the book in the tower, and bring it back to Laen": "在塔中找到书，并将其带回给莱恩",
+    "Bring back the book to Laen": "将书带回给莱恩"
+  },
+
+  "Tempo Town Trouble": {
+    "Tempo Town Trouble": "节奏镇麻烦",
+    "Talk to Tyko at {coords}": "与 {coords} 的泰科交谈",
+    "Go to Tempo Town at {coords}": "前往 {coords} 的节奏镇",
+    "Investigate the ruin at {coords}": "调查 {coords} 的废墟",
+    "Use spells to break open the temple at {coords}": "使用法术打破 {coords} 的寺庙",
+    "Report back to the mayor in Tempo Town at {coords}": "向 {coords} 节奏镇的镇长报告"
+  },
+
+  "Recover the Past": {
+    "Recover the Past": "寻回过去",
+    "Talk to Dr. Picard at {coords}": "与 {coords} 的皮卡德博士交谈",
+    "Recover the sailor Caid near his boat at {coords}": "在 {coords} 他的船附近找到水手凯德",
+    "Speak to Caid's Alchemist friend in Elkurn at {coords}": "与 {coords} 埃尔克恩的凯德的炼金术师朋友交谈",
+    "Collect [1 Bloom of Doom] for the shrinking potion near the church at {coords}": "在 {coords} 教堂附近收集 [1 朵厄运之花] 用于缩小药水",
+    "Return to Caid with the potion at {coords}": "带着药水返回 {coords} 的凯德处",
+    "Bring Caid back to Dr. Picard in his tower at {coords}": "将凯德带回 {coords} 皮卡德博士的塔中",
+    "Watch Caid's past": "观看凯德的过去",
+    "Find Scout Reynauld near the bridge to the Roots of Corruption at {coords}": "在 {coords} 通往腐化之根的桥附近找到侦察兵雷纳尔德",
+    "Help Reynauld and Tasim defend Elkurn from a corrupted invasion at the bridge at {coords}": "在 {coords} 的桥上帮助雷纳尔德和塔西姆保卫埃尔克恩免受腐化入侵",
+    "Return to Dr. Picard's tower at {coords} with Reynauld and Tasim": "带着雷纳尔德和塔西姆返回 {coords} 的皮卡德博士塔",
+    "View Reynauld's past": "观看雷纳尔德的过去",
+    "Witness Tasim's past": "见证塔西姆的过去",
+    "Discover your own past": "发现你自己的过去",
+    "Find Tasim outside Dr. Picard's tower at {coords}": "在 {coords} 皮卡德博士的塔外找到塔西姆"
+  },
+
+  "Deja Vu": {
+    "Deja Vu": "既视感",
+    "Talk to Asher near Time Valley at {coords}.": "与 {coords} 时间谷附近的阿舍交谈。",
+    "Find Asher's Shovel near {coords}.": "在 {coords} 附近找到阿舍的铲子。",
+    "Return Asher's Shovel to Asher.": "将阿舍的铲子还给阿舍。",
+    "Enter Asher's house.": "进入阿舍的房子。",
+    "Talk to Old Man Martyn.": "与老人马丁交谈。",
+    "Find a way to save Asher from his death.": "找到拯救阿舍免于一死的方法。",
+    "Listen to Old Man Martyn.": "听老人马丁说话。",
+    "Talk to Asher.": "与阿舍交谈。"
+  },
+
+  "Misadventure on the Sea": {
+    "Misadventure on the Sea": "海上不幸遇险",
+    "Visit the Nemract bar at {coords}.": "前往 {coords} 的尼姆拉克特酒吧。",
+    "Meet Honip at {coords}.": "在 {coords} 与霍尼普见面。",
+    "Clean the bodies in the boat. Look for clues on how to escape at the same time.": "清理船上的尸体，同时寻找逃脱的线索。",
+    "Talk to Honip on the deck to get your next task.": "在甲板上与霍尼普交谈以获取下一个任务。",
+    "Explore the hold and kill the rats.": "探索船舱并杀死老鼠。",
+    "Defeat the Colossal Rat in the hold.": "击败船舱中的巨鼠。",
+    "Use the gunpowder and the fuse to activate the cannon and escape.": "使用火药和引信激活大炮并逃脱。",
+    "Find out where you are and a way to flee the island.": "弄清楚你在哪里以及逃离岛屿的方法。"
+  },
+
+  "The Corrupted Village": {
+    "The Corrupted Village": "腐化村庄",
+    "Speak to Orikal outside the Corrupted Village at {coords}.": "与 {coords} 腐化村庄外的奥里卡尔交谈。",
+    "Examine the nearby corrupted spike to the northeast at {coords}.": "检查 {coords} 东北部附近的腐化尖刺。",
+    "Climb the spike to see if you can find anything useful about it's existance.": "爬上尖刺，看看能否找到关于其存在的有用信息。",
+    "Report back to Orikal about your observations.": "向奥里卡尔报告你的观察结果。",
+    "Find the excavators inside the nearby cave to the northeast at {coords}.": "在 {coords} 东北部附近的洞穴中找到挖掘者。",
+    "Find the excavators inside the cave.": "在洞穴中找到挖掘者。",
+    "Exit the cave and speak to Orikal in his tent about his plan for destroying the spike.": "离开洞穴，在奥里卡尔的帐篷里与他谈论摧毁尖刺的计划。",
+    "Find [Stabilized Corrupted Ore], [Incendiary Fluid], and [Switch Fuse] for the TNT at the mining camp at {coords}.": "在 {coords} 的采矿营地找到 TNT 所需的 [稳定腐化矿石]、[燃烧液] 和 [开关引信]。",
+    "Bring the explosive to the spike in the cave and use it to destroy the spike.": "将炸药带到洞穴中的尖刺处，用它摧毁尖刺。",
+    "Report to Orikal about your success.": "向奥里卡尔报告你的成功。"
+  },
+
+  "The Mercenary": {
+    "The Mercenary": "雇佣兵",
+    "Talk to the Scout in Detlas at {coords} or find one in another town.": "与 {coords} 德特拉斯的侦察兵交谈，或在其他城镇找一个。",
+    "Talk to Amerigo in Almuj at {coords}.": "与 {coords} 阿尔穆捷的阿梅里戈交谈。",
+    "Rendezvous near the barracks at {coords}.": "在 {coords} 的兵营附近会合。",
+    "Storm the barracks at {coords}.": "突袭 {coords} 的兵营。",
+    "Continue through the barracks.": "继续穿过兵营。",
+    "Defeat Takan.": "击败塔坎。",
+    "Continue up the stairs in the barracks.": "继续登上兵营的楼梯。",
+    "Head up the tower and take out Takan.": "登上塔楼，干掉塔坎。",
+    "Regroup with your companions at {coords}.": "在 {coords} 与同伴重新集结。",
+    "Bring Takan's badge to Amerigo at {coords}.": "将塔坎的徽章带给 {coords} 的阿梅里戈。"
+  },
+
+  "Green Gloop": {
+    "Green Gloop": "绿色黏液",
+    "Talk to Eluzterp at {coords}.": "与 {coords} 的埃卢兹特普交谈。",
+    "Find Yodbon near the Almuj Bank at {coords}.": "在 {coords} 阿尔穆捷银行附近找到约德邦。",
+    "Bring [5 Soft Sand] from enemies in the desert to Yodbon at {coords}.": "将沙漠敌人掉落的 [5 个软沙] 带给 {coords} 的约德邦。",
+    "Fetch [8 Slimey Goo] for Eluzterp from the cave at {coords}.": "从 {coords} 的洞穴中为埃卢兹特普取来 [8 个黏滑黏液]。"
+  },
+
+  "A Sandy Scandal": {
+    "A Sandy Scandal": "沙地丑闻",
+    "Talk to the Almuj Bank Guard at {coords}.": "与 {coords} 的阿尔穆捷银行守卫交谈。",
+    "Go to the witness report location at {coords}.": "前往 {coords} 的目击报告地点。",
+    "Open the vault in the basement [Code: 7812].": "打开地下室的金库 [密码：7812]。",
+    "Inspect the vault.": "检查金库。",
+    "Exit the vault.": "离开金库。",
+    "Read the witness report.": "阅读目击报告。",
+    "Find the source of the detonation at {coords}.": "在 {coords} 找到爆炸的来源。",
+    "Inspect the safe.": "检查保险箱。",
+    "Quickly! Go to the house at {coords}.": "快！去 {coords} 的房子。",
+    "Look for signs of the bandits' whereabouts.": "寻找强盗下落的迹象。",
+    "Listen to the bandits.": "听强盗们说话。",
+    "Escape the hideout!": "逃出藏身处！",
+    "Find where the bandits blasted a hole to get into the bank at {coords}.": "找到强盗炸开洞进入银行的位置，坐标 {coords}。",
+    "Follow the criminals into the other room.": "跟随罪犯进入另一个房间。",
+    "Don't let the bandits escape!": "别让强盗逃掉！",
+    "Report back to the Almuj Bank Guard at {coords}.": "向 {coords} 的阿尔穆捷银行守卫报告。"
+  },
+
+  "Kingdom of Sand": {
+    "Kingdom of Sand": "沙之王国",
+    "Talk to Junes at {coords}.": "与 {coords} 的朱恩斯交谈。",
+    "Attempt to enter the bandit hideout at {coords}.": "尝试进入 {coords} 的强盗藏身处。",
+    "Meet with Geo & Tarek at {coords}.": "在 {coords} 与吉奥和塔雷克见面。",
+    "Sneak into the highest room of the Rymek Mansion at {coords}.": "潜入 {coords} 雷梅克宅邸的最高房间。",
+    "Bring the journal from the Rymek Mansion to the Vault Guard to enter the hideout.": "将雷梅克宅邸的日记带给金库守卫以进入藏身处。",
+    "Look for the sceptre within the bandit hideout at {coords}.": "在 {coords} 的强盗藏身处寻找权杖。",
+    "Search the broken cart at {coords}.": "搜索 {coords} 的破马车。",
+    "Search the abandoned house at {coords}.": "搜索 {coords} 的废弃房屋。",
+    "Return to the tomb and give Junes the sceptre at {coords}.": "返回坟墓，将权杖交给 {coords} 的朱恩斯。"
+  },
+
+  "Meaningful Holiday": {
+    "Meaningful Holiday": "有意义的假期",
+    "Talk to Haily in Almuj at {coords}.": "与 {coords} 阿尔穆捷的海莉交谈。",
+    "Go talk to Haily's friend Nick at the poor area.": "去贫民区与海莉的朋友尼克交谈。",
+    "Go to the budget store and ask for food.": "去平价商店要食物。",
+    "Look for food on the second floor.": "在二楼寻找食物。",
+    "Return to Nick and tell him the bad news.": "回到尼克那里，告诉他坏消息。",
+    "Bring the blanket to the woman in the tunnel south of Nick.": "将毯子带给尼克以南隧道中的女人。",
+    "Continue the tunnel and find Nick's friend.": "继续穿过隧道，找到尼克的朋友。",
+    "Explore the area and look for Santa.": "探索该区域，寻找圣诞老人。",
+    "Enter Santa's home and speak to him.": "进入圣诞老人的家，与他交谈。",
+    "Leave through the portal behind Santa.": "通过圣诞老人身后的传送门离开。",
+    "Enter the ball room.": "进入舞厅。",
+    "Ask the guests for food.": "向客人要食物。",
+    "Steal the food from the kitchen and talk to Nick.": "从厨房偷食物，然后与尼克交谈。",
+    "Escape the ball with Nick.": "与尼克一起逃离舞会。",
+    "Talk to Nick.": "与尼克交谈。"
+  },
+
+  "Canyon Condor": {
+    "Canyon Condor": "峡谷神鹰",
+    "Talk to Svin in Rymek at {coords}.": "与 {coords} 雷梅克的斯文交谈。",
+    "Talk to Jankan east from Rymek at {coords}.": "与 {coords} 雷梅克以东的詹坎交谈。",
+    "Collect [5 Gold Chunks] for Jankan in the mineshaft at {coords}.": "在 {coords} 的矿井中为詹坎收集 [5 个金块]。",
+    "Take the canyon elevator up to the Hermit at {coords}.": "乘坐峡谷电梯上到 {coords} 的隐士处。",
+    "Find and collect [1 Rare Rose] at {coords} for the Hermit.": "在 {coords} 找到并收集 [1 朵稀有玫瑰] 给隐士。",
+    "Defeat the Cockatrice at {coords} and collect an egg for Svin.": "击败 {coords} 的蛇鸡兽，为斯文收集一个蛋。"
+  },
+
+  "WynnExcavation Site A": {
+    "WynnExcavation Site A": "温恩挖掘点 A",
+    "Speak to Excavator Vade at {coords}.": "与 {coords} 的挖掘者韦德交谈。",
+    "Bring the Ancient Writing to Tesha in the tents at {coords}.": "将古代文字带给 {coords} 帐篷中的特莎。",
+    "Return to Excavator Vade with the translated writing.": "带着翻译后的文字返回挖掘者韦德处。",
+    "Solve this riddle in the tomb: \"Throw tribute an item to the wood that stands out, the right angle will open the way\"": "在坟墓中解开这个谜语：“向显眼的木头投掷一件贡品，直角将打开道路”",
+    "Search the tombs.": "搜索坟墓。",
+    "Return and talk to Excavator Vade.": "返回并与挖掘者韦德交谈。"
+  },
+
+  "WynnExcavation Site B": {
+    "WynnExcavation Site B": "温恩挖掘点 B",
+    "Bring the Yellow Crystal Shard to Excavator Lykron at {coords}.": "将黄色水晶碎片带给 {coords} 的挖掘者莱克伦。",
+    "Investigate the depths of the cave.": "调查洞穴深处。",
+    "Solve the puzzle.": "解开谜题。",
+    "Find the crystal.": "找到水晶。",
+    "Talk to Excavator Lykron.": "与挖掘者莱克伦交谈。"
+  },
+
+  "WynnExcavation Site C": {
+    "WynnExcavation Site C": "温恩挖掘点 C",
+    "Talk to Excavator Placardus at {coords} (Requires shard from Site B).": "与 {coords} 的挖掘者普拉卡杜斯交谈（需要来自 B 点的碎片）。",
+    "Infiltrate the Excavation Meeting.": "潜入挖掘会议。",
+    "Eavesdrop on WynnExcavation's plans.": "偷听温恩挖掘的计划。",
+    "Leave the meeting.": "离开会议。",
+    "Escape the WynnExcavation guards.": "逃离温恩挖掘的守卫。",
+    "Explore the area and search for the traitor.": "探索区域，寻找叛徒。",
+    "Explore the depths of the volcano.": "探索火山深处。",
+    "Escape the volcano with the crystal shard.": "带着水晶碎片逃离火山。",
+    "Report back to Excavator Placardus with a [Red Crystal Shard].": "带着 [红色水晶碎片] 向挖掘者普拉卡杜斯报告。"
+  },
+
+  "WynnExcavation Site D": {
+    "WynnExcavation Site D": "温恩挖掘点 D",
+    "Talk to Royal Advisor Carlos in Troms Castle at {coords} (Requires shard from Site C).": "与 {coords} 特罗姆斯城堡的皇家顾问卡洛斯交谈（需要来自 C 点的碎片）。",
+    "Find the secret passageway inside of the throne room.": "在王座室内找到秘密通道。",
+    "Explore the secrets beneath Troms Castle.": "探索特罗姆斯城堡下方的秘密。",
+    "Talk to the King.": "与国王交谈。",
+    "Exit the King's room.": "离开国王的房间。",
+    "Escape Troms.": "逃离特罗姆斯。",
+    "Head to the location on the note.": "前往纸条上的地点。",
+    "Speak to Traitor Thomas.": "与叛徒托马斯交谈。",
+    "Find the three map fragments by following the eyes and return to Thomas.": "跟随眼睛的图案找到三张地图碎片，然后返回托马斯处。",
+    "Enter the traitor camp.": "进入叛徒营地。",
+    "Speak to Rebel Leader Amadel.": "与叛军领袖阿马德尔交谈。",
+    "Go to Site D at {coords}.": "前往 {coords} 的 D 点。",
+    "Solve the puzzle.": "解开谜题。",
+    "Search the excavation site.": "搜索挖掘点。",
+    "Talk to Excavator Admin Uci.": "与挖掘点管理员乌西交谈。",
+    "Enter The Ancient Dungeon.": "进入远古地牢。",
+    "Complete the parkour.": "完成跑酷。",
+    "Solve The Yellow Puzzle.": "解开黄色谜题。",
+    "Solve The Purple Puzzle.": "解开紫色谜题。",
+    "Solve The Red Puzzle.": "解开红色谜题。",
+    "Escape The Green Room.": "逃离绿色房间。",
+    "Talk to Excavator Amadel.": "与挖掘者阿马德尔交谈。",
+    "Teleport to the Ancient City.": "传送到远古城市。",
+    "Explore The Ancient City.": "探索远古城市。",
+    "Speak to Amadel's Assistant.": "与阿马德尔的助手交谈。",
+    "Kill Corrupted Amadel.": "杀死腐化阿马德尔。",
+    "Kill Shadow Amadel.": "杀死暗影阿马德尔。",
+    "Kill Amadel.": "杀死阿马德尔。",
+    "Talk to The King of Ragni.": "与拉格尼国王交谈。"
+  },
+
+  "Tribal Aggression": {
+    "Tribal Aggression": "部落侵略",
+    "Talk to Caras at {coords}.": "与 {coords} 的卡拉斯交谈。",
+    "Enter the Eagle Camp and talk to Favian.": "进入鹰之营地，与法维安交谈。",
+    "Bring back the Eagle Totem from the Owl Camp.": "从猫头鹰营地取回鹰之图腾。",
+    "Retrieve the Owl Totem and return it to the Owl Camp.": "取回猫头鹰图腾并将其归还猫头鹰营地。"
+  },
+
+  "Wrath of the Mummy": {
+    "Wrath of the Mummy": "木乃伊之怒",
+    "Talk to Ormrod in the desert of Almuj at {coords}.": "与 {coords} 阿尔穆捷沙漠中的奥姆罗德交谈。",
+    "Talk to Achper in Almuj about the curse at {coords}.": "与 {coords} 阿尔穆捷的阿赫佩尔谈论诅咒。",
+    "Attempt to enter the Mummy's tomb at {coords}.": "尝试进入 {coords} 的木乃伊坟墓。",
+    "Use the bandit's wagon at {coords} to get to Rymek.": "使用 {coords} 强盗的马车前往雷梅克。",
+    "Bring back [1 Pink Wool] to the bandit at {coords}.": "将 [1 块粉色羊毛] 带给 {coords} 的强盗。",
+    "Enter the tomb at {coords} and kill the Mummy.": "进入 {coords} 的坟墓，杀死木乃伊。",
+    "Bring [1 Mummy's Bandage] to Ormrod at {coords}.": "将 [1 个木乃伊绷带] 带给 {coords} 的奥姆罗德。"
+  },
+
+  "Temple of the Legends": {
+    "Temple of the Legends": "传说之殿",
+    "Talk to Kelight at the entrance of the Temple of the Legends, close to Troms at {coords}": "与 {coords} 特罗姆斯附近传说之殿入口处的凯莱特交谈",
+    "Find a way to get Kelight to allow you entry into the Temple of the Legends at {coords}": "想办法让凯莱特允许你进入 {coords} 的传说之殿",
+    "Talk to Jorkin in Elkurn at {coords} about Light Dust.": "与 {coords} 埃尔克恩的乔金谈论光尘。",
+    "Find the lightdust cavern located near the Portal at {coords}.": "找到位于 {coords} 传送门附近的光尘洞穴。",
+    "Visit Rayshyroth on Mage Island at {coords} to purify the dust": "前往 {coords} 法师岛拜访雷夏罗斯以净化粉尘",
+    "Find the cave on Mage Island where the Sky Flux gathers at {coords}": "在 {coords} 法师岛上找到天空流聚集的洞穴",
+    "Give [12 Sky Vapor] and the Light Dust to Rayshyroth at {coords}": "将 [12 个天空蒸汽] 和光尘交给 {coords} 的雷夏罗斯",
+    "Show the [Purified Light Dust] to Kelight at the entrance of the Temple of the Legends at {coords}": "向 {coords} 传说之殿入口处的凯莱特展示 [净化光尘]",
+    "Find Garull, the Creeper obsessed craftsman, somewhere in the Pigmen's Ravines located around {coords}": "在 {coords} 附近的猪人峡谷某处找到痴迷苦力怕的工匠加鲁尔",
+    "Bring the [Old Touroto Hide], [Aseado Leaf], [Maro's Eye Jewel], and [Coral of Nelfors] to Garull in the cave at {coords}": "将 [旧图罗托皮]、[阿塞阿多叶]、[马罗之眼宝石] 和 [内尔福斯珊瑚] 带给 {coords} 洞穴中的加鲁尔",
+    "Bring the [Helmet of the Legends] to Kelight at the entrance of the Temple of the Legends at {coords}": "将 [传说头盔] 带给 {coords} 传说之殿入口处的凯莱特",
+    "Kill the Corrupter of Worlds in the cave at {coords} and bring proof of its death to Kelight at {coords}": "在 {coords} 的洞穴中杀死世界腐化者，并将其死亡证明带给 {coords} 的凯莱特"
+  },
+
+  "Out of my Mind": {
+    "Out of my Mind": "失去理智",
+    "Speak with the Troms children in the treehouse.": "与树屋里的特罗姆斯孩子们交谈。",
+    "Find the hidden door next to the gate near the Undergrowth Ruins outside Troms.": "在特罗姆斯外的林下废墟附近的大门旁找到隐藏的门。",
+    "Find a way inside the house at {coords}.": "找到进入 {coords} 房屋的方法。",
+    "Explore the hidden lab in search of information.": "探索隐藏的实验室以寻找信息。",
+    "Build a machine to hit your head and get back to normal.": "建造一台机器来撞击你的头部并恢复正常。",
+    "Find a way to destroy the plant monster, then return to the group in Troms at {coords} to report your findings.": "找到摧毁植物怪物的方法，然后返回 {coords} 特罗姆斯的队伍报告你的发现。"
+  },
+
+  "Lost in the Jungle": {
+    "Lost in the Jungle": "迷失丛林",
+    "Speak to Gracen at {coords}": "与 {coords} 的格雷森交谈",
+    "Search the Dernel Jungle for Aryn": "在德内尔丛林中寻找阿林",
+    "Defeat the spirit possessing Aryn": "击败附身阿林的灵魂",
+    "Make sure Aryn is safe at {coords}": "确保阿林在 {coords} 安全",
+    "Bring the Mysterious Gemstone to Gracen at {coords}": "将神秘宝石带给 {coords} 的格雷森"
+  },
+
+  "Grand Youth": {
+    "Grand Youth": "伟大青春",
+    "Talk to Monte at {coords}.": "与 {coords} 的蒙特交谈。",
+    "Visit the Salesman in Troms near the fountain.": "拜访特罗姆斯喷泉附近的推销员。",
+    "Talk to Isfurus in Dernel at {coords}.": "与 {coords} 德内尔的伊斯弗鲁斯交谈。",
+    "Get the bottles filled by Erisk in the heart of the fountain to give Isfurus.": "让喷泉中心的埃里斯克装满瓶子，交给伊斯弗鲁斯。",
+    "Talk to Isfurus for Erisk.": "代表埃里斯克与伊斯弗鲁斯交谈。",
+    "Bring back the bottle of healing water to Monte.": "将治疗之水瓶带回给蒙特。"
+  },
+
+  "The Passage": {
+    "The Passage": "通道",
+    "Talk to Wirt in Troms at {coords}.": "与 {coords} 特罗姆斯的沃特交谈。",
+    "Find Ildan in Troms at {coords} and ask to be a member of the town.": "在 {coords} 特罗姆斯找到伊尔丹，请求成为镇的一员。",
+    "Search for clues near {coords} and bring back [1 Antic Bead] to Ildan.": "在 {coords} 附近寻找线索，将 [1 颗古珠] 带回给伊尔丹。"
+  },
+
+  "Forgotten Burrows": {
+    "Forgotten Burrows": "被遗忘的洞穴",
+    "Enter the Forgotten Burrows at {coords}.": "进入 {coords} 的被遗忘洞穴。",
+    "Explore the burrows.": "探索洞穴。",
+    "Defeat the creatures within.": "击败其中的生物。"
+  },
+
+  "An Iron Heart Part I": {
+    "An Iron Heart Part I": "铁之心 第一部分",
+    "Speak with Duvale at {coords}.": "与 {coords} 的杜瓦尔交谈。",
+    "Find the defective Guard Golem in the mountain at {coords}.": "在 {coords} 的山中找到有缺陷的守卫魔像。",
+    "Find the defective Guard Golem.": "找到有缺陷的守卫魔像。",
+    "Subdue the defective Guard Golem and return to Duvale at {coords}.": "制服有缺陷的守卫魔像，返回 {coords} 的杜瓦尔处。"
+  },
+
+  "An Iron Heart Part II": {
+    "An Iron Heart Part II": "铁之心 第二部分",
+    "Speak to Detective Hart at {coords}.": "与 {coords} 的哈特侦探交谈。",
+    "Follow the west road and speak with Daxe in his home at {coords}.": "沿着西路走，在 {coords} 的家中与达克斯交谈。",
+    "Head to the Golem Factory at {coords}.": "前往 {coords} 的魔像工厂。",
+    "Find a way to deactivate the Guard Golem.": "找到关闭守卫魔像的方法。",
+    "Find a way into the factory in Urelix's house.": "找到进入乌雷利克斯家中工厂的方法。",
+    "Escape the Golem Factory and find Urelix.": "逃离魔像工厂，找到乌雷利克斯。",
+    "Talk to Dr. Urelix in his office.": "在办公室与乌雷利克斯博士交谈。",
+    "Either take the bribe or return to Detective Hart.": "要么收下贿赂，要么回到哈特侦探那里。"
+  },
+
+  "Recipe for Disaster": {
+    "Recipe for Disaster": "灾难配方",
+    "Meet up with Chef Hamsey in Ahmsord at {coords}.": "在 {coords} 阿姆斯奥德与厨师哈姆西碰面。",
+    "Find Chef Hamsey in his kitchen.": "在厨房找到厨师哈姆西。",
+    "Speak to all three chefs in Hamsey's kitchen.": "与哈姆西厨房里的三位厨师交谈。",
+    "Talk to Hamsey and choose a chef to work with.": "与哈姆西交谈，选择一位厨师合作。",
+    "Talk to your chosen chef about the dish.": "与你选择的厨师讨论菜肴。",
+    "Collect [1 {Ingredient}] at {coords} or check your recipe book.": "在 {coords} 收集 [1 个 {原料}] 或查看你的食谱。",
+    "Present the ingredients to your chosen chef.": "将原料交给你选择的厨师。",
+    "Talk to Hamsey with your finished dish.": "带着完成的菜肴与哈姆西交谈。",
+    "Meet Hamsey in the dining room at {coords}.": "在 {coords} 的餐厅与哈姆西见面。"
+  },
+
+  "Reincarnation": {
+    "Reincarnation": "轮回",
+    "Talk to Batelu in Bob's Tomb.": "在鲍勃之墓与巴特鲁交谈。",
+    "Bring back [1 Cluckles' Favourite Feather], [1 Baab's Wool], and [1 Mooington's Skin] to Batelu.": "将 [1 根克勒克斯最爱的羽毛]、[1 块巴布的羊毛] 和 [1 张穆灵顿的皮] 带给巴特鲁。",
+    "Kill Bob's Reincarnation.": "杀死鲍勃的转世。",
+    "Bring back [1 Bob's Seal of Approval] to Batelu.": "将 [1 枚鲍勃的认可印章] 带给巴特鲁。"
+  },
+
+  "The Tower of Ascension": {
+    "The Tower of Ascension": "飞升之塔",
+    "Begin the {X}th Floor.": "开始第 {X} 层。",
+    "Collect 5 tokens and hand them to the Floor Master [Floor {X}, Level {Y}].": "收集 5 个代币，交给楼层大师 [第 {X} 层，等级 {Y}]。",
+    "Collect the boss token and hand it to the Floor Master [Floor {X}, Level 10].": "收集首领代币，交给楼层大师 [第 {X} 层，等级 10]。"
+  },
+
+  "Point of No Return": {
+    "Point of No Return": "不归点",
+    "Talk to the Lutho Citizen at {coords}.": "与 {coords} 的卢索市民交谈。",
+    "...": "...",
+    "Explore this happier version of Lutho.": "探索这个更快乐的卢索版本。",
+    "Talk with your Soul.": "与你的灵魂交谈。",
+    "Leave Happier Lutho.": "离开快乐卢索。",
+    "Talk to the Lutho Citizen who sent you on this journey.": "与送你踏上这段旅程的卢索市民交谈。"
+  },
+
+  "Cowfusion": {
+    "Cowfusion": "牛之融合",
+    "Talk to Ranol at {coords}.": "与 {coords} 的拉诺尔交谈。",
+    "Head to the Laboratory at {coords}.": "前往 {coords} 的实验室。",
+    "Find a way into the Laboratory.": "找到进入实验室的方法。",
+    "Search the Laboratory for the missing cows.": "在实验室中寻找丢失的奶牛。",
+    "Find a way to free the Cows.": "找到释放奶牛的方法。",
+    "???": "???",
+    "Find out what happened.": "查明发生了什么。",
+    "Return to Ranol.": "回到拉诺尔处。",
+    "Escape Ranol's farm.": "逃离拉诺尔的农场。",
+    "Find and enter the Secret Cow Hideout.": "找到并进入秘密奶牛藏身处。",
+    "Talk to the Receptionist.": "与接待员交谈。",
+    "Find the one who's in charge of the hideout.": "找到藏身处的负责人。",
+    "Talk to Drale.": "与德雷尔交谈。",
+    "Escape The Pit.": "逃离深坑。",
+    "Enter the Transmutation Machine.": "进入转化机器。"
+  },
+
+  "The House of Twain": {
+    "The House of Twain": "吐温之屋",
+    "Enter the House of Twain at {coords}.": "进入 {coords} 的吐温之屋。",
+    "Explore the house.": "探索房子。",
+    "Solve the mystery.": "解开谜团。"
+  },
+
+  "Lazarus Pit": {
+    "Lazarus Pit": "拉撒路之坑",
+    "Speak to Burtur at {coords}.": "与 {coords} 的伯图尔交谈。",
+    "Check in with Burtur about the attack at {coords}.": "向伯图尔了解 {coords} 的袭击情况。",
+    "Find the body of the Order's mage in Gelibord's graveyard at {coords}.": "在 {coords} 格利博德的墓地里找到教团法师的尸体。",
+    "Locate the chapel mentioned by the talisman, or return to Burtur for assistance.": "找到护符中提到的小教堂，或返回伯图尔处寻求帮助。",
+    "Investigate the Order's chapel northwest of Gelibord at {coords}.": "调查 {coords} 格利博德西北的教团小教堂。",
+    "Solve the crypt's riddle to 'bring the water of life anew' to the graves.": "解开墓穴的谜语，为坟墓“带来新的生命之水”。",
+    "Revive the people in the tombs with the Lazarus Water and complete their tasks.": "用拉撒路之水复活坟墓中的人，并完成他们的任务。",
+    "Open the crypt door at {coords}.": "打开 {coords} 的墓穴门。",
+    "Investigate the crypt's inner chamber at {coords}.": "调查 {coords} 墓穴的内室。",
+    "Find the entrance to the Lazarus Pit at {coords}.": "在 {coords} 找到拉撒路之坑的入口。",
+    "Follow the path to the Lazarus pit at {coords} and enter the Pit.": "沿着小路前往 {coords} 的拉撒路之坑并进入。",
+    "Follow the cave to find the Lazarus Pit.": "沿着洞穴找到拉撒路之坑。",
+    "Find a way to block off the water pillar in the Lazarus Pit.": "找到堵住拉撒路之坑水柱的方法。",
+    "Tell Burtur that you have blocked off the Lazarus Pit at {coords}.": "告诉伯图尔你已经堵住了 {coords} 的拉撒路之坑。"
+  },
+
+  "Mixed Feelings": {
+    "Mixed Feelings": "复杂情感",
+    "Speak to Javen at the Corkus Docks.": "在科库斯码头与杰文交谈。",
+    "Talk to Javen.": "与杰文交谈。",
+    "Talk to the citizens around the docks.": "与码头周围的市民交谈。",
+    "Speak to the other citizens around the docks.": "与码头周围的其他市民交谈。",
+    "Talk to the final victim of your rampage.": "与你暴行的最后一名受害者交谈。",
+    "Follow the trail of blood and board the airship.": "沿着血迹登上飞艇。",
+    "Explore the cliff base.": "探索悬崖底部。",
+    "Fight and evade the waves of mobs until the timer runs out.": "战斗并躲避一波又一波的怪物，直到时间耗尽。",
+    "Speak to Javen.": "与杰文交谈。"
+  },
+
+  "Purple and Blue": {
+    "Purple and Blue": "紫色与蓝色",
+    "Talk to Korun near Lake Gylia at {coords}.": "与 {coords} 吉利亚湖附近的科伦交谈。",
+    "Investigate Nikoler's house for clues at {coords}.": "在 {coords} 调查尼科勒的房子寻找线索。",
+    "Follow the hints in the cellar to the mysterious cave.": "跟随地窖中的提示前往神秘的洞穴。",
+    "Enter and explore the mysterious cave at {coords}.": "进入并探索 {coords} 的神秘洞穴。",
+    "Return to Korun in his home at {coords}.": "返回 {coords} 科伦的家中。",
+    "Enter the heart of Gylia from under the lake.": "从湖下进入吉利亚的心脏。",
+    "Explore the Heart of Gylia.": "探索吉利亚之心。",
+    "Escape the Heart of Gylia.": "逃离吉利亚之心。"
+  },
+
+  "Forbidden Prison": {
+    "Forbidden Prison": "禁狱",
+    "Enter the Forbidden Prison at {coords}.": "进入 {coords} 的禁狱。",
+    "Navigate through the prison.": "穿过监狱。",
+    "Escape the prison.": "逃离监狱。",
+    "Defeat the Prison Warden.": "击败监狱长。"
+  },
+
+  "Bob's Lost Soul": {
+    "Bob's Lost Soul": "鲍勃的迷失灵魂",
+    "Talk to Tarod in Nesaak's Forest at {coords}.": "与 {coords} 尼萨克森林的塔罗德交谈。",
+    "Find Bob's Tomb.": "找到鲍勃之墓。",
+    "Report what you've found to Tarod at {coords}.": "向 {coords} 的塔罗德报告你的发现。",
+    "Talk to the sorcerer Wedyf in Bremminglar.": "与布雷明格拉尔的巫师韦迪夫交谈。",
+    "Bring [1 Bob's Tear] from Ragni and [1 Rose] from the house in the Nesaak forest around {coords} to Wedyf.": "将来自拉格尼的 [1 滴鲍勃之泪] 和来自 {coords} 附近尼萨克森林房屋中的 [1 朵玫瑰] 带给韦迪夫。",
+    "Talk to the blacksmith in the small settlement southwest of Ternaves at {coords} about Bob's lost soul.": "与 {coords} 特纳维斯西南小定居点的铁匠谈论鲍勃的迷失灵魂。",
+    "Bring [1 Depressing Stick], [1 Depressing Spear], [1 Depressing Bow] and [1 Depressing Shears] to the Blacksmith.": "将 [1 把沮丧之棍]、[1 把沮丧之矛]、[1 把沮丧之弓] 和 [1 把沮丧之剪] 带给铁匠。",
+    "Bring back [1 Bob's Crushed Soul] to Wedyf.": "将 [1 个鲍勃的破碎灵魂] 带给韦迪夫。",
+    "Find Bob's corpse in his tomb.": "在鲍勃的墓中找到他的尸体。",
+    "Report back what you've seen to Tarod.": "向塔罗德报告你所见到的一切。"
+  },
+
+  "Ice Barrows": {
+    "Ice Barrows": "冰冢",
+    "Enter the Ice Barrows at {coords}.": "进入 {coords} 的冰冢。",
+    "Kill 10 Freezing Guards.": "杀死 10 个冰冻守卫。",
+    "Complete the parkour.": "完成跑酷。",
+    "Kill 32 Poltergiceds.": "杀死 32 个骚灵。",
+    "Find the invisible path across the chasms.": "找到跨越深渊的隐形路径。",
+    "Survive the tunnel run.": "在隧道奔跑中存活。",
+    "Defeat the three minibosses.": "击败三个小 Boss。",
+    "Defeat Theorick.": "击败塞奥里克。"
+  },
+
+  "Undergrowth Ruins": {
+    "Undergrowth Ruins": "林下废墟",
+    "Enter the Undergrowth Ruins at {coords}.": "进入 {coords} 的林下废墟。",
+    "Complete the first parkour.": "完成第一个跑酷。",
+    "Escort the Keystone Guardian to the door.": "护送基石守卫到门口。",
+    "Complete the second parkour.": "完成第二个跑酷。",
+    "Destroy the 4 blue tokens by bringing down the pillars.": "通过摧毁柱子来破坏 4 个蓝色代币。",
+    "Complete the final parkour.": "完成最后的跑酷。",
+    "Kill 24 Lilla Slimes.": "杀死 24 个莉拉史莱姆。",
+    "Defeat Slykaar.": "击败斯莱卡。"
+  },
+
+  "Galleon's Graveyard": {
+    "Galleon's Graveyard": "大帆船墓地",
+    "Enter the Galleon's Graveyard at {coords}.": "进入 {coords} 的大帆船墓地。",
+    "Collect 24 Chunks of Scrap and bring them to the collector.": "收集 24 块废料碎片，交给收集者。",
+    "Defeat the Pirate Bomberman.": "击败海盗炸弹人。",
+    "Collect a Gate Key from the loot pile.": "从战利品堆中收集一把门钥匙。",
+    "Survive the TNT barrage for 30 seconds.": "在 TNT 弹幕中存活 30 秒。",
+    "Defeat the Megalodon.": "击败巨齿鲨。",
+    "Sink 15 Pirate Boats using the cannon.": "用大炮击沉 15 艘海盗船。",
+    "Escape the Piranha.": "逃离食人鱼。",
+    "Defeat the Piranha.": "击败食人鱼。",
+    "Defeat the Mutineers.": "击败叛变者。",
+    "Defeat Captain Redbeard.": "击败红胡子船长。"
+  },
+
+  "Aldorei's Secret Part I": {
+    "Aldorei's Secret Part I": "阿尔多雷的秘密 第一部分",
+    "Talk to the Elf Guard at {coords}.": "与 {coords} 的精灵守卫交谈。",
+    "See if anyone in Aldorei Valley knows what happened.": "看看阿尔多雷山谷中是否有人知道发生了什么。",
+    "Find a use for Damys' Bucket.": "为达米斯的水桶找到用途。",
+    "Find a way to grow the plant by the waterfall.": "找到在瀑布边种植植物的方法。",
+    "Explore the secret garden.": "探索秘密花园。",
+    "Investigate the [Iridescent Leaves].": "调查 [彩虹叶]。",
+    "Go to the botanist's house at {coords}.": "前往 {coords} 的植物学家房子。",
+    "Kill the carnivorous plant and loot the book.": "杀死食肉植物并搜刮书籍。",
+    "Investigate the alchemist's shop at {coords}.": "调查 {coords} 的炼金术士商店。",
+    "Chase the criminal.": "追逐罪犯。",
+    "Choose.": "选择。"
+  },
+
+  "Aldorei's Secret Part II": {
+    "Aldorei's Secret Part II": "阿尔多雷的秘密 第二部分",
+    "Enter the town of Aldorei at {coords}.": "进入 {coords} 的阿尔多雷镇。",
+    "Follow Olon into Aldorei Town.": "跟随奥隆进入阿尔多雷镇。",
+    "Check with the elves around Aldorei Town for information.": "向阿尔多雷镇周围的精灵打听信息。",
+    "Return to Olon with the information at {coords}.": "带着信息返回 {coords} 的奥隆处。",
+    "Find Amber at {coords}.": "在 {coords} 找到安珀。",
+    "Find the underground area of Aldorei near the waterfall.": "找到瀑布附近阿尔多雷的地下区域。",
+    "Go to the bar at {coords}.": "前往 {coords} 的酒吧。",
+    "Head downstream the underground river.": "沿着地下河向下游走。",
+    "Cast a spell on the boulders with Olon.": "与奥隆一起对着巨石施法。",
+    "Explore the abandoned tomb.": "探索废弃的坟墓。",
+    "Investigate the graves in the tomb.": "调查坟墓中的墓穴。",
+    "Confront the Sol Embassy.": " confronting 太阳大使馆。",
+    "Choose.": "选择。"
+  },
+
+  "The Qira Hive": {
+    "The Qira Hive": "奇拉蜂巢",
+    "Talk to Yansur at {coords} and begin the Hive Challenge.": "与 {coords} 的扬苏尔交谈，开始蜂巢挑战。",
+    "Prepare to enter the Thunder Division.": "准备进入雷霆分区。",
+    "Collect 5 Thunder Catalyst": "收集 5 个雷霆催化剂",
+    "Defeat the Psychomancer and collect 1 Thunder Catalyst X.": "击败心灵术士，收集 1 个雷霆催化剂 X。",
+    "Talk to Yansur to receive your prize for overcoming the Thunder Division.": "与扬苏尔交谈，领取完成雷霆分区的奖励。",
+    "Prepare to enter the Air Division.": "准备进入空气分区。",
+    "Collect 5 Air Catalyst": "收集 5 个空气催化剂",
+    "Defeat the Spirit of Gale and collect 1 Air Catalyst X.": "击败狂风之灵，收集 1 个空气催化剂 X。",
+    "Talk to Yansur to receive your prize for overcoming the Air Division.": "与扬苏尔交谈，领取完成空气分区的奖励。",
+    "Prepare to enter the Earth Division.": "准备进入大地分区。",
+    "Collect 5 Earth Catalyst": "收集 5 个大地催化剂",
+    "Defeat Genesis-Revorse and collect 1 Earth Catalyst X.": "击败起源-逆转，收集 1 个大地催化剂 X。",
+    "Talk to Yansur to receive your prize for overcoming the Earth Division.": "与扬苏尔交谈，领取完成大地分区的奖励。",
+    "Prepare to enter the Water Division.": "准备进入水分区。",
+    "Collect 5 Water Catalyst": "收集 5 个水催化剂",
+    "Defeat the Oceanic Judge and collect 1 Water Catalyst X.": "击败海洋审判者，收集 1 个水催化剂 X。",
+    "Talk to Yansur to receive your prize for overcoming the Water Division.": "与扬苏尔交谈，领取完成水分区的奖励。",
+    "Prepare to enter the Fire Division.": "准备进入火焰分区。",
+    "Collect 5 Fire Catalyst": "收集 5 个火焰催化剂",
+    "Defeat the Solar Vanguard and collect 1 Fire Catalyst X.": "击败太阳先锋，收集 1 个火焰催化剂 X。",
+    "Talk to Yansur to receive your prize for overcoming the Fire Division and complete the Hive Challenge.": "与扬苏尔交谈，领取完成火焰分区的奖励并完成蜂巢挑战。",
+    "Prepare to enter the chambers of Mistress Qira.": "准备进入奇拉夫人的房间。",
+    "Defeat Qira, Mistress of the Hive and collect 1 Master Catalyst.": "击败蜂巢之主奇拉，收集 1 个大师催化剂。",
+    "Talk to Yansur and truly complete the Hive Challenge.": "与扬苏尔交谈，真正完成蜂巢挑战。"
+  },
+
+  "Fallen Factory": {
+    "Fallen Factory": "堕落工厂",
+    "Enter the Fallen Factory at {coords}.": "进入 {coords} 的堕落工厂。",
+    "Collect 24 Chunks of Scrap and bring them to the collector.": "收集 24 块废料碎片，交给收集者。",
+    "Survive the production line.": "在生产线上存活。",
+    "Collect 4 Volatile Cores and bring them to the hopper.": "收集 4 个不稳定核心，放入漏斗。",
+    "Complete the clockwork parkour.": "完成发条跑酷。",
+    "Collect 16 Chunks of Scrap and 1 Volatile Core.": "收集 16 块废料碎片和 1 个不稳定核心。",
+    "Defeat Wynnston.": "击败温斯顿。",
+    "Collect 12 Chunks of Scrap.": "收集 12 块废料碎片。",
+    "Defeat Antikythera Auxiliary Core A.": "击败安提基特拉辅助核心 A。",
+    "Collect 4 Volatile Cores.": "收集 4 个不稳定核心。",
+    "Defeat Antikythera Auxiliary Core B.": "击败安提基特拉辅助核心 B。",
+    "Collect 16 Chunks of Scrap and 6 Volatile Cores.": "收集 16 块废料碎片和 6 个不稳定核心。",
+    "Defeat the Antikythera Supercomputer.": "击败安提基特拉超级计算机。"
+  },
+
+  "The Nameless Anomaly": {
+    "The Nameless Anomaly": "无名异常",
+    "Enter the Nameless Anomaly at {coords}.": "进入 {coords} 的无名异常。",
+    "Destroy the Void Holes within 120s!": "在 120 秒内摧毁虚空之洞！",
+    "Destroy the Void Holes within 90s!": "在 90 秒内摧毁虚空之洞！",
+    "Hold the stump for 60s.": "守住树桩 60 秒。",
+    "Gather the Light!": "收集光明！",
+    "Find and kill Shadowlings.": "找到并杀死暗影之子。",
+    "The creature in the shadows has awoken...": "阴影中的生物已经苏醒...",
+    "Offer souls to the altar to enter the tree.": "向祭坛献上灵魂以进入树中。",
+    "Protect the Bulb": "保护球茎",
+    "Collect 5 Void Matter while defending the Giant Void Hole.": "在守护巨型虚空之洞时收集 5 个虚空物质。",
+    "Survive.": "存活。"
+  },
+
+  "A Journey Further": {
+    "A Journey Further": "更远的旅程",
+    "Talk to Aledar in Lutho at {coords}.": "与 {coords} 卢索的阿勒达交谈。",
+    "Continue your journey with Aledar.": "与阿勒达继续你的旅程。",
+    "Follow the Path.": "沿着小路走。",
+    "Defeat the Parasitic Slimers.": "击败寄生粘液怪。",
+    "Continue on the main path with Aledar.": "与阿勒达继续沿着主路前进。",
+    "Defend Aledar from the Radiated Spiders.": "保护阿勒达免受辐射蜘蛛的伤害。",
+    "Jump into the void hole.": "跳入虚空之洞。",
+    "Continue on the trail with Aledar.": "与阿勒达继续沿着小径前进。",
+    "Use Void Holes to try and get behind the spike barrier": "利用虚空之洞尝试到达尖刺屏障后方",
+    "Find a way to help Aledar get to the other side of the spike barrier.": "找到帮助阿勒达到达尖刺屏障另一侧的方法。",
+    "Right click to grab the blade in the altar.": "右键点击抓住祭坛中的刀刃。",
+    "Sacrifice Aledar.": "献祭阿勒达。"
+  },
+
+  "A Journey Beyond": {
+    "A Journey Beyond": "超越之旅",
+    "Join Elphaba on a mission in Detlas at {coords}.": "在 {coords} 德特拉斯加入艾尔法巴的任务。",
+    "Follow your team towards the Silent Expanse's entrance.": "跟随你的队伍前往寂静之境的入口。",
+    "Defeat the Beast": "击败野兽",
+    "Plan a way of killing the beast.": "计划杀死野兽的方法。",
+    "Meet the other soldiers at {coords}.": "在 {coords} 与其他士兵会合。",
+    "Get the Shard with Aledar.": "与阿勒达一起获取碎片。",
+    "Go deeper into the cave at {coords} for the Shard.": "深入 {coords} 的洞穴寻找碎片。",
+    "Chase the beast for the Shard.": "追逐野兽以获取碎片。",
+    "Kill the Progenitors to open up the entrance.": "杀死先祖以打开入口。",
+    "Kill the Mangled Progeny for the [1 Corrupted Pearl].": "杀死扭曲后裔以获得 [1 颗腐化珍珠]。",
+    "Return to the Blacksmith with the Darkness Item.": "带着黑暗物品返回铁匠处。",
+    "Re-open the closed entrance with the other warriors.": "与其他战士一起重新打开关闭的入口。",
+    "Kill the Black Geist.": "杀死黑色恶灵。",
+    "Explore the Silent Expanse.": "探索寂静之境。",
+    "Find Aledar, Lucio and Elphaba in the Fallen City.": "在堕落之城找到阿勒达、卢西奥和艾尔法巴。",
+    "Find Aledar in the Fallen City.": "在堕落之城找到阿勒达。",
+    "Escort Aledar through the Eyeball Forest to Lutho at {coords}.": "护送阿勒达穿过眼球森林前往 {coords} 的卢索。"
+  },
+
+  "Realm of Light I - The Worm Holes": {
+    "Realm of Light I - The Worm Holes": "光之领域 I - 虫洞",
+    "Find out what's going on at {coords}": "查明 {coords} 发生了什么",
+    "Go down the hole and look for what's causing this and return to Malo at {coords} with proof.": "下到洞中，寻找造成这一切的原因，并带着证据返回 {coords} 的马洛处。",
+    "Look for Lari and ask what is going on at {coords}": "寻找拉里，询问 {coords} 发生了什么",
+    "Meet up with Lari at {coords}": "在 {coords} 与拉里会合",
+    "Investigate the worm tunnels.": "调查蠕虫隧道。",
+    "Fight the Grootslang with Lari": "与拉里一起战斗格鲁特斯朗"
+  },
+
+  "Realm of Light II - Taproot": {
+    "Realm of Light II - Taproot": "光之领域 II - 主根",
+    "Find Lari in the Dark Forest at {coords}": "在 {coords} 的黑暗森林中找到拉里",
+    "Follow Lari to the black spot next to her camp.": "跟随拉里到她营地旁边的黑点处。",
+    "Follow the trail of magic leading from the black spot.": "跟随从黑点延伸出的魔法轨迹。",
+    "Talk to Lari outside the weird gate at {coords}": "在 {coords} 的奇怪门外与拉里交谈",
+    "Enter the door.": "进入门内。",
+    "Listen to the meeting.": "聆听会议。",
+    "Make your choice.": "做出你的选择。",
+    "Enter The Taproot": "进入主根",
+    "Explore the weird realm": "探索奇怪的领域",
+    "Explore the Light Forest.": "探索光之森林。",
+    "Talk to Lari outside the Taproot gate.": "在主根门外与拉里交谈。"
+  },
+
+  "Realm of Light III - A Headless History": {
+    "Realm of Light III - A Headless History": "光之领域 III - 无头历史",
+    "Talk to Hans in the Gelibord outskirts at {coords}": "与 {coords} 格利博德郊外的汉斯交谈",
+    "Talk to Referick in his house and head upstairs at {coords}": "在 {coords} 的家中与雷弗里科交谈，然后上楼",
+    "Investigate his house for clues as to what could have happened.": "调查他的房子，寻找可能发生过什么的线索。",
+    "Travel to the castle in the north at {coords}": "前往北方的 {coords} 城堡",
+    "Enter the underground prison.": "进入地下监狱。",
+    "Return to Referick with his soul at {coords}": "带着他的灵魂返回 {coords} 的雷弗里科处",
+    "Enter Dullahan's castle.": "进入杜拉汉的城堡。",
+    "Investigate the painting at {coords}": "调查 {coords} 的画作",
+    "Continue exploring the castle.": "继续探索城堡。",
+    "Leave the room and continue exploring the castle.": "离开房间，继续探索城堡。",
+    "Enter the last door in the dining hall.": "进入餐厅的最后一扇门。",
+    "Investigate the dark door at the end of the castle.": "调查城堡尽头的黑暗之门。"
+  },
+
+  "Realm of Light IV - Finding the Light": {
+    "Realm of Light IV - Finding the Light": "光之领域 IV - 寻找光明",
+    "Find Lari in the Light Forest at {coords}.": "在 {coords} 的光之森林中找到拉里。",
+    "Read the inscription at the bottom of the big tree.": "阅读大树底部的铭文。",
+    "Find the Church Library in the city of Cinfras at {coords}.": "在 {coords} 辛弗拉斯市找到教堂图书馆。",
+    "Find a way up to the church bell at the top of the church.": "找到通往教堂顶部钟楼的方法。",
+    "Explore the secret library and find a way to wake up the tree.": "探索秘密图书馆，找到唤醒树木的方法。",
+    "Return to Lari at {coords}": "返回 {coords} 的拉里处",
+    "Use the spell on the inscription under the tree.": "对树下的铭文使用法术。",
+    "Enter the portal Lari left behind": "进入拉里留下的传送门",
+    "Go to the hut Lari entered.": "前往拉里进入的小屋。",
+    "Find a way to sneak into the hut.": "找到潜入小屋的方法。",
+    "Talk to the Elder at {coords}": "与 {coords} 的长老交谈",
+    "Find the Canned Abis cave at {coords}": "找到 {coords} 的罐装阿比斯洞穴",
+    "Find the plant inside the cave.": "找到洞穴内的植物。",
+    "Return to the Tree at {coords}.": "返回 {coords} 的树木处。",
+    "Battle Lari": "与拉里战斗",
+    "Talk to the Guardian": "与守护者交谈"
+  },
+
+  "Realm of Light V - The Realm of Light": {
+    "Realm of Light V - The Realm of Light": "光之领域 V - 光之领域",
+    "Meet up with Lari at {coords}.": "在 {coords} 与拉里会合。",
+    "Walk towards the portal with Lari.": "与拉里一起走向传送门。",
+    "Jump into the portal after Lari.": "跟随拉里跳进传送门。",
+    "Talk to Lari at {coords} in the Realm of Light.": "在光之领域的 {coords} 与拉里交谈。",
+    "Follow Lari to Orphion's Nexus of Light at {coords}": "跟随拉里前往 {coords} 的奥菲恩光之核心",
+    "Search for the monolith Lari was talking about at {coords}.": "在 {coords} 寻找拉里提到的巨石。",
+    "Enter the monolith.": "进入巨石。",
+    "Find a way to fill the monolith with light.": "找到用光明填满巨石的方法。",
+    "Follow Lari to the next monolith at {coords}.": "跟随拉里前往 {coords} 的下一个巨石。",
+    "Defeat the darkened creatures and progress to the monolith.": "击败黑暗生物，向巨石前进。",
+    "Enter the second monolith at {coords}.": "进入 {coords} 的第二个巨石。",
+    "Return to the bridge at {coords}.": "返回 {coords} 的桥。",
+    "Continue up the road towards Orphion's Nexus of Light.": "继续沿着道路前往奥菲恩的光之核心。"
+  },
+
+  "Memory Paranoia": {
+    "Memory Paranoia": "记忆偏执",
+    "Enter the Caritat Mansion.": "进入卡里塔宅邸。",
+    "Learn the story of the Caritat Family.": "了解卡里塔家族的故事。",
+    "Enter the basement and recover the Library Key.": "进入地下室，找回图书馆钥匙。",
+    "Enter the library of Caritat Mansion.": "进入卡里塔宅邸的图书馆。",
+    "Enter the hole in the wall.": "进入墙上的洞。",
+    "Return the spoon to the Kitchen.": "将勺子放回厨房。",
+    "Listen to Mr. Caritat's announcement.": "听卡里塔先生的公告。",
+    "Enter the Kitchen.": "进入厨房。",
+    "Exit the Kitchen.": "离开厨房。",
+    "Speak to people who haven't fled from the disaster.": "与没有从灾难中逃离的人交谈。",
+    "Unlock the Study.": "打开书房。",
+    "Enter the Study": "进入书房",
+    "Leave the Study.": "离开书房。",
+    "Speak with the Possessed Mr. Caritat.": "与被附身的卡里塔先生交谈。",
+    "Bring the key to Timmy's bedroom.": "将钥匙带到蒂米的卧室。",
+    "Enter Timmy's bedroom.": "进入蒂米的卧室。",
+    "Search Timmy's bedroom.": "搜索蒂米的卧室。",
+    "Bring the key to the Master Bedroom.": "将钥匙带到主卧室。",
+    "Enter the Master Bedroom.": "进入主卧室。",
+    "Escape the flaming mansion through the back door.": "从后门逃离燃烧的宅邸。",
+    "Navigate the Caritat's basement.": "穿过卡里塔的地下室。",
+    "Escape through the mysterious rift.": "通过神秘的裂隙逃离。",
+    "Speak to Atisun.": "与阿蒂森交谈。"
+  },
+
+  "The Hunger of Gerts Part I": {
+    "The Hunger of Gerts Part I": "格特之饥 第一部分",
+    "Talk to Cikal.": "与西卡尔交谈。",
+    "Search around the farms for clues.": "在农场周围寻找线索。",
+    "Inspect the Gerten Forwarding Camp nearby.": "检查附近的格特前哨营地。",
+    "Enter the dark cave in the back of the camp.": "进入营地后方的黑暗洞穴。",
+    "Explore the Gerten cave.": "探索格特洞穴。",
+    "Spy on the Gerten meeting.": "偷听格特会议。",
+    "Tell farmer Jitak about the tunnel.": "将隧道的事告诉农夫吉塔克。",
+    "Bring Jitak 6 Gert Skin.": "带 6 张格特皮给吉塔克。",
+    "Go to the Gerten Camp.": "前往格特营地。",
+    "Talk to the Gerten Captain.": "与格特队长交谈。",
+    "Find the password by killing the Solitary Gert.": "通过杀死孤独格特找到密码。",
+    "Inspect the tunnel.": "检查隧道。",
+    "Escape your cell.": "逃离你的牢房。",
+    "Escape the Gerten prison.": "逃离格特监狱。",
+    "Head to the cell.": "前往牢房。",
+    "Kill the Hungry Gert and return to Comor with the Cell Key.": "杀死饥饿格特，带着牢房钥匙回到科莫处。",
+    "Kill the Gerten Prison Warden and use the Barricade Key on Barricade Keyhole to escape.": "杀死格特监狱长，在路障锁孔上使用路障钥匙以逃脱。",
+    "Leave the Gerten prison and return to Cikal to tell him about the tunnels.": "离开格特监狱，回到西卡尔处告诉他隧道的事。"
+  },
+
+  "The Hunger of Gerts Part II": {
+    "The Hunger of Gerts Part II": "格特之饥 第二部分",
+    "Talk to Gerten Chief Lobo. Bring the Gert mask.": "与格特酋长洛博交谈。带上格特面具。",
+    "Head to Jitak's house.": "前往吉塔克的房子。",
+    "Find another way into Jitak's house by looking around.": "四处看看，找到进入吉塔克房子的另一条路。",
+    "Talk to Gerten Excavator.": "与格特挖掘者交谈。",
+    "Enter Jitak's basement using the hole Gerten Excavator has dug.": "通过格特挖掘者挖的洞进入吉塔克的地下室。",
+    "Find a way in to the battery farm from Jitak's basement.": "从吉塔克的地下室找到进入层架式养殖场的方法。",
+    "Find a way out of the first room of the battery farm.": "找到离开层架式养殖场第一个房间的方法。",
+    "Find a way out of the second room of the battery farm.": "找到离开层架式养殖场第二个房间的方法。",
+    "Talk to Captured Gert.": "与被俘的格特交谈。",
+    "Turn off the power.": "关闭电源。",
+    "Leave the third room of the battery farm.": "离开层架式养殖场的第三个房间。",
+    "Defeat Big Butch and put 1 Security Card into the Security Machine.": "击败大布奇，将 1 张安全卡插入安全机器。",
+    "Leave Big Butch's room.": "离开大布奇的房间。",
+    "Talk to Gerten Chief Lobo with 1 High Quality Meat Crate.": "带着 1 箱高质量肉与格特酋长洛博交谈。"
+  },
+
+  "Rise of the Quartron": {
+    "Rise of the Quartron": "四元体的崛起",
+    "Talk to Nasea in the Karoc Quarry.": "在卡洛克采石场与纳西娅交谈。",
+    "Talk to Dado and see if he is the culprit.": "与达多交谈，看看他是否是罪魁祸首。",
+    "Go back to Nasea and tell her about Dado's response.": "回到纳西娅那里，告诉她达多的回答。",
+    "Find the Tattytale Flower.": "找到八卦花。",
+    "Make Dado confess by using the Tattytale Flower.": "用八卦花让达多认罪。",
+    "Go up the minecart hill and find Popo.": "爬上矿车山，找到波波。",
+    "Ride the minecart to the bandit mansion.": "乘坐矿车前往强盗宅邸。",
+    "Break into the laboratory and stop Harnort.": "闯入实验室，阻止哈诺特。",
+    "Take down the Quartron and return to Nasea with the news.": "打倒四元体，带着消息回到纳西娅处。",
+    "Join Nasea at the end of the minecart track.": "在矿车轨道的尽头与纳西娅会合。"
+  },
+
+  "The Envoy Part I": {
+    "The Envoy Part I": "使者 第一部分",
+    "Speak to Olivin.": "与奥利文交谈。",
+    "Speak to C.S.S Wavebreaker Captain at the Selchar docks.": "在塞尔查码头与 C.S.S. 破浪号船长交谈。",
+    "Get onto the C.S.S. Wavebreaker.": "登上 C.S.S. 破浪号。",
+    "Speak to Corkus Delegate.": "与科库斯代表交谈。",
+    "Walk towards The Five Gears Diner.": "走向五齿轮餐厅。",
+    "Talk to Maxie.": "与马克西交谈。",
+    "Activate the fans.": "启动风扇。",
+    "Open the door and exit the ducts.": "打开门，离开管道。",
+    "Follow the path.": "沿着路走。",
+    "Talk to Maxie at the entrance to The Five Gears Diner.": "在五齿轮餐厅入口与马克西交谈。",
+    "Talk to Maxie and Corkus Delegate in Corkus City.": "在科库斯城与马克西和科库斯代表交谈。"
+  },
+
+  "The Envoy Part II": {
+    "The Envoy Part II": "使者 第二部分",
+    "Use Maxie's house key to enter Maxie's house.": "用马克西的房门钥匙进入他的房子。",
+    "Talk to Maxie on the first floor.": "在一楼与马克西交谈。",
+    "Find the catapult.": "找到投石机。",
+    "Locate the Avos Chief by asking the Avos citizens.": "通过询问阿沃斯市民找到阿沃斯酋长。",
+    "Talk to the chief's friend.": "与酋长的朋友交谈。",
+    "Meet the grandmaster behind her house and get over the gap and enter the temple.": "在她房子后面与宗师见面，越过缝隙进入寺庙。",
+    "Find the key inside the temple.": "在寺庙内找到钥匙。",
+    "Return to Maxie in his house with the first key.": "带着第一把钥匙回到马克西的房子里。",
+    "Find the vault in Corkus City.": "在科库斯城找到金库。",
+    "Look for the hidden mech base.": "寻找隐藏的机甲基地。",
+    "Retrieve the key from the base.": "从基地取回钥匙。",
+    "Find Maxie and give him the key.": "找到马克西，把钥匙给他。",
+    "Find Maxie outside the factory.": "在工厂外找到马克西。"
+  },
+
+  "One Thousand Meters Under": {
+    "One Thousand Meters Under": "地下一千米",
+    "Read the Help Wanted sign in Ahmsord.": "阅读阿姆斯奥德的招聘告示。",
+    "Talk to The Secretary.": "与秘书交谈。",
+    "Enter the conference room and listen to the scientist.": "进入会议室，听科学家讲话。",
+    "Enter the submarine.": "进入潜艇。",
+    "Wait for the submarine to arrive at the void islands.": "等待潜艇到达虚空岛屿。",
+    "Take a nap in the resting room.": "在休息室小睡片刻。",
+    "Talk to the captain outside of the submarine.": "在潜艇外与船长交谈。",
+    "Explore the island and look for the crystal.": "探索岛屿，寻找水晶。",
+    "Return to the submarine and continue your journey.": "回到潜艇，继续旅程。",
+    "Continue your journey.": "继续你的旅程。",
+    "Head to the resting room.": "前往休息室。",
+    "Meet up with the captain outside the submarine.": "在潜艇外与船长会合。",
+    "Find [5 Sand] and [10 Glue] on the void island.": "在虚空岛屿上找到 [5 个沙子] 和 [10 个胶水]。",
+    "Return to the submarine and continue the journey.": "回到潜艇，继续旅程。",
+    "Find a way out of the void.": "找到离开虚空的方法。",
+    "Talk to Rontaid outside the town.": "在镇外与龙泰德交谈。",
+    "Return to the crash site by following the road.": "沿着路返回坠毁地点。",
+    "Return to the scientist and tell him the news.": "回到科学家那里，告诉他消息。"
+  },
+
+  "The Feathers Fly Part I": {
+    "The Feathers Fly Part I": "羽毛飞舞 第一部分",
+    "Visit the workshop.": "参观工坊。",
+    "Meet Ava.": "与艾娃见面。",
+    "Distract the Avos Chief.": "分散阿沃斯酋长的注意力。",
+    "Report back to Ava in the Workshop.": "回到工坊向艾娃报告。",
+    "Meet Ava near the Corkian shop.": "在科库斯商店附近与艾娃见面。",
+    "Ask for an Enhanced Microchip.": "索要增强型微芯片。",
+    "Find the control panel near the shop.": "在商店附近找到控制面板。",
+    "Meet Ava in the workshop.": "在工坊与艾娃见面。",
+    "Meet Ava outside of the Workshop and help her operate her machine.": "在工坊外与艾娃见面，帮助她操作她的机器。",
+    "Operate the machine with Ava for the Avos Chief.": "与艾娃一起为阿沃斯酋长操作机器。"
+  },
+
+  "The Feathers Fly Part II": {
+    "The Feathers Fly Part II": "羽毛飞舞 第二部分",
+    "Meet Ava near Corkus City.": "在科库斯城附近与艾娃见面。",
+    "Locate and jam all the robot sentries near the Corkus Clocktower within 20 seconds.": "在 20 秒内找到并干扰科库斯钟楼附近的所有机器人哨兵。",
+    "Talk to Ava.": "与艾娃交谈。",
+    "Pick an outfit to fit in with the Corkians and bring it to Ava.": "挑选一套能融入科库斯人的服装，带给艾娃。",
+    "Ask around Corkus City for a way to get an audience with the Council.": "在科库斯城四处打听获得议会接见的方法。",
+    "Meet the Corkus Council.": "与科库斯议会见面。",
+    "Bring the Accelerator back to Ava in the Workshop.": "将加速器带回工坊给艾娃。"
+  },
+
+  "From the Mountains": {
+    "From the Mountains": "来自群山",
+    "Find out what's going on.": "查明发生了什么。",
+    "Find what Arnod wants inside of the house.": "在房子里找到阿尔诺德想要的东西。",
+    "Find someone in Bucie who can help you with the fires.": "在布西找个能帮你处理火灾的人。",
+    "Go to the path, and follow it up to the top of the mountain.": "走到小路上，沿着它到达山顶。",
+    "Capture all of the rogue Flerisi and bring them to Axelus.": "捕获所有失控的弗莱里西，带给阿克塞卢斯。",
+    "Enter the hole.": "进入洞中。",
+    "Investigate the trail of fire.": "调查火焰的踪迹。",
+    "Subdue the Fleris.": "制服弗莱里斯。",
+    "Exit the cave and talk with Axelus.": "离开洞穴，与阿克塞卢斯交谈。"
+  },
+
+  "Troubled Tribesmen": {
+    "Troubled Tribesmen": "烦恼的族人",
+    "Talk to Ka L'argwit.": "与卡·拉格维特交谈。",
+    "Talk to Krattson.": "与克拉特森交谈。",
+    "Talk to Shaman Inrekei.": "与萨满因雷凯交谈。",
+    "Return to Ka L'argwit.": "回到卡·拉格维特处。",
+    "Investigate the roots of Entamis.": "调查恩塔米斯的根部。",
+    "Kill Aenara and bring an Insect of Corruption to Shaman Inrekei.": "杀死埃纳拉，将一只腐化昆虫带给萨满因雷凯。"
+  },
+
+  "Flight in Distress": {
+    "Flight in Distress": "困境飞行",
+    "Bring your Gavellian Passport to the Airship Clerk.": "将你的加维利亚护照交给飞艇职员。",
+    "Enter the airship.": "进入飞艇。",
+    "Speak to Captain Ackbar regarding the missing child.": "与阿克巴船长谈论失踪的孩子。",
+    "Try and find out where the missing child is located by speaking to the passengers.": "通过与乘客交谈，试着找出失踪孩子的位置。",
+    "Return back to the Captain.": "回到船长那里。",
+    "Look if the engineer has something for you to do in order to help.": "看看工程师是否有让你帮忙的事情。",
+    "Go find and fix the issue with the airship's engines.": "去找并修复飞艇引擎的问题。",
+    "Report to Engineer Eric that you fixed the engines.": "向工程师埃里克报告你已经修好引擎。",
+    "Return back to your cabin.": "回到你的船舱。",
+    "Explore the lower deck and find out what caused the explosion.": "探索下层甲板，找出爆炸的原因。",
+    "Get to the other ship.": "前往另一艘船。",
+    "Head below deck.": "前往甲板下方。",
+    "Speak to the prisoner.": "与囚犯交谈。",
+    "Make the key to reach the Skyraider Queen.": "制作钥匙以到达天空掠夺者女王处。",
+    "Fight the Skyraider Queen and take one of her personal treasures with you.": "与天空掠夺者女王战斗，带走她的一件私人宝物。",
+    "Escape the ship and speak to Captain Ackbar.": "逃离船只，与阿克巴船长交谈。",
+    "Head down to the entrance deck, and get off.": "下到入口甲板，下船。",
+    "Speak to Calo next to the little ship at the Detlas docks.": "在德特拉斯码头的小船旁与卡洛交谈。"
+  },
+
+  "A Hunter's Calling": {
+    "A Hunter's Calling": "猎人之唤",
+    "Explore the deepest part of the Silent Expanse.": "探索寂静之境的最深处。",
+    "The besieged origin. To end, one must begin.": "被围困的起源。要结束，必须开始。",
+    "Murder 10 Ragni Citizens.": "谋杀 10 名拉格尼市民。",
+    "The unrighteous sought it. The noble hid it. The one seeking answers found more questions.": "不义之人追寻它。高贵之人隐藏它。寻求答案者发现了更多问题。",
+    "Head to town and get further information from the employee.": "前往城镇，从员工那里获取更多信息。",
+    "Climb the tree and look through the window.": "爬上树，透过窗户看。",
+    "Head to the northern part of the Bank and find a way up to the ceiling.": "前往银行的北侧，找到通往天花板的路。",
+    "Head back to the excavation camp.": "返回挖掘营地。",
+    "The cruel. The kind. The selfish. The just. He who traveled life with confliction.": "残忍的。善良的。自私的。公正的。那个带着矛盾走过人生的人。",
+    "Head to Nesaak and locate Theorick.": "前往尼萨克，找到塞奥里克。",
+    "Defeat Theorick.": "击败塞奥里克。",
+    "An end, ousted by further action. An end, brought to six. An end, to the surety of the haughty.": "一个结局，被进一步行动推翻。一个结局，带给六个人。一个结局，终结傲慢的确信。",
+    "Enter the Corrupter of World Cave.": "进入世界腐化者洞穴。",
+    "Make your way to the end of the cave.": "一路走到洞穴尽头。",
+    "Return back up the cave and fix a way out.": "返回洞穴上方，找到出路。",
+    "Metal. Preventing an end. Life. Ends, prevented.": "金属。阻止结局。生命。终结，被阻止。",
+    "Trick 3 people to follow you into the iron golem factory.": "诱骗 3 个人跟随你进入铁魔像工厂。",
+    "Make your way through the factory.": "穿过工厂。",
+    "A home, invaded. A society, crumbling. The people, starving. The concerned, helpless.": "家园，被入侵。社会，在崩溃。人民，在挨饿。关心者，无助。",
+    "Head back to the slums and speak to the slum citizens.": "返回贫民窟，与贫民窟市民交谈。",
+    "Return to the advisor for what to do next.": "回到顾问那里询问下一步该做什么。",
+    "Head deep inside the slums and blow it up.": "深入贫民窟内部，将其炸毁。",
+    "Metal. Life. A new place... One is not sacrificed for another.": "金属。生命。一个新地方……一个不会为另一个牺牲。",
+    "Destroy the catapult.": "摧毁投石机。",
+    "Find a way back to base.": "找到返回基地的路。"
+  },
+
+  "Finding The Light": {
+    "Finding The Light": "寻找光明",
+    "Talk to the Guardian of The Forest in the Light Forest.": "在光之森林与森林守护者交谈。",
+    "Find the Arch in the Light Forest.": "在光之森林找到拱门。",
+    "Return to the Guardian of The Forest to seek guidance.": "回到森林守护者处寻求指引。",
+    "Find someone in Cinfras who can help you SEE.": "在辛弗拉斯找到一个能帮助你“看见”的人。",
+    "Take the Eye Exam.": "接受视力检查。",
+    "Talk to Ollie.": "与奥利交谈。",
+    "Talk to Charlie outside of Ollie's Optometry.": "在奥利眼镜店外与查理交谈。",
+    "Read Jack's run away letter in Charlie's house.": "在查理家读杰克的离家信。",
+    "Talk to Jack.": "与杰克交谈。",
+    "Find Damien near Kander Forest.": "在坎德森林附近找到达米安。",
+    "Talk to the Apothecary about getting medicine.": "与药剂师谈论获取药物。",
+    "Break into Sasha's basement.": "闯入萨沙的地下室。",
+    "Talk to Sasha about her debt.": "与萨沙谈论她的债务。",
+    "Find the Gardener in the Cinfras Gardens.": "在辛弗拉斯花园找到园丁。",
+    "Search the Gardener's cart for evidence of his lies.": "搜索园丁的手推车，寻找他撒谎的证据。",
+    "Threaten The Gardener with his receipt.": "用收据威胁园丁。",
+    "Talk to Sasha The Apothecary and get the medicine.": "与药剂师萨沙交谈，拿到药物。",
+    "Give the medicine to Damien.": "把药给达米安。",
+    "Tell Charlie his son Jack is okay.": "告诉查理他的儿子杰克没事。",
+    "Return to Ollie in Cinfras.": "回到辛弗拉斯的奥利处。",
+    "Return to the Guardian of The Forest in the Light Forest with the helmet.": "带着头盔回到光之森林的森林守护者处。",
+    "Head back to the Light Realm Arch.": "回到光之领域拱门。",
+    "Enter The Light Realm.": "进入光之领域。"
+  },
+
+  "General's Orders": {
+    "General's Orders": "将军的命令",
+    "Speak to Private Tylas outside of Kitrios Barracks at {coords}.": "在 {coords} 基特里奥斯兵营外与泰拉斯列兵交谈。",
+    "Speak to General Lecade.": "与勒卡德将军交谈。",
+    "Go check on the malfunctioning equipment at {coords}.": "去检查 {coords} 的故障设备。",
+    "Return to General Lecade.": "回到勒卡德将军处。",
+    "Recover the Good-Luck Charm from the sewers at {coords}.": "从 {coords} 的下水道找回幸运护符。",
+    "Return to General Lecade with the Good-Luck Charm.": "带着幸运护符回到勒卡德将军处。",
+    "Walk across the tightrope.": "走过钢丝。",
+    "Paint the mountain by using the trampolines at {coords}.": "在 {coords} 使用蹦床给山涂色。",
+    "Speak to Lieutenant Gren at {coords}.": "与 {coords} 的格伦中尉交谈。",
+    "Investigate the mysterious prison within the fort.": "调查堡垒内的神秘监狱。"
+  },
+
+  "The Heartwood": {
+    "The Heartwood": "心木",
+    "Enter The Heartwood at {coords}.": "进入 {coords} 的心木。",
+    "Collect 4 Ironwood Hearts to open the seal.": "收集 4 个铁木之心以打开封印。",
+    "Defeat the Electrogaea Apparitions to open the chest.": "击败电地幻影以打开宝箱。",
+    "Explore the cave and find the treasure.": "探索洞穴，找到宝藏。"
+  },
+
+  "Fallen Salient": {
+    "Fallen Salient": "堕落突出部",
+    "On the walkways and platforms of a cliffside an old camp to fend against corruption has been overrun.": "在悬崖边的人行道和平台上，一个用来抵御腐化的旧营地已被攻占。",
+    "On the walkways and platforms of a cliffside an old camp to fend against corruption has been overrun": "在悬崖边的人行道和平台上，一个用来抵御腐化的旧营地已被攻占"
+  },
+
+  "Basalt Basin": {
+    "Basalt Basin": "玄武岩盆地",
+    "Explore the Basalt Basin at": "探索玄武岩盆地",
+    "Dying embers of what appears to be a volcano past its prime lies at": "一个似乎过了盛年的火山的余烬位于",
+    "Dying embers of what appears to be a volcano past its prime lies": "一个似乎过了盛年的火山的余烬",
+    "Survive the volcanic terrain": "在火山地形中存活",
+    "Collect the resources": "收集资源"
+  },
+
+  "Altar of Sanctification": {
+    "Altar of Sanctification": "圣化祭坛",
+    "Visit the Altar of Sanctification at": "前往圣化祭坛",
+    "Purify the corrupted spirits": "净化腐化的灵魂",
+    "Complete the ritual": "完成仪式"
+  },
+
+  "Temple Entrance": {
+    "Temple Entrance": "神殿入口",
+    "Find the Temple Entrance at": "找到神殿入口",
+    "Unlock the temple doors": "打开神殿的门",
+    "Enter the sacred temple": "进入神圣神殿"
+  },
+
+  "Jungle Fetish Camp": {
+    "Clear the Jungle Fetish Camp": "清理丛林邪物营地",
+    "Defeat the fetishes": "击败邪物",
+    "Help the herb gatherers": "帮助草药采集者",
+    "Hordes of Fetishes are stopping Iboju medicine makers from getting their herbs": "成群的邪物阻止伊博朱的药师采集草药"
+  },
+
+  "Wynnter Fair": {
+    "Wynnter Fair": "温恩特集市",
+    "Talk to the Fair Coordinator at": "与集市协调员交谈",
+    "Enjoy the festivities": "享受庆典",
+    "Complete the fair activities": "完成集市活动"
+  },
+
+  "Corrupted Decrepit Sewers": {
+    "Corrupted Decrepit Sewers": "腐化破旧下水道",
+    "Enter the Corrupted Decrepit Sewers at": "进入腐化破旧下水道",
+    "Clear the corruption": "清除腐化",
+    "Defeat the corrupted boss": "击败腐化首领"
+  },
+
+  "Corrupted Infested Pit": {
+    "Corrupted Infested Pit": "腐化感染之坑",
+    "Enter the Corrupted Infested Pit at": "进入腐化感染之坑",
+    "Navigate the corrupted dungeon": "穿越腐化地牢",
+    "Defeat the corrupted spider": "击败腐化蜘蛛"
+  },
+
+  "Corrupted Underworld Crypt": {
+    "Corrupted Underworld Crypt": "腐化冥界地窖",
+    "Enter the Corrupted Underworld Crypt at": "进入腐化冥界地窖",
+    "Survive the corruption": "在腐化中存活",
+    "Defeat the corrupted undead": "击败腐化亡灵"
+  },
+
+  "Corrupted Sand-Swept Tomb": {
+    "Corrupted Sand-Swept Tomb": "腐化风沙之墓",
+    "Enter the Corrupted Sand-Swept Tomb at": "进入腐化风沙之墓",
+    "Navigate the corrupted tomb": "穿越腐化坟墓",
+    "Defeat the corrupted pharaoh": "击败腐化法老"
+  },
+
+  "Corrupted Ice Barrows": {
+    "Corrupted Ice Barrows": "腐化冰冢",
+    "Enter the Corrupted Ice Barrows at": "进入腐化冰冢",
+    "Brave the corrupted cold": "勇敢面对腐化严寒",
+    "Defeat Corrupted Theorick": "击败腐化塞奥里克"
+  },
+
+  "Corrupted Undergrowth Ruins": {
+    "Corrupted Undergrowth Ruins": "腐化林下废墟",
+    "Enter the Corrupted Undergrowth Ruins at": "进入腐化林下废墟",
+    "Fight through the corruption": "在腐化中战斗",
+    "Defeat Corrupted Slykaar": "击败腐化斯莱卡"
+  },
+
+  "Corrupted Galleon's Graveyard": {
+    "Corrupted Galleon's Graveyard": "腐化大帆船墓地",
+    "Enter the Corrupted Galleon's Graveyard at": "进入腐化大帆船墓地",
+    "Explore the corrupted shipwrecks": "探索腐化沉船",
+    "Defeat the corrupted pirate": "击败腐化海盗"
+  },
+
+  "Heart of the Decay": {
+    "Heart of the Decay": "腐朽之心",
+    "Investigate the source of decay at": "调查腐朽之源",
+    "Enter the heart of corruption": "进入腐化之心",
+    "Defeat the source": "击败源头"
+  },
+
+  "Orphion's Nexus of Light": {
+    "Orphion's Nexus of Light": "奥菲恩光之核心",
+    "Enter the Nexus of Light at": "进入光之核心",
+    "Complete the light challenges": "完成光明挑战",
+    "Defeat Orphion": "击败奥菲恩"
+  },
+
+  "The Canyon Colossus": {
+    "The Canyon Colossus": "峡谷巨像",
+    "Find the Canyon Colossus at": "找到峡谷巨像",
+    "Awaken the colossus": "唤醒巨像",
+    "Defeat the Canyon Colossus": "击败峡谷巨像"
+  },
+
+  "The Eldritch Outlook": {
+    "The Eldritch Outlook": "怪异之景",
+    "Investigate the Eldritch Outlook at": "调查怪异之景",
+    "Face the eldritch horrors": "面对怪异恐怖",
+    "Defeat the eldritch being": "击败怪异存在"
+  },
+
+  "Hunted Mode": {
+    "Hunted Mode": "被猎模式",
+    "Enter Hunted Mode": "进入被猎模式",
+    "You are now hunted": "你现在被猎杀了",
+    "Survive while being hunted": "在被猎杀中存活"
+  },
+
+  "Silent Expanse": {
+    "Silent Expanse": "寂静之境",
+    "Enter the Silent Expanse at": "进入寂静之境",
+    "Explore the void": "探索虚空",
+    "Survive the silence": "在寂静中存活"
+  },
+
+  "A Marauder's Dues": {
+    "A Marauder's Dues": "掠夺者的债务",
+    "Talk to the Marauder at": "与掠夺者交谈",
+    "Pay your dues": "支付你的债务",
+    "Complete the marauder's task": "完成掠夺者的任务"
+  },
+
+  "Desperate Metal": {
+    "Desperate Metal": "绝望金属",
+    "Speak to Phinas.": "与菲纳斯交谈。",
+    "Locate the 3 mechs by following the trails of tools, return to Phinas with evidence that you destroyed the mechs.": "跟随工具的痕迹找到 3 台机甲，带着摧毁机甲的证明回到菲纳斯处。",
+    "Find out where to go by looking at the pieces of junk.": "通过观察垃圾碎片找出该去哪里。",
+    "Search Nettik's lighthouse.": "搜索内蒂克的灯塔。",
+    "Find the fourth mech.": "找到第四台机甲。",
+    "Return to Phinas.": "回到菲纳斯处。"
+  },
+
+  "Dwarves and Doguns Part I": {
+    "Dwarves and Doguns Part I": "矮人与狗人 第一部分",
+    "Find out what's happening at the theatre.": "查明剧院里发生了什么。",
+    "Watch the play.": "观看戏剧。",
+    "Make your way to the Dogun Festival by following the red banners outside Rodoroc.": "跟随罗多洛克外的红色旗帜前往狗人节。",
+    "Find out more about the hysterical dwarf in Rodoroc's prison.": "在罗多洛克监狱了解更多关于歇斯底里的矮人的信息。",
+    "Pick up Axelus' note and head to the location at {coords}.": "拿起阿克塞卢斯的便条，前往 {coords} 的位置。",
+    "Explore the Library of Flames.": "探索烈焰图书馆。",
+    "Exit the library.": "离开图书馆。",
+    "Search for house 81 in Maex like Axelus said.": "像阿克塞卢斯说的那样，在梅克斯找到 81 号房子。",
+    "Talk to Axelus in the Coalition Base.": "在联盟基地与阿克塞卢斯交谈。",
+    "Follow the group on the mission.": "跟随队伍执行任务。",
+    "Meet the group.": "与队伍会合。",
+    "Head back to the Coalition Base through the tunnel.": "通过隧道返回联盟基地。",
+    "Retrieve the [Repair Kit] in the eastern part of the base.": "在基地东部取回 [修理包]。",
+    "Find your way up to the Dogun Village through the tunnel.": "通过隧道找到通往狗人村的路。",
+    "Talk to Plario.": "与普拉里奥交谈。"
+  },
+
+  "Dwarves and Doguns Part II": {
+    "Dwarves and Doguns Part II": "矮人与狗人 第二部分",
+    "Return to the Dogun village with a Dogun Badge of Trust and talk to the leader of the town.": "带着狗人信任徽章回到狗人村，与城镇领袖交谈。",
+    "Enter the meeting.": "进入会议。",
+    "Meet up with Axelus at {coords}.": "在 {coords} 与阿克塞卢斯会合。",
+    "Defeat the Rodoroc Guards outside the armory.": "击败军械库外的罗多洛克守卫。",
+    "Find a way to break through the black bricks outside the wooden door.": "找到打破木门外黑砖的方法。",
+    "Sabotage the Dwarven Armoury.": "破坏矮人军械库。",
+    "Follow Axelus deeper into Rodoroc and destroy the power source of the city.": "跟随阿克塞卢斯深入罗多洛克，摧毁城市的能量源。",
+    "Explore the Slum of Rodoroc.": "探索罗多洛克贫民窟。",
+    "Find a way to enter the sewer system.": "找到进入下水道系统的方法。",
+    "Enter the Royal Palace through the sewer pipe and find the king.": "通过下水道管道进入皇宫，找到国王。",
+    "Sneak past the guards and talk to the Dwarven King.": "悄悄绕过守卫，与矮人国王交谈。",
+    "Exit the palace.": "离开宫殿。"
+  },
+
+  "Dwarves and Doguns Part III": {
+    "Dwarves and Doguns Part III": "矮人与狗人 第三部分",
+    "Return to the Dogun Village with the letter and speak to Korzim.": "带着信回到狗人村，与科尔齐姆交谈。",
+    "Investigate the structure to the south.": "调查南边的建筑。",
+    "Travel to Maex and meet Korzim at the entrance.": "前往梅克斯，在入口与科尔齐姆会面。",
+    "Talk to the blacksmith in Maex.": "与梅克斯的铁匠交谈。",
+    "Bring back [10 Fire Webs], [3 Magmatic Crystals], and [1 Crystallized Lava].": "带回 [10 个火蛛网]、[3 个岩浆水晶] 和 [1 个结晶熔岩]。",
+    "Craft the amulet in the crafting table.": "在工作台上制作护身符。",
+    "Go to the enchanter and enchant the amulet.": "去附魔师那里，给护身符附魔。",
+    "Enter the storage room in the enchanter's house.": "进入附魔师房子里的储藏室。",
+    "Travel to the frozen heights and find 4 True Ice.": "前往冰冻高地，找到 4 个真冰。",
+    "Return to the enchanter with the True Ice.": "带着真冰回到附魔师处。"
+  },
+
+  "Dwarves and Doguns Part IV": {
+    "Dwarves and Doguns Part IV": "矮人与狗人 第四部分",
+    "Return to Korzim on the second floor of the enchanter in Maex.": "回到梅克斯附魔师二楼的科尔齐姆处。",
+    "Head to Rodoroc and look for Axelus.": "前往罗多洛克，寻找阿克塞卢斯。",
+    "Free Axelus and escape the city.": "释放阿克塞卢斯，逃离城市。",
+    "Reach the portal and stop Garaheth.": "到达传送门，阻止加拉赫斯。",
+    "Enter the body of Garaheth.": "进入加拉赫斯的身体。",
+    "Find all 4 organs and destroy them.": "找到全部 4 个器官并摧毁它们。",
+    "Leave Garaheth and exit his realm.": "离开加拉赫斯，退出他的领域。",
+    "Speak with the King of Rodoroc and the Dogun Chieftain.": "与罗多洛克国王和狗人酋长交谈。"
+  },
+
+  "Fantastic Voyage": {
+    "Fantastic Voyage": "奇妙航行",
+    "Speak to Relend.": "与雷伦德交谈。",
+    "Retrieve the map back from the parrot.": "从鹦鹉那里取回地图。",
+    "Set sail aboard Relend's ship.": "登上雷伦德的船启航。",
+    "Speak to Captain Relend aboard the Little Wing.": "在小翼号上与雷伦德船长交谈。",
+    "Bring a Wooden Board, a Center Piece, and a String to the Crafting Table.": "将一块木板、一个中心件和一根绳子带到工作台。",
+    "Bring the Steering Wheel to Captain Relend.": "将方向盘带给雷伦德船长。",
+    "Man the wheel of the Little Wing.": "掌舵小翼号。",
+    "Find Relend inside of the wreck of the Little Wing.": "在小翼号的残骸中找到雷伦德。",
+    "Save Relend inside of the wreck of the Little Wing.": "在小翼号的残骸中救出雷伦德。",
+    "Exit the shipwrecked Little Wing.": "离开失事的小翼号。",
+    "Speak to Relend on the beach.": "在沙滩上与雷伦德交谈。",
+    "Bring 10 Raw Mutton, 5 Edible Mushrooms, 1 Coconut, and 7 Berries to the Cooking Pot.": "将 10 个生羊肉、5 个食用蘑菇、1 个椰子和 7 个浆果带到烹饪锅。",
+    "Give the Odd Stew to Relend.": "将奇怪的炖菜给雷伦德。",
+    "Check out the tent to the east.": "查看东边的帐篷。",
+    "Report back to Relend.": "回到雷伦德处报告。",
+    "Bring 5 Gritty Sand, 3 Saw Dust, and 1 Black Powder to the Crafting Table.": "将 5 个粗沙、3 个锯末和 1 个黑火药带到工作台。",
+    "Use the explosive on the boulder.": "对巨石使用炸药。",
+    "Enter the cave.": "进入洞穴。",
+    "Advance deeper into the cave.": "深入洞穴。",
+    "Find Relend in the strange place.": "在奇怪的地方找到雷伦德。"
+  },
+
+  "The Olmic Rune": {
+    "The Olmic Rune": "奥尔姆符文",
+    "Explore the abandoned drill at {coords}": "探索 {coords} 的废弃钻机",
+    "Find some sort of fuel in the Ruined City.": "在废墟城市中找到某种燃料。",
+    "Explore the cave for the fuel": "探索洞穴寻找燃料",
+    "Collect [32 Fuel Sprites] and bring it back to the machine.": "收集 [32 个燃料精灵] 并将其带回机器。",
+    "Head back to the machine at {coords}": "返回 {coords} 的机器处",
+    "Defend the machine from the incoming attackers.": "保护机器免受来袭敌人的攻击。",
+    "Enter the opened crypt.": "进入打开的地窖。"
+  },
+
+  "From the Bottom": {
+    "From the Bottom": "从底层来",
+    "Find someone in Thanos who wants to buy [3 Troll Hair]. Nakoba is at {coords}": "在萨诺斯找到想买 [3 根巨魔头发] 的人。纳科巴在 {coords}",
+    "Find someone in Thanos who wants to buy a [Decorative Bottlecap Collection]. Dobile is at {coords}": "在萨诺斯找到想买 [装饰瓶盖收藏] 的人。多比尔在 {coords}",
+    "Find someone in Thanos who wants to buy some [Molten Jasplite Ingots]. Dorroc is at {coords}": "在萨诺斯找到想买 [熔融贾斯普莱特锭] 的人。多罗克在 {coords}",
+    "Find someone in Thanos who wants to buy a [Golemlus Power Cell]. Lodog is at {coords}": "在萨诺斯找到想买 [戈莱姆鲁斯能量电池] 的人。洛多格在 {coords}",
+    "Find someone in Thanos who wants to buy the Ice Drake Scales. Mastro is at {coords}": "在萨诺斯找到想买冰龙鳞片的人。马斯特罗在 {coords}",
+    "Find someone in Thanos who wants to buy an [Ardent Magma Crystal]. Dohstaj is at {coords}": "在萨诺斯找到想买 [炽热岩浆水晶] 的人。多斯塔伊在 {coords}",
+    "Find someone in Thanos who wants to buy the [Dogun Flameshooter]. Syni is at {coords}": "在萨诺斯找到想买 [狗人火焰喷射器] 的人。西尼在 {coords}",
+    "Find someone in Thanos who wants to buy [Draani Thunderwill's Scepter]. Yobon is behind the stone walls at {coords}": "在萨诺斯找到想买 [德拉尼·雷威尔的权杖] 的人。约邦在 {coords} 的石墙后面",
+    "Find someone in Thanos who wants to buy your [Eons-Lost Dwarven History Tablet]. Nakoba is at {coords}": "在萨诺斯找到想买你的 [失落万古的矮人历史碑文] 的人。纳科巴在 {coords}"
+  },
+
+  "Dodegar's Ultimate Weapon": {
+    "Dodegar's Ultimate Weapon": "多德加的终极武器",
+    "Talk to Dodegar in the Light Forest.": "在光之森林与多德加交谈。",
+    "Find an [Enchanted Stick] in the Light Forest.": "在光之森林找到一根 [附魔棍棒]。",
+    "Find a [Sacred Hobbit Metal] in the Light Forest.": "在光之森林找到一块 [神圣霍比特金属]。",
+    "Find a [Diplacus Aurantiacus] in the Light Forest.": "在光之森林找到一株 [橙黄沟酸浆]。",
+    "Find a [Crate of 2000 Luster Blood] in the Light Forest.": "在光之森林找到一个 [装有 2000 份光泽之血的箱子]。",
+    "Return the items to Dodegar.": "将物品还给多德加。"
+  },
+
+  "The Bigger Picture": {
+    "The Bigger Picture": "大局",
+    "Talk to Psilo in the mushroom cave.": "在蘑菇洞穴与普西洛交谈。",
+    "Find the Subtraxerim Utilium mushroom in the cave and bring it back to Psilo.": "在洞穴中找到 Subtraxerim Utilium 蘑菇，带回给普西洛。",
+    "Return to Psilo.": "回到普西洛处。",
+    "Find the mushroom in Psilo's house.": "在普西洛的房子里找到蘑菇。",
+    "Get to the mouse nest by following the cheese trail and get rid of the pest.": "跟随奶酪痕迹找到老鼠巢穴，除掉害虫。",
+    "Get to the blue mushroom and return to normal size.": "到达蓝色蘑菇处，恢复正常大小。",
+    "Give Psilo the good news about the mice.": "告诉普西洛关于老鼠的好消息。"
+  },
+
+  "Hunger of the Gerts Part I": {
+    "Hunger of the Gerts Part I": "格特之饥 第一部分",
+    "Talk to Cikal at {coords}.": "与 {coords} 的西卡尔交谈。",
+    "Talk to Jitak at {coords}.": "与 {coords} 的吉塔克交谈。",
+    "Inspect the Gerten Forwarding Camp at {coords}.": "检查 {coords} 的格特前哨营地。",
+    "Investigate the cave in the back of the camp at {coords}.": "调查 {coords} 营地后方的洞穴。",
+    "Explore the Gerten cave.": "探索格特洞穴。",
+    "Exit the gerten cave.": "离开格特洞穴。",
+    "Return to Jitak at {coords}.": "回到 {coords} 的吉塔克处。",
+    "Go to the gerten pumpkin farm at {coords}.": "前往 {coords} 的格特南瓜农场。",
+    "Find a way to distract the Gert Guard with some food nearby.": "用附近的食物找到分散格特守卫注意力的方法。",
+    "Enter the pumpkin farm at {coords}.": "进入 {coords} 的南瓜农场。",
+    "Find a pumpkin to use as a gert mask.": "找一个南瓜用作格特面具。",
+    "Return to Jitak with the gert mask at {coords}.": "带着格特面具回到 {coords} 的吉塔克处。",
+    "Enter the secret gert tunnel at {coords}.": "进入 {coords} 的秘密格特隧道。",
+    "Leave the tunnel and inform someone about the information you overheard.": "离开隧道，将你听到的信息告诉某人。"
+  },
+
+  "Hunger of the Gerts Part II": {
+    "Hunger of the Gerts Part II": "格特之饥 第二部分",
+    "Talk to the Gerten Chief Lobo at {coords}.": "与 {coords} 的格特酋长洛博交谈。",
+    "Help the Gerts prepare for battle.": "帮助格特们准备战斗。",
+    "Return to Chief Lobo.": "回到洛博酋长处。",
+    "Follow the Gerts to battle.": "跟随格特们进入战斗。",
+    "Defeat the Gylia Watch.": "击败吉利亚守望者。"
+  },
+
+  "Fallen Delivery": {
+    "Fallen Delivery": "堕落快递",
+    "Talk to Bricot.": "与布里科特交谈。",
+    "Scale the house and search the fallen airship for survivors.": "爬上房子，搜索坠落的飞艇寻找幸存者。",
+    "Investigate the bandit fort at {coords}.": "调查 {coords} 的强盗堡垒。",
+    "Follow the trail of papers to the bandit's house.": "跟随纸张的痕迹找到强盗的房子。",
+    "Find the envelope in the cellar and return it to the sender.": "在地窖中找到信封，还给寄件人。",
+    "Find the representative's office in the airship base at {coords}.": "在 {coords} 的飞艇基地找到代表的办公室。",
+    "Find a way to enter the representative's office.": "找到进入代表办公室的方法。",
+    "Enter the representative's office.": "进入代表办公室。",
+    "Catch Representative Ernold.": "抓住代表埃诺尔德。",
+    "Bring the spell scroll back to Gawrick at {coords}.": "将法术卷轴带回给 {coords} 的高里克。"
+  },
+
+  "The Thanos Depository": {
+    "The Thanos Depository": "萨诺斯金库",
+    "Find out what's happening at {coords}.": "查明 {coords} 发生了什么。",
+    "Enter the vault at {coords}.": "进入 {coords} 的金库。",
+    "Head to the Thanos Depository at {coords}.": "前往 {coords} 的萨诺斯金库。",
+    "Find a way through the depository.": "找到穿过金库的方法。",
+    "Ride the minecarts to get further in to the depository.": "乘坐矿车深入金库。",
+    "Steal Ozoth's egg and escape the depository.": "偷走奥佐斯的蛋，逃离金库。",
+    "Use the lift to escape.": "使用电梯逃脱。",
+    "Place Ozoth's egg back in her nest at {coords}.": "将奥佐斯的蛋放回她在 {coords} 的巢穴。",
+    "Talk to Atila.": "与阿提拉交谈。"
+  },
+
+  "The Canyon Guides": {
+    "The Canyon Guides": "峡谷向导",
+    "Speak to Gana at {coords}.": "与 {coords} 的加纳交谈。",
+    "Find Seluc in his camp at {coords}.": "在 {coords} 的营地中找到塞卢克。",
+    "Escort Seluc back to Gana.": "护送塞卢克回到加纳处。",
+    "Find a way to get Seluc past the blockage.": "找到让塞卢克通过障碍的方法。",
+    "Retrieve the coat Seluc left behind at {coords}.": "取回塞卢克留在 {coords} 的外套。",
+    "Talk to Gana and Seluc.": "与加纳和塞卢克交谈。"
+  },
+
+  "The Canary Calls": {
+    "The Canary Calls": "金丝雀的呼唤",
+    "Find out what's happening at the Thesead coal mine at {coords}.": "查明 {coords} 塞西亚德煤矿发生了什么。",
+    "Turn left from the mine's entrance and speak to the chief at {coords}.": "从矿井入口左转，与 {coords} 的矿长交谈。",
+    "Unlock the canary's cage at {coords}.": "打开 {coords} 的金丝雀笼子。",
+    "Head to the mine elevator at {coords}.": "前往 {coords} 的矿井电梯。",
+    "Use the rails to get to the gas leakage.": "使用铁轨到达气体泄漏点。",
+    "Follow the rail tracks and find a way to escape the mine.": "沿着铁轨，找到逃离矿井的方法。",
+    "Continue further in the mine to find a way out.": "继续深入矿井寻找出路。",
+    "Fight the Canary.": "与金丝雀战斗。",
+    "Talk to Chief Clight.": "与克莱特矿长交谈。"
+  },
+
+  "The Lost": {
+    "The Lost": "迷失者",
+    "Talk to Dejol at {coords}.": "与 {coords} 的德乔尔交谈。",
+    "Search for the lost villagers in the canyon.": "在峡谷中寻找失踪的村民。",
+    "Return the lost villagers to Dejol.": "将失踪的村民带回德乔尔处。"
+  },
+
+  "Murder Mystery": {
+    "Murder Mystery": "谋杀之谜",
+    "Talk to Detective Lorias at {coords}.": "与 {coords} 的洛里亚斯侦探交谈。",
+    "Investigate the crime scene at {coords} for clues.": "调查 {coords} 的犯罪现场寻找线索。",
+    "Return to the victim's house at {coords} to find a snake symbol.": "返回 {coords} 的受害者家中寻找蛇形符号。",
+    "Find the gamblers in the Cinfras sewers.": "在辛弗拉斯的下水道中找到赌徒。",
+    "Confront Rohem about the murder at house #09 in Cinfras.": "在辛弗拉斯 09 号房子就谋杀案与罗赫姆对质。",
+    "Find the murder weapon around Rohem's house at house #09 in Cinfras.": "在辛弗拉斯 09 号房子罗赫姆家附近找到凶器。"
+  },
+
+  "Blazing Retribution": {
+    "Blazing Retribution": "炽烈复仇",
+    "Speak to Piere in the Llevigar Plains at {coords}.": "与 {coords} 莱维加尔平原的皮埃尔交谈。",
+    "Report the attack to Detective Jackson at {coords}.": "向 {coords} 的杰克逊侦探报告袭击事件。",
+    "Look for the stolen weapon at the Sablestone and Loamsprout Orc camps.": "在沙石堡和土芽兽人营地寻找被盗的武器。",
+    "Return to Detective Jackson with the news.": "带着消息回到杰克逊侦探处。",
+    "Find the hidden camp in the water near Piere's house at {coords}.": "在 {coords} 皮埃尔家附近的水中找到隐藏的营地。",
+    "Kill Orc Leader Poxper.": "杀死兽人领袖波克斯珀。",
+    "Return the Magic Axe to the Detective.": "将魔法斧头还给侦探。"
+  },
+
+  "Reclaiming the House": {
+    "Reclaiming the House": "夺回房屋",
+    "Join Elphaba on a mission in the Temporary Camp at {coords}.": "在 {coords} 的临时营地加入艾尔法巴的任务。",
+    "Kill the mobs raiding the Camp.": "杀死袭击营地的怪物。",
+    "Talk to Elphaba for information on the upcoming attack.": "与艾尔法巴交谈，获取关于即将到来的袭击的信息。",
+    "Go to the watch tower at {coords} to plan the attack.": "前往 {coords} 的瞭望塔计划攻击。",
+    "Enter the watch tower to plan the attack.": "进入瞭望塔计划攻击。",
+    "Explore the outpost's surroundings to find another way in.": "探索前哨站的周围，找到另一条进入的路。",
+    "Follow the trail of mud left by the orc.": "跟随兽人留下的泥巴痕迹。",
+    "Enter the outpost while covered in mud.": "浑身沾满泥巴进入前哨站。",
+    "Cut the ropes to free the guards from the cage.": "割断绳子，将守卫从笼子中释放。",
+    "Kill the Orcish Overtakers.": "杀死兽人占领者。",
+    "Open the gate with a spell.": "用魔法打开大门。",
+    "Talk to Elphaba.": "与艾尔法巴交谈。"
+  },
+
+  "The Breaking Point": {
+    "The Breaking Point": "崩溃点",
+    "Speak to General Elix at {coords} in Kandon-Beda.": "在 {coords} 坎顿贝达与艾利克斯将军交谈。",
+    "Meet Rhay at the Hot Air Balloon at {coords}.": "在 {coords} 的热气球处与雷会面。",
+    "Travel to Corkus City via the Hot Air Balloon.": "乘坐热气球前往科库斯城。",
+    "Find the contact in the factory at {coords}.": "在 {coords} 的工厂中找到联系人。",
+    "Retrieve the part from the cave at {coords}.": "从 {coords} 的洞穴中取回零件。",
+    "Return to the hot air balloon with the Magmaflux Capacitor.": "带着岩浆流电容器回到热气球处。",
+    "Return to General Elix with the Corkian Stabiliser.": "带着科库斯稳定器回到艾利克斯将军处。",
+    "Meet Ineos and Rhay at the Hot Air Balloon.": "在热气球处与伊尼奥斯和雷会面。",
+    "Travel to Molten Heights with Ineos via the Hot Air Balloon.": "与伊尼奥斯一起乘坐热气球前往熔融高地。",
+    "Speak to Rodoroc's King and the Dogun Chieftain at New Taloka.": "在新塔洛卡与罗多洛克国王和狗人酋长交谈。",
+    "Enter the Dogun Vault within the lower Freezing Heights.": "进入下方冰冻高地的狗人金库。",
+    "Unlock the Dogun Vault to find the Elders.": "打开狗人金库以找到长老们。",
+    "Regroup outside Rodoroc to figure out how to free the Elders.": "在罗多洛克外重新集结，想办法释放长老们。",
+    "Use the Rodoroc trading tunnel to travel to Thanos.": "使用罗多洛克贸易隧道前往萨诺斯。",
+    "Travel to Ozoth's Spire in an attempt to speak with her.": "前往奥佐斯之塔，试图与她交谈。"
+  },
+
+  "Beyond the Grave": {
+    "Beyond the Grave": "超越坟墓",
+    "Speak to Irlok in the Bantisu Air Temple at {coords}.": "在 {coords} 的班提苏天空神殿与伊尔洛克交谈。",
+    "Seek out the creature in the mines at {coords}.": "在 {coords} 的矿井中寻找那个生物。",
+    "Explore the strange realm and bargain with Death.": "探索奇怪的领域，与死亡交易。",
+    "Find a way to exit the strange realm by looking around the mansion.": "通过环顾宅邸找到离开奇怪领域的方法。",
+    "Defeat Krolton to earn your way back to the living.": "击败克罗尔顿，赢得返回生者世界的机会。",
+    "Take proof of Krolton's demise to Irlok at {coords}.": "将克罗尔顿死亡的证据带到 {coords} 的伊尔洛克处。"
+  }
+}

@@ -18,14 +18,17 @@
 skill > item > 其他
 文件名中包含以上字样才会按这个顺序判定。
 
-  items.json              模组预设通用物品Tooltip
-  skb_items.json          SkyBlock物品Tooltip
-  wynncraft_items.json    物品 Tooltip、装备属性、物品名
-  wynncraft_skills.json   技能描述、技能树、职业相关文本
-  wynncraft_quests.json   任务追踪标题、任务步骤、任务描述
-  wynncraft_dialogues.json NPC 名字、剧情对话
+  skyblock_items_zh.json     模组预设SkyBlock物品Tooltip、装备属性、物品名
+  wynncraft_items_zh.json    模组预设WynnCraft物品Tooltip、装备属性、物品名
 
-模组里只预设了items.json字典文件，其余的需要自行下载。
+  skb_items_zh.json          SkyBlock物品Tooltip、装备属性、物品名
+  wynncraft_skills_zh.json   技能描述、技能树、职业相关文本
+  wynncraft_quests_zh.json   任务追踪标题、任务步骤、任务描述
+  wynncraft_dialogues_zh.json NPC 名字、剧情对话
+
+模组里只预设了skyblock_items_zh.json\wynncraft_items_zh.json字典文件，其余的需要自行下载。
+https://github.com/alexeys1/Translate_AllinOne/releases/download/3.0.0/dictionary.zip
+https://modrinth.com/mod/translate_allinone(fork)/versions
 
 -------------------------------------------------
 字典配置说明
@@ -78,8 +81,9 @@ original为原始数据，一般仅做参考。
 
   {
     "Health": "生命值",
-    "Mana Cost: {n}": "法力消耗：{n}",
-    "Walk Speed": "行走速度"
+    "Mana Cost": "法力消耗",
+    "Walk Speed": "行走速度",
+    "{d1} Coins": "§3{d1} §6金币"
   }
 
 任务字典可以用任务名分组（方便你自己整理）：

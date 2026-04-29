@@ -48,8 +48,8 @@ public final class WynnDialogueTranslationSupport {
     private static final int MIN_OVERLAY_CHOICE_MERGE_OVERLAP = 5;
     private static final int MIN_OVERLAY_CHOICE_DISPLAY_QUALITY_GAIN = 12;
     private static final int SAME_DIALOGUE_PREFIX_LENGTH = 10;
-    private static final long OVERLAY_STABLE_DELAY_MILLIS = 1000L;
-    private static final long OVERLAY_OPTIONS_STABLE_DELAY_MILLIS = 2000L;
+    private static final long OVERLAY_STABLE_DELAY_MILLIS = 700L;
+    private static final long OVERLAY_OPTIONS_STABLE_DELAY_MILLIS = 700L;
     private static final long OVERLAY_QUEUE_THROTTLE_MILLIS = 100L;
     private static final long DEBUG_CHAT_LOG_THROTTLE_MILLIS = 1500L;
     private static final long DEBUG_OVERLAY_LOG_THROTTLE_MILLIS = 500L;

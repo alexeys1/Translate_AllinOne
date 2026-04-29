@@ -168,9 +168,6 @@ public class ConfigManager {
         if (configToUse.wynnCraft.npc_dialogue.hud == null) {
             configToUse.wynnCraft.npc_dialogue.hud = new WynnCraftConfig.HudConfig();
         }
-        if (configToUse.wynnCraft.npc_dialogue.options_hud == null) {
-            configToUse.wynnCraft.npc_dialogue.options_hud = WynnCraftConfig.HudConfig.optionsDefaults();
-        }
         if (configToUse.wynnCraft.npc_dialogue.debug == null) {
             configToUse.wynnCraft.npc_dialogue.debug = new WynnCraftConfig.DebugConfig();
         }
@@ -257,8 +254,21 @@ public class ConfigManager {
         if (configToUse.scoreboardTranslate.debug == null) {
             configToUse.scoreboardTranslate.debug = new ScoreboardConfig.DebugConfig();
         }
-        normalizeHudConfig(configToUse.wynnCraft.npc_dialogue.hud);
-        normalizeHudConfig(configToUse.wynnCraft.npc_dialogue.options_hud);
+        configToUse.wynnCraft.npc_dialogue.hud.scale_percent = clamp(
+                configToUse.wynnCraft.npc_dialogue.hud.scale_percent,
+                WynnCraftConfig.HudConfig.MIN_SCALE_PERCENT,
+                WynnCraftConfig.HudConfig.MAX_SCALE_PERCENT
+        );
+        configToUse.wynnCraft.npc_dialogue.hud.x_offset = clamp(
+                configToUse.wynnCraft.npc_dialogue.hud.x_offset,
+                WynnCraftConfig.HudConfig.MIN_X_OFFSET,
+                WynnCraftConfig.HudConfig.MAX_X_OFFSET
+        );
+        configToUse.wynnCraft.npc_dialogue.hud.y_offset = clamp(
+                configToUse.wynnCraft.npc_dialogue.hud.y_offset,
+                WynnCraftConfig.HudConfig.MIN_Y_OFFSET,
+                WynnCraftConfig.HudConfig.MAX_Y_OFFSET
+        );
 
         configToUse.cacheBackup.backup_interval_minutes = clamp(
                 configToUse.cacheBackup.backup_interval_minutes,
@@ -382,14 +392,6 @@ public class ConfigManager {
         return getLegacyItemDevObject(rawConfig) != null && getItemDebugObject(rawConfig) == null;
     }
 
-    private static boolean isLegacyItemDevModeEnabled(JsonElement rawConfig) {
-        JsonObject itemTranslateObject = getItemTranslateObject(rawConfig);
-        if (itemTranslateObject == null || !itemTranslateObject.has("dev_mode")) {
-            return false;
-        }
-        JsonElement legacyDevMode = itemTranslateObject.get("dev_mode");
-        return legacyDevMode != null && legacyDevMode.isJsonPrimitive() && legacyDevMode.getAsBoolean();
-    }
     private static boolean migrateLegacyItemLocalHitLogging(JsonElement rawConfig, ModConfig loadedConfig) {
         if (!hasLegacyItemLocalHitLogging(rawConfig)) {
             return false;
@@ -418,6 +420,27 @@ public class ConfigManager {
                 || getBooleanField(getLegacyItemDevObject(rawConfig), "log_local_dictionary_hits");
     }
 
+    private static boolean isLegacyItemDevModeEnabled(JsonElement rawConfig) {
+        JsonObject itemTranslateObject = getItemTranslateObject(rawConfig);
+        if (itemTranslateObject == null || !itemTranslateObject.has("dev_mode")) {
+            return false;
+        }
+        JsonElement legacyDevMode = itemTranslateObject.get("dev_mode");
+        return legacyDevMode != null && legacyDevMode.isJsonPrimitive() && legacyDevMode.getAsBoolean();
+    }
+
+    private static boolean hasBooleanField(JsonObject object, String fieldName) {
+        JsonElement element = object == null || fieldName == null ? null : object.get(fieldName);
+        return element != null && element.isJsonPrimitive() && element.getAsJsonPrimitive().isBoolean();
+    }
+
+    private static boolean getBooleanField(JsonObject object, String fieldName) {
+        JsonElement element = object == null || fieldName == null ? null : object.get(fieldName);
+        return element != null
+                && element.isJsonPrimitive()
+                && element.getAsJsonPrimitive().isBoolean()
+                && element.getAsBoolean();
+    }
 
     private static JsonObject getItemTranslateObject(JsonElement rawConfig) {
         return ConfigMigrationSupport.getItemTranslateObject(rawConfig);
@@ -433,19 +456,6 @@ public class ConfigManager {
             return null;
         }
         return wynnCraft.getAsJsonObject();
-    }
-
-    private static boolean hasBooleanField(JsonObject object, String fieldName) {
-        JsonElement element = object == null || fieldName == null ? null : object.get(fieldName);
-        return element != null && element.isJsonPrimitive() && element.getAsJsonPrimitive().isBoolean();
-    }
-
-    private static boolean getBooleanField(JsonObject object, String fieldName) {
-        JsonElement element = object == null || fieldName == null ? null : object.get(fieldName);
-        return element != null
-                && element.isJsonPrimitive()
-                && element.getAsJsonPrimitive().isBoolean()
-                && element.getAsBoolean();
     }
 
     private static JsonObject getNestedObject(JsonObject parent, String memberName) {
