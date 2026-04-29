@@ -47,6 +47,10 @@ final class WynncraftPlaceholderDictionary {
                 : dictionaryLabel;
     }
 
+    long getVersion() {
+        return snapshotState.version();
+    }
+
     public synchronized void load() {
         DictionarySnapshot loadedSnapshot = loadSnapshot();
         snapshotState = new SnapshotState(loadedSnapshot, snapshotState.version() + 1L);

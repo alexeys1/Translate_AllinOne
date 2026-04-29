@@ -2,6 +2,8 @@ package com.cedarxuesong.translate_allinone.utils.translate;
 
 import com.cedarxuesong.translate_allinone.utils.AnimationManager;
 import net.minecraft.text.Text;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -14,6 +16,9 @@ public final class TooltipTranslationContext {
     private static final long RECENT_TRANSLATED_TOOLTIP_STALE_MILLIS = 750L;
     private static final long DRAW_CONTEXT_SKIP_EXPECTATION_STALE_MILLIS = 750L;
     private static final long SCREEN_MIRROR_SKIP_EXPECTATION_STALE_MILLIS = 750L;
+    private static final int MAX_RENDER_DEPTH = 16;
+    private static final long UNCONSUMED_SKIP_LOG_THROTTLE_MILLIS = 5_000L;
+    private static volatile long lastUnconsumedSkipLogAt;
     private static final ThreadLocal<Boolean> SKIP_DRAW_CONTEXT_TRANSLATION = ThreadLocal.withInitial(() -> false);
     private static final ThreadLocal<Integer> SKIP_DRAW_CONTEXT_TOOLTIP_SIGNATURE = ThreadLocal.withInitial(() -> 0);
     private static final ThreadLocal<Long> SKIP_DRAW_CONTEXT_TOOLTIP_RECORDED_AT = ThreadLocal.withInitial(() -> 0L);
@@ -28,6 +33,8 @@ public final class TooltipTranslationContext {
     private static final ThreadLocal<Long> WYNN_QUEST_TOOLTIP_RENDER_ENTERED_AT = ThreadLocal.withInitial(() -> 0L);
     private static final ThreadLocal<Integer> RECENT_TRANSLATED_TOOLTIP_SIGNATURE = ThreadLocal.withInitial(() -> 0);
     private static final ThreadLocal<Long> RECENT_TRANSLATED_TOOLTIP_RECORDED_AT = ThreadLocal.withInitial(() -> 0L);
+
+    private static final Logger LOGGER = LoggerFactory.getLogger("Translate_AllinOne/TooltipTranslationContext");
 
     private TooltipTranslationContext() {
     }
@@ -56,6 +63,15 @@ public final class TooltipTranslationContext {
             return false;
         }
         if (!matchesExpectedDrawContextTooltip(tooltipLines)) {
+            long now = System.currentTimeMillis();
+            if (now - lastUnconsumedSkipLogAt > UNCONSUMED_SKIP_LOG_THROTTLE_MILLIS) {
+                lastUnconsumedSkipLogAt = now;
+                LOGGER.debug(
+                        "Skip flag set but tooltip signature does not match expected. "
+                                + "Flag will remain set until stale timeout ({}ms).",
+                        DRAW_CONTEXT_SKIP_EXPECTATION_STALE_MILLIS
+                );
+            }
             return false;
         }
         setSkipDrawContextTranslation(false);
@@ -118,7 +134,13 @@ public final class TooltipTranslationContext {
             WYNNMOD_TOOLTIP_RENDER_DEPTH.set(1);
             return;
         }
-        WYNNMOD_TOOLTIP_RENDER_DEPTH.set(depth + 1);
+        int next = depth + 1;
+        if (next > MAX_RENDER_DEPTH) {
+            LOGGER.error("Wynnmod tooltip render depth exceeded max ({}). Resetting to 0.", MAX_RENDER_DEPTH);
+            WYNNMOD_TOOLTIP_RENDER_DEPTH.set(0);
+            return;
+        }
+        WYNNMOD_TOOLTIP_RENDER_DEPTH.set(next);
     }
 
     public static void popWynnmodTooltipRender() {

@@ -98,6 +98,13 @@ public final class WynnSharedDictionaryService {
         return toLookupResult(itemDictionary.lookupTranslation(sourceText), "items");
     }
 
+    long getItemSkillVersion() {
+        if (itemSkillDictionary != null) {
+            return itemSkillDictionary.getVersion();
+        }
+        return 0L;
+    }
+
     boolean hasItemDictionaryEntries() {
         if (!isDictionaryEnabled()) {
             return false;

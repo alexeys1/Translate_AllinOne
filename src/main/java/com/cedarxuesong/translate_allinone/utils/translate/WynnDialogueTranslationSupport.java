@@ -367,6 +367,7 @@ public final class WynnDialogueTranslationSupport {
 
         maybeQueueStableOverlayDialogue();
         refreshCurrentDialogueDisplay();
+        maybeCopyCurrentPresentedTextDebug();
     }
 
     public static void resetSession() {
@@ -384,13 +385,15 @@ public final class WynnDialogueTranslationSupport {
             return;
         }
 
+        PresentedDialogueState presentedState = lastPresentedState;
+        long capturedNonce = presentedState == null ? 0L : presentedState.observedNonce();
         Map<String, String> snapshot = Map.copyOf(translations);
         MinecraftClient client = MinecraftClient.getInstance();
         if (client != null) {
-            client.execute(() -> applyCacheTranslationsToHud(snapshot));
+            client.execute(() -> applyCacheTranslationsToHud(snapshot, capturedNonce));
             return;
         }
-        applyCacheTranslationsToHud(snapshot);
+        applyCacheTranslationsToHud(snapshot, capturedNonce);
     }
 
     public static String extractTranslatableValue(String cacheKey) {
@@ -524,21 +527,6 @@ public final class WynnDialogueTranslationSupport {
         );
     }
 
-    private static void registerCandidate(DialogueCandidate candidate) {
-        currentCandidate = candidate;
-        if (candidate != null) {
-            throttledDevLog(
-                "candidate_registered_" + (candidate.overlaySource() ? "overlay" : "chat"),
-                candidate.overlaySource() ? DEBUG_OVERLAY_LOG_THROTTLE_MILLIS : DEBUG_CHAT_LOG_THROTTLE_MILLIS,
-                "candidate_registered source={} page={} npc=\"{}\" dialogue=\"{}\"",
-                candidate.overlaySource() ? "overlay" : "chat",
-                candidate.pageInfo(),
-                describeForLog(candidate.npcName()),
-                describeForLog(candidate.dialogue())
-            );
-        }
-    }
-
     private static void throttledDialoguesLocalMissLog(String match, String input, String context, String detail) {
         if (!isDialoguesLocalHitLoggingEnabled()) {
             return;
@@ -565,6 +553,22 @@ public final class WynnDialogueTranslationSupport {
                 describeForLog(normalizedInput),
                 describeForLog(detail)
         );
+    }
+
+    private static void registerCandidate(DialogueCandidate candidate) {
+        currentCandidate = candidate;
+        if (candidate != null) {
+            throttledDevLog(
+                "candidate_registered_" + (candidate.overlaySource() ? "overlay" : "chat"),
+                candidate.overlaySource() ? DEBUG_OVERLAY_LOG_THROTTLE_MILLIS : DEBUG_CHAT_LOG_THROTTLE_MILLIS,
+                "candidate_registered source={} page={} npc=\"{}\" dialogue=\"{}\" options=\"{}\"",
+                candidate.overlaySource() ? "overlay" : "chat",
+                candidate.pageInfo(),
+                describeForLog(candidate.npcName()),
+                describeForLog(candidate.dialogue()),
+                describeForLog(candidate.optionsText())
+            );
+        }
     }
 
     private static DialogueCandidate resolveOverlayParseCandidate(String readableText) {
@@ -652,11 +656,13 @@ public final class WynnDialogueTranslationSupport {
                 + "\n" + dialogueState.animationKey()
                 + "\n" + originalOptionsText
                 + "\n" + displayOptionsText
-                + "\n" + optionsState.pending();
+                + "\n" + optionsState.pending()
+                + "\n" + optionsState.animationKey();
         if (presentedPayload.equals(lastPresentedPayload)) {
             return;
         }
 
+        boolean optionsPending = optionsState.pending() && shouldRenderTranslated;
         WynnDialogueHudRenderer.showDialogue(
                 candidate.pageInfo(),
                 translatedNpcName,
@@ -664,7 +670,9 @@ public final class WynnDialogueTranslationSupport {
                 displayDialogue,
                 dialogueState.pending() && shouldRenderTranslated,
                 dialogueState.animationKey(),
-                displayOptionsText
+                displayOptionsText,
+                optionsPending,
+                optionsState.animationKey()
         );
         lastPresentedState = new PresentedDialogueState(
                 candidate.observedNonce(),
@@ -693,7 +701,53 @@ public final class WynnDialogueTranslationSupport {
         lastPresentedPayload = presentedPayload;
     }
 
-    private static void applyCacheTranslationsToHud(Map<String, String> translations) {
+    private static void maybeCopyCurrentPresentedTextDebug() {
+        PresentedDialogueState presentedState = lastPresentedState;
+        if (presentedState == null || System.currentTimeMillis() > presentedState.displayUntilEpochMillis()) {
+            return;
+        }
+
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client != null && client.currentScreen != null) {
+            return;
+        }
+
+        List<TooltipTextDebugCopySupport.TextDebugEntry> entries = new ArrayList<>();
+        Set<String> keys = ConcurrentHashMap.newKeySet();
+        addTextDebugEntry(entries, keys, prepareDialogueValue(presentedState.originalDialogue()));
+        for (String optionLine : splitOptionDisplayLines(presentedState.originalOptionsText())) {
+            addTextDebugEntry(entries, keys, prepareOptionValue(optionLine));
+        }
+        TooltipTextDebugCopySupport.maybeCopyTextEntries(entries, "text.translate_allinone.dialogue_debug.copied");
+    }
+
+    private static void addTextDebugEntry(
+            List<TooltipTextDebugCopySupport.TextDebugEntry> entries,
+            Set<String> keys,
+            String text
+    ) {
+        if (entries == null || keys == null || text == null || text.isBlank() || !keys.add(text)) {
+            return;
+        }
+
+        entries.add(new TooltipTextDebugCopySupport.TextDebugEntry(text, text));
+    }
+
+    private static void applyCacheTranslationsToHud(Map<String, String> translations, long capturedNonce) {
+        PresentedDialogueState stateBeforeRefresh = lastPresentedState;
+        if (capturedNonce != 0L
+                && stateBeforeRefresh != null
+                && capturedNonce != stateBeforeRefresh.observedNonce()) {
+            throttledDevLog(
+                    "stale_translation_callback",
+                    DEBUG_OVERLAY_LOG_THROTTLE_MILLIS,
+                    "Dropping stale translation callback — nonce mismatch. captured={} current={}",
+                    capturedNonce,
+                    stateBeforeRefresh.observedNonce()
+            );
+            return;
+        }
+
         refreshCurrentDialogueDisplay();
 
         PresentedDialogueState presentedState = lastPresentedState;
@@ -762,12 +816,16 @@ public final class WynnDialogueTranslationSupport {
             }
         }
 
+        boolean optionsPending = false;
+        String optionsAnimationKey = "";
         if (shouldShowOptions && optionTranslationTouched) {
             DialogueDisplayState optionsState = resolveOptionsDisplayState(presentedState.originalOptionsText(), false);
             if (!Objects.equals(updatedOptionsText, optionsState.displayText())) {
                 updatedOptionsText = optionsState.displayText();
                 changed = true;
             }
+            optionsPending = optionsState.pending();
+            optionsAnimationKey = optionsState.animationKey();
         }
 
         if (!changed) {
@@ -781,7 +839,9 @@ public final class WynnDialogueTranslationSupport {
                 updatedDialogue,
                 false,
                 "",
-                updatedOptionsText
+                updatedOptionsText,
+                optionsPending,
+                optionsAnimationKey
         );
         PresentedDialogueState refreshedState = new PresentedDialogueState(
                 presentedState.observedNonce(),
@@ -813,7 +873,7 @@ public final class WynnDialogueTranslationSupport {
                 + "\nfalse\n"
                 + "\n" + presentedState.originalOptionsText()
                 + "\n" + updatedOptionsText
-                + "\nfalse";
+                + "\nfalse\n" + optionsAnimationKey;
         throttledDevLog(
                 "hud_async_refresh",
                 DEBUG_HUD_LOG_THROTTLE_MILLIS,
