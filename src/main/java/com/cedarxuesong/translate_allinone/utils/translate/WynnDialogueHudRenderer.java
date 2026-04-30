@@ -35,6 +35,9 @@ public final class WynnDialogueHudRenderer {
     private static final int OPTION_ROW_GAP = 3;
     private static final int OPTION_ROW_PADDING_Y = 2;
 
+    private static final String STATUS_ERROR_PREFIX = "Translation error";
+    private static final int STATUS_LINE_COLOR = 0xFFFF5555;
+
     private static boolean initialized;
     private static String currentPageInfo = "";
     private static String currentNpcName = "";
@@ -44,7 +47,8 @@ public final class WynnDialogueHudRenderer {
     private static boolean currentTranslationPending;
     private static String currentAnimationKey = "";
     private static boolean currentOptionsPending;
-    private static String currentOptionsAnimationKey = "";
+    private static List<String> currentOptionsAnimationKeys = List.of();
+    private static String currentErrorMessage = "";
     private static long displayUntil;
     private static String lastRenderedPayload = "";
 
@@ -71,7 +75,7 @@ public final class WynnDialogueHudRenderer {
             boolean pending,
             String animationKey
     ) {
-        showDialogue(pageInfo, npcName, dialogue, translation, pending, animationKey, "", false, "");
+        showDialogue(pageInfo, npcName, dialogue, translation, pending, animationKey, "", false, List.of(), "");
     }
 
     public static synchronized void showDialogue(
@@ -83,7 +87,7 @@ public final class WynnDialogueHudRenderer {
             String animationKey,
             String optionsText
     ) {
-        showDialogue(pageInfo, npcName, dialogue, translation, pending, animationKey, optionsText, false, "");
+        showDialogue(pageInfo, npcName, dialogue, translation, pending, animationKey, optionsText, false, List.of(), "");
     }
 
     public static synchronized void showDialogue(
@@ -95,7 +99,22 @@ public final class WynnDialogueHudRenderer {
             String animationKey,
             String optionsText,
             boolean optionsPending,
-            String optionsAnimationKey
+            List<String> optionsAnimationKeys
+    ) {
+        showDialogue(pageInfo, npcName, dialogue, translation, pending, animationKey, optionsText, optionsPending, optionsAnimationKeys, "");
+    }
+
+    public static synchronized void showDialogue(
+            String pageInfo,
+            String npcName,
+            String dialogue,
+            String translation,
+            boolean pending,
+            String animationKey,
+            String optionsText,
+            boolean optionsPending,
+            List<String> optionsAnimationKeys,
+            String errorMessage
     ) {
         String safePageInfo = pageInfo == null ? "" : pageInfo;
         String safeNpcName = npcName == null ? "" : npcName;
@@ -103,7 +122,7 @@ public final class WynnDialogueHudRenderer {
         String safeTranslation = translation == null ? "" : translation.trim();
         String safeAnimationKey = animationKey == null ? "" : animationKey;
         String safeOptionsText = optionsText == null ? "" : optionsText.trim();
-        String safeOptionsAnimationKey = optionsAnimationKey == null ? "" : optionsAnimationKey;
+        List<String> safeOptionsAnimationKeys = optionsAnimationKeys == null ? List.of() : optionsAnimationKeys;
         if (safeTranslation.isEmpty()) {
             return;
         }
@@ -116,7 +135,8 @@ public final class WynnDialogueHudRenderer {
                 && currentTranslationPending == pending
                 && Objects.equals(currentAnimationKey, safeAnimationKey)
                 && currentOptionsPending == optionsPending
-                && Objects.equals(currentOptionsAnimationKey, safeOptionsAnimationKey)) {
+                && Objects.equals(currentOptionsAnimationKeys, safeOptionsAnimationKeys)
+                && Objects.equals(currentErrorMessage, errorMessage)) {
             return;
         }
 
@@ -128,7 +148,8 @@ public final class WynnDialogueHudRenderer {
         currentTranslationPending = pending;
         currentAnimationKey = safeAnimationKey;
         currentOptionsPending = optionsPending;
-        currentOptionsAnimationKey = safeOptionsAnimationKey;
+        currentOptionsAnimationKeys = safeOptionsAnimationKeys;
+        currentErrorMessage = errorMessage == null ? "" : errorMessage;
         displayUntil = System.currentTimeMillis() + DISPLAY_DURATION_MILLIS;
         WynnDialogueTranslationSupport.throttledDevLog(
                 "hud_state_set",
@@ -142,7 +163,7 @@ public final class WynnDialogueHudRenderer {
                 pending,
                 safeAnimationKey,
                 optionsPending,
-                safeOptionsAnimationKey
+                safeOptionsAnimationKeys
         );
     }
 
@@ -155,7 +176,8 @@ public final class WynnDialogueHudRenderer {
         currentTranslationPending = false;
         currentAnimationKey = "";
         currentOptionsPending = false;
-        currentOptionsAnimationKey = "";
+        currentOptionsAnimationKeys = List.of();
+        currentErrorMessage = "";
         displayUntil = 0L;
         lastRenderedPayload = "";
     }
@@ -258,7 +280,7 @@ public final class WynnDialogueHudRenderer {
                     content.optionsText(),
                     resolveOptionsHudLayout()
             );
-            drawOptionsRows(drawContext, textRenderer, optionsRenderData, 0, 0, false, "");
+            drawOptionsRows(drawContext, textRenderer, optionsRenderData, 0, 0, List.of());
         }
     }
 
@@ -275,7 +297,8 @@ public final class WynnDialogueHudRenderer {
         boolean pending;
         String animationKey;
         boolean optionsPending;
-        String optionsAnimationKey;
+        List<String> optionsAnimationKeys;
+        String errorMessage;
         long visibleUntil;
         synchronized (WynnDialogueHudRenderer.class) {
             translation = currentTranslation;
@@ -285,7 +308,8 @@ public final class WynnDialogueHudRenderer {
             pending = currentTranslationPending;
             animationKey = currentAnimationKey;
             optionsPending = currentOptionsPending;
-            optionsAnimationKey = currentOptionsAnimationKey;
+            optionsAnimationKeys = currentOptionsAnimationKeys;
+            errorMessage = currentErrorMessage;
             visibleUntil = displayUntil;
         }
 
@@ -319,6 +343,9 @@ public final class WynnDialogueHudRenderer {
                 hudLayout
         );
         drawDialogueBox(drawContext, textRenderer, renderData, 0, 0);
+        if (errorMessage != null && !errorMessage.isBlank()) {
+            drawErrorStatusLine(drawContext, textRenderer, renderData, errorMessage);
+        }
         DialogueRenderData optionsRenderData = null;
         if (optionsText != null && !optionsText.isBlank()) {
             optionsRenderData = prepareOptionsRenderData(
@@ -328,7 +355,7 @@ public final class WynnDialogueHudRenderer {
                     Text.literal(optionsText),
                     resolveOptionsHudLayout()
             );
-            drawOptionsRows(drawContext, textRenderer, optionsRenderData, 0, 0, optionsPending, optionsAnimationKey);
+            drawOptionsRows(drawContext, textRenderer, optionsRenderData, 0, 0, optionsAnimationKeys);
         }
 
         String renderPayload = pageInfo + "\n" + npcName + "\n" + translation
@@ -336,7 +363,8 @@ public final class WynnDialogueHudRenderer {
                 + "\n" + pending
                 + "\n" + animationKey
                 + "\n" + optionsPending
-                + "\n" + optionsAnimationKey
+                + "\n" + (optionsAnimationKeys == null ? "" : String.join(",", optionsAnimationKeys))
+                + "\n" + errorMessage
                 + "\n" + renderData.hudLayout().scalePercent()
                 + "\n" + renderData.hudLayout().xOffset()
                 + "\n" + renderData.hudLayout().yOffset()
@@ -595,14 +623,30 @@ public final class WynnDialogueHudRenderer {
         drawContext.getMatrices().popMatrix();
     }
 
+    private static void drawErrorStatusLine(
+            DrawContext drawContext,
+            TextRenderer textRenderer,
+            DialogueRenderData renderData,
+            String errorMessage
+    ) {
+        drawContext.getMatrices().pushMatrix();
+        drawContext.getMatrices().translate((float) renderData.x(), (float) (renderData.y() + renderData.scaledBoxHeight() + 2));
+        drawContext.getMatrices().scale(renderData.hudLayout().scale(), renderData.hudLayout().scale());
+        String statusText = STATUS_ERROR_PREFIX;
+        if (errorMessage != null && !errorMessage.isBlank()) {
+            statusText = STATUS_ERROR_PREFIX + ": " + errorMessage;
+        }
+        drawContext.drawTextWithShadow(textRenderer, Text.literal(statusText), 0, 0, STATUS_LINE_COLOR);
+        drawContext.getMatrices().popMatrix();
+    }
+
     private static void drawOptionsRows(
             DrawContext drawContext,
             TextRenderer textRenderer,
             DialogueRenderData renderData,
             int viewportX,
             int viewportY,
-            boolean animated,
-            String animationKey
+            List<String> perLineAnimationKeys
     ) {
         drawContext.getMatrices().pushMatrix();
         drawContext.getMatrices().translate((float) (viewportX + renderData.x()), (float) (viewportY + renderData.y()));
@@ -621,9 +665,11 @@ public final class WynnDialogueHudRenderer {
             List<OrderedText> group = groups.get(gi);
 
             List<OrderedText> renderLines;
-            if (animated && rawSegments != null && gi < rawSegments.size()) {
+            String lineAnimationKey = (perLineAnimationKeys != null && gi < perLineAnimationKeys.size())
+                    ? perLineAnimationKeys.get(gi) : "";
+            if (!lineAnimationKey.isBlank() && rawSegments != null && gi < rawSegments.size()) {
                 Text animatedText = AnimationManager.getAnimatedStyledText(
-                        Text.literal(rawSegments.get(gi)), animationKey, false);
+                        Text.literal(rawSegments.get(gi)), lineAnimationKey, false);
                 renderLines = textRenderer.wrapLines(animatedText, maxContentWidth);
             } else {
                 renderLines = group;

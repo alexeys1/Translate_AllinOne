@@ -43,13 +43,13 @@ public final class WynnDialogueTranslationSupport {
     private static final int MIN_OVERLAY_RAW_LENGTH = 150;
     private static final int MIN_OVERLAY_DIALOGUE_LENGTH = 15;
     private static final int MIN_PREFIX_MATCH_LENGTH = 5;
-    private static final int MIN_DIALOGUE_DICTIONARY_WORD_COUNT = 2;
+    private static final int MIN_DIALOGUE_DICTIONARY_WORD_COUNT = 3;
     private static final int MIN_OVERLAY_CHOICE_FRAGMENT_LENGTH = 4;
     private static final int MIN_OVERLAY_CHOICE_MERGE_OVERLAP = 5;
     private static final int MIN_OVERLAY_CHOICE_DISPLAY_QUALITY_GAIN = 12;
     private static final int SAME_DIALOGUE_PREFIX_LENGTH = 10;
-    private static final long OVERLAY_STABLE_DELAY_MILLIS = 700L;
-    private static final long OVERLAY_OPTIONS_STABLE_DELAY_MILLIS = 700L;
+    private static final long OVERLAY_STABLE_DELAY_MILLIS = 1000L;
+    private static final long OVERLAY_OPTIONS_STABLE_DELAY_MILLIS = 1200L;
     private static final long OVERLAY_QUEUE_THROTTLE_MILLIS = 100L;
     private static final long DEBUG_CHAT_LOG_THROTTLE_MILLIS = 1500L;
     private static final long DEBUG_OVERLAY_LOG_THROTTLE_MILLIS = 500L;
@@ -246,10 +246,12 @@ public final class WynnDialogueTranslationSupport {
         if (!shouldTranslateOptions) {
             clearOverlayChoiceOptionsTracking();
         }
+        boolean fontPath = WynnDialogueFontExtractor.extract(message).matched();
         throttledDevLog(
                 "overlay_observed",
                 DEBUG_OVERLAY_LOG_THROTTLE_MILLIS,
-                "overlay_observed rawLen={} filteredLen={} rawPreview=\"{}\" filteredPreview=\"{}\"",
+                "overlay_observed path={} rawLen={} filteredLen={} rawPreview=\"{}\" filteredPreview=\"{}\"",
+                fontPath ? "font" : "overlay",
                 raw.length(),
                 readableText.length(),
                 describeForLog(raw),
@@ -257,6 +259,7 @@ public final class WynnDialogueTranslationSupport {
         );
         OverlayReadableParse readableParse = tryFontBasedOverlayParse(message, readableText, readableSegments, shouldTranslateOptions);
         if (readableParse == null) {
+            fontPath = false;
             readableParse = parseReadableOverlayText(
                     readableText,
                     resolveOverlayParseCandidate(readableText),
@@ -267,8 +270,9 @@ public final class WynnDialogueTranslationSupport {
             throttledDevLog(
                     readableParse.choicePrompt() ? "overlay_choice_rejected" : "overlay_fallback_rejected",
                     DEBUG_OVERLAY_LOG_THROTTLE_MILLIS,
-                    "{} reason={} filteredPreview=\"{}\"",
+                    "{} path={} reason={} filteredPreview=\"{}\"",
                     readableParse.choicePrompt() ? "overlay_choice_rejected" : "overlay_fallback_rejected",
+                    fontPath ? "font" : "overlay",
                     readableParse.rejectionReason(),
                     describeForLog(readableText)
             );
@@ -322,15 +326,18 @@ public final class WynnDialogueTranslationSupport {
         if (sameDialogue && !sameCandidate && overlayDialogueQueued) {
             overlayDialogueQueued = false;
         }
-        String previousOptionsText = sameDialogueCandidate ? previousCandidate.optionsText() : "";
-        String optionsText = shouldTranslateOptions && readableParse.choicePrompt()
-                ? chooseOverlayChoiceOptionsDisplayText(
-                        previousOptionsText,
-                        stabilizeOverlayChoiceOptionsText(npcName, dialogue, readableParse.optionsText())
-                )
-                : "";
-        if (!shouldTranslateOptions || !readableParse.choicePrompt()) {
-            clearOverlayChoiceOptionsTracking();
+        String optionsText;
+        if (shouldTranslateOptions && readableParse.choicePrompt()) {
+            String previousOptionsText = sameDialogueCandidate ? previousCandidate.optionsText() : "";
+            optionsText = chooseOverlayChoiceOptionsDisplayText(
+                    previousOptionsText,
+                    stabilizeOverlayChoiceOptionsText(npcName, dialogue, readableParse.optionsText())
+            );
+        } else {
+            optionsText = "";
+            if (!shouldTranslateOptions || !readableParse.choicePrompt()) {
+                clearOverlayChoiceOptionsTracking();
+            }
         }
         long observedNonce = sameCandidate ? previousCandidate.observedNonce() : System.nanoTime();
         long now = System.currentTimeMillis();
@@ -348,7 +355,8 @@ public final class WynnDialogueTranslationSupport {
         throttledDevLog(
                 "overlay_matched",
                 DEBUG_OVERLAY_LOG_THROTTLE_MILLIS,
-                "overlay_matched mode={} continueIndex={} npc=\"{}\" dialogue=\"{}\" sameDialogue={}",
+                "overlay_matched path={} mode={} continueIndex={} npc=\"{}\" dialogue=\"{}\" sameDialogue={}",
+                fontPath ? "font" : "overlay",
                 readableParse.mode(),
                 readableParse.promptIndex(),
                 describeForLog(npcName),
@@ -629,11 +637,15 @@ public final class WynnDialogueTranslationSupport {
         DialogueDisplayState dialogueState = shouldRenderTranslated
                 ? resolveDialogueDisplayState(candidate.dialogue(), candidate.overlaySource(), allowDisplayQueue)
                 : DialogueDisplayState.of(candidate.dialogue(), false, "");
-        DialogueDisplayState optionsState = shouldShowOptions
-                ? shouldRenderTranslated
-                        ? resolveOptionsDisplayState(candidate.optionsText(), allowDisplayQueue)
-                        : DialogueDisplayState.of(candidate.optionsText(), false, "")
-                : DialogueDisplayState.of("", false, "");
+        OptionsDisplayResult optionsResult = shouldShowOptions && shouldRenderTranslated
+                ? resolveOptionsDisplayState(candidate.optionsText(), allowDisplayQueue)
+                : new OptionsDisplayResult(
+                        shouldShowOptions
+                                ? DialogueDisplayState.of(candidate.optionsText(), false, "")
+                                : DialogueDisplayState.of("", false, ""),
+                        List.of());
+        DialogueDisplayState optionsState = optionsResult.state();
+        List<String> perLineAnimationKeys = optionsResult.perLineAnimationKeys();
         boolean meaningfullyTranslated = shouldRenderTranslated
                 && !dialogueState.pending()
                 && isMeaningfullyTranslated(candidate.dialogue(), dialogueState.displayText());
@@ -663,17 +675,27 @@ public final class WynnDialogueTranslationSupport {
             return;
         }
 
+        boolean dialoguePending = dialogueState.pending() && shouldRenderTranslated;
         boolean optionsPending = optionsState.pending() && shouldRenderTranslated;
+        String errorMessage = "";
+        if (shouldRenderTranslated) {
+            if (dialogueState.hasError()) {
+                errorMessage = dialogueState.errorMessage();
+            } else if (optionsState.hasError()) {
+                errorMessage = optionsState.errorMessage();
+            }
+        }
         WynnDialogueHudRenderer.showDialogue(
                 candidate.pageInfo(),
                 translatedNpcName,
                 candidate.dialogue(),
                 displayDialogue,
-                dialogueState.pending() && shouldRenderTranslated,
+                dialoguePending,
                 dialogueState.animationKey(),
                 displayOptionsText,
                 optionsPending,
-                optionsState.animationKey()
+                perLineAnimationKeys,
+                errorMessage
         );
         lastPresentedState = new PresentedDialogueState(
                 candidate.observedNonce(),
@@ -684,7 +706,7 @@ public final class WynnDialogueTranslationSupport {
                 displayDialogue,
                 originalOptionsText,
                 displayOptionsText,
-                dialogueState.pending() && shouldRenderTranslated,
+                dialoguePending,
                 dialogueState.animationKey(),
                 System.currentTimeMillis() + WynnDialogueHudRenderer.getDisplayDurationMillis()
         );
@@ -818,15 +840,26 @@ public final class WynnDialogueTranslationSupport {
         }
 
         boolean optionsPending = false;
-        String optionsAnimationKey = "";
+        List<String> perLineAnimationKeys = List.of();
+        String errorMessage = "";
         if (shouldShowOptions && optionTranslationTouched) {
-            DialogueDisplayState optionsState = resolveOptionsDisplayState(presentedState.originalOptionsText(), false);
+            OptionsDisplayResult optionsResult = resolveOptionsDisplayState(presentedState.originalOptionsText(), false);
+            DialogueDisplayState optionsState = optionsResult.state();
+            perLineAnimationKeys = optionsResult.perLineAnimationKeys();
             if (!Objects.equals(updatedOptionsText, optionsState.displayText())) {
                 updatedOptionsText = optionsState.displayText();
                 changed = true;
             }
             optionsPending = optionsState.pending();
-            optionsAnimationKey = optionsState.animationKey();
+            if (optionsState.hasError()) {
+                errorMessage = optionsState.errorMessage();
+            }
+        }
+        if (errorMessage.isBlank()) {
+            DialogueDisplayState dialogueState = resolveDialogueDisplayState(presentedState.originalDialogue(), false, false);
+            if (dialogueState.hasError()) {
+                errorMessage = dialogueState.errorMessage();
+            }
         }
 
         if (!changed) {
@@ -842,7 +875,8 @@ public final class WynnDialogueTranslationSupport {
                 "",
                 updatedOptionsText,
                 optionsPending,
-                optionsAnimationKey
+                perLineAnimationKeys,
+                errorMessage
         );
         PresentedDialogueState refreshedState = new PresentedDialogueState(
                 presentedState.observedNonce(),
@@ -874,7 +908,7 @@ public final class WynnDialogueTranslationSupport {
                 + "\nfalse\n"
                 + "\n" + presentedState.originalOptionsText()
                 + "\n" + updatedOptionsText
-                + "\nfalse\n" + optionsAnimationKey;
+                + "\nfalse\n" + String.join(",", perLineAnimationKeys);
         throttledDevLog(
                 "hud_async_refresh",
                 DEBUG_HUD_LOG_THROTTLE_MILLIS,
@@ -1417,21 +1451,33 @@ public final class WynnDialogueTranslationSupport {
             return DialogueDisplayState.of(dialogue, true, buildDialogueCacheKey(dialogue));
         }
 
+        if (lookup.status() == WynnDialogueTextCache.TranslationStatus.ERROR) {
+            return DialogueDisplayState.withError(dialogue, lookup.errorMessage());
+        }
+
         return DialogueDisplayState.of(dialogue, false, "");
     }
 
-    private static DialogueDisplayState resolveOptionsDisplayState(String optionsText, boolean allowQueue) {
+    private record OptionsDisplayResult(
+            DialogueDisplayState state,
+            List<String> perLineAnimationKeys
+    ) {}
+
+    private static OptionsDisplayResult resolveOptionsDisplayState(String optionsText, boolean allowQueue) {
         if (!shouldTranslateNpcOptions()) {
-            return DialogueDisplayState.of("", false, "");
+            return new OptionsDisplayResult(DialogueDisplayState.of("", false, ""), List.of());
         }
         List<String> optionLines = splitOptionDisplayLines(optionsText);
         if (optionLines.isEmpty()) {
-            return DialogueDisplayState.of("", false, "");
+            return new OptionsDisplayResult(DialogueDisplayState.of("", false, ""), List.of());
         }
 
         List<String> displayLines = new ArrayList<>();
         boolean pending = false;
+        boolean hasError = false;
+        String errorMessage = "";
         String animationKey = "";
+        List<String> perLineAnimationKeys = new ArrayList<>();
         for (String optionLine : optionLines) {
             String optionKey = buildOptionCacheKey(optionLine);
             WynnDialogueTextCache.LookupResult lookup = allowQueue && hasConfiguredRoute()
@@ -1442,20 +1488,33 @@ public final class WynnDialogueTranslationSupport {
                     && !lookup.translation().isBlank()) {
                 String restoredTranslation = normalizeDisplayText(restorePlayerPlaceholders(lookup.translation()));
                 appendOptionDisplayLines(displayLines, optionLine, restoredTranslation);
+                perLineAnimationKeys.add("");
                 continue;
             }
 
-            if (lookup.status() == WynnDialogueTextCache.TranslationStatus.PENDING
+            if (lookup.status() == WynnDialogueTextCache.TranslationStatus.ERROR) {
+                hasError = true;
+                perLineAnimationKeys.add("");
+                if (lookup.errorMessage() != null && !lookup.errorMessage().isBlank()) {
+                    errorMessage = lookup.errorMessage();
+                }
+            } else if (lookup.status() == WynnDialogueTextCache.TranslationStatus.PENDING
                     || lookup.status() == WynnDialogueTextCache.TranslationStatus.IN_PROGRESS) {
                 pending = true;
+                perLineAnimationKeys.add(optionKey);
                 if (animationKey.isBlank()) {
                     animationKey = optionKey;
                 }
+            } else {
+                perLineAnimationKeys.add("");
             }
             displayLines.add(optionLine);
         }
 
-        return DialogueDisplayState.of(String.join("\n", displayLines), pending, animationKey);
+        DialogueDisplayState state = hasError && !pending
+                ? DialogueDisplayState.withError(String.join("\n", displayLines), errorMessage)
+                : DialogueDisplayState.of(String.join("\n", displayLines), pending, animationKey);
+        return new OptionsDisplayResult(state, perLineAnimationKeys);
     }
 
     private static void appendOptionDisplayLines(List<String> displayLines, String optionLine, String translatedLine) {
@@ -1829,6 +1888,14 @@ public final class WynnDialogueTranslationSupport {
         return parseReadableOverlayText(readableText, existingCandidate, readableSegments);
     }
 
+    static int overlayChoiceOptionMergeScoreForTest(String existing, String fragment) {
+        return overlayChoiceOptionMergeScore(existing, fragment);
+    }
+
+    static List<String> splitOverlayChoiceOptionFragmentsForTest(String optionsText) {
+        return splitOverlayChoiceOptionFragments(optionsText);
+    }
+
     static List<String> buildOptionCacheKeysForTest(String optionsText) {
         return buildOptionCacheKeys(optionsText);
     }
@@ -1896,7 +1963,7 @@ public final class WynnDialogueTranslationSupport {
 
         String optionsText = "";
         if (shouldTranslateOptions) {
-            optionsText = normalizeOverlayChoiceOptionsText(fontResult.optionsText());
+            optionsText = normalizeOverlayChoiceOptionsText(fontResult.optionsText(), false);
         }
 
         String mode = resolveFontOverlayMode(readableText);
@@ -2690,7 +2757,11 @@ public final class WynnDialogueTranslationSupport {
     }
 
     private static String normalizeOverlayChoiceOptionsText(String optionsText) {
-        List<String> fragments = splitOverlayChoiceOptionFragments(optionsText);
+        return normalizeOverlayChoiceOptionsText(optionsText, true);
+    }
+
+    private static String normalizeOverlayChoiceOptionsText(String optionsText, boolean splitOnPunctuation) {
+        List<String> fragments = splitOverlayChoiceOptionFragments(optionsText, splitOnPunctuation);
         if (fragments.isEmpty()) {
             return "";
         }
@@ -2698,6 +2769,10 @@ public final class WynnDialogueTranslationSupport {
     }
 
     private static List<String> splitOverlayChoiceOptionFragments(String optionsText) {
+        return splitOverlayChoiceOptionFragments(optionsText, true);
+    }
+
+    private static List<String> splitOverlayChoiceOptionFragments(String optionsText, boolean splitOnPunctuation) {
         if (optionsText == null || optionsText.isBlank()) {
             return List.of();
         }
@@ -2712,9 +2787,26 @@ public final class WynnDialogueTranslationSupport {
             }
 
             cleanLine = stripLeadingDialogueCompletionPunctuation(cleanLine);
-            String[] punctuationChunks = cleanLine.split("(?<=[.!?])\\s+");
-            for (String punctuationChunk : punctuationChunks) {
-                addOverlayChoiceOptionStartFragments(fragments, punctuationChunk);
+            if (splitOnPunctuation) {
+                String[] punctuationChunks = cleanLine.split("(?<=[.!?])\\s+");
+                List<String> mergedChunks = new ArrayList<>();
+                for (String punctuationChunk : punctuationChunks) {
+                    String chunk = normalizeDisplayText(punctuationChunk);
+                    if (chunk.isBlank()) {
+                        continue;
+                    }
+                    if (!mergedChunks.isEmpty() && !isTrustedOverlayChoiceOptionFragment(mergedChunks.get(mergedChunks.size() - 1))) {
+                        int lastIndex = mergedChunks.size() - 1;
+                        mergedChunks.set(lastIndex, mergedChunks.get(lastIndex) + " " + chunk);
+                    } else {
+                        mergedChunks.add(chunk);
+                    }
+                }
+                for (String chunk : mergedChunks) {
+                    addOverlayChoiceOptionStartFragments(fragments, chunk);
+                }
+            } else {
+                addOverlayChoiceOptionStartFragments(fragments, cleanLine);
             }
         }
         return fragments;
@@ -2733,7 +2825,7 @@ public final class WynnDialogueTranslationSupport {
                 continue;
             }
             String before = normalized.substring(start, matcher.start()).trim();
-            if (before.length() >= MIN_OVERLAY_CHOICE_FRAGMENT_LENGTH) {
+            if (before.length() >= MIN_OVERLAY_CHOICE_FRAGMENT_LENGTH && !beforeEndsWithOptionContinuationPunctuation(before)) {
                 appendOverlayChoiceOptionFragment(fragments, before);
                 start = matcher.start();
             }
@@ -2780,6 +2872,14 @@ public final class WynnDialogueTranslationSupport {
 
     private static boolean isDialogueCompletionPunctuation(char value) {
         return value == '.' || value == '!' || value == '?';
+    }
+
+    private static boolean beforeEndsWithOptionContinuationPunctuation(String value) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        char last = value.charAt(value.length() - 1);
+        return last == ',' || last == '.' || last == '?' || last == '!' || last == '。' || last == '？' || last == '！';
     }
 
     private static boolean isOverlayPromptControlText(String value) {
@@ -2885,6 +2985,12 @@ public final class WynnDialogueTranslationSupport {
         );
         if (!segmentedOptionsText.isBlank()) {
             return true;
+        }
+        String preparedCandidateDialogue = prepareDialogueValue(candidate.dialogue());
+        String preparedNewDialogue = prepareDialogueValue(dialogue);
+        if (preparedNewDialogue.length() > preparedCandidateDialogue.length()
+                && !preparedNewDialogue.startsWith(preparedCandidateDialogue)) {
+            return false;
         }
         return looksLikeOverlayChoiceOptionsFragment(dialogue);
     }
@@ -3004,7 +3110,8 @@ public final class WynnDialogueTranslationSupport {
             return 500 + Math.min(normalizedExisting.length(), normalizedFragment.length());
         }
         int commonPrefixLength = overlayChoiceOptionCommonPrefixLength(normalizedExisting, normalizedFragment);
-        if (commonPrefixLength >= MIN_OVERLAY_CHOICE_MERGE_OVERLAP) {
+        if (commonPrefixLength >= MIN_OVERLAY_CHOICE_MERGE_OVERLAP
+                && (normalizedExisting.contains(normalizedFragment) || normalizedFragment.contains(normalizedExisting))) {
             return 400 + commonPrefixLength;
         }
         return Math.max(
@@ -3697,13 +3804,27 @@ public final class WynnDialogueTranslationSupport {
     private record DialogueDisplayState(
             String displayText,
             boolean pending,
-            String animationKey
+            String animationKey,
+            boolean hasError,
+            String errorMessage
     ) {
         private static DialogueDisplayState of(String displayText, boolean pending, String animationKey) {
             return new DialogueDisplayState(
                     displayText == null ? "" : displayText,
                     pending,
-                    animationKey == null ? "" : animationKey
+                    animationKey == null ? "" : animationKey,
+                    false,
+                    ""
+            );
+        }
+
+        private static DialogueDisplayState withError(String displayText, String errorMessage) {
+            return new DialogueDisplayState(
+                    displayText == null ? "" : displayText,
+                    false,
+                    "",
+                    true,
+                    errorMessage == null ? "" : errorMessage
             );
         }
     }

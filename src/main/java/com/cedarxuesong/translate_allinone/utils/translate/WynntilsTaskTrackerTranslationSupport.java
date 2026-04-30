@@ -118,6 +118,14 @@ public final class WynntilsTaskTrackerTranslationSupport {
             return toLegacyStringPreservingResets(animatedText);
         }
 
+        if (lookupResult.status() == WynntilsTaskTrackerTextCache.TranslationStatus.ERROR) {
+            String reason = lookupResult.errorMessage();
+            if (reason != null && !reason.isBlank()) {
+                return originalText + " §c[! " + reason + "]";
+            }
+            return originalText + " §c[!]";
+        }
+
         return originalText;
     }
 
