@@ -13,6 +13,7 @@ import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
 
 import java.lang.reflect.Type;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -34,9 +35,14 @@ public final class WynnDialogueTranslateManager {
     private static final Pattern JSON_EXTRACT_PATTERN = Pattern.compile("\\{.*\\}", Pattern.DOTALL);
     private static final int MAX_KEY_MISMATCH_BATCH_RETRIES = 1;
     private static final int COLLECT_INTERVAL_MILLIS = 200;
-    private static final int RETRY_INTERVAL_SECONDS = 20;
+    private static final int RETRY_INTERVAL_SECONDS = 10;
     private static final int MAX_BATCH_SIZE = 4;
     private static final int WORKER_COUNT = 1;
+
+    private record RetryRequest(
+            List<String> originalKeys,
+            int keyMismatchRetryCount
+    ) {}
 
     private final WynnDialogueTextCache cache = WynnDialogueTextCache.getInstance();
     private final AtomicLong sessionEpoch = new AtomicLong(0L);
@@ -196,13 +202,11 @@ public final class WynnDialogueTranslateManager {
                 ProviderRouteResolver.Route.WYNN_NPC_DIALOGUE
         );
         if (providerProfile == null) {
-            cache.requeueFailed(Set.copyOf(originalKeys), "No routed model selected");
-            WynnDialogueTranslationSupport.throttledDevLog(
-                    "translate_skipped_no_route",
-                    1500L,
-                    "translate_skipped reason=no_route batchSize={}",
+            Translate_AllinOne.LOGGER.warn(
+                    "No routed provider/model configured for Wynn dialogue translation; re-queueing {} items.",
                     originalKeys.size()
             );
+            cache.requeueFailed(Set.copyOf(originalKeys), "No routed model selected");
             return;
         }
 
@@ -238,119 +242,161 @@ public final class WynnDialogueTranslateManager {
                 return;
             }
 
+            List<RetryRequest> deferredRetries = new ArrayList<>();
+
             if (error != null) {
                 if (isInternalPostprocessError(error) && originalKeys.size() > 1) {
+                    Translate_AllinOne.LOGGER.warn(
+                            "Wynn dialogue batch hit internal post-process error, retrying as single-item batches. context={} batchSize={}",
+                            requestContext,
+                            originalKeys.size()
+                    );
                     for (String key : originalKeys) {
-                        translateBatch(List.of(key), targetLanguage, batchSessionEpoch);
+                        deferredRetries.add(new RetryRequest(List.of(key), 0));
                     }
-                    return;
-                }
-
-                cache.requeueFailed(Set.copyOf(originalKeys), error.getMessage());
-                WynnDialogueTranslationSupport.throttledDevLog(
-                        "llm_error",
-                        1000L,
-                        "llm_error context={} error=\"{}\"",
-                        requestContext,
-                        error.getMessage() == null ? "" : error.getMessage()
-                );
-                Translate_AllinOne.LOGGER.error(
-                        "Failed to translate Wynn dialogue batch. context={}",
-                        requestContext,
-                        error
-                );
-                return;
-            }
-
-            try {
-                Matcher matcher = JSON_EXTRACT_PATTERN.matcher(response);
-                if (!matcher.find()) {
-                    throw new JsonSyntaxException("No JSON object found in the translation response.");
-                }
-
-                String jsonResponse = matcher.group();
-                Type type = new TypeToken<Map<String, String>>() {
-                }.getType();
-                Map<String, String> translatedMapFromAI = GSON.fromJson(jsonResponse, type);
-                if (translatedMapFromAI == null) {
-                    throw new JsonSyntaxException("Parsed translation result is null");
-                }
-                WynnDialogueTranslationSupport.throttledDevLog(
-                        "llm_response",
-                        1000L,
-                        "llm_response context={} response={}",
-                        requestContext,
-                        response == null ? "" : response.replace("\n", "\\n")
-                );
-
-                if (hasKeyMismatch(translatedMapFromAI, originalKeys.size())) {
-                    if (keyMismatchRetryCount < MAX_KEY_MISMATCH_BATCH_RETRIES) {
-                        translateBatch(originalKeys, targetLanguage, keyMismatchRetryCount + 1, batchSessionEpoch);
-                    } else {
-                        cache.requeueFailed(Set.copyOf(originalKeys), "LLM response key mismatch");
-                    }
-                    return;
-                }
-
-                Map<String, String> finalTranslatedMap = new ConcurrentHashMap<>();
-                Set<String> missingTranslations = ConcurrentHashMap.newKeySet();
-                missingTranslations.addAll(originalKeys);
-
-                for (Map.Entry<String, String> entry : translatedMapFromAI.entrySet()) {
-                    int index;
-                    try {
-                        index = Integer.parseInt(entry.getKey()) - 1;
-                    } catch (NumberFormatException e) {
-                        continue;
-                    }
-
-                    if (index < 0 || index >= originalKeys.size()) {
-                        continue;
-                    }
-
-                    String originalKey = originalKeys.get(index);
-                    String translatedValue = entry.getValue();
-                    if (translatedValue == null || translatedValue.trim().isEmpty()) {
-                        continue;
-                    }
-
-                    finalTranslatedMap.put(originalKey, translatedValue);
-                    missingTranslations.remove(originalKey);
-                }
-
-                if (!finalTranslatedMap.isEmpty()) {
-                    cache.updateTranslations(finalTranslatedMap);
-                    Map<String, String> acceptedTranslatedMap = retainAcceptedCacheTranslations(finalTranslatedMap);
-                    WynnDialogueTranslationSupport.onCacheTranslationsUpdated(acceptedTranslatedMap);
+                } else {
+                    cache.requeueFailed(Set.copyOf(originalKeys), error.getMessage());
                     WynnDialogueTranslationSupport.throttledDevLog(
-                            "cache_updated",
+                            "llm_error",
                             1000L,
-                            "cache_updated count={} accepted={} context={}",
-                            finalTranslatedMap.size(),
-                            acceptedTranslatedMap.size(),
-                            requestContext
+                            "llm_error context={} error=\"{}\"",
+                            requestContext,
+                            error.getMessage() == null ? "" : error.getMessage()
+                    );
+                    Translate_AllinOne.LOGGER.error(
+                            "Failed to translate Wynn dialogue batch. context={}",
+                            requestContext,
+                            error
                     );
                 }
+            } else {
+                try {
+                    Matcher matcher = JSON_EXTRACT_PATTERN.matcher(response);
+                    if (!matcher.find()) {
+                        throw new JsonSyntaxException("No JSON object found in the translation response.");
+                    }
 
-                if (!missingTranslations.isEmpty()) {
-                    cache.requeueFailed(missingTranslations, "LLM response missing keys");
+                    String jsonResponse = matcher.group();
+                    Type type = new TypeToken<Map<String, String>>() {
+                    }.getType();
+                    Map<String, String> translatedMapFromAI = GSON.fromJson(jsonResponse, type);
+                    if (translatedMapFromAI == null) {
+                        throw new JsonSyntaxException("Parsed translation result is null");
+                    }
+                    WynnDialogueTranslationSupport.throttledDevLog(
+                            "llm_response",
+                            1000L,
+                            "llm_response context={} response={}",
+                            requestContext,
+                            response == null ? "" : response.replace("\n", "\\n")
+                    );
+
+                    if (hasKeyMismatch(translatedMapFromAI, originalKeys.size())) {
+                        if (keyMismatchRetryCount < MAX_KEY_MISMATCH_BATCH_RETRIES) {
+                            deferredRetries.add(new RetryRequest(originalKeys, keyMismatchRetryCount + 1));
+                        } else {
+                            Translate_AllinOne.LOGGER.warn(
+                                    "Wynn dialogue keys mismatched after retries, re-queueing full batch. context={}",
+                                    requestContext
+                            );
+                            cache.requeueFailed(Set.copyOf(originalKeys), "LLM response key mismatch");
+                        }
+                    } else {
+                        Map<String, String> finalTranslatedMap = new ConcurrentHashMap<>();
+                        Set<String> missingTranslations = ConcurrentHashMap.newKeySet();
+                        missingTranslations.addAll(originalKeys);
+
+                        for (Map.Entry<String, String> entry : translatedMapFromAI.entrySet()) {
+                            int index;
+                            try {
+                                index = Integer.parseInt(entry.getKey()) - 1;
+                            } catch (NumberFormatException e) {
+                                continue;
+                            }
+
+                            if (index < 0 || index >= originalKeys.size()) {
+                                continue;
+                            }
+
+                            String originalKey = originalKeys.get(index);
+                            String translatedValue = entry.getValue();
+                            if (translatedValue == null || translatedValue.trim().isEmpty()) {
+                                continue;
+                            }
+
+                            finalTranslatedMap.put(originalKey, translatedValue);
+                            missingTranslations.remove(originalKey);
+                        }
+
+                        if (!finalTranslatedMap.isEmpty()) {
+                            cache.updateTranslations(finalTranslatedMap);
+                            Map<String, String> acceptedTranslatedMap = retainAcceptedCacheTranslations(finalTranslatedMap);
+                            WynnDialogueTranslationSupport.onCacheTranslationsUpdated(acceptedTranslatedMap);
+                            WynnDialogueTranslationSupport.throttledDevLog(
+                                    "cache_updated",
+                                    1000L,
+                                    "cache_updated count={} accepted={} context={}",
+                                    finalTranslatedMap.size(),
+                                    acceptedTranslatedMap.size(),
+                                    requestContext
+                            );
+                        }
+
+                        if (!missingTranslations.isEmpty()) {
+                            Translate_AllinOne.LOGGER.warn(
+                                    "Wynn dialogue LLM response missing {} keys. context={}",
+                                    missingTranslations.size(),
+                                    requestContext
+                            );
+                            cache.requeueFailed(missingTranslations, "LLM response missing keys");
+                        }
+                    }
+                } catch (JsonSyntaxException e) {
+                    cache.requeueFailed(Set.copyOf(originalKeys), "Invalid JSON response");
+                    Translate_AllinOne.LOGGER.error(
+                            "Failed to parse Wynn dialogue translation response. context={}",
+                            requestContext,
+                            e
+                    );
+                } catch (Throwable t) {
+                    cache.requeueFailed(Set.copyOf(originalKeys), "Translation post-processing failure");
+                    Translate_AllinOne.LOGGER.error(
+                            "Unexpected Wynn dialogue post-processing error. context={}",
+                            requestContext,
+                            t
+                    );
                 }
-            } catch (JsonSyntaxException e) {
-                cache.requeueFailed(Set.copyOf(originalKeys), "Invalid JSON response");
-                Translate_AllinOne.LOGGER.error(
-                        "Failed to parse Wynn dialogue translation response. context={}",
-                        requestContext,
-                        e
-                );
-            } catch (Throwable t) {
-                cache.requeueFailed(Set.copyOf(originalKeys), "Translation post-processing failure");
-                Translate_AllinOne.LOGGER.error(
-                        "Unexpected Wynn dialogue post-processing error. context={}",
-                        requestContext,
-                        t
-                );
+            }
+
+            for (RetryRequest retryRequest : deferredRetries) {
+                dispatchRetryRequest(retryRequest, targetLanguage, batchSessionEpoch);
             }
         });
+    }
+
+    private void dispatchRetryRequest(
+            RetryRequest retryRequest,
+            String targetLanguage,
+            long batchSessionEpoch
+    ) {
+        if (retryRequest == null || retryRequest.originalKeys() == null || retryRequest.originalKeys().isEmpty()) {
+            return;
+        }
+        try {
+            translateBatch(
+                    retryRequest.originalKeys(),
+                    targetLanguage,
+                    retryRequest.keyMismatchRetryCount(),
+                    batchSessionEpoch
+            );
+        } catch (Exception e) {
+            cache.requeueFailed(Set.copyOf(retryRequest.originalKeys()), "Retry dispatch failed: " + e.getMessage());
+            Translate_AllinOne.LOGGER.error(
+                    "Failed to dispatch Wynn dialogue retry request. keys={}",
+                    retryRequest.originalKeys().size(),
+                    e
+            );
+        }
     }
 
     private Map<String, String> retainAcceptedCacheTranslations(Map<String, String> translations) {
