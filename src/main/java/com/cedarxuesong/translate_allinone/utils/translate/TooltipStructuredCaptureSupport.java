@@ -182,11 +182,7 @@ final class TooltipStructuredCaptureSupport {
         if (structuredLine.kind().translateValue()) {
             valueTranslation = TooltipTemplateRuntime.translateLine(structuredLine.valueTranslationText(), useTagStylePreservation);
             if (isErrorTranslation(valueTranslation.translatedLine())) {
-                return new StructuredTooltipLineResult(
-                        valueTranslation,
-                        structuredLine.translationTemplateKeys(),
-                        debugSummary
-                );
+                valueTranslation = null;
             }
         }
 
@@ -200,6 +196,7 @@ final class TooltipStructuredCaptureSupport {
         combined.append(valueTranslation == null
                 ? TooltipTemplateRuntime.normalizeDecorativePassthroughText(structuredLine.valueText())
                 : valueTranslation.translatedLine());
+
         return new StructuredTooltipLineResult(
                 new TooltipTranslationSupport.TooltipLineResult(
                         combined,
@@ -289,8 +286,18 @@ final class TooltipStructuredCaptureSupport {
             return null;
         }
 
+        int valueEnd = splitNodes.size();
+        while (valueEnd > valueStart
+                && (isDecorativeStructuredSeparatorSegment(splitNodes.get(valueEnd - 1))
+                || isWhitespaceOnlySegment(splitNodes.get(valueEnd - 1)))) {
+            valueEnd--;
+        }
+        if (valueEnd <= valueStart) {
+            return null;
+        }
+
         List<FlatNode> labelNodes = trimWhitespaceNodes(splitNodes.subList(prefixEnd, separatorStart));
-        List<FlatNode> valueNodes = trimWhitespaceNodes(splitNodes.subList(valueStart, splitNodes.size()));
+        List<FlatNode> valueNodes = trimWhitespaceNodes(splitNodes.subList(valueStart, valueEnd));
         Text labelText = toText(labelNodes);
         Text valueText = toText(valueNodes);
         if (labelText == null || valueText == null) {
@@ -721,7 +728,11 @@ final class TooltipStructuredCaptureSupport {
     }
 
     private static String normalizeValue(String value) {
-        return normalizeSpaces(value).trim();
+        String normalized = normalizeSpaces(value).trim();
+        while (normalized.startsWith("*")) {
+            normalized = normalized.substring(1).trim();
+        }
+        return normalized;
     }
 
     private static String normalizeSpaces(String value) {
@@ -804,7 +815,8 @@ final class TooltipStructuredCaptureSupport {
         }
 
         return normalized.matches("(?iu)[+-]?(?:\\d+(?:[.,/-]\\d+)*|\\.\\d+)\\s*[\\p{L}]{1,8}")
-                || normalized.matches("(?iu)[+-]?(?:\\d+(?:[.,/-]\\d+)*|\\.\\d+)(?:\\s+[\\p{L}][\\p{L}'-]{0,15}){1,3}");
+                || normalized.matches("(?iu)[+-]?(?:\\d+(?:[.,/-]\\d+)*|\\.\\d+)(?:\\s+[\\p{L}][\\p{L}'-]{0,15}){1,3}")
+                || normalized.matches("(?iu)[+-]?(?:\\d+(?:[.,/-]\\d+)*|\\.\\d+)\\s*[\\p{L}]{1,8}\\s*\\[[^]]+\\]");
     }
 
     private static boolean isCoinsLikeValue(String value) {
@@ -975,8 +987,8 @@ final class TooltipStructuredCaptureSupport {
     }
 
     private static InlineSegmentType classifyInlineSegmentType(int codePoint) {
-        if (codePoint > 0xFFFF || isPrivateUseCodePoint(codePoint)) {
-            return InlineSegmentType.OTHER;
+        if (codePoint > 0xFFFF || isPrivateUseCodePoint(codePoint) || isDecorativePrefixCodePoint(codePoint)) {
+            return InlineSegmentType.INLINE_DECORATIVE;
         }
         if (codePoint == ':' || codePoint == '：') {
             return InlineSegmentType.COLON;
@@ -1176,6 +1188,7 @@ final class TooltipStructuredCaptureSupport {
         WHITESPACE,
         LETTER,
         DIGIT,
+        INLINE_DECORATIVE,
         OTHER
     }
 
