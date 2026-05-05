@@ -13,6 +13,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -23,11 +24,12 @@ import java.util.stream.Stream;
 public class OpenAIClient {
 
     private static final Gson GSON = LlmPayloadJsonSupport.gson();
-    private final HttpClient httpClient;
+    private static final HttpClient SHARED_HTTP_CLIENT = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(15))
+            .build();
     private final ProviderSettings.OpenAISettings settings;
 
     public OpenAIClient(ProviderSettings.OpenAISettings settings) {
-        this.httpClient = HttpClient.newHttpClient();
         this.settings = settings;
     }
 
@@ -62,7 +64,7 @@ public class OpenAIClient {
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                 .build();
 
-        CompletableFuture<OpenAIChatCompletion> future = httpClient.sendAsync(httpRequest, HttpResponse.BodyHandlers.ofString())
+        CompletableFuture<OpenAIChatCompletion> future = SHARED_HTTP_CLIENT.sendAsync(httpRequest, HttpResponse.BodyHandlers.ofString())
                 .thenApply(response -> {
                     if (response.statusCode() != 200) {
                         String message = resolveApiErrorMessage(response.body());
@@ -104,7 +106,7 @@ public class OpenAIClient {
                 .build();
 
         try {
-            HttpResponse<Stream<String>> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofLines());
+            HttpResponse<Stream<String>> response = SHARED_HTTP_CLIENT.send(httpRequest, HttpResponse.BodyHandlers.ofLines());
 
             if (response.statusCode() != 200) {
                 String errorBody = response.body().collect(Collectors.joining("\n"));
@@ -145,7 +147,7 @@ public class OpenAIClient {
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                 .build();
 
-        CompletableFuture<String> future = httpClient.sendAsync(httpRequest, HttpResponse.BodyHandlers.ofString())
+        CompletableFuture<String> future = SHARED_HTTP_CLIENT.sendAsync(httpRequest, HttpResponse.BodyHandlers.ofString())
                 .thenApply(response -> {
                     if (response.statusCode() != 200) {
                         String message = resolveApiErrorMessage(response.body());
@@ -191,7 +193,7 @@ public class OpenAIClient {
                 .build();
 
         try {
-            HttpResponse<Stream<String>> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofLines());
+            HttpResponse<Stream<String>> response = SHARED_HTTP_CLIENT.send(httpRequest, HttpResponse.BodyHandlers.ofLines());
             if (response.statusCode() != 200) {
                 String errorBody = response.body().collect(Collectors.joining("\n"));
                 String message = resolveApiErrorMessage(errorBody);
