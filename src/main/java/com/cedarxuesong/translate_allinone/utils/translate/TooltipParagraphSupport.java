@@ -222,7 +222,7 @@ final class TooltipParagraphSupport {
     static boolean paragraphLooksTooShortForChineseOutput(int sourceLetterCount, int translatedSignalCount) {
         return sourceLetterCount >= 18
                 && translatedSignalCount > 0
-                && translatedSignalCount * 3 < sourceLetterCount;
+                && translatedSignalCount * 7 < sourceLetterCount * 2;
     }
 
     static boolean allowsRelaxedParagraphStyleCoverage(
@@ -689,21 +689,22 @@ final class TooltipParagraphSupport {
             int charCount = Character.charCount(codePoint);
             if (Character.isWhitespace(codePoint)) {
                 int nextIndex = index + charCount;
-                while (nextIndex < text.length()) {
-                    int nextStyleTagEnd = findStyleTagEnd(text, nextIndex);
-                    if (nextStyleTagEnd >= nextIndex) {
-                        nextIndex = nextStyleTagEnd + 1;
+                int peekIndex = nextIndex;
+                while (peekIndex < text.length()) {
+                    int nextStyleTagEnd = findStyleTagEnd(text, peekIndex);
+                    if (nextStyleTagEnd >= peekIndex) {
+                        peekIndex = nextStyleTagEnd + 1;
                         continue;
                     }
 
-                    int nextCodePoint = text.codePointAt(nextIndex);
+                    int nextCodePoint = text.codePointAt(peekIndex);
                     if (!Character.isWhitespace(nextCodePoint)) {
                         break;
                     }
-                    nextIndex += Character.charCount(nextCodePoint);
+                    peekIndex += Character.charCount(nextCodePoint);
                 }
 
-                int nextVisibleCodePoint = findNextVisibleCodePoint(text, nextIndex);
+                int nextVisibleCodePoint = findNextVisibleCodePoint(text, peekIndex);
                 if (!shouldStripChineseWhitespace(lastVisibleCodePoint, nextVisibleCodePoint)
                         && normalized.length() > 0
                         && normalized.charAt(normalized.length() - 1) != ' ') {

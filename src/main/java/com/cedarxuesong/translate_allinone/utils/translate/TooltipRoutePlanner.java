@@ -574,20 +574,32 @@ final class TooltipRoutePlanner {
         }
 
         String[] tokens = visible.split("\\s+");
-        if (tokens.length < 2 || tokens.length > 4) {
-            return false;
-        }
 
         String lastToken = trimEdgePunctuation(tokens[tokens.length - 1]);
         boolean levelLike = isIntegerToken(lastToken) || isRomanNumeralToken(lastToken);
         boolean bonusLike = tokens.length == 2 && "bonus".equalsIgnoreCase(lastToken);
-        if (!levelLike && !bonusLike) {
+        boolean hasDecorativePrefix = TooltipTemplateRuntime.containsDecorativeGlyph(raw)
+                || hasNonLatinDecorativePrefix(raw);
+        boolean decorativeGlyphHeader = !levelLike
+                && !bonusLike
+                && !containsDigit(visible)
+                && hasDecorativePrefix;
+        if (!levelLike && !bonusLike && !decorativeGlyphHeader) {
+            return false;
+        }
+
+        int tokenStart = 0;
+        if (hasDecorativePrefix && tokens.length > 1 && startsWithNonLatinLetter(tokens[0])) {
+            tokenStart = 1;
+        }
+        int effectiveTokenCount = tokens.length - tokenStart;
+        if (effectiveTokenCount < (levelLike ? 1 : 2) || effectiveTokenCount > 4) {
             return false;
         }
 
         int limit = levelLike ? tokens.length - 1 : tokens.length;
         int titleWordCount = 0;
-        for (int index = 0; index < limit; index++) {
+        for (int index = tokenStart; index < limit; index++) {
             String token = trimEdgePunctuation(tokens[index]);
             if (token.isEmpty()) {
                 return false;
@@ -601,6 +613,36 @@ final class TooltipRoutePlanner {
             titleWordCount++;
         }
         return titleWordCount >= 1;
+    }
+
+    private static boolean hasNonLatinDecorativePrefix(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return false;
+        }
+
+        for (int offset = 0; offset < raw.length(); ) {
+            int codePoint = raw.codePointAt(offset);
+            offset += Character.charCount(codePoint);
+
+            if (Character.isWhitespace(codePoint)) {
+                continue;
+            }
+
+            return Character.isLetter(codePoint)
+                    && Character.UnicodeScript.of(codePoint) != Character.UnicodeScript.LATIN;
+        }
+
+        return false;
+    }
+
+    private static boolean startsWithNonLatinLetter(String token) {
+        if (token == null || token.isEmpty()) {
+            return false;
+        }
+
+        int codePoint = token.codePointAt(0);
+        return Character.isLetter(codePoint)
+                && Character.UnicodeScript.of(codePoint) != Character.UnicodeScript.LATIN;
     }
 
     private static boolean looksLikeEnchantmentEntry(String segment) {
