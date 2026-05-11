@@ -1,12 +1,16 @@
 package com.cedarxuesong.translate_allinone.utils.translate;
 
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
+import com.cedarxuesong.translate_allinone.utils.cache.LookupResult;
+import com.cedarxuesong.translate_allinone.utils.cache.TranslationStatus;
 import com.cedarxuesong.translate_allinone.utils.cache.WynnDialogueTextCache;
 import com.cedarxuesong.translate_allinone.utils.config.ProviderRouteResolver;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.cedarxuesong.translate_allinone.utils.llmapi.LLM;
 import com.cedarxuesong.translate_allinone.utils.llmapi.LlmPayloadJsonSupport;
 import com.cedarxuesong.translate_allinone.utils.llmapi.ProviderSettings;
+import com.cedarxuesong.translate_allinone.utils.TranslateStringUtils;
+import com.cedarxuesong.translate_allinone.utils.TranslateExceptionUtils;
 import com.cedarxuesong.translate_allinone.utils.llmapi.openai.OpenAIRequest;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
@@ -16,7 +20,6 @@ import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -27,13 +30,10 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public final class WynnDialogueTranslateManager {
     private static final WynnDialogueTranslateManager INSTANCE = new WynnDialogueTranslateManager();
     private static final Gson GSON = LlmPayloadJsonSupport.gson();
-    private static final Pattern JSON_EXTRACT_PATTERN = Pattern.compile("\\{.*\\}", Pattern.DOTALL);
-    private static final int MAX_KEY_MISMATCH_BATCH_RETRIES = 1;
     private static final int COLLECT_INTERVAL_MILLIS = 200;
     private static final int RETRY_INTERVAL_SECONDS = 10;
     private static final int MAX_BATCH_SIZE = 4;
@@ -245,7 +245,7 @@ public final class WynnDialogueTranslateManager {
             List<RetryRequest> deferredRetries = new ArrayList<>();
 
             if (error != null) {
-                if (isInternalPostprocessError(error) && originalKeys.size() > 1) {
+                if (TranslateExceptionUtils.isInternalPostprocessError(error) && originalKeys.size() > 1) {
                     Translate_AllinOne.LOGGER.warn(
                             "Wynn dialogue batch hit internal post-process error, retrying as single-item batches. context={} batchSize={}",
                             requestContext,
@@ -271,7 +271,7 @@ public final class WynnDialogueTranslateManager {
                 }
             } else {
                 try {
-                    Matcher matcher = JSON_EXTRACT_PATTERN.matcher(response);
+                    Matcher matcher = TranslateStringUtils.JSON_EXTRACT_PATTERN.matcher(response);
                     if (!matcher.find()) {
                         throw new JsonSyntaxException("No JSON object found in the translation response.");
                     }
@@ -292,7 +292,7 @@ public final class WynnDialogueTranslateManager {
                     );
 
                     if (hasKeyMismatch(translatedMapFromAI, originalKeys.size())) {
-                        if (keyMismatchRetryCount < MAX_KEY_MISMATCH_BATCH_RETRIES) {
+                        if (keyMismatchRetryCount < TranslateStringUtils.MAX_KEY_MISMATCH_BATCH_RETRIES) {
                             deferredRetries.add(new RetryRequest(originalKeys, keyMismatchRetryCount + 1));
                         } else {
                             Translate_AllinOne.LOGGER.warn(
@@ -408,8 +408,8 @@ public final class WynnDialogueTranslateManager {
         for (Map.Entry<String, String> entry : translations.entrySet()) {
             String key = entry.getKey();
             String value = entry.getValue();
-            WynnDialogueTextCache.LookupResult lookupResult = cache.peek(key);
-            if (lookupResult.status() == WynnDialogueTextCache.TranslationStatus.TRANSLATED
+            LookupResult lookupResult = cache.peek(key);
+            if (lookupResult.status() == TranslationStatus.TRANSLATED
                     && Objects.equals(lookupResult.translation(), value)) {
                 acceptedTranslations.put(key, value);
             }
@@ -454,7 +454,7 @@ public final class WynnDialogueTranslateManager {
         int messageCount = messages == null ? 0 : messages.size();
         String sample = originalKeys == null || originalKeys.isEmpty()
                 ? ""
-                : truncate(normalizeWhitespace(WynnDialogueTranslationSupport.extractTranslatableValue(originalKeys.getFirst())), 160);
+                : TranslateStringUtils.truncate(TranslateStringUtils.normalizeWhitespace(WynnDialogueTranslationSupport.extractTranslatableValue(originalKeys.getFirst())), 160);
         return "route=wynn_npc_dialogue"
                 + ", provider=" + providerId
                 + ", model=" + modelId
@@ -464,36 +464,4 @@ public final class WynnDialogueTranslateManager {
                 + ", sample=\"" + sample + "\"";
     }
 
-    private boolean isInternalPostprocessError(Throwable throwable) {
-        Throwable root = unwrapThrowable(throwable);
-        if (root == null || root.getMessage() == null) {
-            return false;
-        }
-        String message = root.getMessage().toLowerCase(Locale.ROOT);
-        return message.contains("internalpostprocesserror")
-                || message.contains("internal error during model post-process")
-                || message.contains("translation failed due to internal error");
-    }
-
-    private Throwable unwrapThrowable(Throwable throwable) {
-        Throwable current = throwable;
-        while (current instanceof java.util.concurrent.CompletionException && current.getCause() != null) {
-            current = current.getCause();
-        }
-        return current;
-    }
-
-    private String normalizeWhitespace(String value) {
-        if (value == null) {
-            return "";
-        }
-        return value.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ').trim();
-    }
-
-    private String truncate(String value, int maxLength) {
-        if (value == null || value.length() <= maxLength) {
-            return value == null ? "" : value;
-        }
-        return value.substring(0, Math.max(0, maxLength - 3)) + "...";
-    }
 }

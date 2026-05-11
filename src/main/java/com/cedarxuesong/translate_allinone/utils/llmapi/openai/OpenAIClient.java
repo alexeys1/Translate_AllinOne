@@ -1,6 +1,8 @@
 package com.cedarxuesong.translate_allinone.utils.llmapi.openai;
 
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
+import com.cedarxuesong.translate_allinone.utils.TranslateStringUtils;
+import com.cedarxuesong.translate_allinone.utils.TranslateExceptionUtils;
 import com.cedarxuesong.translate_allinone.utils.llmapi.LLMApiException;
 import com.cedarxuesong.translate_allinone.utils.llmapi.LlmPayloadJsonSupport;
 import com.cedarxuesong.translate_allinone.utils.llmapi.ProviderSettings;
@@ -78,7 +80,7 @@ public class OpenAIClient {
             if (throwable == null) {
                 return;
             }
-            Throwable root = unwrapThrowable(throwable);
+            Throwable root = TranslateExceptionUtils.unwrapThrowable(throwable);
             if (root instanceof LLMApiException) {
                 return;
             }
@@ -167,7 +169,7 @@ public class OpenAIClient {
             if (throwable == null) {
                 return;
             }
-            Throwable root = unwrapThrowable(throwable);
+            Throwable root = TranslateExceptionUtils.unwrapThrowable(throwable);
             if (root instanceof LLMApiException) {
                 return;
             }
@@ -268,7 +270,7 @@ public class OpenAIClient {
         if (parameters == null || parameters.isEmpty()) {
             return "{}";
         }
-        return truncate(renderValue(parameters), 600);
+        return TranslateStringUtils.truncate(renderValue(parameters), 600);
     }
 
     private String renderValue(Object value) {
@@ -286,7 +288,7 @@ public class OpenAIClient {
                     .collect(Collectors.joining(",", "[", "]"));
         }
         if (value instanceof String stringValue) {
-            return '"' + truncate(normalizeWhitespace(stringValue), 80) + '"';
+            return '"' + TranslateStringUtils.truncate(TranslateStringUtils.normalizeWhitespace(stringValue), 80) + '"';
         }
         return String.valueOf(value);
     }
@@ -320,12 +322,12 @@ public class OpenAIClient {
 
         for (OpenAIRequest.Message message : messages) {
             if (message != null && "user".equalsIgnoreCase(safeText(message.role))) {
-                return truncate(normalizeWhitespace(message.content), 240);
+                return TranslateStringUtils.truncate(TranslateStringUtils.normalizeWhitespace(message.content), 240);
             }
         }
 
         OpenAIRequest.Message first = messages.get(0);
-        return truncate(normalizeWhitespace(first == null ? "" : first.content), 240);
+        return TranslateStringUtils.truncate(TranslateStringUtils.normalizeWhitespace(first == null ? "" : first.content), 240);
     }
 
     private int inputCount(List<OpenAIResponsesRequest.InputMessage> input) {
@@ -357,11 +359,11 @@ public class OpenAIClient {
 
         for (OpenAIResponsesRequest.InputMessage message : input) {
             if (message != null && "user".equalsIgnoreCase(safeText(message.role))) {
-                return truncate(normalizeWhitespace(extractInputMessageText(message)), 240);
+                return TranslateStringUtils.truncate(TranslateStringUtils.normalizeWhitespace(extractInputMessageText(message)), 240);
             }
         }
 
-        return truncate(normalizeWhitespace(extractInputMessageText(input.get(0))), 240);
+        return TranslateStringUtils.truncate(TranslateStringUtils.normalizeWhitespace(extractInputMessageText(input.get(0))), 240);
     }
 
     private String extractInputMessageText(OpenAIResponsesRequest.InputMessage message) {
@@ -652,23 +654,8 @@ public class OpenAIClient {
         return "Unknown API error";
     }
 
-    private String normalizeWhitespace(String value) {
-        if (value == null) {
-            return "";
-        }
-        return value.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ').trim();
-    }
-
     private String safeText(String value) {
         return value == null ? "" : value;
-    }
-
-    private String truncate(String value, int maxLength) {
-        String safeValue = safeText(value);
-        if (safeValue.length() <= maxLength) {
-            return safeValue;
-        }
-        return safeValue.substring(0, Math.max(0, maxLength - 3)) + "...";
     }
 
     private void logApiError(HttpResponse<?> response, String endpoint, String requestSummary, String responseBody) {
@@ -679,15 +666,8 @@ public class OpenAIClient {
                 , requestId
                 , endpoint
                 , requestSummary
-                , truncate(normalizeWhitespace(responseBody), 1200)
+                , TranslateStringUtils.truncate(TranslateStringUtils.normalizeWhitespace(responseBody), 1200)
         );
     }
 
-    private Throwable unwrapThrowable(Throwable throwable) {
-        Throwable current = throwable;
-        while (current instanceof java.util.concurrent.CompletionException && current.getCause() != null) {
-            current = current.getCause();
-        }
-        return current;
-    }
 }

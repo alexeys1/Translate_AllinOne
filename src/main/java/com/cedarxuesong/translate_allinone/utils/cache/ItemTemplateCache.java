@@ -1,6 +1,7 @@
 package com.cedarxuesong.translate_allinone.utils.cache;
 
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
+import com.cedarxuesong.translate_allinone.utils.TranslateStringUtils;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTextMatcherSupport;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -22,7 +23,6 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -35,18 +35,6 @@ import java.util.concurrent.TimeUnit;
 public class ItemTemplateCache {
     private static final Logger LOGGER = LoggerFactory.getLogger("Translate_AllinOne/ItemTemplateCache");
     private static final long DEV_CACHE_HOTSPOT_THRESHOLD_NANOS = 500_000L;
-
-    public enum TranslationStatus {
-        TRANSLATED,
-        IN_PROGRESS,
-        PENDING,
-        ERROR,
-        NOT_CACHED
-    }
-
-    public record CacheStats(int translated, int total) {}
-
-    public record LookupResult(TranslationStatus status, String translation, String errorMessage) {}
 
     public record QueueSnapshot(
             int pending,
@@ -480,7 +468,7 @@ public class ItemTemplateCache {
         logCacheHotspotIfDev(
                 "promoteTranslation",
                 promoteStartedAtNanos,
-                "key=" + truncateForLog(originalTemplate, 160)
+                "key=" + TranslateStringUtils.truncateForLog(originalTemplate, 160)
                         + ", removedPending=" + removedPendingCount
                         + ", cacheSize=" + templateCache.size()
         );
@@ -614,7 +602,7 @@ public class ItemTemplateCache {
                 "Marked {} keys as errored. They will be retried later. queue={} error=\"{}\"",
                 failedKeys.size(),
                 formatQueueSnapshot(snapshotQueuesUnsafe()),
-                truncateForLog(errorMessage, 220)
+                TranslateStringUtils.truncateForLog(errorMessage, 220)
         );
     }
 
@@ -661,11 +649,11 @@ public class ItemTemplateCache {
                 "[ItemDev:cache-save] thread=\"{}\" renderThread={} totalMs={} sanitizeMs={} writeMs={} moveMs={} backupMs={} modifiedEntries={} persistedEntries={}",
                 Thread.currentThread().getName(),
                 isRenderThread(),
-                formatDurationMillis(totalElapsedNanos),
-                formatDurationMillis(sanitizeElapsedNanos),
-                formatDurationMillis(writeElapsedNanos),
-                formatDurationMillis(moveElapsedNanos),
-                formatDurationMillis(backupElapsedNanos),
+                TranslateStringUtils.formatDurationMillis(totalElapsedNanos),
+                TranslateStringUtils.formatDurationMillis(sanitizeElapsedNanos),
+                TranslateStringUtils.formatDurationMillis(writeElapsedNanos),
+                TranslateStringUtils.formatDurationMillis(moveElapsedNanos),
+                TranslateStringUtils.formatDurationMillis(backupElapsedNanos),
                 modifiedEntryCount,
                 persistedEntryCount
         );
@@ -686,8 +674,8 @@ public class ItemTemplateCache {
                 op,
                 Thread.currentThread().getName(),
                 isRenderThread(),
-                formatDurationMillis(elapsedNanos),
-                truncateForLog(detail, 220)
+                TranslateStringUtils.formatDurationMillis(elapsedNanos),
+                TranslateStringUtils.truncateForLog(detail, 220)
         );
     }
 
@@ -701,26 +689,6 @@ public class ItemTemplateCache {
 
     private static boolean isRenderThread() {
         return Thread.currentThread().getName().contains("Render thread");
-    }
-
-    private static String formatDurationMillis(long elapsedNanos) {
-        return String.format(Locale.ROOT, "%.2f", elapsedNanos / 1_000_000.0);
-    }
-
-    private static String truncateForLog(String value, int maxLength) {
-        if (value == null) {
-            return "";
-        }
-
-        String normalized = value
-                .replace('\n', ' ')
-                .replace('\r', ' ')
-                .replace('\t', ' ')
-                .trim();
-        if (normalized.length() <= maxLength) {
-            return normalized;
-        }
-        return normalized.substring(0, Math.max(0, maxLength - 3)) + "...";
     }
 
     private LookupResult toLookupResult(CacheRuntimeStateSupport.LookupState lookupState) {

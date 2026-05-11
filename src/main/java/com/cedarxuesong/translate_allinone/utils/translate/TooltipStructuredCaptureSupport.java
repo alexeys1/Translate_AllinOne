@@ -1,6 +1,7 @@
 package com.cedarxuesong.translate_allinone.utils.translate;
 
 import com.cedarxuesong.translate_allinone.utils.AnimationManager;
+import com.cedarxuesong.translate_allinone.utils.TranslateStringUtils;
 import com.cedarxuesong.translate_allinone.utils.textmatcher.ContentMatcher;
 import com.cedarxuesong.translate_allinone.utils.textmatcher.FlatNode;
 import com.cedarxuesong.translate_allinone.utils.textmatcher.TextMatchResult;
@@ -607,14 +608,14 @@ final class TooltipStructuredCaptureSupport {
         if (structuredLine == null) {
             return "";
         }
-        String prefix = truncateForLog(textString(structuredLine.prefixText()), 48);
+        String prefix = TranslateStringUtils.truncateForLog(textString(structuredLine.prefixText()), 48);
         return "pattern=" + structuredLine.kind().debugName()
                 + ", translateValue=" + structuredLine.kind().translateValue()
                 + (prefix.isEmpty() ? "" : ", prefix=\"" + prefix + "\"")
-                + ", label=\"" + truncateForLog(textString(structuredLine.labelText()), 96) + "\""
-                + ", value=\"" + truncateForLog(textString(structuredLine.valueText()), 96) + "\""
-                + ", labelKey=\"" + truncateForLog(structuredLine.labelKey(), 140) + "\""
-                + (structuredLine.valueKey() == null ? "" : ", valueKey=\"" + truncateForLog(structuredLine.valueKey(), 140) + "\"");
+                + ", label=\"" + TranslateStringUtils.truncateForLog(textString(structuredLine.labelText()), 96) + "\""
+                + ", value=\"" + TranslateStringUtils.truncateForLog(textString(structuredLine.valueText()), 96) + "\""
+                + ", labelKey=\"" + TranslateStringUtils.truncateForLog(structuredLine.labelKey(), 140) + "\""
+                + (structuredLine.valueKey() == null ? "" : ", valueKey=\"" + TranslateStringUtils.truncateForLog(structuredLine.valueKey(), 140) + "\"");
     }
 
     private static String buildDetailedDebugSummary(StructuredLineMatch structuredLine) {
@@ -624,14 +625,14 @@ final class TooltipStructuredCaptureSupport {
 
         StringBuilder detail = new StringBuilder(buildDebugSummary(structuredLine));
         detail.append(", labelLookup=\"")
-                .append(truncateForLog(
+                .append(TranslateStringUtils.truncateForLog(
                         TooltipTemplateRuntime.describeLocalDictionaryLookup(structuredLine.labelTranslationText()),
                         180
                 ))
                 .append('"');
         if (structuredLine.kind().translateValue()) {
             detail.append(", valueLookup=\"")
-                    .append(truncateForLog(
+                    .append(TranslateStringUtils.truncateForLog(
                             TooltipTemplateRuntime.describeLocalDictionaryLookup(structuredLine.valueTranslationText()),
                             180
                     ))
@@ -647,11 +648,11 @@ final class TooltipStructuredCaptureSupport {
 
         List<String> names = new ArrayList<>();
         for (EnchantListEntry entry : enchantListMatch.entries()) {
-            names.add(truncateForLog(textString(entry.nameText()), 48));
+            names.add(TranslateStringUtils.truncateForLog(textString(entry.nameText()), 48));
         }
         return "pattern=enchant-list"
                 + ", entries=" + enchantListMatch.entries().size()
-                + ", names=\"" + truncateForLog(String.join(" | ", names), 220) + "\"";
+                + ", names=\"" + TranslateStringUtils.truncateForLog(String.join(" | ", names), 220) + "\"";
     }
 
     private static Predicate<FlatNode> nodePredicate(Predicate<FlatNode> predicate) {
@@ -705,22 +706,6 @@ final class TooltipStructuredCaptureSupport {
 
     private static String textString(Text text) {
         return text == null ? "" : text.getString();
-    }
-
-    private static String truncateForLog(String value, int maxLength) {
-        if (value == null) {
-            return "";
-        }
-
-        String normalized = value
-                .replace('\n', ' ')
-                .replace('\r', ' ')
-                .replace('\t', ' ')
-                .trim();
-        if (normalized.length() <= maxLength) {
-            return normalized;
-        }
-        return normalized.substring(0, Math.max(0, maxLength - 3)) + "...";
     }
 
     private static String normalizeLabel(String label) {

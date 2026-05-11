@@ -1,6 +1,7 @@
 package com.cedarxuesong.translate_allinone.utils.translate;
 
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
+import com.cedarxuesong.translate_allinone.utils.TranslateStringUtils;
 import com.cedarxuesong.translate_allinone.utils.config.ProviderRouteResolver;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ChatTranslateConfig;
@@ -141,7 +142,6 @@ public class ChatInputTranslateManager {
         }
         originalTextRef.set(currentText);
         lastSourceTextRef.set(currentText);
-
 
         executor.submit(() -> {
             String requestContext = "route=chat_input, mode=" + mode.name().toLowerCase();
@@ -346,8 +346,8 @@ public class ChatInputTranslateManager {
         String roles = messages == null
                 ? "[]"
                 : messages.stream().map(message -> message == null ? "null" : String.valueOf(message.role)).collect(java.util.stream.Collectors.joining(",", "[", "]"));
-        String sample = truncate(normalizeWhitespace(originalText), 160);
-        String instructionSample = truncate(normalizeWhitespace(instruction), 120);
+        String sample = TranslateStringUtils.truncate(TranslateStringUtils.normalizeWhitespace(originalText), 160);
+        String instructionSample = TranslateStringUtils.truncate(TranslateStringUtils.normalizeWhitespace(instruction), 120);
         return "route=chat_input"
                 + ", provider=" + providerId
                 + ", model=" + modelId
@@ -358,23 +358,6 @@ public class ChatInputTranslateManager {
                 + ", roles=" + roles
                 + ", instruction=\"" + instructionSample + "\""
                 + ", sample=\"" + sample + "\"";
-    }
-
-    private static String normalizeWhitespace(String value) {
-        if (value == null) {
-            return "";
-        }
-        return value.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ').trim();
-    }
-
-    private static String truncate(String value, int maxLength) {
-        if (value == null) {
-            return "";
-        }
-        if (value.length() <= maxLength) {
-            return value;
-        }
-        return value.substring(0, Math.max(0, maxLength - 3)) + "...";
     }
 
     private static boolean isTransformModeSupported(ApiProviderProfile providerProfile, TransformMode mode) {

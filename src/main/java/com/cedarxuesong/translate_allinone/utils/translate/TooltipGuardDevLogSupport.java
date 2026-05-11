@@ -3,6 +3,7 @@ package com.cedarxuesong.translate_allinone.utils.translate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.cedarxuesong.translate_allinone.utils.TranslateStringUtils;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -44,7 +45,7 @@ final class TooltipGuardDevLogSupport {
         GuardEventState state = STATE_BY_KEY.computeIfAbsent(key, ignored -> new GuardEventState(source, phase));
         state.hitCount.increment();
         state.lastLineCount = Math.max(0, lineCount);
-        state.lastDetail = truncate(detail, 220);
+        state.lastDetail = TranslateStringUtils.truncate(detail, 220);
         state.lastUpdatedAtMillis = System.currentTimeMillis();
     }
 
@@ -88,13 +89,6 @@ final class TooltipGuardDevLogSupport {
 
     static void resetForTest() {
         STATE_BY_KEY.clear();
-    }
-
-    private static String truncate(String value, int limit) {
-        if (value == null || value.length() <= limit) {
-            return value == null ? "" : value;
-        }
-        return value.substring(0, Math.max(0, limit - 3)) + "...";
     }
 
     private static final class GuardEventState {

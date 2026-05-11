@@ -1,6 +1,7 @@
 package com.cedarxuesong.translate_allinone.utils.llmapi;
 
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
+import com.cedarxuesong.translate_allinone.utils.TranslateExceptionUtils;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ApiProviderType;
 import com.cedarxuesong.translate_allinone.utils.llmapi.ollama.OllamaChatRequest;
 import com.cedarxuesong.translate_allinone.utils.llmapi.ollama.OllamaClient;
@@ -12,7 +13,6 @@ import com.cedarxuesong.translate_allinone.utils.llmapi.openai.OpenAIResponsesRe
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
@@ -168,7 +168,7 @@ public class LLM {
                             )
                     );
                 } catch (RuntimeException e) {
-                    Throwable rootCause = unwrapCompletionThrowable(e);
+                    Throwable rootCause = TranslateExceptionUtils.unwrapThrowable(e);
                     if (structuredOutputEnabled && isStructuredOutputUnsupported(rootCause)) {
                         Translate_AllinOne.LOGGER.warn("OpenAI Responses structured output unsupported in streaming mode, retrying without it: {}", rootCause.getMessage());
                         return executeStreamingSupplier(
@@ -200,7 +200,7 @@ public class LLM {
                                 ).map(chunk -> chunk.choices.get(0).delta.content)
                         );
             } catch (RuntimeException e) {
-                Throwable rootCause = unwrapCompletionThrowable(e);
+                Throwable rootCause = TranslateExceptionUtils.unwrapThrowable(e);
                 if (structuredOutputEnabled && isStructuredOutputUnsupported(rootCause)) {
                     Translate_AllinOne.LOGGER.warn("OpenAI structured output unsupported in streaming mode, retrying without it: {}", rootCause.getMessage());
                     return executeStreamingSupplier(
@@ -234,7 +234,7 @@ public class LLM {
                                 ).map(chunk -> chunk.message.content)
                         );
             } catch (RuntimeException e) {
-                Throwable rootCause = unwrapCompletionThrowable(e);
+                Throwable rootCause = TranslateExceptionUtils.unwrapThrowable(e);
                 if (structuredOutputEnabled && isStructuredOutputUnsupported(rootCause)) {
                     Translate_AllinOne.LOGGER.warn("Ollama structured output unsupported in streaming mode, retrying without it: {}", rootCause.getMessage());
                     return executeStreamingSupplier(
@@ -320,7 +320,7 @@ public class LLM {
                 return;
             }
 
-            Throwable rootCause = unwrapCompletionThrowable(throwable);
+            Throwable rootCause = TranslateExceptionUtils.unwrapThrowable(throwable);
             if (!isStructuredOutputUnsupported(rootCause)) {
                 resultFuture.completeExceptionally(rootCause);
                 return;
@@ -332,21 +332,14 @@ public class LLM {
                     if (fallbackThrowable == null) {
                         resultFuture.complete(fallbackResult);
                     } else {
-                        resultFuture.completeExceptionally(unwrapCompletionThrowable(fallbackThrowable));
+                        resultFuture.completeExceptionally(TranslateExceptionUtils.unwrapThrowable(fallbackThrowable));
                     }
                 });
             } catch (Throwable fallbackStartError) {
-                resultFuture.completeExceptionally(unwrapCompletionThrowable(fallbackStartError));
+                resultFuture.completeExceptionally(TranslateExceptionUtils.unwrapThrowable(fallbackStartError));
             }
         });
         return resultFuture;
-    }
-
-    private Throwable unwrapCompletionThrowable(Throwable throwable) {
-        if (throwable instanceof CompletionException && throwable.getCause() != null) {
-            return throwable.getCause();
-        }
-        return throwable;
     }
 
     private boolean isStructuredOutputUnsupported(Throwable throwable) {
@@ -380,7 +373,7 @@ public class LLM {
         try {
             firstAttempt = supplier.get();
         } catch (Throwable e) {
-            return CompletableFuture.failedFuture(unwrapCompletionThrowable(e));
+            return CompletableFuture.failedFuture(TranslateExceptionUtils.unwrapThrowable(e));
         }
 
         CompletableFuture<String> result = new CompletableFuture<>();
@@ -390,8 +383,8 @@ public class LLM {
                 return;
             }
 
-            Throwable rootCause = unwrapCompletionThrowable(throwable);
-            if (!isInternalPostprocessError(rootCause)) {
+            Throwable rootCause = TranslateExceptionUtils.unwrapThrowable(throwable);
+            if (!TranslateExceptionUtils.isInternalPostprocessError(rootCause)) {
                 result.completeExceptionally(rootCause);
                 return;
             }
@@ -402,24 +395,14 @@ public class LLM {
                     if (retryThrowable == null) {
                         result.complete(retryValue);
                     } else {
-                        result.completeExceptionally(unwrapCompletionThrowable(retryThrowable));
+                        result.completeExceptionally(TranslateExceptionUtils.unwrapThrowable(retryThrowable));
                     }
                 });
             } catch (Throwable retryStartError) {
-                result.completeExceptionally(unwrapCompletionThrowable(retryStartError));
+                result.completeExceptionally(TranslateExceptionUtils.unwrapThrowable(retryStartError));
             }
         });
         return result;
-    }
-
-    private boolean isInternalPostprocessError(Throwable throwable) {
-        if (!(throwable instanceof LLMApiException) || throwable.getMessage() == null) {
-            return false;
-        }
-        String message = throwable.getMessage().toLowerCase(Locale.ROOT);
-        return message.contains("internalpostprocesserror")
-                || message.contains("internal error during model post-process")
-                || message.contains("translation failed due to internal error");
     }
 
     private CompletionSupplier instrumentCompletionSupplier(

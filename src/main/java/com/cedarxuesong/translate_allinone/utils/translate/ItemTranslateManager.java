@@ -9,6 +9,8 @@ import com.cedarxuesong.translate_allinone.utils.llmapi.LLM;
 import com.cedarxuesong.translate_allinone.utils.llmapi.LlmPayloadJsonSupport;
 import com.cedarxuesong.translate_allinone.utils.llmapi.ProviderSettings;
 import com.cedarxuesong.translate_allinone.utils.llmapi.openai.OpenAIRequest;
+import com.cedarxuesong.translate_allinone.utils.TranslateStringUtils;
+import com.cedarxuesong.translate_allinone.utils.TranslateExceptionUtils;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
@@ -16,7 +18,6 @@ import com.google.gson.reflect.TypeToken;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -28,13 +29,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class ItemTranslateManager {
     private static final ItemTranslateManager INSTANCE = new ItemTranslateManager();
     private static final Gson GSON = LlmPayloadJsonSupport.gson();
-    private static final Pattern JSON_EXTRACT_PATTERN = Pattern.compile("\\{.*\\}", Pattern.DOTALL);
-    private static final int MAX_KEY_MISMATCH_BATCH_RETRIES = 1;
 
     private record BatchRequestContext(
             long batchId,
@@ -353,7 +351,7 @@ public class ItemTranslateManager {
                             requestContext
                     );
                 } else if (error != null) {
-                    if (isInternalPostprocessError(error) && originalTexts.size() > 1) {
+                    if (TranslateExceptionUtils.isInternalPostprocessError(error) && originalTexts.size() > 1) {
                         phase = "retry-single";
                         Translate_AllinOne.LOGGER.warn(
                                 "Item batch translation hit internal post-process error, retrying as single-item batches. context={} batchSize={}",
@@ -377,7 +375,7 @@ public class ItemTranslateManager {
                 } else {
                     try {
                         long jsonExtractStartedAtNanos = System.nanoTime();
-                        Matcher matcher = JSON_EXTRACT_PATTERN.matcher(response);
+                        Matcher matcher = TranslateStringUtils.JSON_EXTRACT_PATTERN.matcher(response);
                         if (!matcher.find()) {
                             throw new JsonSyntaxException("No JSON object found in the response.");
                         }
@@ -393,14 +391,14 @@ public class ItemTranslateManager {
                         }
 
                         if (hasKeyMismatch(translatedMapFromAI, originalTexts.size())) {
-                            if (keyMismatchRetryCount < MAX_KEY_MISMATCH_BATCH_RETRIES) {
+                            if (keyMismatchRetryCount < TranslateStringUtils.MAX_KEY_MISMATCH_BATCH_RETRIES) {
                                 int nextAttempt = keyMismatchRetryCount + 1;
                                 phase = "retry-batch";
                                 missingCount = originalTexts.size();
                                 Translate_AllinOne.LOGGER.warn(
                                         "Item translation keys mismatched, retrying full batch. attempt={}/{} context={}",
                                         nextAttempt,
-                                        MAX_KEY_MISMATCH_BATCH_RETRIES,
+                                        TranslateStringUtils.MAX_KEY_MISMATCH_BATCH_RETRIES,
                                         requestContext
                                 );
                                 deferredRetries.add(new RetryRequest(
@@ -563,29 +561,10 @@ public class ItemTranslateManager {
                 "Item translation key mismatch. expectedCount={}, actualCount={}, missing={}, extra={}",
                 expectedKeys.size(),
                 actualKeys.size(),
-                summarizeKeys(missingKeys),
-                summarizeKeys(extraKeys)
+                TranslateStringUtils.summarizeKeys(missingKeys),
+                TranslateStringUtils.summarizeKeys(extraKeys)
         );
         return true;
-    }
-
-    private String summarizeKeys(java.util.Set<String> keys) {
-        if (keys == null || keys.isEmpty()) {
-            return "[]";
-        }
-        final int limit = 8;
-        java.util.List<String> sample = new java.util.ArrayList<>(limit);
-        int count = 0;
-        for (String key : keys) {
-            if (count++ >= limit) {
-                break;
-            }
-            sample.add(key);
-        }
-        if (keys.size() <= limit) {
-            return sample.toString();
-        }
-        return sample + "...(+" + (keys.size() - limit) + ")";
     }
 
     private void logDevBatchTiming(
@@ -623,21 +602,21 @@ public class ItemTranslateManager {
                 validationElapsedNanos,
                 cacheUpdateElapsedNanos
         );
-        String errorSummary = error == null ? "" : truncate(normalizeWhitespace(String.valueOf(unwrapThrowable(error))), 220);
+        String errorSummary = error == null ? "" : TranslateStringUtils.truncate(TranslateStringUtils.normalizeWhitespace(String.valueOf(TranslateExceptionUtils.unwrapThrowable(error))), 220);
         Translate_AllinOne.LOGGER.info(
                 "[ItemDev] phase={} elapsedMs={} endToEndMs={} collectToEnqueueMs={} queueWaitMs={} preflightMs={} networkMs={} callbackMs={} jsonExtractMs={} jsonParseMs={} validateMs={} cacheUpdateMs={} batchSize={} translated={} requeue={} missing={} inFlight={}=>{} queue={} context={} error=\"{}\"",
                 phase,
-                formatDurationMillis(safeElapsedNanos(requestStartedAtNanos, finishedAtNanos)),
-                formatDurationMillis(metrics.endToEndElapsedNanos()),
-                formatDurationMillis(metrics.collectToEnqueueElapsedNanos()),
-                formatDurationMillis(metrics.queueWaitElapsedNanos()),
-                formatDurationMillis(metrics.preflightElapsedNanos()),
-                formatDurationMillis(metrics.networkElapsedNanos()),
-                formatDurationMillis(metrics.callbackElapsedNanos()),
-                formatDurationMillis(metrics.jsonExtractElapsedNanos()),
-                formatDurationMillis(metrics.jsonParseElapsedNanos()),
-                formatDurationMillis(metrics.validationElapsedNanos()),
-                formatDurationMillis(metrics.cacheUpdateElapsedNanos()),
+                TranslateStringUtils.formatDurationMillis(safeElapsedNanos(requestStartedAtNanos, finishedAtNanos)),
+                TranslateStringUtils.formatDurationMillis(metrics.endToEndElapsedNanos()),
+                TranslateStringUtils.formatDurationMillis(metrics.collectToEnqueueElapsedNanos()),
+                TranslateStringUtils.formatDurationMillis(metrics.queueWaitElapsedNanos()),
+                TranslateStringUtils.formatDurationMillis(metrics.preflightElapsedNanos()),
+                TranslateStringUtils.formatDurationMillis(metrics.networkElapsedNanos()),
+                TranslateStringUtils.formatDurationMillis(metrics.callbackElapsedNanos()),
+                TranslateStringUtils.formatDurationMillis(metrics.jsonExtractElapsedNanos()),
+                TranslateStringUtils.formatDurationMillis(metrics.jsonParseElapsedNanos()),
+                TranslateStringUtils.formatDurationMillis(metrics.validationElapsedNanos()),
+                TranslateStringUtils.formatDurationMillis(metrics.cacheUpdateElapsedNanos()),
                 batchSize,
                 translatedCount,
                 requeueCount,
@@ -648,25 +627,6 @@ public class ItemTranslateManager {
                 requestContext,
                 errorSummary
         );
-    }
-
-    private boolean isInternalPostprocessError(Throwable throwable) {
-        Throwable root = unwrapThrowable(throwable);
-        if (root == null || root.getMessage() == null) {
-            return false;
-        }
-        String message = root.getMessage().toLowerCase(Locale.ROOT);
-        return message.contains("internalpostprocesserror")
-                || message.contains("internal error during model post-process")
-                || message.contains("translation failed due to internal error");
-    }
-
-    private Throwable unwrapThrowable(Throwable throwable) {
-        Throwable current = throwable;
-        while (current instanceof java.util.concurrent.CompletionException && current.getCause() != null) {
-            current = current.getCause();
-        }
-        return current;
     }
 
     private String buildRequestContext(
@@ -683,7 +643,7 @@ public class ItemTranslateManager {
                 ? "[]"
                 : messages.stream().map(message -> message == null ? "null" : String.valueOf(message.role)).collect(java.util.stream.Collectors.joining(",", "[", "]"));
         int customParamCount = profile == null ? 0 : profile.activeCustomParameters().size();
-        String sample = originalTexts == null || originalTexts.isEmpty() ? "" : truncate(normalizeWhitespace(originalTexts.get(0)), 160);
+        String sample = originalTexts == null || originalTexts.isEmpty() ? "" : TranslateStringUtils.truncate(TranslateStringUtils.normalizeWhitespace(originalTexts.get(0)), 160);
         return "route=item"
                 + ", batch_id=" + (batchContext == null ? 0 : batchContext.batchId())
                 + ", request_id=" + (batchContext == null ? 0 : batchContext.requestId())
@@ -698,23 +658,6 @@ public class ItemTranslateManager {
                 + ", roles=" + roles
                 + ", custom_params=" + customParamCount
                 + ", sample=\"" + sample + "\"";
-    }
-
-    private String normalizeWhitespace(String value) {
-        if (value == null) {
-            return "";
-        }
-        return value.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ').trim();
-    }
-
-    private String truncate(String value, int maxLength) {
-        if (value == null) {
-            return "";
-        }
-        if (value.length() <= maxLength) {
-            return value;
-        }
-        return value.substring(0, Math.max(0, maxLength - 3)) + "...";
     }
 
     private void logSessionSnapshot(String phase, long epoch, ItemTranslateConfig config) {
@@ -757,7 +700,7 @@ public class ItemTranslateManager {
                 batchCount,
                 batchSize,
                 summarizeBatchIds(batchIds),
-                formatDurationMillis(System.nanoTime() - collectedAtNanos),
+                TranslateStringUtils.formatDurationMillis(System.nanoTime() - collectedAtNanos),
                 ItemTemplateCache.formatQueueSnapshot(cache.snapshotQueues())
         );
     }
@@ -782,11 +725,11 @@ public class ItemTranslateManager {
                 batchContext.reason(),
                 batchContext.parentRequestId() == null ? "" : batchContext.parentRequestId(),
                 batch == null ? 0 : batch.size(),
-                formatDurationMillis(safeElapsedNanos(batchContext.collectedAtNanos(), batchContext.enqueuedAtNanos())),
-                formatDurationMillis(safeElapsedNanos(batchContext.enqueuedAtNanos(), batchContext.dequeuedAtNanos())),
+                TranslateStringUtils.formatDurationMillis(safeElapsedNanos(batchContext.collectedAtNanos(), batchContext.enqueuedAtNanos())),
+                TranslateStringUtils.formatDurationMillis(safeElapsedNanos(batchContext.enqueuedAtNanos(), batchContext.dequeuedAtNanos())),
                 inFlightCount < 0 ? "" : Integer.toString(inFlightCount),
                 ItemTemplateCache.formatQueueSnapshot(cache.snapshotQueues()),
-                batch == null || batch.isEmpty() ? "" : truncate(normalizeWhitespace(batch.get(0)), 160)
+                batch == null || batch.isEmpty() ? "" : TranslateStringUtils.truncate(TranslateStringUtils.normalizeWhitespace(batch.get(0)), 160)
         );
     }
 
@@ -987,10 +930,6 @@ public class ItemTranslateManager {
             return 0L;
         }
         return Math.max(0L, finishedAtNanos - startedAtNanos);
-    }
-
-    private String formatDurationMillis(long elapsedNanos) {
-        return String.format(Locale.ROOT, "%.2f", elapsedNanos / 1_000_000.0);
     }
 
     private String summarizeBatchIds(List<Long> batchIds) {

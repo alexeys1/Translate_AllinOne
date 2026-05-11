@@ -2,6 +2,7 @@ package com.cedarxuesong.translate_allinone.utils.translate;
 
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
+import com.cedarxuesong.translate_allinone.utils.TranslateStringUtils;
 import com.cedarxuesong.translate_allinone.utils.textmatcher.ContentMatcher;
 import com.cedarxuesong.translate_allinone.utils.textmatcher.FlatNode;
 import com.cedarxuesong.translate_allinone.utils.textmatcher.NodePredicateBuilder;
@@ -357,7 +358,7 @@ public final class TooltipTextMatcherSupport {
                     decision.shouldTranslate(),
                     decision.firstContentLine(),
                     decision.reason(),
-                    truncate(decision.rawText(), 180),
+                    TranslateStringUtils.truncateForLog(decision.rawText(), 180),
                     summarizeNodes(line)
             );
             return;
@@ -373,7 +374,7 @@ public final class TooltipTextMatcherSupport {
                 decision.shouldTranslate(),
                 decision.firstContentLine(),
                 decision.reason(),
-                truncate(decision.rawText(), 180)
+                TranslateStringUtils.truncateForLog(decision.rawText(), 180)
         );
     }
 
@@ -394,18 +395,18 @@ public final class TooltipTextMatcherSupport {
             return;
         }
 
-        String input = truncate(sourceLine == null ? "" : sourceLine.getString(), 180);
-        String result = truncate(lineResult.translatedLine() == null ? "" : lineResult.translatedLine().getString(), 180);
+        String input = TranslateStringUtils.truncateForLog(sourceLine == null ? "" : sourceLine.getString(), 180);
+        String result = TranslateStringUtils.truncateForLog(lineResult.translatedLine() == null ? "" : lineResult.translatedLine().getString(), 180);
         if (logTiming) {
             LOGGER.info(
                     "[TooltipDev:{}] line={} route={} translateLine={}ms pending={} missingKeyIssue={} detail=\"{}\" input=\"{}\" result=\"{}\"",
                     source,
                     lineIndex + 1,
                     emptyIfBlank(route),
-                    formatDurationMillis(startedAtNanos),
+                    TranslateStringUtils.formatDurationMillis(System.nanoTime() - startedAtNanos),
                     lineResult.pending(),
                     lineResult.missingKeyIssue(),
-                    truncate(detail, 220),
+                    TranslateStringUtils.truncateForLog(detail, 220),
                     input,
                     result
             );
@@ -419,7 +420,7 @@ public final class TooltipTextMatcherSupport {
                 emptyIfBlank(route),
                 lineResult.pending(),
                 lineResult.missingKeyIssue(),
-                truncate(detail, 220),
+                TranslateStringUtils.truncateForLog(detail, 220),
                 input,
                 result
         );
@@ -440,7 +441,7 @@ public final class TooltipTextMatcherSupport {
         LOGGER.info(
                 "[TooltipDev:{}] tooltipPass={}ms translatedLines={}/{}",
                 source,
-                formatDurationMillis(startedAtNanos),
+                TranslateStringUtils.formatDurationMillis(System.nanoTime() - startedAtNanos),
                 translatedLineCount,
                 visibleLineCount
         );
@@ -692,32 +693,16 @@ public final class TooltipTextMatcherSupport {
                         .append(")");
             } else if (content instanceof PlainTextContent plainTextContent) {
                 builder.append("plain(\"")
-                        .append(truncate(plainTextContent.string(), 48))
+                        .append(TranslateStringUtils.truncateForLog(plainTextContent.string(), 48))
                         .append("\")");
             } else {
                 builder.append(content == null ? "null" : content.getClass().getSimpleName())
                         .append("(\"")
-                        .append(truncate(FlatNode.extractString(content), 48))
+                        .append(TranslateStringUtils.truncateForLog(FlatNode.extractString(content), 48))
                         .append("\")");
             }
         }
         return builder.append(']').toString();
-    }
-
-    private static String truncate(String value, int maxLength) {
-        if (value == null) {
-            return "";
-        }
-
-        String normalized = value
-                .replace('\n', ' ')
-                .replace('\r', ' ')
-                .replace('\t', ' ')
-                .trim();
-        if (normalized.length() <= maxLength) {
-            return normalized;
-        }
-        return normalized.substring(0, Math.max(0, maxLength - 3)) + "...";
     }
 
     private static String emptyIfBlank(String value) {
@@ -728,8 +713,4 @@ public final class TooltipTextMatcherSupport {
         return block;
     }
 
-    private static String formatDurationMillis(long startedAtNanos) {
-        double elapsedMillis = (System.nanoTime() - startedAtNanos) / 1_000_000.0;
-        return String.format(Locale.ROOT, "%.2f", elapsedMillis);
-    }
 }

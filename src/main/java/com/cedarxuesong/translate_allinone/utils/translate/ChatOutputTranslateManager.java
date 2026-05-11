@@ -2,6 +2,7 @@ package com.cedarxuesong.translate_allinone.utils.translate;
 
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.mixin.mixinChatHud.ChatHudAccessor;
+import com.cedarxuesong.translate_allinone.utils.TranslateStringUtils;
 import com.cedarxuesong.translate_allinone.utils.AnimationManager;
 import com.cedarxuesong.translate_allinone.utils.MessageUtils;
 import com.cedarxuesong.translate_allinone.utils.config.ProviderRouteResolver;
@@ -649,7 +650,7 @@ public class ChatOutputTranslateManager {
         String roles = messages == null
                 ? "[]"
                 : messages.stream().map(message -> message == null ? "null" : String.valueOf(message.role)).collect(java.util.stream.Collectors.joining(",", "[", "]"));
-        String sample = truncate(normalizeWhitespace(markedText), 160);
+        String sample = TranslateStringUtils.truncate(TranslateStringUtils.normalizeWhitespace(markedText), 160);
         return "route=chat_output"
                 + ", messageId=" + messageId
                 + ", provider=" + providerId
@@ -659,23 +660,6 @@ public class ChatOutputTranslateManager {
                 + ", messages=" + messageCount
                 + ", roles=" + roles
                 + ", sample=\"" + sample + "\"";
-    }
-
-    private static String normalizeWhitespace(String value) {
-        if (value == null) {
-            return "";
-        }
-        return value.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ').trim();
-    }
-
-    private static String truncate(String value, int maxLength) {
-        if (value == null) {
-            return "";
-        }
-        if (value.length() <= maxLength) {
-            return value;
-        }
-        return value.substring(0, Math.max(0, maxLength - 3)) + "...";
     }
 
     private static void logLlmSubmission(

@@ -6,7 +6,10 @@ import com.cedarxuesong.translate_allinone.utils.config.ProviderRouteResolver;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ScoreboardConfig;
 import com.cedarxuesong.translate_allinone.utils.llmapi.LLM;
+import com.cedarxuesong.translate_allinone.utils.llmapi.LlmPayloadJsonSupport;
 import com.cedarxuesong.translate_allinone.utils.llmapi.ProviderSettings;
+import com.cedarxuesong.translate_allinone.utils.TranslateStringUtils;
+import com.cedarxuesong.translate_allinone.utils.TranslateExceptionUtils;
 import com.cedarxuesong.translate_allinone.utils.llmapi.openai.OpenAIRequest;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
@@ -14,20 +17,16 @@ import com.google.gson.reflect.TypeToken;
 
 import java.lang.reflect.Type;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.concurrent.ExecutorService;
 
 public class ScoreboardTranslateManager {
     private static final ScoreboardTranslateManager INSTANCE = new ScoreboardTranslateManager();
-    private static final Gson GSON = new Gson();
-    private static final Pattern JSON_EXTRACT_PATTERN = Pattern.compile("\\{.*\\}", Pattern.DOTALL);
-    private static final int MAX_KEY_MISMATCH_BATCH_RETRIES = 1;
+    private static final Gson GSON = LlmPayloadJsonSupport.gson();
 
     private ExecutorService workerExecutor;
     private ScheduledExecutorService collectorExecutor;
@@ -224,7 +223,7 @@ public class ScoreboardTranslateManager {
             }
 
             if (error != null) {
-                if (isInternalPostprocessError(error) && originalTexts.size() > 1) {
+                if (TranslateExceptionUtils.isInternalPostprocessError(error) && originalTexts.size() > 1) {
                     Translate_AllinOne.LOGGER.warn(
                             "Scoreboard batch translation hit internal post-process error, retrying as single-item batches. context={} batchSize={}",
                             requestContext,
@@ -242,7 +241,7 @@ public class ScoreboardTranslateManager {
             }
 
             try {
-                Matcher matcher = JSON_EXTRACT_PATTERN.matcher(response);
+                Matcher matcher = TranslateStringUtils.JSON_EXTRACT_PATTERN.matcher(response);
                 if (matcher.find()) {
                     String jsonResponse = matcher.group();
                     Type type = new TypeToken<Map<String, String>>() {}.getType();
@@ -252,12 +251,12 @@ public class ScoreboardTranslateManager {
                     }
 
                     if (hasKeyMismatch(translatedMapFromAI, originalTexts.size())) {
-                        if (keyMismatchRetryCount < MAX_KEY_MISMATCH_BATCH_RETRIES) {
+                        if (keyMismatchRetryCount < TranslateStringUtils.MAX_KEY_MISMATCH_BATCH_RETRIES) {
                             int nextAttempt = keyMismatchRetryCount + 1;
                             Translate_AllinOne.LOGGER.warn(
                                     "Scoreboard translation keys mismatched, retrying full batch. attempt={}/{} context={}",
                                     nextAttempt,
-                                    MAX_KEY_MISMATCH_BATCH_RETRIES,
+                                    TranslateStringUtils.MAX_KEY_MISMATCH_BATCH_RETRIES,
                                     requestContext
                             );
                             translateBatch(new java.util.ArrayList<>(originalTexts), config, nextAttempt, batchSessionEpoch);
@@ -360,29 +359,10 @@ public class ScoreboardTranslateManager {
                 "Scoreboard translation key mismatch. expectedCount={}, actualCount={}, missing={}, extra={}",
                 expectedKeys.size(),
                 actualKeys.size(),
-                summarizeKeys(missingKeys),
-                summarizeKeys(extraKeys)
+                TranslateStringUtils.summarizeKeys(missingKeys),
+                TranslateStringUtils.summarizeKeys(extraKeys)
         );
         return true;
-    }
-
-    private String summarizeKeys(java.util.Set<String> keys) {
-        if (keys == null || keys.isEmpty()) {
-            return "[]";
-        }
-        final int limit = 8;
-        java.util.List<String> sample = new java.util.ArrayList<>(limit);
-        int count = 0;
-        for (String key : keys) {
-            if (count++ >= limit) {
-                break;
-            }
-            sample.add(key);
-        }
-        if (keys.size() <= limit) {
-            return sample.toString();
-        }
-        return sample + "...(+" + (keys.size() - limit) + ")";
     }
 
     private String buildSystemPrompt(String targetLanguage, String suffix) {
@@ -402,25 +382,6 @@ public class ScoreboardTranslateManager {
         return PromptMessageBuilder.appendSystemPromptSuffix(basePrompt, suffix);
     }
 
-    private boolean isInternalPostprocessError(Throwable throwable) {
-        Throwable root = unwrapThrowable(throwable);
-        if (root == null || root.getMessage() == null) {
-            return false;
-        }
-        String message = root.getMessage().toLowerCase(Locale.ROOT);
-        return message.contains("internalpostprocesserror")
-                || message.contains("internal error during model post-process")
-                || message.contains("translation failed due to internal error");
-    }
-
-    private Throwable unwrapThrowable(Throwable throwable) {
-        Throwable current = throwable;
-        while (current instanceof java.util.concurrent.CompletionException && current.getCause() != null) {
-            current = current.getCause();
-        }
-        return current;
-    }
-
     private String buildRequestContext(
             ApiProviderProfile profile,
             String targetLanguage,
@@ -434,7 +395,7 @@ public class ScoreboardTranslateManager {
                 ? "[]"
                 : messages.stream().map(message -> message == null ? "null" : String.valueOf(message.role)).collect(java.util.stream.Collectors.joining(",", "[", "]"));
         int customParamCount = profile == null ? 0 : profile.activeCustomParameters().size();
-        String sample = originalTexts == null || originalTexts.isEmpty() ? "" : truncate(normalizeWhitespace(originalTexts.get(0)), 160);
+        String sample = originalTexts == null || originalTexts.isEmpty() ? "" : TranslateStringUtils.truncate(TranslateStringUtils.normalizeWhitespace(originalTexts.get(0)), 160);
         return "route=scoreboard"
                 + ", provider=" + providerId
                 + ", model=" + modelId
@@ -446,20 +407,4 @@ public class ScoreboardTranslateManager {
                 + ", sample=\"" + sample + "\"";
     }
 
-    private String normalizeWhitespace(String value) {
-        if (value == null) {
-            return "";
-        }
-        return value.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ').trim();
-    }
-
-    private String truncate(String value, int maxLength) {
-        if (value == null) {
-            return "";
-        }
-        if (value.length() <= maxLength) {
-            return value;
-        }
-        return value.substring(0, Math.max(0, maxLength - 3)) + "...";
-    }
 }
