@@ -29,17 +29,7 @@ import java.util.concurrent.TimeUnit;
 
 public class ScoreboardTextCache {
 
-    public enum TranslationStatus {
-        TRANSLATED,
-        IN_PROGRESS,
-        PENDING,
-        ERROR,
-        NOT_CACHED
-    }
 
-    public record CacheStats(int translated, int total) {}
-
-    public record LookupResult(TranslationStatus status, String translation, String errorMessage) {}
 
     private record LoadedEntries(
             Map<String, String> entries,

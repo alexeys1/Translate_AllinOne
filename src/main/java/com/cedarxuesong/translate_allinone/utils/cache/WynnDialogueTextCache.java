@@ -28,19 +28,7 @@ public final class WynnDialogueTextCache {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
     private static final long SAVE_DEBOUNCE_MILLIS = 1500L;
 
-    public enum TranslationStatus {
-        TRANSLATED,
-        IN_PROGRESS,
-        PENDING,
-        ERROR,
-        NOT_CACHED
-    }
 
-    public record CacheStats(int translated, int total) {
-    }
-
-    public record LookupResult(TranslationStatus status, String translation, String errorMessage) {
-    }
 
     private final Path cacheFilePath;
     private final boolean passiveBackupEnabled;

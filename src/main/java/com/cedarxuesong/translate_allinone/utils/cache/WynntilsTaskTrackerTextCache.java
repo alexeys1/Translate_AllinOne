@@ -26,17 +26,7 @@ import java.util.concurrent.TimeUnit;
 public final class WynntilsTaskTrackerTextCache {
     private static final String CACHE_LABEL = "wynncraft_quest_translate_cache.json";
 
-    public enum TranslationStatus {
-        TRANSLATED,
-        IN_PROGRESS,
-        PENDING,
-        ERROR,
-        NOT_CACHED
-    }
 
-    public record CacheStats(int translated, int total) {}
-
-    public record LookupResult(TranslationStatus status, String translation, String errorMessage) {}
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
     private static final String CACHE_FILE_NAME = CACHE_LABEL;
