@@ -3,6 +3,8 @@ package com.cedarxuesong.translate_allinone.utils.translate;
 import com.cedarxuesong.translate_allinone.utils.AnimationManager;
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.registration.LifecycleEventManager;
+import com.cedarxuesong.translate_allinone.utils.cache.LookupResult;
+import com.cedarxuesong.translate_allinone.utils.cache.TranslationStatus;
 import com.cedarxuesong.translate_allinone.utils.cache.WynntilsTaskTrackerTextCache;
 import com.cedarxuesong.translate_allinone.utils.config.ProviderRouteResolver;
 import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
@@ -93,10 +95,10 @@ public final class WynntilsTaskTrackerTranslationSupport {
                 : StylePreserver.toLegacyTemplate(unicodeTemplate, styleResult.styleMap);
         maybeForceRefreshCurrentTemplate(translationTemplateKey);
 
-        WynntilsTaskTrackerTextCache.LookupResult lookupResult =
+        LookupResult lookupResult =
                 WynntilsTaskTrackerTextCache.getInstance().lookupOrQueue(translationTemplateKey);
 
-        if (lookupResult.status() == WynntilsTaskTrackerTextCache.TranslationStatus.TRANSLATED) {
+        if (lookupResult.status() == TranslationStatus.TRANSLATED) {
             String reassembledTranslated = TemplateProcessor.reassemble(lookupResult.translation(), templateResult.values());
             if (!useTagStylePreservation) {
                 return reassembledTranslated;
@@ -109,8 +111,8 @@ public final class WynntilsTaskTrackerTranslationSupport {
             return toLegacyStringPreservingResets(translatedTextObject);
         }
 
-        if (lookupResult.status() == WynntilsTaskTrackerTextCache.TranslationStatus.PENDING
-                || lookupResult.status() == WynntilsTaskTrackerTextCache.TranslationStatus.IN_PROGRESS) {
+        if (lookupResult.status() == TranslationStatus.PENDING
+                || lookupResult.status() == TranslationStatus.IN_PROGRESS) {
             Text animatedText = AnimationManager.getAnimatedStyledText(
                     originalTextObject,
                     translationTemplateKey,
@@ -118,7 +120,7 @@ public final class WynntilsTaskTrackerTranslationSupport {
             return toLegacyStringPreservingResets(animatedText);
         }
 
-        if (lookupResult.status() == WynntilsTaskTrackerTextCache.TranslationStatus.ERROR) {
+        if (lookupResult.status() == TranslationStatus.ERROR) {
             String reason = lookupResult.errorMessage();
             if (reason != null && !reason.isBlank()) {
                 return originalText + " §c[! " + reason + "]";

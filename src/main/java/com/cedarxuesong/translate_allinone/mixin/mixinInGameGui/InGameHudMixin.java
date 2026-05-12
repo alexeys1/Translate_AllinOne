@@ -2,7 +2,9 @@ package com.cedarxuesong.translate_allinone.mixin.mixinInGameGui;
 
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.utils.AnimationManager;
+import com.cedarxuesong.translate_allinone.utils.cache.LookupResult;
 import com.cedarxuesong.translate_allinone.utils.cache.ScoreboardTextCache;
+import com.cedarxuesong.translate_allinone.utils.cache.TranslationStatus;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ScoreboardConfig;
 import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
 import com.cedarxuesong.translate_allinone.utils.text.StylePreserver;
@@ -57,11 +59,11 @@ public class InGameHudMixin {
         String legacyTemplateKey = StylePreserver.toLegacyTemplate(unicodeTemplate, styleResult.styleMap);
 
         ScoreboardTextCache cache = ScoreboardTextCache.getInstance();
-        ScoreboardTextCache.LookupResult lookupResult = cache.lookupOrQueue(legacyTemplateKey);
-        ScoreboardTextCache.TranslationStatus status = lookupResult.status();
+        LookupResult lookupResult = cache.lookupOrQueue(legacyTemplateKey);
+        TranslationStatus status = lookupResult.status();
         String translatedTemplate = lookupResult.translation();
 
-        if (status == ScoreboardTextCache.TranslationStatus.TRANSLATED) {
+        if (status == TranslationStatus.TRANSLATED) {
             String reassembledTranslated = TemplateProcessor.reassemble(translatedTemplate, templateResult.values());
             return StylePreserver.fromLegacyText(reassembledTranslated);
         }
@@ -69,7 +71,7 @@ public class InGameHudMixin {
         String reassembledOriginal = TemplateProcessor.reassemble(unicodeTemplate, templateResult.values());
         Text originalTextObject = StylePreserver.reapplyStyles(reassembledOriginal, styleResult.styleMap);
 
-        if (status == ScoreboardTextCache.TranslationStatus.ERROR) {
+        if (status == TranslationStatus.ERROR) {
             String errorMessage = lookupResult.errorMessage();
             if (translate_allinone$isMissingKeyIssue(errorMessage)) {
                 return AnimationManager.getAnimatedStyledText(originalTextObject, legacyTemplateKey, true);

@@ -3,6 +3,8 @@ package com.cedarxuesong.translate_allinone.utils.translate;
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.registration.LifecycleEventManager;
 import com.cedarxuesong.translate_allinone.utils.AnimationManager;
+import com.cedarxuesong.translate_allinone.utils.cache.LookupResult;
+import com.cedarxuesong.translate_allinone.utils.cache.TranslationStatus;
 import com.cedarxuesong.translate_allinone.utils.cache.WynnDialogueTextCache;
 import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
 import com.cedarxuesong.translate_allinone.utils.config.ProviderRouteResolver;
@@ -1390,10 +1392,10 @@ public final class WynnDialogueTranslationSupport {
         }
         throttledDialoguesLocalMissLog("npc", npcName, "resolve_npc", "prepared NPC name was not found in dialogues dictionary");
 
-        WynnDialogueTextCache.LookupResult lookup = allowQueue && hasConfiguredRoute()
+        LookupResult lookup = allowQueue && hasConfiguredRoute()
                 ? cache().lookupOrQueue(buildNpcCacheKey(npcName))
                 : cache().peek(buildNpcCacheKey(npcName));
-        if (lookup.status() == WynnDialogueTextCache.TranslationStatus.TRANSLATED
+        if (lookup.status() == TranslationStatus.TRANSLATED
                 && lookup.translation() != null
                 && !lookup.translation().isBlank()) {
             return restorePlayerPlaceholders(lookup.translation());
@@ -1437,21 +1439,21 @@ public final class WynnDialogueTranslationSupport {
             }
         }
 
-        WynnDialogueTextCache.LookupResult lookup = allowQueue && hasConfiguredRoute()
+        LookupResult lookup = allowQueue && hasConfiguredRoute()
                 ? cache().lookupOrQueue(buildDialogueCacheKey(dialogue))
                 : cache().peek(buildDialogueCacheKey(dialogue));
-        if (lookup.status() == WynnDialogueTextCache.TranslationStatus.TRANSLATED
+        if (lookup.status() == TranslationStatus.TRANSLATED
                 && lookup.translation() != null
                 && !lookup.translation().isBlank()) {
             return DialogueDisplayState.of(restorePlayerPlaceholders(lookup.translation()), false, "");
         }
 
-        if (lookup.status() == WynnDialogueTextCache.TranslationStatus.PENDING
-                || lookup.status() == WynnDialogueTextCache.TranslationStatus.IN_PROGRESS) {
+        if (lookup.status() == TranslationStatus.PENDING
+                || lookup.status() == TranslationStatus.IN_PROGRESS) {
             return DialogueDisplayState.of(dialogue, true, buildDialogueCacheKey(dialogue));
         }
 
-        if (lookup.status() == WynnDialogueTextCache.TranslationStatus.ERROR) {
+        if (lookup.status() == TranslationStatus.ERROR) {
             return DialogueDisplayState.withError(dialogue, lookup.errorMessage());
         }
 
@@ -1480,10 +1482,10 @@ public final class WynnDialogueTranslationSupport {
         List<String> perLineAnimationKeys = new ArrayList<>();
         for (String optionLine : optionLines) {
             String optionKey = buildOptionCacheKey(optionLine);
-            WynnDialogueTextCache.LookupResult lookup = allowQueue && hasConfiguredRoute()
+            LookupResult lookup = allowQueue && hasConfiguredRoute()
                     ? cache().lookupOrQueue(optionKey)
                     : cache().peek(optionKey);
-            if (lookup.status() == WynnDialogueTextCache.TranslationStatus.TRANSLATED
+            if (lookup.status() == TranslationStatus.TRANSLATED
                     && lookup.translation() != null
                     && !lookup.translation().isBlank()) {
                 String restoredTranslation = normalizeDisplayText(restorePlayerPlaceholders(lookup.translation()));
@@ -1492,14 +1494,14 @@ public final class WynnDialogueTranslationSupport {
                 continue;
             }
 
-            if (lookup.status() == WynnDialogueTextCache.TranslationStatus.ERROR) {
+            if (lookup.status() == TranslationStatus.ERROR) {
                 hasError = true;
                 perLineAnimationKeys.add("");
                 if (lookup.errorMessage() != null && !lookup.errorMessage().isBlank()) {
                     errorMessage = lookup.errorMessage();
                 }
-            } else if (lookup.status() == WynnDialogueTextCache.TranslationStatus.PENDING
-                    || lookup.status() == WynnDialogueTextCache.TranslationStatus.IN_PROGRESS) {
+            } else if (lookup.status() == TranslationStatus.PENDING
+                    || lookup.status() == TranslationStatus.IN_PROGRESS) {
                 pending = true;
                 perLineAnimationKeys.add(optionKey);
                 if (animationKey.isBlank()) {

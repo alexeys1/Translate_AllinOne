@@ -3,6 +3,8 @@ package com.cedarxuesong.translate_allinone.utils.translate;
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.utils.AnimationManager;
 import com.cedarxuesong.translate_allinone.utils.cache.ItemTemplateCache;
+import com.cedarxuesong.translate_allinone.utils.cache.LookupResult;
+import com.cedarxuesong.translate_allinone.utils.cache.TranslationStatus;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.text.StylePreserver;
 import com.cedarxuesong.translate_allinone.utils.text.TemplateProcessor;
@@ -135,7 +137,7 @@ final class TooltipTemplateRuntime {
     }
 
     private record ResolvedTemplateLookup(
-            ItemTemplateCache.LookupResult lookupResult,
+            LookupResult lookupResult,
             CachedTranslationFormat format,
             Text renderedLineOverride
     ) {
@@ -257,10 +259,10 @@ final class TooltipTemplateRuntime {
 
     static TooltipTranslationSupport.TooltipLineResult translatePreparedTemplate(PreparedTooltipTemplate preparedTemplate) {
         ResolvedTemplateLookup resolvedLookup = resolveLookup(preparedTemplate);
-        ItemTemplateCache.LookupResult lookupResult = resolvedLookup.lookupResult();
-        ItemTemplateCache.TranslationStatus status = lookupResult.status();
-        boolean pending = status == ItemTemplateCache.TranslationStatus.PENDING
-                || status == ItemTemplateCache.TranslationStatus.IN_PROGRESS;
+        LookupResult lookupResult = resolvedLookup.lookupResult();
+        TranslationStatus status = lookupResult.status();
+        boolean pending = status == TranslationStatus.PENDING
+                || status == TranslationStatus.IN_PROGRESS;
         boolean missingKeyIssue = false;
 
         String translatedTemplate = lookupResult.translation();
@@ -273,9 +275,9 @@ final class TooltipTemplateRuntime {
                 : StylePreserver.reapplyStyles(reassembledOriginal, preparedTemplate.styleResult().styleMap);
 
         Text finalTooltipLine;
-        if (status == ItemTemplateCache.TranslationStatus.TRANSLATED && resolvedLookup.renderedLineOverride() != null) {
+        if (status == TranslationStatus.TRANSLATED && resolvedLookup.renderedLineOverride() != null) {
             finalTooltipLine = resolvedLookup.renderedLineOverride();
-        } else if (status == ItemTemplateCache.TranslationStatus.TRANSLATED) {
+        } else if (status == TranslationStatus.TRANSLATED) {
             String reassembledTranslated = TemplateProcessor.reassembleDecorativeGlyphs(
                     TemplateProcessor.reassemble(translatedTemplate, preparedTemplate.templateResult().values()),
                     preparedTemplate.glyphResult().values(),
@@ -284,7 +286,7 @@ final class TooltipTemplateRuntime {
             finalTooltipLine = resolvedLookup.format() == CachedTranslationFormat.TAGGED
                     ? StylePreserver.reapplyStylesFromTags(reassembledTranslated, preparedTemplate.styleResult().styleMap, true)
                     : StylePreserver.fromLegacyText(reassembledTranslated);
-        } else if (status == ItemTemplateCache.TranslationStatus.ERROR) {
+        } else if (status == TranslationStatus.ERROR) {
             String errorMessage = lookupResult.errorMessage();
             if (TooltipInternalLineSupport.isMissingKeyIssue(errorMessage)) {
                 pending = true;
@@ -511,9 +513,9 @@ final class TooltipTemplateRuntime {
             );
         }
 
-        ItemTemplateCache.LookupResult currentLookup = cache.peek(preparedTemplate.translationTemplateKey());
+        LookupResult currentLookup = cache.peek(preparedTemplate.translationTemplateKey());
         DecodedStoredTranslation decodedCurrentTranslation = decodeStoredTranslation(currentLookup.translation(), currentFormat);
-        if (currentLookup.status() == ItemTemplateCache.TranslationStatus.TRANSLATED
+        if (currentLookup.status() == TranslationStatus.TRANSLATED
                 && isUsableCachedTranslation(
                 preparedTemplate,
                 decodedCurrentTranslation.translation(),
@@ -525,7 +527,7 @@ final class TooltipTemplateRuntime {
                     decodedCurrentTranslation.format(),
                     null
             );
-        } else if (currentLookup.status() == ItemTemplateCache.TranslationStatus.TRANSLATED) {
+        } else if (currentLookup.status() == TranslationStatus.TRANSLATED) {
             invalidCurrentTranslation = true;
             logCacheMigrationIfDev(
                     config,
@@ -543,7 +545,7 @@ final class TooltipTemplateRuntime {
                 cache.forceRefresh(List.of(preparedTemplate.translationTemplateKey()));
                 registerForceRefreshCompatBypass(List.of(preparedTemplate.translationTemplateKey()));
                 return new ResolvedTemplateLookup(
-                        new ItemTemplateCache.LookupResult(ItemTemplateCache.TranslationStatus.PENDING, "", null),
+                        new LookupResult(TranslationStatus.PENDING, "", null),
                         currentFormat,
                         null
                 );
@@ -560,8 +562,8 @@ final class TooltipTemplateRuntime {
         long collectCompatibilityKeysElapsedNanos = System.nanoTime() - collectCompatibilityKeysStartedAtNanos;
         long compatibilityScanStartedAtNanos = System.nanoTime();
         for (CompatibilityTemplateKey compatibilityKey : compatibilityKeys) {
-            ItemTemplateCache.LookupResult compatibilityLookup = cache.peek(compatibilityKey.key());
-            if (compatibilityLookup.status() != ItemTemplateCache.TranslationStatus.TRANSLATED) {
+            LookupResult compatibilityLookup = cache.peek(compatibilityKey.key());
+            if (compatibilityLookup.status() != TranslationStatus.TRANSLATED) {
                 continue;
             }
 
@@ -673,7 +675,7 @@ final class TooltipTemplateRuntime {
         if (invalidCurrentTranslation) {
             cache.forceRefresh(List.of(preparedTemplate.translationTemplateKey()));
             return new ResolvedTemplateLookup(
-                    new ItemTemplateCache.LookupResult(ItemTemplateCache.TranslationStatus.PENDING, "", null),
+                    new LookupResult(TranslationStatus.PENDING, "", null),
                     currentFormat,
                     null
             );
@@ -913,9 +915,9 @@ final class TooltipTemplateRuntime {
         return false;
     }
 
-    private static ItemTemplateCache.LookupResult translatedLookup(String translation) {
-        return new ItemTemplateCache.LookupResult(
-                ItemTemplateCache.TranslationStatus.TRANSLATED,
+    private static LookupResult translatedLookup(String translation) {
+        return new LookupResult(
+                TranslationStatus.TRANSLATED,
                 translation,
                 null
         );

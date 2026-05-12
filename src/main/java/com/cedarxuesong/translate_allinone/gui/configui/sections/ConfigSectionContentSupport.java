@@ -2,6 +2,7 @@ package com.cedarxuesong.translate_allinone.gui.configui.sections;
 
 import com.cedarxuesong.translate_allinone.gui.configui.model.ConfigSection;
 import com.cedarxuesong.translate_allinone.gui.configui.model.RouteSlot;
+import com.cedarxuesong.translate_allinone.utils.cache.CacheStats;
 import com.cedarxuesong.translate_allinone.utils.cache.ItemTemplateCache;
 import com.cedarxuesong.translate_allinone.utils.cache.ScoreboardTextCache;
 import com.cedarxuesong.translate_allinone.utils.cache.WynnDialogueTextCache;
@@ -845,10 +846,10 @@ public final class ConfigSectionContentSupport {
                 addGroupBox(groupBoxAdder, translator.t("group.backup_policy"), x, width, policyStart, y);
 
                 y += GROUP_GAP;
-                ItemTemplateCache.CacheStats itemStats = ItemTemplateCache.getInstance().getCacheStats();
-                ScoreboardTextCache.CacheStats scoreboardStats = ScoreboardTextCache.getInstance().getCacheStats();
-                WynnDialogueTextCache.CacheStats dialogueStats = WynnDialogueTextCache.getInstance().getCacheStats();
-                WynntilsTaskTrackerTextCache.CacheStats taskTrackerStats = WynntilsTaskTrackerTextCache.getInstance().getCacheStats();
+                CacheStats itemStats = ItemTemplateCache.getInstance().getCacheStats();
+                CacheStats scoreboardStats = ScoreboardTextCache.getInstance().getCacheStats();
+                CacheStats dialogueStats = WynnDialogueTextCache.getInstance().getCacheStats();
+                CacheStats taskTrackerStats = WynntilsTaskTrackerTextCache.getInstance().getCacheStats();
                 int totalTranslated =
                         itemStats.translated()
                                 + scoreboardStats.translated()

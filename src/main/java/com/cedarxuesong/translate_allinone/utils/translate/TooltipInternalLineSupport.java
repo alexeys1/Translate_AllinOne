@@ -1,6 +1,7 @@
 package com.cedarxuesong.translate_allinone.utils.translate;
 
 import com.cedarxuesong.translate_allinone.utils.AnimationManager;
+import com.cedarxuesong.translate_allinone.utils.cache.CacheStats;
 import com.cedarxuesong.translate_allinone.utils.cache.ItemTemplateCache;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
@@ -20,7 +21,7 @@ public final class TooltipInternalLineSupport {
     }
 
     public static Text createStatusLine(
-            ItemTemplateCache.CacheStats stats,
+            CacheStats stats,
             boolean hasMissingKeyIssue,
             String animationKey
     ) {
@@ -37,7 +38,7 @@ public final class TooltipInternalLineSupport {
 
     public static boolean shouldShowStatusLine(
             TooltipTranslationSupport.TooltipProcessingResult processedTooltip,
-            ItemTemplateCache.CacheStats stats
+            CacheStats stats
     ) {
         if (processedTooltip == null || stats == null || processedTooltip.translatableLines() <= 0) {
             return false;
@@ -56,7 +57,7 @@ public final class TooltipInternalLineSupport {
             return null;
         }
 
-        ItemTemplateCache.CacheStats stats = ItemTemplateCache.getInstance().getCacheStats();
+        CacheStats stats = ItemTemplateCache.getInstance().getCacheStats();
         if (!shouldShowStatusLine(processedTooltip, stats)) {
             return tooltip;
         }

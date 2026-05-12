@@ -1,6 +1,7 @@
 package com.cedarxuesong.translate_allinone.mixin.mixinItem;
 
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
+import com.cedarxuesong.translate_allinone.utils.cache.CacheStats;
 import com.cedarxuesong.translate_allinone.utils.cache.ItemTemplateCache;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
@@ -212,7 +213,7 @@ public abstract class DrawContextTooltipMixin {
         }
 
         if (processedTooltip.translatableLines() > 0) {
-            ItemTemplateCache.CacheStats stats = ItemTemplateCache.getInstance().getCacheStats();
+            CacheStats stats = ItemTemplateCache.getInstance().getCacheStats();
             if (TooltipInternalLineSupport.shouldShowStatusLine(processedTooltip, stats)) {
                 Text statusLine = TooltipInternalLineSupport.createStatusLine(
                         stats,

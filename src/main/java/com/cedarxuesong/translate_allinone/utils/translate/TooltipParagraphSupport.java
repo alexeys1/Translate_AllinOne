@@ -2,6 +2,8 @@ package com.cedarxuesong.translate_allinone.utils.translate;
 
 import com.cedarxuesong.translate_allinone.utils.AnimationManager;
 import com.cedarxuesong.translate_allinone.utils.cache.ItemTemplateCache;
+import com.cedarxuesong.translate_allinone.utils.cache.LookupResult;
+import com.cedarxuesong.translate_allinone.utils.cache.TranslationStatus;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.text.StylePreserver;
 import com.cedarxuesong.translate_allinone.utils.text.TemplateProcessor;
@@ -99,8 +101,8 @@ final class TooltipParagraphSupport {
         }
 
         ItemTemplateCache cache = ItemTemplateCache.getInstance();
-        ItemTemplateCache.LookupResult blockLookup = cache.lookupOrQueue(block.paragraphTemplate().translationTemplateKey());
-        if (blockLookup.status() == ItemTemplateCache.TranslationStatus.TRANSLATED) {
+        LookupResult blockLookup = cache.lookupOrQueue(block.paragraphTemplate().translationTemplateKey());
+        if (blockLookup.status() == TranslationStatus.TRANSLATED) {
             List<TooltipTranslationSupport.TooltipLineResult> blockResults = renderTranslatedParagraphBlock(
                     block,
                     blockLookup.translation(),
@@ -115,11 +117,11 @@ final class TooltipParagraphSupport {
             return translateParagraphBlockLineByLine(block);
         }
 
-        boolean pending = blockLookup.status() == ItemTemplateCache.TranslationStatus.PENDING
-                || blockLookup.status() == ItemTemplateCache.TranslationStatus.IN_PROGRESS;
-        boolean missingKeyIssue = blockLookup.status() == ItemTemplateCache.TranslationStatus.ERROR
+        boolean pending = blockLookup.status() == TranslationStatus.PENDING
+                || blockLookup.status() == TranslationStatus.IN_PROGRESS;
+        boolean missingKeyIssue = blockLookup.status() == TranslationStatus.ERROR
                 && TooltipInternalLineSupport.isMissingKeyIssue(blockLookup.errorMessage());
-        if (blockLookup.status() == ItemTemplateCache.TranslationStatus.TRANSLATED) {
+        if (blockLookup.status() == TranslationStatus.TRANSLATED) {
             pending = true;
         }
 
