@@ -11,7 +11,6 @@
 > - Current target version: **Minecraft 1.21.11**
 > - Platform: **Fabric (Client-side)**
 > - Java: **21+**
-> - This project is actively evolving. Feedback and bug reports are welcome in Issues.
 
 An in-game AI translation mod for Minecraft that supports chat, chat input, item tooltip, scoreboard, WynnCraft NPC dialogue, and a dedicated WynnCraft category for related integrations with multi-provider routing, editable local dictionaries, an AI chat-input assistant panel, automatic cache backup, and a fully in-game configuration workflow.
 
@@ -23,21 +22,21 @@ An in-game AI translation mod for Minecraft that supports chat, chat input, item
 
 ### Translation modules
 
-| Module | What it does | Highlights |
-| --- | --- | --- |
-| Chat Output | Translates incoming chat lines | Auto mode or manual `[T]` click mode, optional streaming display |
-| Chat Input | Translates your text before send | Hotkey-driven translation plus AI rewrite actions (Translate/Professional/Friendly/Expand/Concise/Restore), optional streaming update |
-| Item Tooltip | Translates item custom name and lore | Template/style-preserving pipeline, async cache queue, refresh-cache |
-| Scoreboard Sidebar | Translates prefix/suffix and player name display | Real-time replacement with style-preserving reconstruction |
-| Wynn NPC Dialogue | Translates WynnCraft NPC dialogue and clickable options from chat and overlay into a dedicated HUD | Local dictionary priority, cache + AI fallback, per-row options rendering with animation, in-game HUD editor |
+| Module             | What it does                                                                         | Highlights                                                                                                                                                          |
+| ------------------ | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Chat Output        | Translates incoming chat lines                                                       | Auto mode or manual `[T]` click mode, optional streaming display                                                                                                  |
+| Chat Input         | Translates your text before send                                                     | Hotkey-driven translation plus AI rewrite actions (Translate/Professional/Friendly/Expand/Concise/Restore), optional streaming update                               |
+| Item Tooltip       | Translates item custom name and lore                                                 | Template/style-preserving pipeline, async cache queue, refresh-cache                                                                                                |
+| Scoreboard Sidebar | Translates prefix/suffix and player name display                                     | Real-time replacement with style-preserving reconstruction                                                                                                          |
+| Dictionary config  | Exposes a dedicated in-game dictionary section, per-slot toggles, and file selectors | Supports a master switch, independent toggles for item/skill, dialogue, and quest dictionaries, mixed multi/single file selection, and direct open-directory access |
 
 ### WynnCraft
 
-| Feature | What it does | Highlights |
-| --- | --- | --- |
-| Wynn item compatibility | Handles Wynn-specific tooltip compatibility flows | Reuses the mod's style-preserving tooltip pipeline, local `wynncraft_skills.json` dictionary support for fixed-format lines |
-| Tracked quest support | Translates tracked quest title/type/description from WynnCraft-related UI integrations such as Wynntils `ContentTracker` | Shared WynnCraft target language, refresh-cache, cache + AI fallback |
-| Dictionary config | Exposes a dedicated in-game dictionary section, per-slot toggles, and file selectors | Supports a master switch, independent toggles for item/skill, dialogue, and quest dictionaries, mixed multi/single file selection, and direct open-directory access |
+| Feature                 | What it does                                                                                                               | Highlights                                                                                                                    |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Wynn item compatibility | Handles Wynn-specific tooltip compatibility flows                                                                          | Reuses the mod's style-preserving tooltip pipeline, local `wynncraft_skills.json` dictionary support for fixed-format lines |
+| Wynn NPC Dialogue       | Translates WynnCraft NPC dialogue and clickable options from chat and overlay into a dedicated HUD                         | Local dictionary priority, cache + AI fallback, per-row options rendering with animation, in-game HUD editor                  |
+| Tracked quest support   | Translates tracked quest title/type/description from WynnCraft-related UI integrations such as Wynntils `ContentTracker` | Shared WynnCraft target language, refresh-cache, cache + AI fallback                                                          |
 
 ### AI provider and routing system
 
