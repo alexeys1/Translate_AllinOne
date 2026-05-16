@@ -82,6 +82,10 @@ final class TooltipTemplateRuntime {
     private static final StyleSpriteSource.Font WYNNCRAFT_TOOLTIP_FONT =
             new StyleSpriteSource.Font(Identifier.of("minecraft", "language/wynncraft"));
 
+    static boolean isSuspiciousEnglishConnector(String word) {
+        return word != null && SUSPICIOUS_ENGLISH_CONNECTORS.contains(word);
+    }
+
     private TooltipTemplateRuntime() {
     }
 
@@ -108,7 +112,8 @@ final class TooltipTemplateRuntime {
             List<String> templateValues,
             List<String> glyphValues,
             Integer bodyStyleId,
-            int wrapWidth
+            int wrapWidth,
+            List<Integer> lineEndStyleIds
     ) {
     }
 
@@ -352,6 +357,7 @@ final class TooltipTemplateRuntime {
         Map<Integer, Style> combinedStyleMap = new HashMap<>();
         List<String> combinedTemplateValues = new ArrayList<>();
         List<String> combinedGlyphValues = new ArrayList<>();
+        List<Integer> lineEndStyleIds = new ArrayList<>();
         StringBuilder combinedTemplateKey = new StringBuilder();
         int nextStyleId = 0;
         int nextNumericId = 0;
@@ -378,9 +384,14 @@ final class TooltipTemplateRuntime {
             combinedTemplateValues.addAll(preparedLine.templateResult().values());
             combinedGlyphValues.addAll(preparedLine.glyphResult().values());
 
-            nextStyleId += countStyleIds(preparedLine.styleResult().styleMap);
+            int lineStyleCount = countStyleIds(preparedLine.styleResult().styleMap);
+            nextStyleId += lineStyleCount;
             nextNumericId += preparedLine.templateResult().values().size();
             nextGlyphId += preparedLine.glyphResult().values().size();
+
+            if (lineStyleCount > 0) {
+                lineEndStyleIds.add(nextStyleId - 1);
+            }
         }
 
         if (combinedTemplateKey.isEmpty()) {
@@ -393,7 +404,8 @@ final class TooltipTemplateRuntime {
                 combinedTemplateValues,
                 combinedGlyphValues,
                 TooltipParagraphSupport.findDominantParagraphBodyStyleId(combinedTemplateKey.toString(), combinedStyleMap),
-                computeParagraphWrapWidth(preparedLines)
+                computeParagraphWrapWidth(preparedLines),
+                lineEndStyleIds
         );
     }
 

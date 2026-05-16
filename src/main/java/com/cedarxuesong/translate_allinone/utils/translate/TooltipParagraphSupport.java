@@ -20,6 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -564,8 +565,11 @@ final class TooltipParagraphSupport {
             }
         }
 
+        String taggedWithLineBreaks = shouldPreserveParagraphLineBreaks(block)
+                ? insertLineBreaksAtLineBoundaries(reassembledTranslated, paragraphTemplate.lineEndStyleIds())
+                : reassembledTranslated;
         Text renderedText = StylePreserver.reapplyStylesFromTags(
-                reassembledTranslated,
+                taggedWithLineBreaks,
                 paragraphTemplate.styleMap(),
                 true
         );
@@ -670,6 +674,81 @@ final class TooltipParagraphSupport {
                 .replace('\r', ' ')
                 .trim();
         return normalized.replaceAll("\\s{2,}", " ");
+    }
+
+    private static String insertLineBreaksAtLineBoundaries(
+            String taggedText,
+            List<Integer> lineEndStyleIds
+    ) {
+        if (taggedText == null || taggedText.isEmpty()
+                || lineEndStyleIds == null || lineEndStyleIds.size() <= 1) {
+            return taggedText;
+        }
+
+        List<Integer> insertPositions = new ArrayList<>();
+        for (int i = 0; i < lineEndStyleIds.size() - 1; i++) {
+            String closeTag = "</s" + lineEndStyleIds.get(i) + ">";
+            int pos = taggedText.indexOf(closeTag);
+            if (pos >= 0) {
+                insertPositions.add(pos + closeTag.length());
+            }
+        }
+
+        if (insertPositions.isEmpty()) {
+            return taggedText;
+        }
+
+        insertPositions.sort(Collections.reverseOrder());
+
+        StringBuilder result = new StringBuilder(taggedText);
+        for (int pos : insertPositions) {
+            result.insert(pos, '\n');
+        }
+        return result.toString();
+    }
+
+    private static boolean shouldPreserveParagraphLineBreaks(TooltipParagraphBlock block) {
+        List<PreparedTooltipTemplate> lines = block != null ? block.preparedLines() : null;
+        if (lines == null || lines.size() <= 1) {
+            return false;
+        }
+
+        for (int i = 1; i < lines.size(); i++) {
+            String text = getSourceLinePlainText(lines.get(i));
+            char first = text.charAt(0);
+            if (first >= 'a' && first <= 'z') {
+                return false;
+            }
+        }
+
+        String firstText = getSourceLinePlainText(lines.get(0));
+        if (firstText != null && !firstText.isEmpty()) {
+            String lastWord = extractLastWord(firstText);
+            if (TooltipTemplateRuntime.isSuspiciousEnglishConnector(lastWord)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static String getSourceLinePlainText(PreparedTooltipTemplate preparedLine) {
+        if (preparedLine == null || preparedLine.sourceLine() == null) {
+            return null;
+        }
+        return TooltipRoutePlanner.normalizeTooltipText(preparedLine.sourceLine().getString());
+    }
+
+    private static String extractLastWord(String text) {
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
+        String trimmed = text.replaceAll("[^a-zA-Z]+$", "");
+        if (trimmed.isEmpty()) {
+            return "";
+        }
+        String[] words = trimmed.split("[^a-zA-Z]+");
+        return words.length > 0 ? words[words.length - 1].toLowerCase(Locale.ROOT) : "";
     }
 
     private static String normalizeChineseTaggedWhitespace(String text) {
