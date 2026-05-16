@@ -17,6 +17,7 @@ public final class CheckboxBlock {
     private final Supplier<Text> labelSupplier;
     private final Consumer<Boolean> changed;
     private final Style style;
+    private final Text tooltip;
 
     private boolean checked;
     private double visualChecked;
@@ -30,7 +31,8 @@ public final class CheckboxBlock {
             Supplier<Text> labelSupplier,
             boolean checked,
             Consumer<Boolean> changed,
-            Style style
+            Style style,
+            Text tooltip
     ) {
         this.x = x;
         this.y = y;
@@ -40,8 +42,13 @@ public final class CheckboxBlock {
         this.checked = checked;
         this.changed = changed;
         this.style = style;
+        this.tooltip = tooltip;
         this.visualChecked = checked ? 1.0 : 0.0;
         this.targetChecked = this.visualChecked;
+    }
+
+    public Text tooltip() {
+        return tooltip;
     }
 
     public boolean contains(double mouseX, double mouseY) {

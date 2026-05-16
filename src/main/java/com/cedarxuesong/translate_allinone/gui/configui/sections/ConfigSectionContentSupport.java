@@ -71,11 +71,11 @@ public final class ConfigSectionContentSupport {
             case CHAT_OUTPUT -> {
                 ChatTranslateConfig.ChatOutputTranslateConfig output = config.chatTranslate.output;
                 int basicStart = y;
-                toggleAdder.add(x, y, width, translator.t("label.enabled"), () -> output.enabled, value -> output.enabled = value);
+                toggleAdder.add(x, y, width, translator.t("label.enabled"), () -> output.enabled, value -> output.enabled = value, translator.t("desc.chat_output_enabled"));
                 y += ROW_STEP;
-                toggleAdder.add(x, y, width, translator.t("label.auto_translate"), () -> output.auto_translate, value -> output.auto_translate = value);
+                toggleAdder.add(x, y, width, translator.t("label.auto_translate"), () -> output.auto_translate, value -> output.auto_translate = value, tooltip(translator, "label.auto_translate"));
                 y += ROW_STEP;
-                toggleAdder.add(x, y, width, translator.t("label.streaming"), () -> output.streaming_response, value -> output.streaming_response = value);
+                toggleAdder.add(x, y, width, translator.t("label.streaming"), () -> output.streaming_response, value -> output.streaming_response = value, translator.t("desc.chat_output_streaming"));
                 y += ROW_STEP;
                 textFieldRowAdder.add(
                         x,
@@ -108,7 +108,7 @@ public final class ConfigSectionContentSupport {
                 }
 
                 int basicStart = y;
-                toggleAdder.add(x, y, width, translator.t("label.enabled"), () -> input.enabled, value -> input.enabled = value);
+                toggleAdder.add(x, y, width, translator.t("label.enabled"), () -> input.enabled, value -> input.enabled = value, translator.t("desc.chat_input_enabled"));
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -117,9 +117,9 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.chat_input_panel_enabled"),
                         () -> Boolean.TRUE.equals(input.assistant_panel_enabled),
                         value -> input.assistant_panel_enabled = value
-                );
+                , tooltip(translator, "label.chat_input_panel_enabled"));
                 y += ROW_STEP;
-                toggleAdder.add(x, y, width, translator.t("label.streaming"), () -> input.streaming_response, value -> input.streaming_response = value);
+                toggleAdder.add(x, y, width, translator.t("label.streaming"), () -> input.streaming_response, value -> input.streaming_response = value, translator.t("desc.chat_input_streaming"));
                 y += ROW_STEP;
                 textFieldRowAdder.add(
                         x,
@@ -138,9 +138,9 @@ public final class ConfigSectionContentSupport {
 
                 y += GROUP_GAP;
                 int hotkeyStart = y;
-                actionAdder.add(x, y, width, bindingLabelProvider.label(HotkeyTarget.CHAT_INPUT, input.keybinding), () -> hotkeyStartBinding.handle(HotkeyTarget.CHAT_INPUT));
+                actionAdder.add(x, y, width, bindingLabelProvider.label(HotkeyTarget.CHAT_INPUT, input.keybinding), () -> hotkeyStartBinding.handle(HotkeyTarget.CHAT_INPUT), tooltip(translator, "desc.chat_input_hotkey"));
                 y += ROW_STEP;
-                actionAdder.add(x, y, width, translator.t("button.hotkey_clear"), () -> hotkeyClearBinding.handle(HotkeyTarget.CHAT_INPUT));
+                actionAdder.add(x, y, width, translator.t("button.hotkey_clear"), () -> hotkeyClearBinding.handle(HotkeyTarget.CHAT_INPUT), tooltip(translator, "button.hotkey_clear"));
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.hotkey"), x, width, hotkeyStart, y);
 
@@ -166,11 +166,11 @@ public final class ConfigSectionContentSupport {
                 }
 
                 int basicStart = y;
-                toggleAdder.add(x, y, width, translator.t("label.enabled"), () -> item.enabled, value -> item.enabled = value);
+                toggleAdder.add(x, y, width, translator.t("label.enabled"), () -> item.enabled, value -> item.enabled = value, translator.t("desc.item_enabled"));
                 y += ROW_STEP;
-                toggleAdder.add(x, y, width, translator.t("label.translate_item_name"), () -> item.enabled_translate_item_custom_name, value -> item.enabled_translate_item_custom_name = value);
+                toggleAdder.add(x, y, width, translator.t("label.translate_item_name"), () -> item.enabled_translate_item_custom_name, value -> item.enabled_translate_item_custom_name = value, tooltip(translator, "label.translate_item_name"));
                 y += ROW_STEP;
-                toggleAdder.add(x, y, width, translator.t("label.translate_item_lore"), () -> item.enabled_translate_item_lore, value -> item.enabled_translate_item_lore = value);
+                toggleAdder.add(x, y, width, translator.t("label.translate_item_lore"), () -> item.enabled_translate_item_lore, value -> item.enabled_translate_item_lore = value, tooltip(translator, "label.translate_item_lore"));
                 y += ROW_STEP;
                 textFieldRowAdder.add(
                         x,
@@ -196,13 +196,13 @@ public final class ConfigSectionContentSupport {
                         width,
                         translator.t("label.hotkey_mode", modeText(translator, item.keybinding.mode.name())),
                         () -> hotkeyCycleMode.handle(HotkeyTarget.ITEM)
-                );
+                , translator.t("desc.item_hotkey_mode"));
                 y += ROW_STEP;
-                actionAdder.add(x, y, width, bindingLabelProvider.label(HotkeyTarget.ITEM, item.keybinding.binding), () -> hotkeyStartBinding.handle(HotkeyTarget.ITEM));
+                actionAdder.add(x, y, width, bindingLabelProvider.label(HotkeyTarget.ITEM, item.keybinding.binding), () -> hotkeyStartBinding.handle(HotkeyTarget.ITEM), tooltip(translator, "desc.item_hotkey"));
                 y += ROW_STEP;
-                actionAdder.add(x, y, width, bindingLabelProvider.label(HotkeyTarget.ITEM_REFRESH, item.keybinding.refreshBinding), () -> hotkeyStartBinding.handle(HotkeyTarget.ITEM_REFRESH));
+                actionAdder.add(x, y, width, bindingLabelProvider.label(HotkeyTarget.ITEM_REFRESH, item.keybinding.refreshBinding), () -> hotkeyStartBinding.handle(HotkeyTarget.ITEM_REFRESH), tooltip(translator, "desc.item_refresh_hotkey"));
                 y += ROW_STEP;
-                actionAdder.add(x, y, width, translator.t("button.hotkey_clear"), () -> hotkeyClearBinding.handle(HotkeyTarget.ITEM));
+                actionAdder.add(x, y, width, translator.t("button.hotkey_clear"), () -> hotkeyClearBinding.handle(HotkeyTarget.ITEM), tooltip(translator, "button.hotkey_clear"));
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.hotkey"), x, width, hotkeyStart, y);
 
@@ -218,7 +218,7 @@ public final class ConfigSectionContentSupport {
                         16,
                         () -> item.max_concurrent_requests,
                         value -> item.max_concurrent_requests = value
-                );
+                , tooltip(translator, "label.item_threads"));
                 y += SLIDER_STEP;
 
                 sliderAdder.add(
@@ -230,7 +230,7 @@ public final class ConfigSectionContentSupport {
                         64,
                         () -> item.max_batch_size,
                         value -> item.max_batch_size = value
-                );
+                , tooltip(translator, "label.item_batch_size"));
                 y += SLIDER_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.performance"), x, width, performanceStart, y);
 
@@ -283,7 +283,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.debug_log_llm_request_text_stats"),
                         () -> debug.log_llm_request_text_stats,
                         value -> debug.log_llm_request_text_stats = value
-                );
+                , tooltip(translator, "label.debug_log_llm_request_text_stats"));
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.llm_requests"), x, width, llmDebugStart, y);
 
@@ -296,7 +296,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.chat_output_dev_enabled"),
                         () -> output.debug.enabled,
                         value -> output.debug.enabled = value
-                );
+                , tooltip(translator, "label.chat_output_dev_enabled"));
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -305,7 +305,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.chat_output_dev_log_intercept"),
                         () -> output.debug.log_intercepted_message,
                         value -> output.debug.log_intercepted_message = value
-                );
+                , tooltip(translator, "label.chat_output_dev_log_intercept"));
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -314,7 +314,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.chat_output_dev_log_llm_submission"),
                         () -> output.debug.log_llm_submission,
                         value -> output.debug.log_llm_submission = value
-                );
+                , tooltip(translator, "label.chat_output_dev_log_llm_submission"));
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -323,13 +323,13 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.chat_output_dev_log_reflow_mapping"),
                         () -> output.debug.log_reflow_mapping,
                         value -> output.debug.log_reflow_mapping = value
-                );
+                , tooltip(translator, "label.chat_output_dev_log_reflow_mapping"));
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.chat_output_debug"), x, width, chatOutputDebugStart, y);
 
                 y += GROUP_GAP;
                 int itemDebugStart = y;
-                toggleAdder.add(x, y, width, translator.t("label.item_dev_enabled"), () -> item.debug.enabled, value -> item.debug.enabled = value);
+                toggleAdder.add(x, y, width, translator.t("label.item_dev_enabled"), () -> item.debug.enabled, value -> item.debug.enabled = value, tooltip(translator, "label.item_dev_enabled"));
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -338,7 +338,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.item_dev_log_tooltip_filter"),
                         () -> item.debug.log_tooltip_filter_result,
                         value -> item.debug.log_tooltip_filter_result = value
-                );
+                , tooltip(translator, "label.item_dev_log_tooltip_filter"));
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -347,7 +347,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.item_dev_log_tooltip_nodes"),
                         () -> item.debug.log_tooltip_node_summary,
                         value -> item.debug.log_tooltip_node_summary = value
-                );
+                , tooltip(translator, "label.item_dev_log_tooltip_nodes"));
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -356,7 +356,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.item_dev_log_tooltip_paragraph"),
                         () -> item.debug.log_tooltip_paragraph_result,
                         value -> item.debug.log_tooltip_paragraph_result = value
-                );
+                , tooltip(translator, "label.item_dev_log_tooltip_paragraph"));
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -365,7 +365,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.item_dev_log_tooltip_style_map"),
                         () -> item.debug.log_tooltip_style_map,
                         value -> item.debug.log_tooltip_style_map = value
-                );
+                , tooltip(translator, "label.item_dev_log_tooltip_style_map"));
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -374,7 +374,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.item_dev_log_tooltip_timing"),
                         () -> item.debug.log_tooltip_timing,
                         value -> item.debug.log_tooltip_timing = value
-                );
+                , tooltip(translator, "label.item_dev_log_tooltip_timing"));
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -383,7 +383,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.item_dev_log_batch_timing"),
                         () -> item.debug.log_item_batch_timing,
                         value -> item.debug.log_item_batch_timing = value
-                );
+                , tooltip(translator, "label.item_dev_log_batch_timing"));
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -392,7 +392,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.item_dev_log_cache_migration"),
                         () -> item.debug.log_cache_migration,
                         value -> item.debug.log_cache_migration = value
-                );
+                , tooltip(translator, "label.item_dev_log_cache_migration"));
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.item_debug"), x, width, itemDebugStart, y);
 
@@ -405,7 +405,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.wynn_npc_dialogue_dev_enabled"),
                         () -> resolvedWynnCraft.npc_dialogue.debug.enabled,
                         value -> resolvedWynnCraft.npc_dialogue.debug.enabled = value
-                );
+                , tooltip(translator, "label.wynn_npc_dialogue_dev_enabled"));
                 y += ROW_STEP;
                 addGroupBox(
                         groupBoxAdder,
@@ -424,7 +424,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.wynntils_task_tracker_dev_enabled"),
                         () -> resolvedWynnCraft.wynntils_task_tracker.debug.enabled,
                         value -> resolvedWynnCraft.wynntils_task_tracker.debug.enabled = value
-                );
+                , tooltip(translator, "label.wynntils_task_tracker_dev_enabled"));
                 y += ROW_STEP;
                 addGroupBox(
                         groupBoxAdder,
@@ -443,7 +443,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.item_dev_log_items_local_hits"),
                         () -> item.debug.log_items_local_hits,
                         value -> item.debug.log_items_local_hits = value
-                );
+                , tooltip(translator, "label.item_dev_log_items_local_hits"));
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -452,7 +452,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.item_dev_log_skills_local_hits"),
                         () -> item.debug.log_skills_local_hits,
                         value -> item.debug.log_skills_local_hits = value
-                );
+                , tooltip(translator, "label.item_dev_log_skills_local_hits"));
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -461,7 +461,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.wynn_npc_dialogue_log_dialogues_local_hits"),
                         () -> resolvedWynnCraft.npc_dialogue.debug.log_dialogues_local_hits,
                         value -> resolvedWynnCraft.npc_dialogue.debug.log_dialogues_local_hits = value
-                );
+                , tooltip(translator, "label.wynn_npc_dialogue_log_dialogues_local_hits"));
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -470,7 +470,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.wynntils_task_tracker_log_quests_local_hits"),
                         () -> resolvedWynnCraft.wynntils_task_tracker.debug.log_quests_local_hits,
                         value -> resolvedWynnCraft.wynntils_task_tracker.debug.log_quests_local_hits = value
-                );
+                , tooltip(translator, "label.wynntils_task_tracker_log_quests_local_hits"));
                 y += ROW_STEP;
                 addGroupBox(
                         groupBoxAdder,
@@ -491,11 +491,11 @@ public final class ConfigSectionContentSupport {
                 }
 
                 int basicStart = y;
-                toggleAdder.add(x, y, width, translator.t("label.enabled"), () -> scoreboard.enabled, value -> scoreboard.enabled = value);
+                toggleAdder.add(x, y, width, translator.t("label.enabled"), () -> scoreboard.enabled, value -> scoreboard.enabled = value, translator.t("desc.scoreboard_enabled"));
                 y += ROW_STEP;
-                toggleAdder.add(x, y, width, translator.t("label.translate_prefix_suffix"), () -> scoreboard.enabled_translate_prefix_and_suffix_name, value -> scoreboard.enabled_translate_prefix_and_suffix_name = value);
+                toggleAdder.add(x, y, width, translator.t("label.translate_prefix_suffix"), () -> scoreboard.enabled_translate_prefix_and_suffix_name, value -> scoreboard.enabled_translate_prefix_and_suffix_name = value, tooltip(translator, "label.translate_prefix_suffix"));
                 y += ROW_STEP;
-                toggleAdder.add(x, y, width, translator.t("label.translate_player_name"), () -> scoreboard.enabled_translate_player_name, value -> scoreboard.enabled_translate_player_name = value);
+                toggleAdder.add(x, y, width, translator.t("label.translate_player_name"), () -> scoreboard.enabled_translate_player_name, value -> scoreboard.enabled_translate_player_name = value, tooltip(translator, "label.translate_player_name"));
                 y += ROW_STEP;
                 textFieldRowAdder.add(
                         x,
@@ -520,11 +520,11 @@ public final class ConfigSectionContentSupport {
                         width,
                         translator.t("label.hotkey_mode", modeText(translator, scoreboard.keybinding.mode.name())),
                         () -> hotkeyCycleMode.handle(HotkeyTarget.SCOREBOARD)
-                );
+                , translator.t("desc.scoreboard_hotkey_mode"));
                 y += ROW_STEP;
-                actionAdder.add(x, y, width, bindingLabelProvider.label(HotkeyTarget.SCOREBOARD, scoreboard.keybinding.binding), () -> hotkeyStartBinding.handle(HotkeyTarget.SCOREBOARD));
+                actionAdder.add(x, y, width, bindingLabelProvider.label(HotkeyTarget.SCOREBOARD, scoreboard.keybinding.binding), () -> hotkeyStartBinding.handle(HotkeyTarget.SCOREBOARD), tooltip(translator, "desc.scoreboard_hotkey"));
                 y += ROW_STEP;
-                actionAdder.add(x, y, width, translator.t("button.hotkey_clear"), () -> hotkeyClearBinding.handle(HotkeyTarget.SCOREBOARD));
+                actionAdder.add(x, y, width, translator.t("button.hotkey_clear"), () -> hotkeyClearBinding.handle(HotkeyTarget.SCOREBOARD), tooltip(translator, "button.hotkey_clear"));
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.hotkey"), x, width, hotkeyStart, y);
 
@@ -574,7 +574,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.enabled"),
                         () -> wynnCraft.npc_dialogue.enabled,
                         value -> wynnCraft.npc_dialogue.enabled = value
-                );
+                , translator.t("desc.wynn_npc_dialogue_enabled"));
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -583,7 +583,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.translate_wynn_npc_dialogue_npc_name"),
                         () -> wynnCraft.npc_dialogue.translate_npc_name,
                         value -> wynnCraft.npc_dialogue.translate_npc_name = value
-                );
+                , tooltip(translator, "label.translate_wynn_npc_dialogue_npc_name"));
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -592,7 +592,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.translate_wynn_npc_dialogue_options"),
                         () -> wynnCraft.npc_dialogue.translate_options,
                         value -> wynnCraft.npc_dialogue.translate_options = value
-                );
+                , tooltip(translator, "label.translate_wynn_npc_dialogue_options"));
                 y += ROW_STEP;
                 actionAdder.add(
                         x,
@@ -600,7 +600,7 @@ public final class ConfigSectionContentSupport {
                         width,
                         translator.t("button.edit_hud"),
                         openWynnDialogueHudEditorAction
-                );
+                , tooltip(translator, "button.edit_hud"));
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.wynn_npc_dialogue"), x, width, dialogueStart, y);
 
@@ -613,7 +613,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.enabled"),
                         () -> wynnCraft.wynntils_task_tracker.enabled,
                         value -> wynnCraft.wynntils_task_tracker.enabled = value
-                );
+                , translator.t("desc.wynntils_task_tracker_enabled"));
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -622,7 +622,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.translate_wynntils_task_tracker_title"),
                         () -> wynnCraft.wynntils_task_tracker.translate_title,
                         value -> wynnCraft.wynntils_task_tracker.translate_title = value
-                );
+                , tooltip(translator, "label.translate_wynntils_task_tracker_title"));
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -631,7 +631,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.translate_wynntils_task_tracker_description"),
                         () -> wynnCraft.wynntils_task_tracker.translate_description,
                         value -> wynnCraft.wynntils_task_tracker.translate_description = value
-                );
+                , tooltip(translator, "label.translate_wynntils_task_tracker_description"));
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.wynntils_task_tracker"), x, width, trackerStart, y);
 
@@ -643,7 +643,7 @@ public final class ConfigSectionContentSupport {
                         width,
                         translator.t("label.hotkey_mode", modeText(translator, wynnCraft.wynntils_task_tracker.keybinding.mode.name())),
                         () -> hotkeyCycleMode.handle(HotkeyTarget.WYNNTILS_TASK_TRACKER)
-                );
+                , translator.t("desc.wynn_hotkey_mode"));
                 y += ROW_STEP;
                 actionAdder.add(
                         x,
@@ -653,7 +653,7 @@ public final class ConfigSectionContentSupport {
                                 HotkeyTarget.WYNNTILS_TASK_TRACKER,
                                 wynnCraft.wynntils_task_tracker.keybinding.binding),
                         () -> hotkeyStartBinding.handle(HotkeyTarget.WYNNTILS_TASK_TRACKER)
-                );
+                , translator.t("desc.wynn_hotkey"));
                 y += ROW_STEP;
                 actionAdder.add(
                         x,
@@ -663,7 +663,7 @@ public final class ConfigSectionContentSupport {
                                 HotkeyTarget.WYNNTILS_TASK_TRACKER_REFRESH,
                                 wynnCraft.wynntils_task_tracker.keybinding.refreshBinding),
                         () -> hotkeyStartBinding.handle(HotkeyTarget.WYNNTILS_TASK_TRACKER_REFRESH)
-                );
+                , translator.t("desc.wynn_refresh_hotkey"));
                 y += ROW_STEP;
                 actionAdder.add(
                         x,
@@ -671,7 +671,7 @@ public final class ConfigSectionContentSupport {
                         width,
                         translator.t("button.hotkey_clear"),
                         () -> hotkeyClearBinding.handle(HotkeyTarget.WYNNTILS_TASK_TRACKER)
-                );
+                , tooltip(translator, "button.hotkey_clear"));
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.hotkey"), x, width, hotkeyStart, y);
 
@@ -711,7 +711,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.dictionary_enabled"),
                         resolvedDictionaryConfig::isEnabled,
                         value -> resolvedDictionaryConfig.enabled = value
-                );
+                , tooltip(translator, "label.dictionary_enabled"));
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.dictionary_general"), x, width, masterStart, y);
 
@@ -774,9 +774,9 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.dictionary_text_debug_enabled"),
                         resolvedDictionaryConfig::isTextDebugEnabled,
                         value -> resolvedDictionaryConfig.text_debug_enabled = value
-                );
+                , tooltip(translator, "label.dictionary_text_debug_enabled"));
                 y += ROW_STEP;
-                actionAdder.add(x, y, width, translator.t("button.open_dictionary_directory"), openDictionaryDirectoryAction);
+                actionAdder.add(x, y, width, translator.t("button.open_dictionary_directory"), openDictionaryDirectoryAction, tooltip(translator, "button.open_dictionary_directory"));
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.dictionary_tools"), x, width, toolsStart, y);
                 return y;
@@ -797,7 +797,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.cache_backup_enabled"),
                         cacheBackup::isEnabled,
                         value -> cacheBackup.enabled = value
-                );
+                , tooltip(translator, "label.cache_backup_enabled"));
                 y += ROW_STEP;
                 textFieldRowAdder.add(
                         x,
@@ -936,7 +936,7 @@ public final class ConfigSectionContentSupport {
 
                 y += GROUP_GAP;
                 int toolsStart = y;
-                actionAdder.add(x, y, width, translator.t("button.open_cache_directory"), openCacheDirectoryAction);
+                actionAdder.add(x, y, width, translator.t("button.open_cache_directory"), openCacheDirectoryAction, tooltip(translator, "button.open_cache_directory"));
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.backup_tools"), x, width, toolsStart, y);
                 return y;
@@ -947,6 +947,12 @@ public final class ConfigSectionContentSupport {
         }
 
         return y;
+    }
+
+    private static Text tooltip(Translator t, String prefixedKey) {
+        int dot = prefixedKey.indexOf('.');
+        String suffix = dot >= 0 ? prefixedKey.substring(dot + 1) : prefixedKey;
+        return t.t("desc." + suffix);
     }
 
     private static void addGroupBox(
@@ -1001,7 +1007,7 @@ public final class ConfigSectionContentSupport {
                 translator.t(enabledLabelKey),
                 () -> DictionaryFileSelectionSupport.isSlotEnabled(dictionaryConfig, slot),
                 value -> DictionaryFileSelectionSupport.setSlotEnabled(dictionaryConfig, slot, value)
-        );
+        , tooltip(translator, enabledLabelKey));
         y += ROW_STEP;
         textFieldRowAdder.add(
                 x,
@@ -1023,7 +1029,7 @@ public final class ConfigSectionContentSupport {
                 width,
                 translator.t("button.select_dictionary_files"),
                 () -> dictionaryFilePickerAction.handle(slot)
-        );
+        , tooltip(translator, "button.select_dictionary_files"));
         y += ROW_STEP;
         return y;
     }
@@ -1082,17 +1088,17 @@ public final class ConfigSectionContentSupport {
 
     @FunctionalInterface
     public interface ToggleAdder {
-        void add(int x, int y, int width, Text label, BooleanSupplier getter, Consumer<Boolean> setter);
+        void add(int x, int y, int width, Text label, BooleanSupplier getter, Consumer<Boolean> setter, Text tooltip);
     }
 
     @FunctionalInterface
     public interface IntSliderAdder {
-        void add(int x, int y, int width, Text label, int min, int max, IntSupplier getter, IntConsumer setter);
+        void add(int x, int y, int width, Text label, int min, int max, IntSupplier getter, IntConsumer setter, Text tooltip);
     }
 
     @FunctionalInterface
     public interface ActionAdder {
-        void add(int x, int y, int width, Text label, Runnable action);
+        void add(int x, int y, int width, Text label, Runnable action, Text tooltip);
     }
 
     @FunctionalInterface

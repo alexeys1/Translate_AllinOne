@@ -60,7 +60,7 @@ public final class ProviderListSectionSupport {
                     style.colorBlockMuted(),
                     style.colorTextMuted(),
                     false
-            );
+            , null);
             rowY += 44 + 4;
         } else if (filtered.isEmpty()) {
             actionBlockAdder.add(
@@ -75,7 +75,7 @@ public final class ProviderListSectionSupport {
                     style.colorBlockMuted(),
                     style.colorTextMuted(),
                     false
-            );
+            , null);
             rowY += 44 + 4;
         } else {
             for (ApiProviderProfile profile : filtered) {
@@ -97,7 +97,7 @@ public final class ProviderListSectionSupport {
                         selected ? style.colorBlockSelectedHover() : style.colorBlockHover(),
                         selected ? style.colorTextAccent() : style.colorText(),
                         false
-                );
+                , null);
 
                 rowY += ROW_STEP;
             }
@@ -116,7 +116,7 @@ public final class ProviderListSectionSupport {
                 style.colorBlockAccentHover(),
                 style.colorText(),
                 true
-        );
+        , translator.t("desc.add_provider"));
 
         return new RenderResult(providerSearchField, addButtonY + 20);
     }
@@ -133,7 +133,8 @@ public final class ProviderListSectionSupport {
                 int color,
                 int hoverColor,
                 int textColor,
-                boolean centered
+                boolean centered,
+                Text tooltip
         );
     }
 

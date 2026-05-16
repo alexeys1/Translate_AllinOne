@@ -15,6 +15,7 @@ public final class ActionBlock {
     private final int hoverColor;
     private final int textColor;
     private final boolean centered;
+    private final Text tooltip;
 
     public ActionBlock(
             int x,
@@ -26,7 +27,8 @@ public final class ActionBlock {
             int color,
             int hoverColor,
             int textColor,
-            boolean centered
+            boolean centered,
+            Text tooltip
     ) {
         this.x = x;
         this.y = y;
@@ -38,6 +40,7 @@ public final class ActionBlock {
         this.hoverColor = hoverColor;
         this.textColor = textColor;
         this.centered = centered;
+        this.tooltip = tooltip;
     }
 
     public int x() {
@@ -78,6 +81,10 @@ public final class ActionBlock {
 
     public boolean centered() {
         return centered;
+    }
+
+    public Text tooltip() {
+        return tooltip;
     }
 
     public boolean contains(double mouseX, double mouseY) {

@@ -19,6 +19,7 @@ public final class IntSliderBlock {
     private final IntConsumer setter;
     private final TextRenderer textRenderer;
     private final Style style;
+    private final Text tooltip;
 
     private double visualPosition;
     private double targetPosition;
@@ -37,7 +38,8 @@ public final class IntSliderBlock {
             IntSupplier getter,
             IntConsumer setter,
             TextRenderer textRenderer,
-            Style style
+            Style style,
+            Text tooltip
     ) {
         this.x = x;
         this.y = y;
@@ -50,6 +52,7 @@ public final class IntSliderBlock {
         this.setter = setter;
         this.textRenderer = textRenderer;
         this.style = style;
+        this.tooltip = tooltip;
 
         int raw = getter.getAsInt();
         this.value = clampInt(raw, this.min, this.max);
@@ -58,6 +61,10 @@ public final class IntSliderBlock {
         }
         this.visualPosition = valueToPosition(this.value);
         this.targetPosition = this.visualPosition;
+    }
+
+    public Text tooltip() {
+        return tooltip;
     }
 
     public boolean contains(double mouseX, double mouseY) {

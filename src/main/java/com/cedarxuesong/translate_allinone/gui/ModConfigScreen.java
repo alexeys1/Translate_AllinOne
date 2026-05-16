@@ -255,7 +255,6 @@ public class ModConfigScreen extends Screen {
     private static final int LEFT_PANEL_WIDTH = 200;
     private static final int TOP_BAR_TITLE_X = 14;
     private static final int TOP_BAR_TEXT_Y = 14;
-    private static final int TOP_BAR_STATUS_X = LEFT_PANEL_WIDTH + 20;
     private static final int TOP_BAR_ACTIONS_LEFT_MARGIN = 270;
     private static final int TOP_BAR_LINK_GAP = 16;
 
@@ -432,11 +431,7 @@ public class ModConfigScreen extends Screen {
         return t("version_link", modVersion);
     }
 
-    private boolean isStatusVisible(long nowMillis) {
-        return !statusMessage.getString().isEmpty() && nowMillis <= statusExpireAtMillis;
-    }
-
-    private UiRect resolveVersionLinkRect(long nowMillis) {
+    private UiRect resolveVersionLinkRect() {
         if (repositoryUrl.isBlank()) {
             return new UiRect(0, 0, 0, 0);
         }
@@ -448,10 +443,6 @@ public class ModConfigScreen extends Screen {
         }
 
         int minX = TOP_BAR_TITLE_X + this.textRenderer.getWidth(this.title) + TOP_BAR_LINK_GAP;
-        if (isStatusVisible(nowMillis)) {
-            minX = Math.max(minX, TOP_BAR_STATUS_X + this.textRenderer.getWidth(statusMessage) + TOP_BAR_LINK_GAP);
-        }
-
         int x = this.width - TOP_BAR_ACTIONS_LEFT_MARGIN - TOP_BAR_LINK_GAP - textWidth;
         if (x < minX) {
             return new UiRect(0, 0, 0, 0);
@@ -459,12 +450,12 @@ public class ModConfigScreen extends Screen {
         return new UiRect(x, TOP_BAR_TEXT_Y, textWidth, this.textRenderer.fontHeight + 2);
     }
 
-    private void updateVersionLinkRect(long nowMillis) {
-        versionLinkRect = resolveVersionLinkRect(nowMillis);
+    private void updateVersionLinkRect() {
+        versionLinkRect = resolveVersionLinkRect();
     }
 
     private void renderVersionLink(DrawContext context, int mouseX, int mouseY, long nowMillis) {
-        updateVersionLinkRect(nowMillis);
+        updateVersionLinkRect();
         if (versionLinkRect.width <= 0 || versionLinkRect.height <= 0) {
             return;
         }
@@ -1321,7 +1312,7 @@ public class ModConfigScreen extends Screen {
         rebuildActionBlocks();
     }
 
-    private void addToggleAction(int x, int y, int width, Text label, BooleanSupplier getter, Consumer<Boolean> setter) {
+    private void addToggleAction(int x, int y, int width, Text label, BooleanSupplier getter, Consumer<Boolean> setter, Text tooltip) {
         checkboxBlocks.add(new CheckboxBlock(
                 x,
                 y,
@@ -1330,7 +1321,8 @@ public class ModConfigScreen extends Screen {
                 () -> label,
                 getter.getAsBoolean(),
                 setter,
-                CHECKBOX_STYLE
+                CHECKBOX_STYLE,
+                tooltip
         ));
     }
 
@@ -1338,8 +1330,8 @@ public class ModConfigScreen extends Screen {
         groupBoxes.add(new GroupBox(x, y, width, height, title, GROUP_BOX_STYLE));
     }
 
-    private void addActionRow(int x, int y, int width, Text label, Runnable action) {
-        contentActionBlockRegistry.add(x, y, width, 20, label, action);
+    private void addActionRow(int x, int y, int width, Text label, Runnable action, Text tooltip) {
+        contentActionBlockRegistry.add(x, y, width, 20, label, action, tooltip);
     }
 
     private void addTextInputRow(
@@ -1603,8 +1595,8 @@ public class ModConfigScreen extends Screen {
             case ITEM -> t("section.item");
             case ITEM_REFRESH -> t("section.item");
             case SCOREBOARD -> t("section.scoreboard");
-            case WYNNTILS_TASK_TRACKER -> t("group.wynntils_task_tracker");
-            case WYNNTILS_TASK_TRACKER_REFRESH -> t("group.wynntils_task_tracker");
+            case WYNNTILS_TASK_TRACKER -> t("section.wynncraft");
+            case WYNNTILS_TASK_TRACKER_REFRESH -> t("section.wynncraft");
         };
     }
 
@@ -1632,7 +1624,8 @@ public class ModConfigScreen extends Screen {
             Supplier<Text> labelSupplier,
             BooleanSupplier checked,
             Consumer<Boolean> changed,
-            CheckboxBlock.Style style
+            CheckboxBlock.Style style,
+            Text tooltip
     ) {
         floatingCheckboxBlocks.add(new CheckboxBlock(
                 x,
@@ -1642,7 +1635,8 @@ public class ModConfigScreen extends Screen {
                 labelSupplier,
                 checked.getAsBoolean(),
                 changed,
-                style
+                style,
+                tooltip
         ));
     }
 
@@ -1654,15 +1648,63 @@ public class ModConfigScreen extends Screen {
             int min,
             int max,
             IntSupplier getter,
-            IntConsumer setter
+            IntConsumer setter,
+            Text tooltip
     ) {
-        sliderBlocks.add(new IntSliderBlock(x, y, width, SLIDER_BLOCK_HEIGHT, label, min, max, getter, setter, textRenderer, SLIDER_STYLE));
+        sliderBlocks.add(new IntSliderBlock(x, y, width, SLIDER_BLOCK_HEIGHT, label, min, max, getter, setter, textRenderer, SLIDER_STYLE, tooltip));
+    }
+
+    private Text resolveHoveredTooltip(double mouseX, double mouseY, boolean modalOpen) {
+        if (modalOpen) {
+            for (CheckboxBlock checkbox : floatingCheckboxBlocks) {
+                if (checkbox.contains(mouseX, mouseY)) {
+                    Text t = checkbox.tooltip();
+                    if (t != null && !t.getString().isEmpty()) {
+                        return t;
+                    }
+                }
+            }
+            for (ActionBlock action : floatingActionBlocks) {
+                if (action.contains(mouseX, mouseY)) {
+                    Text t = action.tooltip();
+                    if (t != null && !t.getString().isEmpty()) {
+                        return t;
+                    }
+                }
+            }
+        } else {
+            for (CheckboxBlock checkbox : checkboxBlocks) {
+                if (checkbox.contains(mouseX, mouseY)) {
+                    Text t = checkbox.tooltip();
+                    if (t != null && !t.getString().isEmpty()) {
+                        return t;
+                    }
+                }
+            }
+            for (IntSliderBlock slider : sliderBlocks) {
+                if (slider.contains(mouseX, mouseY)) {
+                    Text t = slider.tooltip();
+                    if (t != null && !t.getString().isEmpty()) {
+                        return t;
+                    }
+                }
+            }
+            for (ActionBlock action : contentActionBlocks) {
+                if (action.contains(mouseX, mouseY)) {
+                    Text t = action.tooltip();
+                    if (t != null && !t.getString().isEmpty()) {
+                        return t;
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     private void setStatus(Text message, int color) {
         this.statusMessage = message;
         this.statusColor = color;
-        this.statusExpireAtMillis = System.currentTimeMillis() + 4000;
+        this.statusExpireAtMillis = System.currentTimeMillis() + 3000;
     }
 
     private void openCacheDirectory() {
@@ -2301,7 +2343,7 @@ public class ModConfigScreen extends Screen {
             return true;
         }
 
-        updateVersionLinkRect(System.currentTimeMillis());
+        updateVersionLinkRect();
         if (versionLinkRect.width > 0 && versionLinkRect.height > 0 && versionLinkRect.contains(mouseX, mouseY)) {
             openRepositoryLink();
             return true;
@@ -2490,10 +2532,6 @@ public class ModConfigScreen extends Screen {
                 LEFT_PANEL_WIDTH,
                 this.title,
                 t("panel", t(selectedSection.translationKey())),
-                statusMessage,
-                statusColor,
-                statusExpireAtMillis,
-                nowMillis,
                 selectedSection == ConfigSection.PROVIDERS,
                 SCREEN_RENDER_STYLE
         );
@@ -2552,6 +2590,22 @@ public class ModConfigScreen extends Screen {
         }
         ConfigUiControlRenderer.drawCheckboxBlocks(context, this.textRenderer, floatingCheckboxBlocks, mouseX, mouseY);
         ConfigUiControlRenderer.drawActionBlocks(context, this.textRenderer, floatingActionBlocks, mouseX, mouseY, COLOR_BORDER);
+
+        ConfigUiScreenRenderSupport.renderStatusToast(
+                context,
+                this.textRenderer,
+                this.width,
+                TOP_BAR_HEIGHT,
+                statusMessage,
+                statusColor,
+                statusExpireAtMillis,
+                nowMillis,
+                0xE61A1A1A,
+                0xCC3A3A3A
+        );
+
+        Text hoveredTooltip = resolveHoveredTooltip(mouseX, mouseY, modalOpen);
+        ConfigUiDraw.drawTooltip(context, this.textRenderer, hoveredTooltip, mouseX, mouseY, this.width, this.height);
     }
 
     private Text dictionarySlotLabel(DictionaryFileSelectionSupport.Slot slot) {

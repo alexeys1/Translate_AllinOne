@@ -62,7 +62,7 @@ public final class ProviderDetailSectionSupport {
                     style.colorBlockMuted(),
                     style.colorTextMuted(),
                     false
-            );
+            , null);
             addGroupBox(groupBoxAdder, translator.t("group.providers.info"), x, width, y, y + ROW_STEP);
             return y + ROW_STEP;
         }
@@ -87,7 +87,7 @@ public final class ProviderDetailSectionSupport {
                 profile.enabled ? style.colorBlockSelectedHover() : style.colorBlockHover(),
                 style.colorText(),
                 true
-        );
+        , translator.t("desc.toggle"));
 
         actionBlockAdder.add(
                 deleteProviderX,
@@ -100,7 +100,7 @@ public final class ProviderDetailSectionSupport {
                 style.colorBlockDangerHover(),
                 style.colorText(),
                 true
-        );
+        , translator.t("desc.delete_provider"));
         rowY += ROW_STEP;
 
         rowY = addProviderTextFieldRow(
@@ -129,7 +129,7 @@ public final class ProviderDetailSectionSupport {
                 style.colorBlockMuted(),
                 style.colorTextMuted(),
                 false
-        );
+        , null);
         rowY += ROW_STEP;
 
         int labelWidth = resolveLabelWidth(width);
@@ -147,7 +147,7 @@ public final class ProviderDetailSectionSupport {
                 style.colorBlockMuted(),
                 style.colorText(),
                 false
-        );
+        , translator.t("desc.provider_type"));
         actionBlockAdder.add(
                 fieldX,
                 rowY,
@@ -160,7 +160,7 @@ public final class ProviderDetailSectionSupport {
                 style.colorBlockMuted(),
                 style.colorText(),
                 false
-        );
+        , null);
         rowY += ROW_STEP;
 
         rowY = addApiKeyRow(
@@ -203,7 +203,7 @@ public final class ProviderDetailSectionSupport {
                 style.colorBlockMuted(),
                 style.colorTextMuted(),
                 false
-        );
+        , null);
         rowY += ROW_STEP;
 
         int infoEndY = rowY;
@@ -226,7 +226,7 @@ public final class ProviderDetailSectionSupport {
                     style.colorBlockMuted(),
                     style.colorTextMuted(),
                     false
-            );
+            , null);
             rowY += ROW_STEP;
         } else {
             for (String modelId : modelIds) {
@@ -248,7 +248,7 @@ public final class ProviderDetailSectionSupport {
                         active ? style.colorBlockSelectedHover() : style.colorBlockHover(),
                         active ? style.colorTextAccent() : style.colorText(),
                         false
-                );
+                , null);
 
                 actionBlockAdder.add(
                         settingsX,
@@ -261,7 +261,7 @@ public final class ProviderDetailSectionSupport {
                         style.colorBlockHover(),
                         style.colorText(),
                         true
-                );
+                , null);
 
                 actionBlockAdder.add(
                         deleteX,
@@ -274,7 +274,7 @@ public final class ProviderDetailSectionSupport {
                         style.colorBlockDangerHover(),
                         style.colorText(),
                         true
-                );
+                , null);
 
                 rowY += ROW_STEP;
             }
@@ -291,7 +291,7 @@ public final class ProviderDetailSectionSupport {
                 style.colorBlockAccentHover(),
                 style.colorText(),
                 true
-        );
+        , translator.t("desc.add_model"));
 
         addGroupBox(groupBoxAdder, translator.t("group.providers.models"), x, width, modelsStartY, rowY + ROW_STEP);
         return rowY + ROW_STEP;
@@ -352,7 +352,7 @@ public final class ProviderDetailSectionSupport {
                 style.colorBlockMuted(),
                 style.colorText(),
                 false
-        );
+        , translator.t("desc.api_key"));
 
         String rawApiKey = ProviderProfileSupport.sanitizeText(profile.api_key);
         String fieldValue = providerApiKeyVisible ? rawApiKey : ProviderEditorSupport.maskApiKey(rawApiKey);
@@ -387,7 +387,7 @@ public final class ProviderDetailSectionSupport {
                     style.colorBlockHover(),
                     style.colorText(),
                     true
-            );
+            , translator.t("desc.hide_key"));
 
             actionBlockAdder.add(
                     x + toggleWidth + 4,
@@ -400,7 +400,7 @@ public final class ProviderDetailSectionSupport {
                     style.colorBlockHover(),
                     style.colorText(),
                     true
-            );
+            , translator.t("desc.test_connection"));
 
             return buttonY + ROW_STEP;
         }
@@ -416,7 +416,7 @@ public final class ProviderDetailSectionSupport {
                 style.colorBlockHover(),
                 style.colorText(),
                 true
-        );
+        , translator.t("desc.hide_key"));
 
         actionBlockAdder.add(
                 testX,
@@ -429,7 +429,7 @@ public final class ProviderDetailSectionSupport {
                 style.colorBlockHover(),
                 style.colorText(),
                 true
-        );
+        , translator.t("desc.test_connection"));
 
         return y + ROW_STEP;
     }
@@ -463,7 +463,7 @@ public final class ProviderDetailSectionSupport {
                 style.colorBlockMuted(),
                 style.colorText(),
                 false
-        );
+        , null);
         textFieldAdder.add(fieldX, y, fieldWidth, maxLength, initialValue, label, onChanged, editable);
         return y + 24;
     }
@@ -485,7 +485,8 @@ public final class ProviderDetailSectionSupport {
                 int color,
                 int hoverColor,
                 int textColor,
-                boolean centered
+                boolean centered,
+                Text tooltip
         );
     }
 

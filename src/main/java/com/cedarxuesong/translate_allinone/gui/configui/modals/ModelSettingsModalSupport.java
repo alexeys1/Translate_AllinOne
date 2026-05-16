@@ -65,7 +65,7 @@ public final class ModelSettingsModalSupport {
                 style.colorBlockMuted(),
                 style.colorText(),
                 false
-        );
+        , null);
 
         TextFieldWidget modelNameField = floatingTextFieldAdder.add(
                 fieldX,
@@ -90,7 +90,8 @@ public final class ModelSettingsModalSupport {
                 style.colorBlockMuted(),
                 style.colorBlockMuted(),
                 style.colorText(),
-                false
+                false,
+                translator.t("desc.temperature")
         );
         floatingTextFieldAdder.add(
                 fieldX,
@@ -117,7 +118,7 @@ public final class ModelSettingsModalSupport {
                     style.colorBlockMuted(),
                     style.colorText(),
                     false
-            );
+            , null);
             floatingTextFieldAdder.add(
                     fieldX,
                     rowY,
@@ -143,7 +144,7 @@ public final class ModelSettingsModalSupport {
                 style.colorBlockMuted(),
                 style.colorText(),
                 false
-        );
+        , null);
         floatingTextFieldAdder.add(
                 fieldX,
                 rowY,
@@ -168,7 +169,7 @@ public final class ModelSettingsModalSupport {
                 style.colorBlockMuted(),
                 style.colorText(),
                 false
-        );
+        , null);
         floatingActionBlockAdder.add(
                 fieldX,
                 rowY,
@@ -180,7 +181,7 @@ public final class ModelSettingsModalSupport {
                 style.colorBlockHover(),
                 style.colorText(),
                 false
-        );
+        , null);
         rowY += 24;
 
         floatingCheckboxAdder.add(
@@ -191,7 +192,8 @@ public final class ModelSettingsModalSupport {
                 () -> translator.t("modal.model.supports_system_msg"),
                 () -> modelSettingsSupportsSystemDraft,
                 onSupportsSystemChanged,
-                checkboxStyle
+                checkboxStyle,
+                translator.t("desc.supports_system_msg")
         );
         rowY += 24;
 
@@ -205,7 +207,7 @@ public final class ModelSettingsModalSupport {
                     () -> modelSettingsInjectPromptIntoUserDraft,
                     onInjectPromptIntoUserChanged,
                     checkboxStyle
-            );
+            , null);
             rowY += 24;
         }
 
@@ -217,7 +219,8 @@ public final class ModelSettingsModalSupport {
                 () -> translator.t("modal.model.structured_output"),
                 () -> modelSettingsStructuredOutputDraft,
                 onStructuredOutputChanged,
-                checkboxStyle
+                checkboxStyle,
+                translator.t("desc.structured_output")
         );
         rowY += 24;
 
@@ -230,7 +233,7 @@ public final class ModelSettingsModalSupport {
                 () -> modelSettingsSetDefault,
                 onSetDefaultChanged,
                 checkboxStyle
-        );
+        , null);
 
         int buttonsY = rect.y + rect.height - 32;
         int half = (rect.width - 24 - 24 - 6) / 2;
@@ -248,7 +251,7 @@ public final class ModelSettingsModalSupport {
                 style.colorBlockHover(),
                 style.colorText(),
                 true
-        );
+        , null);
 
         floatingActionBlockAdder.add(
                 rightX,
@@ -261,7 +264,7 @@ public final class ModelSettingsModalSupport {
                 style.colorBlockAccentHover(),
                 style.colorText(),
                 true
-        );
+        , null);
 
         return modelNameField;
     }
@@ -295,7 +298,8 @@ public final class ModelSettingsModalSupport {
                 Supplier<Text> labelSupplier,
                 BooleanSupplier checked,
                 Consumer<Boolean> changed,
-                CheckboxBlock.Style style
+                CheckboxBlock.Style style,
+                Text tooltip
         );
     }
 
@@ -311,7 +315,8 @@ public final class ModelSettingsModalSupport {
                 int color,
                 int hoverColor,
                 int textColor,
-                boolean centered
+                boolean centered,
+                Text tooltip
         );
     }
 
