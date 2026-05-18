@@ -160,7 +160,7 @@
   "text.translate_allinone.configscreen.label.cache_entries_wynntils_task_tracker": "Wynntils Task Tracker Cache",
   "text.translate_allinone.configscreen.button.cancel": "CANCEL",
   "text.translate_allinone.configscreen.desc.chat_input_enabled": "Enable translation of outgoing chat messages",
-  "text.translate_allinone.configscreen.desc.chat_input_hotkey": "Click to set the keybind for opening the chat input AI assistant panel",
+  "text.translate_allinone.configscreen.desc.chat_input_hotkey": "Click to set the keybind for chat input translation",
   "text.translate_allinone.configscreen.label.chat_input_panel_enabled": "AI Writing Assistant Panel",
   "text.translate_allinone.configscreen.desc.chat_input_panel_enabled": "Show a floating AI assistant panel near the chat input field",
   "text.translate_allinone.configscreen.desc.chat_input_streaming": "Send outgoing messages with streaming translation",

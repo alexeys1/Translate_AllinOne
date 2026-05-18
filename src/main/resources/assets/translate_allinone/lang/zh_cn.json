@@ -160,7 +160,7 @@
   "text.translate_allinone.configscreen.label.cache_entries_wynntils_task_tracker": "Wynntils 任务追踪缓存",
   "text.translate_allinone.configscreen.button.cancel": "取消",
   "text.translate_allinone.configscreen.desc.chat_input_enabled": "启用发送聊天消息的翻译功能",
-  "text.translate_allinone.configscreen.desc.chat_input_hotkey": "点击设置打开聊天输入AI助手面板的快捷键",
+  "text.translate_allinone.configscreen.desc.chat_input_hotkey": "点击设置聊天输入翻译的快捷键",
   "text.translate_allinone.configscreen.label.chat_input_panel_enabled": "AI写作助手面板",
   "text.translate_allinone.configscreen.desc.chat_input_panel_enabled": "在聊天输入框附近显示悬浮的AI助手面板",
   "text.translate_allinone.configscreen.desc.chat_input_streaming": "以流式翻译方式发送消息",
