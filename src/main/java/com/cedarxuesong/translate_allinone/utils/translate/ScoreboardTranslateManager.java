@@ -198,7 +198,7 @@ public class ScoreboardTranslateManager {
         ProviderSettings settings = ProviderSettings.fromProviderProfile(providerProfile);
         LLM llm = new LLM(settings);
 
-        String systemPrompt = buildSystemPrompt(config.target_language, providerProfile.activeSystemPromptSuffix());
+        String systemPrompt = buildSystemPrompt(config.target_language, providerProfile.activeSystemPromptSuffix(), providerProfile.system_prompt_overrides);
         String userPrompt = GSON.toJson(batchForAI);
 
         List<OpenAIRequest.Message> messages = PromptMessageBuilder.buildMessages(
@@ -365,7 +365,7 @@ public class ScoreboardTranslateManager {
         return true;
     }
 
-    private String buildSystemPrompt(String targetLanguage, String suffix) {
+    private String buildSystemPrompt(String targetLanguage, String suffix, java.util.Map<String, String> overrides) {
         String basePrompt = "You are a deterministic JSON value translator.\n"
                 + "Target language: " + targetLanguage + ".\n"
                 + "\n"
@@ -379,7 +379,8 @@ public class ScoreboardTranslateManager {
                 + "4) Preserve tokens exactly: §a §l §r %s %d %f {d1} URLs numbers <...> {...} \\n \\t.\n"
                 + "5) If unsure for a value, keep that value unchanged.\n"
                 + "6) No extra text outside JSON.";
-        return PromptMessageBuilder.appendSystemPromptSuffix(basePrompt, suffix);
+        String resolved = PromptMessageBuilder.applyPromptOverride("scoreboard", basePrompt, overrides, targetLanguage);
+        return PromptMessageBuilder.appendSystemPromptSuffix(resolved, suffix);
     }
 
     private String buildRequestContext(

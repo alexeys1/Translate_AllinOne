@@ -25,6 +25,7 @@ public class ApiProviderProfile {
     public boolean inject_system_prompt_into_user_message = true;
     public String system_prompt_suffix = "\\no_think";
     public List<CustomParameterEntry> custom_parameters = new ArrayList<>();
+    public Map<String, String> system_prompt_overrides = new LinkedHashMap<>();
 
     public static ApiProviderProfile createOpenAiDefault() {
         ApiProviderProfile profile = new ApiProviderProfile();
@@ -50,7 +51,15 @@ public class ApiProviderProfile {
         return profile;
     }
 
+    public void normalizePromptOverrides() {
+        if (system_prompt_overrides == null) {
+            system_prompt_overrides = new LinkedHashMap<>();
+        }
+        system_prompt_overrides.entrySet().removeIf(e -> e == null || e.getKey() == null || e.getKey().isBlank());
+    }
+
     public List<ModelSettings> ensureModelSettings() {
+        normalizePromptOverrides();
         Map<String, ModelSettings> normalized = new LinkedHashMap<>();
 
         if (model_settings != null) {

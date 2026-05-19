@@ -280,7 +280,7 @@ public class ItemTranslateManager {
         ProviderSettings settings = ProviderSettings.fromProviderProfile(providerProfile);
         LLM llm = new LLM(settings);
 
-        String systemPrompt = ItemTranslationPromptSupport.buildSystemPrompt(config.target_language, providerProfile.activeSystemPromptSuffix());
+        String systemPrompt = ItemTranslationPromptSupport.buildSystemPrompt(config.target_language, providerProfile.activeSystemPromptSuffix(), providerProfile.system_prompt_overrides);
         String userPrompt = GSON.toJson(batchForAI);
 
         List<OpenAIRequest.Message> messages = PromptMessageBuilder.buildMessages(

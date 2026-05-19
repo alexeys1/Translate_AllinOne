@@ -1,10 +1,14 @@
 package com.cedarxuesong.translate_allinone.utils.translate;
 
+import java.util.Map;
+
 final class ItemTranslationPromptSupport {
+    private static final String ROUTE_KEY = "item";
+
     private ItemTranslationPromptSupport() {
     }
 
-    static String buildSystemPrompt(String targetLanguage, String suffix) {
+    static String buildSystemPrompt(String targetLanguage, String suffix, Map<String, String> overrides) {
         String basePrompt = "Translate JSON values into " + targetLanguage
                 + ". Output valid JSON only, keys unchanged.\n"
                 + "\n"
@@ -14,6 +18,7 @@ final class ItemTranslationPromptSupport {
                 + "3) Never add, drop, or reorder tags, placeholders, or text fragments.\n"
                 + "4) \"take (N) damage from (X)\" means the subject RECEIVES/SUFFERS damage from X, NEVER translates as dealing damage to X.\n"
                 + "5) If unsure, keep original. Output JSON only.";
-        return PromptMessageBuilder.appendSystemPromptSuffix(basePrompt, suffix);
+        String resolved = PromptMessageBuilder.applyPromptOverride(ROUTE_KEY, basePrompt, overrides, targetLanguage);
+        return PromptMessageBuilder.appendSystemPromptSuffix(resolved, suffix);
     }
 }

@@ -218,7 +218,7 @@ public final class WynnDialogueTranslateManager {
         ProviderSettings settings = ProviderSettings.fromProviderProfile(providerProfile);
         LLM llm = new LLM(settings);
 
-        String systemPrompt = buildSystemPrompt(targetLanguage, providerProfile.activeSystemPromptSuffix());
+        String systemPrompt = buildSystemPrompt(targetLanguage, providerProfile.activeSystemPromptSuffix(), providerProfile.system_prompt_overrides);
         String userPrompt = GSON.toJson(batchForAI);
         List<OpenAIRequest.Message> messages = PromptMessageBuilder.buildMessages(
                 systemPrompt,
@@ -430,7 +430,7 @@ public final class WynnDialogueTranslateManager {
         return translatedMapFromAI.size() != expectedSize;
     }
 
-    private String buildSystemPrompt(String targetLanguage, String suffix) {
+    private String buildSystemPrompt(String targetLanguage, String suffix, java.util.Map<String, String> overrides) {
         String basePrompt = "Translate WynnCraft NPC dialogue into " + targetLanguage
                 + ". Output valid JSON only, keys unchanged.\n"
                 + "\n"
@@ -440,7 +440,8 @@ public final class WynnDialogueTranslateManager {
                 + "3) Poetic lines: use rhythmic " + targetLanguage + ".\n"
                 + "4) Preserve exactly: § codes, {tokens}, %s %d %f, URLs, numbers, <...>, <s0> </s0>, \\n, \\t, zalgo text.\n"
                 + "5) If unsure, keep original. No extra text.";
-        return PromptMessageBuilder.appendSystemPromptSuffix(basePrompt, suffix);
+        String resolved = PromptMessageBuilder.applyPromptOverride("wynn_npc_dialogue", basePrompt, overrides, targetLanguage);
+        return PromptMessageBuilder.appendSystemPromptSuffix(resolved, suffix);
     }
 
     private String buildRequestContext(

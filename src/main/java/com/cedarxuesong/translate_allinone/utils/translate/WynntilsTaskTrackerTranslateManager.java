@@ -223,7 +223,7 @@ public final class WynntilsTaskTrackerTranslateManager {
         ProviderSettings settings = ProviderSettings.fromProviderProfile(providerProfile);
         LLM llm = new LLM(settings);
 
-        String systemPrompt = buildSystemPrompt(targetLanguage, providerProfile.activeSystemPromptSuffix());
+        String systemPrompt = buildSystemPrompt(targetLanguage, providerProfile.activeSystemPromptSuffix(), providerProfile.system_prompt_overrides);
         String userPrompt = GSON.toJson(batchForAI);
         List<OpenAIRequest.Message> messages = PromptMessageBuilder.buildMessages(
                 systemPrompt,
@@ -419,7 +419,7 @@ public final class WynntilsTaskTrackerTranslateManager {
         return translatedMapFromAI.size() != expectedSize;
     }
 
-    private String buildSystemPrompt(String targetLanguage, String suffix) {
+    private String buildSystemPrompt(String targetLanguage, String suffix, java.util.Map<String, String> overrides) {
         String basePrompt = "You are a deterministic JSON value translator.\n"
                 + "Target language: " + targetLanguage + ".\n"
                 + "\n"
@@ -433,7 +433,8 @@ public final class WynntilsTaskTrackerTranslateManager {
                 + "4) Preserve tokens exactly: §a §l §r %s %d %f {d1} URLs numbers <...> {...} <s0> </s0> \\n \\t.\n"
                 + "5) If unsure for a value, keep that value unchanged.\n"
                 + "6) No extra text outside JSON.";
-        return PromptMessageBuilder.appendSystemPromptSuffix(basePrompt, suffix);
+        String resolved = PromptMessageBuilder.applyPromptOverride("wynntils_task_tracker", basePrompt, overrides, targetLanguage);
+        return PromptMessageBuilder.appendSystemPromptSuffix(resolved, suffix);
     }
 
     private String buildRequestContext(
