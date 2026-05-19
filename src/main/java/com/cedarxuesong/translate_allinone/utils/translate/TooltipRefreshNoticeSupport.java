@@ -65,8 +65,19 @@ public final class TooltipRefreshNoticeSupport {
     }
 
     public static void queueRemoteTranslationForCurrentTooltip(List<Text> tooltip, ItemTranslateConfig config) {
+        queueRemoteTranslationForCurrentTooltip(tooltip, config, null);
+    }
+
+    public static void queueRemoteTranslationForCurrentTooltip(List<Text> tooltip, ItemTranslateConfig config, String source) {
         Set<String> keysToQueue = TooltipTranslationSupport.collectRemoteTranslationTemplateKeys(tooltip, config);
         if (keysToQueue != null && !keysToQueue.isEmpty()) {
+            if (source != null && config != null && config.debug.enabled) {
+                LOGGER.info(
+                        "[ItemDev:llm-enqueue] source=\"{}\" keyCount={}",
+                        source,
+                        keysToQueue.size()
+                );
+            }
             TooltipTranslationSupport.queueRemoteTranslationTemplateKeys(keysToQueue);
         }
     }

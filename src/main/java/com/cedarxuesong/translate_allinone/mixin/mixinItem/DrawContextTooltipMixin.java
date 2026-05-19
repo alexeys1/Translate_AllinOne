@@ -120,7 +120,7 @@ public abstract class DrawContextTooltipMixin {
         }
 
         if (!TooltipRecentRenderGuardSupport.shouldSkipDuplicateRender(tooltipLines, showRefreshNotice)) {
-            TooltipRefreshNoticeSupport.queueRemoteTranslationForCurrentTooltip(tooltipLines, config);
+            TooltipRefreshNoticeSupport.queueRemoteTranslationForCurrentTooltip(tooltipLines, config, "draw-context");
         }
 
         boolean emitDevLog = TooltipTextMatcherSupport.beginTooltipDevPass(config, "draw-context", tooltipLines);

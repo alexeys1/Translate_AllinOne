@@ -177,6 +177,13 @@ public final class TooltipTranslationSupport {
         }
 
         if (!TooltipRecentRenderGuardSupport.shouldSkipDuplicateRender(tooltip, showRefreshNotice)) {
+            if (config.debug.enabled) {
+                LOGGER.info(
+                        "[ItemDev:llm-enqueue] source=\"{}\" keyCount={}",
+                        "screen-mirror",
+                        remoteTranslationTemplateKeys.size()
+                );
+            }
             queueRemoteTranslationTemplateKeys(remoteTranslationTemplateKeys);
         }
 

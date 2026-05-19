@@ -62,7 +62,7 @@ public abstract class WynnmodDrawItemTooltipSetTextMixin {
         }
 
         if (!TooltipRecentRenderGuardSupport.shouldSkipDuplicateRender(sanitizedTooltip, showRefreshNotice)) {
-            TooltipRefreshNoticeSupport.queueRemoteTranslationForCurrentTooltip(sanitizedTooltip, config);
+            TooltipRefreshNoticeSupport.queueRemoteTranslationForCurrentTooltip(sanitizedTooltip, config, "wynnmod-setText");
         }
 
         boolean emitDevLog = TooltipTextMatcherSupport.beginTooltipDevPass(config, "wynnmod-setText", sanitizedTooltip);

@@ -137,7 +137,7 @@ public abstract class WynnmodStatsTooltipContextMixin {
                 TooltipTranslationContext.setSkipDrawContextTranslation(true);
                 return;
             }
-            TooltipRefreshNoticeSupport.queueRemoteTranslationForCurrentTooltip(sanitizedTooltip, config);
+            TooltipRefreshNoticeSupport.queueRemoteTranslationForCurrentTooltip(sanitizedTooltip, config, "wynnmod");
 
             boolean emitDevLog = TooltipTextMatcherSupport.beginTooltipDevPass(config, "wynnmod", sanitizedTooltip);
             long tooltipStartedAtNanos = emitDevLog ? System.nanoTime() : 0L;
