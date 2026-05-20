@@ -11,7 +11,8 @@ public final class ConfigUiModalInteractionSupport {
             boolean dictionaryFilesModalOpen,
             boolean resetConfirmModalOpen,
             boolean updateNoticeModalOpen,
-            boolean unsavedChangesConfirmModalOpen
+            boolean unsavedChangesConfirmModalOpen,
+            boolean promptEditorWarningOpen
     ) {
         if (updateNoticeModalOpen) {
             return ModalCloseAction.CLOSE_UPDATE_NOTICE;
@@ -24,6 +25,9 @@ public final class ConfigUiModalInteractionSupport {
         }
         if (dictionaryFilesModalOpen) {
             return ModalCloseAction.CLOSE_DICTIONARY_FILES;
+        }
+        if (promptEditorWarningOpen) {
+            return ModalCloseAction.CLOSE_PROMPT_EDITOR_WARNING;
         }
         if (customParametersModalOpen) {
             return ModalCloseAction.CLOSE_CUSTOM_PARAMETERS;
@@ -44,7 +48,8 @@ public final class ConfigUiModalInteractionSupport {
             boolean dictionaryFilesModalOpen,
             boolean resetConfirmModalOpen,
             boolean updateNoticeModalOpen,
-            boolean unsavedChangesConfirmModalOpen
+            boolean unsavedChangesConfirmModalOpen,
+            boolean promptEditorWarningOpen
     ) {
         if (updateNoticeModalOpen) {
             return ModalCloseAction.CLOSE_UPDATE_NOTICE;
@@ -57,6 +62,9 @@ public final class ConfigUiModalInteractionSupport {
         }
         if (dictionaryFilesModalOpen) {
             return ModalCloseAction.CLOSE_DICTIONARY_FILES;
+        }
+        if (promptEditorWarningOpen) {
+            return ModalCloseAction.CLOSE_PROMPT_EDITOR_WARNING;
         }
         if (addProviderModalOpen) {
             return ModalCloseAction.CLOSE_ADD_PROVIDER;
@@ -78,6 +86,7 @@ public final class ConfigUiModalInteractionSupport {
         CLOSE_DICTIONARY_FILES,
         CLOSE_ADD_PROVIDER,
         CLOSE_MODEL_SETTINGS,
-        CLOSE_CUSTOM_PARAMETERS
+        CLOSE_CUSTOM_PARAMETERS,
+        CLOSE_PROMPT_EDITOR_WARNING
     }
 }

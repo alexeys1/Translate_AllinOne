@@ -18,7 +18,8 @@ public final class ConfigUiModalSupport {
             boolean dictionaryFilesModalOpen,
             boolean resetConfirmModalOpen,
             boolean updateNoticeModalOpen,
-            boolean unsavedChangesConfirmModalOpen
+            boolean unsavedChangesConfirmModalOpen,
+            boolean promptEditorWarningOpen
     ) {
         return addProviderModalOpen
                 || modelSettingsModalOpen
@@ -26,7 +27,8 @@ public final class ConfigUiModalSupport {
                 || dictionaryFilesModalOpen
                 || resetConfirmModalOpen
                 || updateNoticeModalOpen
-                || unsavedChangesConfirmModalOpen;
+                || unsavedChangesConfirmModalOpen
+                || promptEditorWarningOpen;
     }
 
     public static boolean isInsideOpenModal(
@@ -40,7 +42,8 @@ public final class ConfigUiModalSupport {
             boolean dictionaryFilesModalOpen,
             boolean resetConfirmModalOpen,
             boolean updateNoticeModalOpen,
-            boolean unsavedChangesConfirmModalOpen
+            boolean unsavedChangesConfirmModalOpen,
+            boolean promptEditorWarningOpen
     ) {
         if (updateNoticeModalOpen && updateNoticeModalRect(screenWidth, screenHeight).contains(x, y)) {
             return true;
@@ -58,6 +61,9 @@ public final class ConfigUiModalSupport {
             return true;
         }
         if (addProviderModalOpen && addProviderModalRect(screenWidth, screenHeight).contains(x, y)) {
+            return true;
+        }
+        if (promptEditorWarningOpen && promptEditorWarningRect(screenWidth, screenHeight).contains(x, y)) {
             return true;
         }
         return modelSettingsModalOpen && modelSettingsModalRect(screenWidth, screenHeight).contains(x, y);
@@ -114,6 +120,22 @@ public final class ConfigUiModalSupport {
     public static UiRect unsavedChangesConfirmModalRect(int screenWidth, int screenHeight) {
         int width = 500;
         int height = 190;
+        int x = (screenWidth - width) / 2;
+        int y = (screenHeight - height) / 2;
+        return new UiRect(x, y, width, height);
+    }
+
+    public static UiRect promptEditorWarningRect(int screenWidth, int screenHeight) {
+        int width = 480;
+        int height = 170;
+        int x = (screenWidth - width) / 2;
+        int y = (screenHeight - height) / 2;
+        return new UiRect(x, y, width, height);
+    }
+
+    public static UiRect promptEditorModalRect(int screenWidth, int screenHeight) {
+        int width = Math.min(900, screenWidth - 80);
+        int height = Math.min(520, screenHeight - 90);
         int x = (screenWidth - width) / 2;
         int y = (screenHeight - height) / 2;
         return new UiRect(x, y, width, height);

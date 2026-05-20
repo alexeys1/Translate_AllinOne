@@ -47,6 +47,7 @@ public final class ProviderDetailSectionSupport {
             BiConsumer<ApiProviderProfile, String> onOpenModelSettings,
             BiConsumer<ApiProviderProfile, String> onRemoveModel,
             Consumer<ApiProviderProfile> onAddModel,
+            Consumer<ApiProviderProfile> onOpenPromptEditor,
             Style style
     ) {
         if (profile == null) {
@@ -294,6 +295,25 @@ public final class ProviderDetailSectionSupport {
         , translator.t("desc.add_model"));
 
         addGroupBox(groupBoxAdder, translator.t("group.providers.models"), x, width, modelsStartY, rowY + ROW_STEP);
+
+        rowY += ROW_STEP + GROUP_GAP;
+        int promptStartY = rowY;
+
+        actionBlockAdder.add(
+                x,
+                rowY,
+                width,
+                20,
+                () -> translator.t("button.edit_prompts"),
+                () -> onOpenPromptEditor.accept(profile),
+                style.colorBlock(),
+                style.colorBlockHover(),
+                style.colorText(),
+                true
+        , translator.t("desc.edit_prompts"));
+        rowY += ROW_STEP;
+
+        addGroupBox(groupBoxAdder, translator.t("group.providers.prompts"), x, width, promptStartY, rowY);
         return rowY + ROW_STEP;
     }
 

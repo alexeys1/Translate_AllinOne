@@ -312,6 +312,8 @@ public class ModConfigScreen extends Screen {
     private boolean resetConfirmModalOpen;
     private boolean updateNoticeModalOpen;
     private boolean unsavedChangesConfirmModalOpen;
+    private boolean promptEditorWarningOpen;
+    private String promptEditorProviderId = "";
     private boolean updateNoticeAutoPrompted;
     private String selectedCustomParameterPath = "";
     private TextFieldWidget customParameterNameField;
@@ -481,7 +483,8 @@ public class ModConfigScreen extends Screen {
                 dictionaryFilesModalOpen,
                 resetConfirmModalOpen,
                 updateNoticeModalOpen,
-                unsavedChangesConfirmModalOpen
+                unsavedChangesConfirmModalOpen,
+                promptEditorWarningOpen
         );
     }
 
@@ -497,7 +500,8 @@ public class ModConfigScreen extends Screen {
                 dictionaryFilesModalOpen,
                 resetConfirmModalOpen,
                 updateNoticeModalOpen,
-                unsavedChangesConfirmModalOpen
+                unsavedChangesConfirmModalOpen,
+                promptEditorWarningOpen
         );
     }
 
@@ -605,6 +609,8 @@ public class ModConfigScreen extends Screen {
             addResetConfirmModal();
         } else if (unsavedChangesConfirmModalOpen) {
             addUnsavedChangesConfirmModal();
+        } else if (promptEditorWarningOpen) {
+            addPromptEditorWarning();
         }
         ConfigUiFocusSupport.applyPendingFocus(
                 this,
@@ -981,6 +987,10 @@ public class ModConfigScreen extends Screen {
                 targetProfile -> {
                     openModelSettingsModal(targetProfile, "");
                     rebuildActionBlocks(FocusTarget.MODEL_NAME);
+                },
+                profile -> {
+                    openPromptEditorWarning(profile);
+                    rebuildActionBlocks();
                 }
         );
         providerSearchField = result.providerSearchField();
@@ -1183,6 +1193,60 @@ public class ModConfigScreen extends Screen {
         }
         customParametersModalOpen = false;
         selectedCustomParameterPath = "";
+    }
+
+    private void openPromptEditorWarning(ApiProviderProfile profile) {
+        promptEditorWarningOpen = true;
+        promptEditorProviderId = profile.id;
+    }
+
+    private void closePromptEditorWarning() {
+        promptEditorWarningOpen = false;
+        promptEditorProviderId = "";
+    }
+
+    private void openPromptEditorScreen() {
+        promptEditorWarningOpen = false;
+        if (this.client != null) {
+            this.client.setScreen(new PromptEditorScreen(this, promptEditorProviderId));
+        }
+    }
+
+    private void addPromptEditorWarning() {
+        UiRect rect = ConfigUiModalSupport.promptEditorWarningRect(this.width, this.height);
+        int buttonsY = rect.y + rect.height - 32;
+        int half = (rect.width - 44) / 2;
+        int leftX = rect.x + 20;
+        int rightX = leftX + half + 4;
+
+        floatingActionBlockRegistry.add(
+                leftX,
+                buttonsY,
+                half,
+                20,
+                () -> t("button.cancel"),
+                () -> {
+                    closePromptEditorWarning();
+                    rebuildActionBlocks();
+                },
+                COLOR_BLOCK,
+                COLOR_BLOCK_HOVER,
+                COLOR_TEXT,
+                true
+        );
+
+        floatingActionBlockRegistry.add(
+                rightX,
+                buttonsY,
+                half,
+                20,
+                () -> t("button.continue"),
+                this::openPromptEditorScreen,
+                COLOR_BLOCK_ACCENT,
+                COLOR_BLOCK_ACCENT_HOVER,
+                COLOR_TEXT,
+                true
+        );
     }
 
     private void addCustomParametersModal() {
@@ -2169,6 +2233,19 @@ public class ModConfigScreen extends Screen {
         }
     }
 
+    private void renderPromptEditorWarningMessage(DrawContext context) {
+        UiRect rect = ConfigUiModalSupport.promptEditorWarningRect(this.width, this.height);
+        int textX = rect.x + 16;
+        int textY = rect.y + 48;
+        int maxWidth = Math.max(10, rect.width - 32);
+        List<OrderedText> lines = this.textRenderer.wrapLines(t("modal.prompt_editor_warning_message"), maxWidth);
+        int lineY = textY;
+        for (OrderedText line : lines) {
+            context.drawText(this.textRenderer, line, textX, lineY, COLOR_STATUS_ERROR, false);
+            lineY += this.textRenderer.fontHeight + 2;
+        }
+    }
+
     private void applyResetToDefaults() {
         closeResetConfirmModal();
         ConfigManager.resetToDefaults();
@@ -2197,7 +2274,8 @@ public class ModConfigScreen extends Screen {
                 dictionaryFilesModalOpen,
                 resetConfirmModalOpen,
                 updateNoticeModalOpen,
-                unsavedChangesConfirmModalOpen
+                unsavedChangesConfirmModalOpen,
+                promptEditorWarningOpen
         );
 
         switch (action) {
@@ -2213,6 +2291,11 @@ public class ModConfigScreen extends Screen {
             }
             case CLOSE_UNSAVED_CHANGES -> {
                 closeUnsavedChangesConfirmModal();
+                rebuildActionBlocks();
+                return;
+            }
+            case CLOSE_PROMPT_EDITOR_WARNING -> {
+                closePromptEditorWarning();
                 rebuildActionBlocks();
                 return;
             }
@@ -2278,7 +2361,8 @@ public class ModConfigScreen extends Screen {
                         dictionaryFilesModalOpen,
                         resetConfirmModalOpen,
                         updateNoticeModalOpen,
-                        unsavedChangesConfirmModalOpen
+                        unsavedChangesConfirmModalOpen,
+                        promptEditorWarningOpen
                 );
                 switch (action) {
                     case CLOSE_UPDATE_NOTICE -> {
@@ -2293,6 +2377,11 @@ public class ModConfigScreen extends Screen {
                     }
                     case CLOSE_UNSAVED_CHANGES -> {
                         closeUnsavedChangesConfirmModal();
+                        rebuildActionBlocks();
+                        return true;
+                    }
+                    case CLOSE_PROMPT_EDITOR_WARNING -> {
+                        closePromptEditorWarning();
                         rebuildActionBlocks();
                         return true;
                     }
@@ -2567,6 +2656,7 @@ public class ModConfigScreen extends Screen {
                 resetConfirmModalOpen,
                 updateNoticeModalOpen,
                 unsavedChangesConfirmModalOpen,
+                promptEditorWarningOpen,
                 t("modal.add_provider.title"),
                 t("modal.model.title"),
                 t("custom_params.title"),
@@ -2574,6 +2664,7 @@ public class ModConfigScreen extends Screen {
                 t("modal.reset_confirm.title"),
                 t("modal.update_notice.title"),
                 t("modal.unsaved_changes.title"),
+                t("modal.prompt_editor_warning_title"),
                 SCREEN_RENDER_STYLE
         );
 
@@ -2583,6 +2674,8 @@ public class ModConfigScreen extends Screen {
             renderResetConfirmModalMessage(context);
         } else if (unsavedChangesConfirmModalOpen) {
             renderUnsavedChangesConfirmModalMessage(context);
+        } else if (promptEditorWarningOpen) {
+            renderPromptEditorWarningMessage(context);
         }
 
         if (modalOpen) {
