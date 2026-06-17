@@ -6,6 +6,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.SharedConstants;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.text.ClickEvent;
 import net.minecraft.text.HoverEvent;
@@ -19,15 +20,15 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- * 每次客户端启动后执行一次 GitHub TAG 更新检测。
- */
 public final class UpdateCheckManager {
-    private static final String TAGS_API_URL = "https://api.github.com/repos/alexeys1/Translate_AllinOne/tags?per_page=100";
-    private static final String RELEASE_URL_PREFIX = "https://github.com/alexeys1/Translate_AllinOne/releases/tag/";
+    private static final String MODRINTH_PROJECT_ID = "WEuWEFmQ";
+    private static final String MODRINTH_VERSION_URL_PREFIX = "https://modrinth.com/mod/translate_allinone(fork)/version/";
+    private static final String MODRINTH_VERSIONS_API_PREFIX = "https://api.modrinth.com/v2/project/" + MODRINTH_PROJECT_ID + "/version";
 
     private static final Gson GSON = new Gson();
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
@@ -62,9 +63,9 @@ public final class UpdateCheckManager {
         }
 
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(TAGS_API_URL))
+                .uri(URI.create(buildModrinthVersionsApiUrl()))
                 .timeout(Duration.ofSeconds(10))
-                .header("Accept", "application/vnd.github+json")
+                .header("Accept", "application/json")
                 .header("User-Agent", "Translate_AllinOne/" + currentVersion)
                 .GET()
                 .build();
@@ -79,7 +80,7 @@ public final class UpdateCheckManager {
                     }
 
                     try {
-                        handleTagsResponse(response, current);
+                        handleModrinthVersionsResponse(response, current);
                     } catch (Exception e) {
                         lastError = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
                         Translate_AllinOne.LOGGER.warn("Update check parse failed: {}", lastError);
@@ -149,19 +150,19 @@ public final class UpdateCheckManager {
         Util.getOperatingSystem().open(latestReleaseUrl);
     }
 
-    private static void handleTagsResponse(HttpResponse<String> response, NumericVersion current) {
+    private static void handleModrinthVersionsResponse(HttpResponse<String> response, NumericVersion current) {
         if (response.statusCode() != 200) {
-            throw new IllegalStateException("GitHub API status=" + response.statusCode());
+            throw new IllegalStateException("Modrinth API status=" + response.statusCode());
         }
 
-        LatestTag latestTag = extractLatestNumericTag(response.body());
-        if (latestTag == null) {
-            throw new IllegalStateException("No numeric tags found in repository");
+        LatestModrinthVersion latestModrinthVersion = extractLatestModrinthVersion(response.body());
+        if (latestModrinthVersion == null) {
+            throw new IllegalStateException("No numeric Modrinth versions found");
         }
 
-        latestVersion = latestTag.originalName();
-        latestReleaseUrl = RELEASE_URL_PREFIX + latestTag.originalName();
-        updateAvailable = latestTag.version().compareTo(current) > 0;
+        latestVersion = latestModrinthVersion.versionNumber();
+        latestReleaseUrl = MODRINTH_VERSION_URL_PREFIX + latestModrinthVersion.id();
+        updateAvailable = latestModrinthVersion.version().compareTo(current) > 0;
         lastError = "";
 
         if (updateAvailable) {
@@ -171,30 +172,32 @@ public final class UpdateCheckManager {
         }
     }
 
-    private static LatestTag extractLatestNumericTag(String body) {
-        JsonArray tags = GSON.fromJson(body, JsonArray.class);
-        if (tags == null || tags.isEmpty()) {
+    private static LatestModrinthVersion extractLatestModrinthVersion(String body) {
+        JsonArray versions = GSON.fromJson(body, JsonArray.class);
+        if (versions == null || versions.isEmpty()) {
             return null;
         }
 
-        LatestTag best = null;
-        for (JsonElement element : tags) {
+        LatestModrinthVersion best = null;
+        for (JsonElement element : versions) {
             if (element == null || !element.isJsonObject()) {
                 continue;
             }
 
-            JsonObject tagObj = element.getAsJsonObject();
-            if (!tagObj.has("name") || !tagObj.get("name").isJsonPrimitive()) {
+            JsonObject versionObj = element.getAsJsonObject();
+            if (!versionObj.has("id") || !versionObj.get("id").isJsonPrimitive()
+                    || !versionObj.has("version_number") || !versionObj.get("version_number").isJsonPrimitive()) {
                 continue;
             }
 
-            String name = tagObj.get("name").getAsString();
-            NumericVersion parsed = NumericVersion.parse(name);
+            String id = versionObj.get("id").getAsString();
+            String versionNumber = versionObj.get("version_number").getAsString();
+            NumericVersion parsed = NumericVersion.parse(versionNumber);
             if (parsed == null) {
                 continue;
             }
 
-            LatestTag candidate = new LatestTag(parsed.raw(), name, parsed);
+            LatestModrinthVersion candidate = new LatestModrinthVersion(id, versionNumber, parsed);
             if (best == null || candidate.version().compareTo(best.version()) > 0) {
                 best = candidate;
             }
@@ -209,6 +212,15 @@ public final class UpdateCheckManager {
                 .orElse("unknown");
     }
 
-    private record LatestTag(String raw, String originalName, NumericVersion version) {
+    private static String buildModrinthVersionsApiUrl() {
+        String gameVersion = SharedConstants.getGameVersion().id();
+        String loaderFilter = URLEncoder.encode("[\"fabric\"]", StandardCharsets.UTF_8);
+        String gameVersionFilter = URLEncoder.encode("[\"" + gameVersion + "\"]", StandardCharsets.UTF_8);
+        return MODRINTH_VERSIONS_API_PREFIX
+                + "?loaders=" + loaderFilter
+                + "&game_versions=" + gameVersionFilter;
+    }
+
+    private record LatestModrinthVersion(String id, String versionNumber, NumericVersion version) {
     }
 }

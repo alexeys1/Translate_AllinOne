@@ -6,8 +6,14 @@ plugins {
 version = project.mod_version
 group = project.maven_group
 
+def modArchiveVersion = "${project.mod_version}-mc${project.minecraft_version}"
+
 base {
 	archivesName = project.archives_base_name
+}
+
+tasks.withType(org.gradle.api.tasks.bundling.AbstractArchiveTask).configureEach {
+	archiveVersion.set(modArchiveVersion)
 }
 
 repositories {
