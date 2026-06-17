@@ -171,9 +171,14 @@ final class TooltipStructuredCaptureSupport {
         String debugSummary = buildDetailedDebugSummary(structuredLine);
         TooltipTranslationSupport.TooltipLineResult labelTranslation =
                 TooltipTemplateRuntime.translateLine(structuredLine.labelTranslationText(), useTagStylePreservation);
-        if (isErrorTranslation(labelTranslation.translatedLine())) {
+        if (!labelTranslation.errorMessage().isBlank()) {
             return new StructuredTooltipLineResult(
-                    labelTranslation,
+                    new TooltipTranslationSupport.TooltipLineResult(
+                            structuredLine.originalLine(),
+                            labelTranslation.pending(),
+                            labelTranslation.missingKeyIssue(),
+                            labelTranslation.errorMessage()
+                    ),
                     structuredLine.translationTemplateKeys(),
                     debugSummary
             );
@@ -182,7 +187,7 @@ final class TooltipStructuredCaptureSupport {
         TooltipTranslationSupport.TooltipLineResult valueTranslation = null;
         if (structuredLine.kind().translateValue()) {
             valueTranslation = TooltipTemplateRuntime.translateLine(structuredLine.valueTranslationText(), useTagStylePreservation);
-            if (isErrorTranslation(valueTranslation.translatedLine())) {
+            if (!valueTranslation.errorMessage().isBlank()) {
                 valueTranslation = null;
             }
         }
@@ -383,9 +388,14 @@ final class TooltipStructuredCaptureSupport {
 
             TooltipTranslationSupport.TooltipLineResult nameTranslation =
                     TooltipTemplateRuntime.translateLine(entry.nameTranslationText(), useTagStylePreservation);
-            if (isErrorTranslation(nameTranslation.translatedLine())) {
+            if (!nameTranslation.errorMessage().isBlank()) {
                 return new StructuredTooltipLineResult(
-                        nameTranslation,
+                        new TooltipTranslationSupport.TooltipLineResult(
+                                enchantListMatch.originalLine(),
+                                nameTranslation.pending(),
+                                nameTranslation.missingKeyIssue(),
+                                nameTranslation.errorMessage()
+                        ),
                         enchantListMatch.translationTemplateKeys(),
                         buildDebugSummary(enchantListMatch)
                 );
@@ -598,10 +608,6 @@ final class TooltipStructuredCaptureSupport {
                 toText(delimiterNodes),
                 nameKey
         );
-    }
-
-    private static boolean isErrorTranslation(Text text) {
-        return text != null && text.getString().startsWith("Error: ");
     }
 
     private static String buildDebugSummary(StructuredLineMatch structuredLine) {
@@ -1257,6 +1263,20 @@ final class TooltipStructuredCaptureSupport {
             }
             return keys;
         }
+
+        private Text originalLine() {
+            MutableText original = Text.empty();
+            appendPreservedPrefixPassThroughText(original, prefixText);
+            if (labelText != null) {
+                original.append(labelText);
+            }
+            appendNormalizedPassThroughText(original, colonText);
+            appendNormalizedPassThroughText(original, spacingText);
+            if (valueText != null) {
+                original.append(valueText);
+            }
+            return original;
+        }
     }
 
     private record EnchantListMatch(List<EnchantListEntry> entries) {
@@ -1291,6 +1311,38 @@ final class TooltipStructuredCaptureSupport {
                 keys.add(entry.nameKey());
             }
             return keys;
+        }
+
+        private Text originalLine() {
+            MutableText original = Text.empty();
+            if (entries == null) {
+                return original;
+            }
+
+            for (EnchantListEntry entry : entries) {
+                if (entry == null) {
+                    continue;
+                }
+                if (entry.leadingText() != null) {
+                    original.append(entry.leadingText());
+                }
+                if (entry.nameText() != null) {
+                    original.append(entry.nameText());
+                }
+                if (entry.bridgeText() != null) {
+                    original.append(entry.bridgeText());
+                }
+                if (entry.levelText() != null) {
+                    original.append(entry.levelText());
+                }
+                if (entry.trailingText() != null) {
+                    original.append(entry.trailingText());
+                }
+                if (entry.delimiterText() != null) {
+                    original.append(entry.delimiterText());
+                }
+            }
+            return original;
         }
     }
 

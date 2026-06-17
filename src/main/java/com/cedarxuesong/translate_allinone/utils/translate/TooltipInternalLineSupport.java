@@ -16,6 +16,7 @@ public final class TooltipInternalLineSupport {
     private static final String KEY_MISMATCH_HINT = "key mismatch";
     private static final String TRANSLATING_STATUS_PREFIX = "Translating...";
     private static final String KEY_MISMATCH_STATUS_PREFIX = "Item translation key mismatch, retrying...";
+    private static final String ERROR_STATUS_PREFIX = "Error: ";
 
     private TooltipInternalLineSupport() {
     }
@@ -36,6 +37,10 @@ public final class TooltipInternalLineSupport {
         return statusText.append(Text.literal(progressText).formatted(Formatting.YELLOW));
     }
 
+    public static Text createErrorStatusLine(String errorMessage) {
+        return Text.literal(ERROR_STATUS_PREFIX + (errorMessage == null ? "" : errorMessage)).formatted(Formatting.RED);
+    }
+
     public static boolean shouldShowStatusLine(
             TooltipTranslationSupport.TooltipProcessingResult processedTooltip,
             CacheStats stats
@@ -48,6 +53,10 @@ public final class TooltipInternalLineSupport {
         return processedTooltip.pending() || processedTooltip.missingKeyIssue() || isAnythingPending;
     }
 
+    public static boolean shouldShowErrorStatusLine(TooltipTranslationSupport.TooltipProcessingResult processedTooltip) {
+        return processedTooltip != null && !processedTooltip.errorMessage().isBlank();
+    }
+
     public static List<Text> appendStatusLineIfNeeded(
             List<Text> tooltip,
             TooltipTranslationSupport.TooltipProcessingResult processedTooltip,
@@ -58,13 +67,20 @@ public final class TooltipInternalLineSupport {
         }
 
         CacheStats stats = ItemTemplateCache.getInstance().getCacheStats();
-        if (!shouldShowStatusLine(processedTooltip, stats)) {
+        boolean showStatusLine = shouldShowStatusLine(processedTooltip, stats);
+        boolean showErrorStatusLine = shouldShowErrorStatusLine(processedTooltip);
+        if (!showStatusLine && !showErrorStatusLine) {
             return tooltip;
         }
 
-        List<Text> tooltipWithStatus = new ArrayList<>(tooltip.size() + 1);
+        List<Text> tooltipWithStatus = new ArrayList<>(tooltip.size() + 2);
         tooltipWithStatus.addAll(tooltip);
-        tooltipWithStatus.add(createStatusLine(stats, processedTooltip.missingKeyIssue(), animationKey));
+        if (showStatusLine) {
+            tooltipWithStatus.add(createStatusLine(stats, processedTooltip.missingKeyIssue(), animationKey));
+        }
+        if (showErrorStatusLine) {
+            tooltipWithStatus.add(createErrorStatusLine(processedTooltip.errorMessage()));
+        }
         return tooltipWithStatus;
     }
 
@@ -83,7 +99,8 @@ public final class TooltipInternalLineSupport {
 
         String content = line.getString();
         return content.startsWith(TRANSLATING_STATUS_PREFIX)
-                || content.startsWith(KEY_MISMATCH_STATUS_PREFIX);
+                || content.startsWith(KEY_MISMATCH_STATUS_PREFIX)
+                || content.startsWith(ERROR_STATUS_PREFIX);
     }
 
     public static boolean isInternalGeneratedLine(Text line) {

@@ -16,7 +16,6 @@ import net.minecraft.text.Style;
 import net.minecraft.text.StyleSpriteSource;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
-import net.minecraft.util.Formatting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -280,6 +279,7 @@ final class TooltipTemplateRuntime {
                 : StylePreserver.reapplyStyles(reassembledOriginal, preparedTemplate.styleResult().styleMap);
 
         Text finalTooltipLine;
+        String errorMessage = "";
         if (status == TranslationStatus.TRANSLATED && resolvedLookup.renderedLineOverride() != null) {
             finalTooltipLine = resolvedLookup.renderedLineOverride();
         } else if (status == TranslationStatus.TRANSLATED) {
@@ -292,13 +292,14 @@ final class TooltipTemplateRuntime {
                     ? StylePreserver.reapplyStylesFromTags(reassembledTranslated, preparedTemplate.styleResult().styleMap, true)
                     : StylePreserver.fromLegacyText(reassembledTranslated);
         } else if (status == TranslationStatus.ERROR) {
-            String errorMessage = lookupResult.errorMessage();
+            errorMessage = lookupResult.errorMessage();
             if (TooltipInternalLineSupport.isMissingKeyIssue(errorMessage)) {
                 pending = true;
                 missingKeyIssue = true;
+                errorMessage = "";
                 finalTooltipLine = originalTextObject;
             } else {
-                finalTooltipLine = Text.literal("Error: " + errorMessage).formatted(Formatting.RED);
+                finalTooltipLine = originalTextObject;
             }
         } else {
             finalTooltipLine = AnimationManager.getAnimatedStyledText(
@@ -308,7 +309,7 @@ final class TooltipTemplateRuntime {
             );
         }
 
-        return new TooltipTranslationSupport.TooltipLineResult(finalTooltipLine, pending, missingKeyIssue);
+        return new TooltipTranslationSupport.TooltipLineResult(finalTooltipLine, pending, missingKeyIssue, errorMessage);
     }
 
     static String extractTemplateKeyForLine(Text line, boolean useTagStylePreservation) {

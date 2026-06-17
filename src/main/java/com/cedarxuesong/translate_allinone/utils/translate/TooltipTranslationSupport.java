@@ -46,15 +46,35 @@ public final class TooltipTranslationSupport {
     private TooltipTranslationSupport() {
     }
 
-    public record TooltipLineResult(Text translatedLine, boolean pending, boolean missingKeyIssue) {
+    public record TooltipLineResult(Text translatedLine, boolean pending, boolean missingKeyIssue, String errorMessage) {
+        public TooltipLineResult(Text translatedLine, boolean pending, boolean missingKeyIssue) {
+            this(translatedLine, pending, missingKeyIssue, "");
+        }
+
+        public TooltipLineResult {
+            errorMessage = errorMessage == null ? "" : errorMessage;
+        }
     }
 
     public record TooltipProcessingResult(
             List<Text> translatedLines,
             int translatableLines,
             boolean pending,
-            boolean missingKeyIssue
+            boolean missingKeyIssue,
+            String errorMessage
     ) {
+        public TooltipProcessingResult(
+                List<Text> translatedLines,
+                int translatableLines,
+                boolean pending,
+                boolean missingKeyIssue
+        ) {
+            this(translatedLines, translatableLines, pending, missingKeyIssue, "");
+        }
+
+        public TooltipProcessingResult {
+            errorMessage = errorMessage == null ? "" : errorMessage;
+        }
     }
 
     public record TranslatedTooltipBuildResult(
@@ -254,6 +274,7 @@ public final class TooltipTranslationSupport {
         int translatableLines = 0;
         boolean hasPending = false;
         boolean hasMissingKeyIssue = false;
+        String errorMessage = "";
 
         for (TooltipRouteSegment segment : tooltipPlan.segments()) {
             if (segment.kind() == TooltipRouteKind.PASSTHROUGH) {
@@ -277,6 +298,9 @@ public final class TooltipTranslationSupport {
                     }
                     if (lineResult.missingKeyIssue()) {
                         hasMissingKeyIssue = true;
+                    }
+                    if (errorMessage.isBlank() && !lineResult.errorMessage().isBlank()) {
+                        errorMessage = lineResult.errorMessage();
                     }
                     translatedLines.add(lineResult.translatedLine());
                 }
@@ -358,6 +382,9 @@ public final class TooltipTranslationSupport {
             if (lineResult.missingKeyIssue()) {
                 hasMissingKeyIssue = true;
             }
+            if (errorMessage.isBlank() && !lineResult.errorMessage().isBlank()) {
+                errorMessage = lineResult.errorMessage();
+            }
             translatedLines.add(lineResult.translatedLine());
             TooltipTextMatcherSupport.logLineTranslationIfDev(
                     config,
@@ -372,7 +399,7 @@ public final class TooltipTranslationSupport {
             );
         }
 
-        return new TooltipProcessingResult(translatedLines, translatableLines, hasPending, hasMissingKeyIssue);
+        return new TooltipProcessingResult(translatedLines, translatableLines, hasPending, hasMissingKeyIssue, errorMessage);
     }
 
     private static int computeTooltipFingerprint(List<Text> tooltip, ItemTranslateConfig config) {

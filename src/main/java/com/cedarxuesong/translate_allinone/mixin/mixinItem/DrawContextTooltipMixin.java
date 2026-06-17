@@ -222,6 +222,10 @@ public abstract class DrawContextTooltipMixin {
                 );
                 components.add(TooltipComponent.of(statusLine.asOrderedText()));
             }
+            if (TooltipInternalLineSupport.shouldShowErrorStatusLine(processedTooltip)) {
+                Text errorStatusLine = TooltipInternalLineSupport.createErrorStatusLine(processedTooltip.errorMessage());
+                components.add(TooltipComponent.of(errorStatusLine.asOrderedText()));
+            }
         }
 
         if (showRefreshNotice && !TooltipRefreshNoticeSupport.containsRefreshNoticeLine(sourceLines)) {
