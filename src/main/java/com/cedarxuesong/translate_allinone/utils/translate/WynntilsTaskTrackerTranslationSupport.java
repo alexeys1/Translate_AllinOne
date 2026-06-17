@@ -29,6 +29,7 @@ public final class WynntilsTaskTrackerTranslationSupport {
     private static final WynnSharedDictionaryService SHARED_DICTIONARY_SERVICE = WynnSharedDictionaryService.getInstance();
     private static final java.util.Map<String, Long> QUEST_LOCAL_HIT_LOG_TIMESTAMPS = new java.util.concurrent.ConcurrentHashMap<>();
     private static final long QUEST_LOCAL_HIT_LOG_THROTTLE_MILLIS = 5000L;
+    private static final String TRACKER_TRANSLATION_ERROR_KEY = "text.translate_allinone.wynntils.task_tracker.translation_error";
 
     private WynntilsTaskTrackerTranslationSupport() {
     }
@@ -123,9 +124,9 @@ public final class WynntilsTaskTrackerTranslationSupport {
         if (lookupResult.status() == TranslationStatus.ERROR) {
             String reason = lookupResult.errorMessage();
             if (reason != null && !reason.isBlank()) {
-                return originalText + " §c[! " + reason + "]";
+                return originalText + " §c" + Text.translatable(TRACKER_TRANSLATION_ERROR_KEY, TranslationErrorTextSupport.localizeReason(reason)).getString();
             }
-            return originalText + " §c[!]";
+            return originalText + " §c" + Text.translatable(TRACKER_TRANSLATION_ERROR_KEY, "").getString();
         }
 
         return originalText;

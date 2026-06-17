@@ -35,7 +35,8 @@ public final class WynnDialogueHudRenderer {
     private static final int OPTION_ROW_GAP = 3;
     private static final int OPTION_ROW_PADDING_Y = 2;
 
-    private static final String STATUS_ERROR_PREFIX = "Translation error";
+    private static final String STATUS_ERROR_KEY = "text.translate_allinone.wynn.dialogue.translation_error";
+    private static final String STATUS_ERROR_WITH_REASON_KEY = "text.translate_allinone.wynn.dialogue.translation_error_with_reason";
     private static final int STATUS_LINE_COLOR = 0xFFFF5555;
 
     private static boolean initialized;
@@ -632,11 +633,10 @@ public final class WynnDialogueHudRenderer {
         drawContext.getMatrices().pushMatrix();
         drawContext.getMatrices().translate((float) renderData.x(), (float) (renderData.y() + renderData.scaledBoxHeight() + 2));
         drawContext.getMatrices().scale(renderData.hudLayout().scale(), renderData.hudLayout().scale());
-        String statusText = STATUS_ERROR_PREFIX;
-        if (errorMessage != null && !errorMessage.isBlank()) {
-            statusText = STATUS_ERROR_PREFIX + ": " + errorMessage;
-        }
-        drawContext.drawTextWithShadow(textRenderer, Text.literal(statusText), 0, 0, STATUS_LINE_COLOR);
+        Text statusText = errorMessage == null || errorMessage.isBlank()
+                ? Text.translatable(STATUS_ERROR_KEY)
+                : Text.translatable(STATUS_ERROR_WITH_REASON_KEY, TranslationErrorTextSupport.localizeReason(errorMessage));
+        drawContext.drawTextWithShadow(textRenderer, statusText, 0, 0, STATUS_LINE_COLOR);
         drawContext.getMatrices().popMatrix();
     }
 

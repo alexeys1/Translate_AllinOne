@@ -14,6 +14,8 @@ import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.arg
 import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.literal;
 
 public class ChatHudTranslateCommand {
+    private static final String INVALID_MESSAGE_ID_KEY = "text.translate_allinone.command.error.invalid_message_id";
+    private static final String MESSAGE_NOT_FOUND_KEY = "text.translate_allinone.command.error.message_not_found";
 
     public static LiteralArgumentBuilder<FabricClientCommandSource> getArgumentBuilder() {
         return literal("translatechatline")
@@ -34,13 +36,13 @@ public class ChatHudTranslateCommand {
         try {
             messageId = UUID.fromString(messageIdStr);
         } catch (IllegalArgumentException e) {
-            context.getSource().sendError(Text.literal("Invalid message ID: " + messageIdStr));
+            context.getSource().sendError(Text.translatable(INVALID_MESSAGE_ID_KEY, messageIdStr));
             return 0;
         }
 
         Text originalMessage = MessageUtils.getTrackedMessage(messageId);
         if (originalMessage == null) {
-            context.getSource().sendError(Text.literal("Message not found for ID: " + messageIdStr));
+            context.getSource().sendError(Text.translatable(MESSAGE_NOT_FOUND_KEY, messageIdStr));
             return 0;
         }
 

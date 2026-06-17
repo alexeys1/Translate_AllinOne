@@ -9,6 +9,7 @@ import com.cedarxuesong.translate_allinone.utils.config.pojos.ScoreboardConfig;
 import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
 import com.cedarxuesong.translate_allinone.utils.text.StylePreserver;
 import com.cedarxuesong.translate_allinone.utils.text.TemplateProcessor;
+import com.cedarxuesong.translate_allinone.utils.translate.TranslationErrorTextSupport;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.hud.InGameHud;
@@ -45,6 +46,9 @@ public class InGameHudMixin {
     private static final String KEY_MISMATCH_HINT = "key mismatch";
 
     @Unique
+    private static final String SCOREBOARD_TRANSLATION_ERROR_KEY = "text.translate_allinone.scoreboard.translation_error";
+
+    @Unique
     private static final ThreadLocal<Map<String, Text>> translate_allinone$scoreboardReplacements = new ThreadLocal<>();
 
     @Unique
@@ -76,7 +80,10 @@ public class InGameHudMixin {
             if (translate_allinone$isMissingKeyIssue(errorMessage)) {
                 return AnimationManager.getAnimatedStyledText(originalTextObject, legacyTemplateKey, true);
             }
-            MutableText errorText = Text.literal("Error: " + errorMessage).formatted(Formatting.RED);
+            MutableText errorText = Text.translatable(
+                    SCOREBOARD_TRANSLATION_ERROR_KEY,
+                    TranslationErrorTextSupport.localizeReason(errorMessage)
+            ).formatted(Formatting.RED);
             return errorText;
         }
 

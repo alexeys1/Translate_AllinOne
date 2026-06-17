@@ -37,6 +37,9 @@ public class ChatInputTranslateManager {
     private static final AtomicReference<String> originalTextRef = new AtomicReference<>("");
     private static final AtomicReference<String> lastSourceTextRef = new AtomicReference<>("");
     private static final long ROUTE_ERROR_DISPLAY_MS = 3_000L;
+    private static final String TRANSLATING_KEY = "text.translate_allinone.translation.status.translating";
+    private static final String TRANSLATION_ERROR_KEY = "text.translate_allinone.chat.input_translation_error";
+    private static final String NO_ROUTED_MODEL_ERROR_KEY = "text.translate_allinone.translation.error.no_routed_model";
 
     public enum PanelAvailability {
         NO_MODEL,
@@ -241,7 +244,7 @@ public class ChatInputTranslateManager {
                         chatField.setCursor(finalTranslation.length(), false);
                     });
                 } else {
-                    MinecraftClient.getInstance().execute(() -> chatField.setText("Translating..."));
+                    MinecraftClient.getInstance().execute(() -> chatField.setText(Text.translatable(TRANSLATING_KEY).getString()));
                     String result = llm.getCompletion(apiMessages, requestContext).join();
                     final String finalTranslation = result.stripLeading();
                     MinecraftClient.getInstance().execute(() -> {
@@ -252,7 +255,7 @@ public class ChatInputTranslateManager {
             } catch (Exception e) {
                 LOGGER.error("[Chat-Input-Translate] Exception during translation. context={}", requestContext, e);
                 MinecraftClient.getInstance().execute(() -> {
-                    Text errorMessage = Text.literal("Chat Input Translation Error: " + e.getMessage()).formatted(Formatting.RED);
+                    Text errorMessage = Text.translatable(TRANSLATION_ERROR_KEY, TranslationErrorTextSupport.localizeReason(e.getMessage())).formatted(Formatting.RED);
                     MinecraftClient.getInstance().inGameHud.getChatHud().addMessage(errorMessage);
                     chatField.setText(originalTextRef.get()); // Restore original on error
                     chatField.setCursor(originalTextRef.get().length(), false);
@@ -378,7 +381,7 @@ public class ChatInputTranslateManager {
             return;
         }
 
-        final String errorText = "Translation Error: No routed model selected";
+        final String errorText = Text.translatable(NO_ROUTED_MODEL_ERROR_KEY).getString();
         final String fallbackText = originalText == null ? "" : originalText;
 
         client.execute(() -> {

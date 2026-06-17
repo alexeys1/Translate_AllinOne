@@ -52,6 +52,9 @@ public class ChatOutputTranslateManager {
     private static final int MAX_LINE_LOCATE_RETRIES = 4;
     private static final long LINE_LOCATE_RETRY_DELAY_MS = 40L;
     private static final long ROUTE_ERROR_DISPLAY_MS = 3_000L;
+    private static final String TRANSLATING_KEY = "text.translate_allinone.translation.status.translating";
+    private static final String TRANSLATION_ERROR_KEY = "text.translate_allinone.chat.output_translation_error";
+    private static final String NO_ROUTED_MODEL_ERROR_KEY = "text.translate_allinone.translation.error.no_routed_model";
     private static final Pattern STYLE_TAG_PATTERN = Pattern.compile("<s(\\d+)>(.*?)</s\\1>", Pattern.DOTALL);
     private static final Pattern CHAT_IGNORABLE_PLACEHOLDER_PATTERN = Pattern.compile("\\{c(\\d+)}");
 
@@ -160,7 +163,7 @@ public class ChatOutputTranslateManager {
                 placeholderText = newText;
             }
         } else {
-            placeholderText = Text.literal("Translating...").formatted(Formatting.GRAY);
+            placeholderText = Text.translatable(TRANSLATING_KEY).formatted(Formatting.GRAY);
         }
 
         ChatHudLine newLine = new ChatHudLine(targetLine.creationTick(), placeholderText, targetLine.signature(), targetLine.indicator());
@@ -253,7 +256,7 @@ public class ChatOutputTranslateManager {
                 }
             } catch (Exception e) {
                 LOGGER.error("[Translate-Thread] Exception for message ID: {}. context={}", messageId, requestContext, e);
-                Text errorText = Text.literal("Translation Error: " + e.getMessage()).formatted(Formatting.RED);
+                Text errorText = Text.translatable(TRANSLATION_ERROR_KEY, TranslationErrorTextSupport.localizeReason(e.getMessage())).formatted(Formatting.RED);
                 updateChatLineWithFinalText(messageId, errorText);
             }
         });
@@ -368,7 +371,7 @@ public class ChatOutputTranslateManager {
             ChatHudLine originalLine
     ) {
         int scrolledLines = chatHudAccessor.getScrolledLines();
-        Text errorText = Text.literal("Translation Error: No routed model selected").formatted(Formatting.RED);
+        Text errorText = Text.translatable(NO_ROUTED_MODEL_ERROR_KEY).formatted(Formatting.RED);
         ChatHudLine errorLine = new ChatHudLine(originalLine.creationTick(), errorText, originalLine.signature(), originalLine.indicator());
         messages.set(lineIndex, errorLine);
         chatHudAccessor.invokeRefresh();

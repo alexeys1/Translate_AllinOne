@@ -14,9 +14,9 @@ import java.util.Locale;
 public final class TooltipInternalLineSupport {
     private static final String MISSING_KEY_HINT = "missing key";
     private static final String KEY_MISMATCH_HINT = "key mismatch";
-    private static final String TRANSLATING_STATUS_PREFIX = "Translating...";
-    private static final String KEY_MISMATCH_STATUS_PREFIX = "Item translation key mismatch, retrying...";
-    private static final String ERROR_STATUS_PREFIX = "Error: ";
+    private static final String TRANSLATING_STATUS_KEY = "text.translate_allinone.item.tooltip_translating";
+    private static final String KEY_MISMATCH_STATUS_KEY = "text.translate_allinone.item.tooltip_key_mismatch_retrying";
+    private static final String ERROR_STATUS_KEY = "text.translate_allinone.item.tooltip_translation_error";
 
     private TooltipInternalLineSupport() {
     }
@@ -30,15 +30,15 @@ public final class TooltipInternalLineSupport {
         String progressText = String.format(" (%d/%d) - %.0f%%", stats.translated(), stats.total(), percentage);
 
         Text statusMessage = hasMissingKeyIssue
-                ? Text.literal(KEY_MISMATCH_STATUS_PREFIX).formatted(Formatting.RED)
-                : Text.literal(TRANSLATING_STATUS_PREFIX).formatted(Formatting.GRAY);
+                ? Text.translatable(KEY_MISMATCH_STATUS_KEY).formatted(Formatting.RED)
+                : Text.translatable(TRANSLATING_STATUS_KEY).formatted(Formatting.GRAY);
 
         MutableText statusText = AnimationManager.getAnimatedStyledText(statusMessage, animationKey, hasMissingKeyIssue);
         return statusText.append(Text.literal(progressText).formatted(Formatting.YELLOW));
     }
 
     public static Text createErrorStatusLine(String errorMessage) {
-        return Text.literal(ERROR_STATUS_PREFIX + (errorMessage == null ? "" : errorMessage)).formatted(Formatting.RED);
+        return Text.translatable(ERROR_STATUS_KEY, TranslationErrorTextSupport.localizeReason(errorMessage)).formatted(Formatting.RED);
     }
 
     public static boolean shouldShowStatusLine(
@@ -98,9 +98,18 @@ public final class TooltipInternalLineSupport {
         }
 
         String content = line.getString();
-        return content.startsWith(TRANSLATING_STATUS_PREFIX)
-                || content.startsWith(KEY_MISMATCH_STATUS_PREFIX)
-                || content.startsWith(ERROR_STATUS_PREFIX);
+        return content.startsWith(createTranslatingStatusText().getString())
+                || content.startsWith(createKeyMismatchStatusText().getString())
+                || content.equals(createErrorStatusLine("").getString())
+                || content.startsWith(createErrorStatusLine("").getString());
+    }
+
+    private static Text createTranslatingStatusText() {
+        return Text.translatable(TRANSLATING_STATUS_KEY).formatted(Formatting.GRAY);
+    }
+
+    private static Text createKeyMismatchStatusText() {
+        return Text.translatable(KEY_MISMATCH_STATUS_KEY).formatted(Formatting.RED);
     }
 
     public static boolean isInternalGeneratedLine(Text line) {
