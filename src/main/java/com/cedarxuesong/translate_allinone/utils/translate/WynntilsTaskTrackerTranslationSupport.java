@@ -12,18 +12,17 @@ import com.cedarxuesong.translate_allinone.utils.config.pojos.WynnCraftConfig;
 import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
 import com.cedarxuesong.translate_allinone.utils.text.StylePreserver;
 import com.cedarxuesong.translate_allinone.utils.text.TemplateProcessor;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Style;
-import net.minecraft.text.Text;
-import net.minecraft.text.TextColor;
-import net.minecraft.util.Formatting;
-
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
+import net.minecraft.network.chat.TextColor;
 public final class WynntilsTaskTrackerTranslationSupport {
     private static final Set<String> refreshedTrackerKeysThisHold = new HashSet<>();
     private static final WynnSharedDictionaryService SHARED_DICTIONARY_SERVICE = WynnSharedDictionaryService.getInstance();
@@ -69,9 +68,9 @@ public final class WynntilsTaskTrackerTranslationSupport {
             return originalText;
         }
 
-        Text originalTextObject = legacyFormatted
+        Component originalTextObject = legacyFormatted
                 ? mergeAdjacentStyleRuns(StylePreserver.fromLegacyText(originalText))
-                : Text.literal(originalText);
+                : Component.literal(originalText);
         WynnSharedDictionaryService.LookupResult localLookup = SHARED_DICTIONARY_SERVICE.lookupQuestText(
                 originalTextObject.getString()
         );
@@ -105,7 +104,7 @@ public final class WynntilsTaskTrackerTranslationSupport {
                 return reassembledTranslated;
             }
 
-            Text translatedTextObject = StylePreserver.reapplyStylesFromTags(
+            Component translatedTextObject = StylePreserver.reapplyStylesFromTags(
                     reassembledTranslated,
                     styleResult.styleMap,
                     true);
@@ -114,7 +113,7 @@ public final class WynntilsTaskTrackerTranslationSupport {
 
         if (lookupResult.status() == TranslationStatus.PENDING
                 || lookupResult.status() == TranslationStatus.IN_PROGRESS) {
-            Text animatedText = AnimationManager.getAnimatedStyledText(
+            Component animatedText = AnimationManager.getAnimatedStyledText(
                     originalTextObject,
                     translationTemplateKey,
                     false);
@@ -124,9 +123,9 @@ public final class WynntilsTaskTrackerTranslationSupport {
         if (lookupResult.status() == TranslationStatus.ERROR) {
             String reason = lookupResult.errorMessage();
             if (reason != null && !reason.isBlank()) {
-                return originalText + " §c" + Text.translatable(TRACKER_TRANSLATION_ERROR_KEY, TranslationErrorTextSupport.localizeReason(reason)).getString();
+                return originalText + " §c" + Component.translatable(TRACKER_TRANSLATION_ERROR_KEY, TranslationErrorTextSupport.localizeReason(reason)).getString();
             }
-            return originalText + " §c" + Text.translatable(TRACKER_TRANSLATION_ERROR_KEY, "").getString();
+            return originalText + " §c" + Component.translatable(TRACKER_TRANSLATION_ERROR_KEY, "").getString();
         }
 
         return originalText;
@@ -272,9 +271,9 @@ public final class WynntilsTaskTrackerTranslationSupport {
         }
     }
 
-    private static Text mergeAdjacentStyleRuns(Text text) {
+    private static Component mergeAdjacentStyleRuns(Component text) {
         if (text == null) {
-            return Text.empty();
+            return Component.empty();
         }
 
         List<StyleRun> runs = new ArrayList<>();
@@ -291,9 +290,9 @@ public final class WynntilsTaskTrackerTranslationSupport {
             return Optional.empty();
         }, Style.EMPTY);
 
-        MutableText merged = Text.empty();
+        MutableComponent merged = Component.empty();
         for (StyleRun run : runs) {
-            merged.append(Text.literal(run.text().toString()).setStyle(run.style()));
+            merged.append(Component.literal(run.text().toString()).setStyle(run.style()));
         }
         return merged;
     }
@@ -301,7 +300,7 @@ public final class WynntilsTaskTrackerTranslationSupport {
     private record StyleRun(Style style, StringBuilder text) {
     }
 
-    private static String renderQuestLocalTranslation(String translation, boolean legacyFormatted, Text originalTextObject) {
+    private static String renderQuestLocalTranslation(String translation, boolean legacyFormatted, Component originalTextObject) {
         if (!legacyFormatted) {
             return translation;
         }
@@ -315,11 +314,11 @@ public final class WynntilsTaskTrackerTranslationSupport {
         }
 
         Style primaryStyle = resolvePrimaryStyle(originalTextObject);
-        Text translatedTextObject = Text.literal(translation).setStyle(primaryStyle);
+        Component translatedTextObject = Component.literal(translation).setStyle(primaryStyle);
         return toLegacyStringPreservingResets(translatedTextObject);
     }
 
-    private static Style resolvePrimaryStyle(Text sourceText) {
+    private static Style resolvePrimaryStyle(Component sourceText) {
         if (sourceText == null) {
             return Style.EMPTY;
         }
@@ -396,7 +395,7 @@ public final class WynntilsTaskTrackerTranslationSupport {
         return AnimationManager.stripFormatting(value).replaceAll("\\s+", " ").trim();
     }
 
-    private static String toLegacyStringPreservingResets(Text text) {
+    private static String toLegacyStringPreservingResets(Component text) {
         if (text == null) {
             return "";
         }
@@ -436,11 +435,11 @@ public final class WynntilsTaskTrackerTranslationSupport {
 
         if (style.getColor() != null) {
             boolean appendedFormattingColor = false;
-            for (Formatting formatting : Formatting.values()) {
+            for (ChatFormatting formatting : ChatFormatting.values()) {
                 if (formatting.isColor()
-                        && formatting.getColorValue() != null
-                        && formatting.getColorValue().equals(style.getColor().getRgb())) {
-                    builder.append('§').append(formatting.getCode());
+                        && formatting.getColor() != null
+                        && formatting.getColor().equals(style.getColor().getValue())) {
+                    builder.append('§').append(formatting.getChar());
                     appendedFormattingColor = true;
                     break;
                 }
@@ -461,7 +460,7 @@ public final class WynntilsTaskTrackerTranslationSupport {
             return "";
         }
 
-        int rgb = textColor.getRgb();
+        int rgb = textColor.getValue();
         int r = (rgb >> 16) & 0xFF;
         int g = (rgb >> 8) & 0xFF;
         int b = rgb & 0xFF;

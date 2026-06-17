@@ -1,12 +1,11 @@
 package com.cedarxuesong.translate_allinone.utils;
 
-import net.minecraft.text.Text;
-
 import java.util.Map;
 import java.util.Queue;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import net.minecraft.network.chat.Component;
 
 public class MessageUtils {
     private static final int MAX_TRACKED_MESSAGES = 1024;
@@ -16,7 +15,7 @@ public class MessageUtils {
     private MessageUtils() {
     }
 
-    public static void putTrackedMessage(UUID messageId, Text message) {
+    public static void putTrackedMessage(UUID messageId, Component message) {
         if (messageId == null || message == null) {
             return;
         }
@@ -28,7 +27,7 @@ public class MessageUtils {
         trimIfNeeded();
     }
 
-    public static Text getTrackedMessage(UUID messageId) {
+    public static Component getTrackedMessage(UUID messageId) {
         if (messageId == null) {
             return null;
         }
@@ -43,7 +42,7 @@ public class MessageUtils {
         return MESSAGES_BY_UUID.get(messageId);
     }
 
-    public static void setTranslatedMessage(UUID messageId, Text translatedMessage) {
+    public static void setTranslatedMessage(UUID messageId, Component translatedMessage) {
         if (messageId == null || translatedMessage == null) {
             return;
         }
@@ -80,6 +79,6 @@ public class MessageUtils {
         }
     }
 
-    public record TrackedChatMessage(Text originalMessage, Text translatedMessage, boolean showingTranslated) {
+    public record TrackedChatMessage(Component originalMessage, Component translatedMessage, boolean showingTranslated) {
     }
 }

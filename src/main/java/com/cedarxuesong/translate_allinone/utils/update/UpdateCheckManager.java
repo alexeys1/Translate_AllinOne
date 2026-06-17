@@ -6,14 +6,14 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.ChatFormatting;
 import net.minecraft.SharedConstants;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.text.ClickEvent;
-import net.minecraft.text.HoverEvent;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Style;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.ClickEvent;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.HoverEvent;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
 import net.minecraft.util.Util;
 
 import java.net.URI;
@@ -118,7 +118,7 @@ public final class UpdateCheckManager {
         return lastError;
     }
 
-    public static void tryNotifyInChat(MinecraftClient client) {
+    public static void tryNotifyInChat(Minecraft client) {
         if (client == null || client.player == null) {
             return;
         }
@@ -129,25 +129,25 @@ public final class UpdateCheckManager {
             return;
         }
 
-        MutableText tip = Text.translatable("text.translate_allinone.update.chat.available", latestVersion, currentVersion)
-                .formatted(Formatting.GOLD);
-        MutableText link = Text.translatable("text.translate_allinone.update.chat.open")
+        MutableComponent tip = Component.translatable("text.translate_allinone.update.chat.available", latestVersion, currentVersion)
+                .withStyle(ChatFormatting.GOLD);
+        MutableComponent link = Component.translatable("text.translate_allinone.update.chat.open")
                 .setStyle(Style.EMPTY
-                        .withColor(Formatting.AQUA)
-                        .withUnderline(true)
+                        .withColor(ChatFormatting.AQUA)
+                        .withUnderlined(true)
                         .withClickEvent(new ClickEvent.OpenUrl(URI.create(latestReleaseUrl)))
                         .withHoverEvent(new HoverEvent.ShowText(
-                                Text.translatable("text.translate_allinone.update.chat.hover", latestReleaseUrl)
+                                Component.translatable("text.translate_allinone.update.chat.hover", latestReleaseUrl)
                         )));
 
-        client.player.sendMessage(tip.append(Text.literal(" ")).append(link), false);
+        client.player.sendSystemMessage(tip.append(Component.literal(" ")).append(link));
     }
 
     public static void openLatestReleasePage() {
         if (latestReleaseUrl == null || latestReleaseUrl.isBlank()) {
             return;
         }
-        Util.getOperatingSystem().open(latestReleaseUrl);
+        Util.getPlatform().openUri(latestReleaseUrl);
     }
 
     private static void handleModrinthVersionsResponse(HttpResponse<String> response, NumericVersion current) {
@@ -213,7 +213,7 @@ public final class UpdateCheckManager {
     }
 
     private static String buildModrinthVersionsApiUrl() {
-        String gameVersion = SharedConstants.getGameVersion().id();
+        String gameVersion = SharedConstants.getCurrentVersion().id();
         String loaderFilter = URLEncoder.encode("[\"fabric\"]", StandardCharsets.UTF_8);
         String gameVersionFilter = URLEncoder.encode("[\"" + gameVersion + "\"]", StandardCharsets.UTF_8);
         return MODRINTH_VERSIONS_API_PREFIX

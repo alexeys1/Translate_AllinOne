@@ -13,16 +13,6 @@ import com.cedarxuesong.translate_allinone.utils.translate.TooltipTextDebugCopyS
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTextMatcherSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTranslationContext;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTranslationSupport;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.tooltip.OrderedTextTooltipComponent;
-import net.minecraft.client.gui.tooltip.TooltipComponent;
-import net.minecraft.client.gui.tooltip.TooltipPositioner;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.OrderedText;
-import net.minecraft.text.Style;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.spongepowered.asm.mixin.Mixin;
@@ -33,8 +23,18 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.ArrayList;
 import java.util.List;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.inventory.tooltip.ClientTextTooltip;
+import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
+import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipPositioner;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
+import net.minecraft.resources.Identifier;
+import net.minecraft.util.FormattedCharSequence;
 
-@Mixin(DrawContext.class)
+@Mixin(GuiGraphicsExtractor.class)
 public abstract class DrawContextTooltipMixin {
     @Unique
     private static final Logger LOGGER = LoggerFactory.getLogger("Translate_AllinOne/DrawContextTooltipMixin");
@@ -52,7 +52,7 @@ public abstract class DrawContextTooltipMixin {
     private static final String REI_PACKAGE_PREFIX = "me.shedaniel.rei.";
 
     @Unique
-    private record OrderedTooltipLine(OrderedTextTooltipComponentAccessor accessor, Text text) {
+    private record OrderedTooltipLine(OrderedTextTooltipComponentAccessor accessor, Component text) {
     }
 
     @Unique
@@ -60,15 +60,15 @@ public abstract class DrawContextTooltipMixin {
     }
 
     @Inject(
-            method = "drawTooltip(Lnet/minecraft/client/font/TextRenderer;Ljava/util/List;IILnet/minecraft/client/gui/tooltip/TooltipPositioner;Lnet/minecraft/util/Identifier;Z)V",
+            method = "setTooltipForNextFrameInternal(Lnet/minecraft/client/gui/Font;Ljava/util/List;IILnet/minecraft/client/gui/screens/inventory/tooltip/ClientTooltipPositioner;Lnet/minecraft/resources/Identifier;Z)V",
             at = @At("HEAD")
     )
     private void translate_allinone$translateTooltipComponents(
-            TextRenderer textRenderer,
-            List<TooltipComponent> components,
+            Font textRenderer,
+            List<ClientTooltipComponent> components,
             int x,
             int y,
-            TooltipPositioner positioner,
+            ClientTooltipPositioner positioner,
             Identifier texture,
             boolean recalculateWidth,
             CallbackInfo ci
@@ -93,7 +93,7 @@ public abstract class DrawContextTooltipMixin {
             translate_allinone$lastTooltipHash = parsedTooltip.hash();
         }
 
-        List<Text> tooltipLines = new ArrayList<>(parsedTooltip.orderedLines().size());
+        List<Component> tooltipLines = new ArrayList<>(parsedTooltip.orderedLines().size());
         for (OrderedTooltipLine orderedLine : parsedTooltip.orderedLines()) {
             tooltipLines.add(orderedLine.text());
         }
@@ -148,13 +148,13 @@ public abstract class DrawContextTooltipMixin {
     }
 
     @Unique
-    private ParsedTooltip translate_allinone$parseTooltip(List<TooltipComponent> components) {
+    private ParsedTooltip translate_allinone$parseTooltip(List<ClientTooltipComponent> components) {
         List<OrderedTooltipLine> orderedLines = new ArrayList<>();
         int hash = 1;
-        for (TooltipComponent component : components) {
-            if (component instanceof OrderedTextTooltipComponent orderedTextComponent) {
+        for (ClientTooltipComponent component : components) {
+            if (component instanceof ClientTextTooltip orderedTextComponent) {
                 OrderedTextTooltipComponentAccessor accessor = (OrderedTextTooltipComponentAccessor) orderedTextComponent;
-                Text line = translate_allinone$orderedTextToText(accessor.getText());
+                Component line = translate_allinone$orderedTextToText(accessor.getText());
                 orderedLines.add(new OrderedTooltipLine(accessor, line));
                 hash = 31 * hash + line.getString().hashCode();
             } else {
@@ -167,13 +167,13 @@ public abstract class DrawContextTooltipMixin {
     @Unique
     private boolean translate_allinone$translateComponentsInPlace(
             List<OrderedTooltipLine> orderedLines,
-            List<TooltipComponent> components,
+            List<ClientTooltipComponent> components,
             ItemTranslateConfig config,
             boolean showRefreshNotice,
             boolean emitDevLog,
             long tooltipStartedAtNanos
     ) {
-        List<Text> sourceLines = new ArrayList<>(orderedLines.size());
+        List<Component> sourceLines = new ArrayList<>(orderedLines.size());
         for (OrderedTooltipLine orderedLine : orderedLines) {
             sourceLines.add(orderedLine.text());
         }
@@ -190,24 +190,24 @@ public abstract class DrawContextTooltipMixin {
         if (processedTooltip.translatedLines().size() == orderedLines.size()) {
             for (int lineIndex = 0; lineIndex < orderedLines.size(); lineIndex++) {
                 OrderedTextTooltipComponentAccessor accessor = orderedLines.get(lineIndex).accessor();
-                Text translatedLine = processedTooltip.translatedLines().get(lineIndex);
+                Component translatedLine = processedTooltip.translatedLines().get(lineIndex);
                 if (translatedLine != null) {
-                    accessor.setText(translatedLine.asOrderedText());
+                    accessor.setText(translatedLine.getVisualOrderText());
                 }
             }
         } else if (orderedLines.size() == components.size()) {
             components.clear();
-            for (Text translatedLine : processedTooltip.translatedLines()) {
+            for (Component translatedLine : processedTooltip.translatedLines()) {
                 if (translatedLine != null) {
-                    components.add(TooltipComponent.of(translatedLine.asOrderedText()));
+                    components.add(ClientTooltipComponent.create(translatedLine.getVisualOrderText()));
                 }
             }
         } else {
             for (int lineIndex = 0; lineIndex < orderedLines.size() && lineIndex < processedTooltip.translatedLines().size(); lineIndex++) {
                 OrderedTextTooltipComponentAccessor accessor = orderedLines.get(lineIndex).accessor();
-                Text translatedLine = processedTooltip.translatedLines().get(lineIndex);
+                Component translatedLine = processedTooltip.translatedLines().get(lineIndex);
                 if (translatedLine != null) {
-                    accessor.setText(translatedLine.asOrderedText());
+                    accessor.setText(translatedLine.getVisualOrderText());
                 }
             }
         }
@@ -215,21 +215,21 @@ public abstract class DrawContextTooltipMixin {
         if (processedTooltip.translatableLines() > 0) {
             CacheStats stats = ItemTemplateCache.getInstance().getCacheStats();
             if (TooltipInternalLineSupport.shouldShowStatusLine(processedTooltip, stats)) {
-                Text statusLine = TooltipInternalLineSupport.createStatusLine(
+                Component statusLine = TooltipInternalLineSupport.createStatusLine(
                         stats,
                         processedTooltip.missingKeyIssue(),
                         ITEM_STATUS_ANIMATION_KEY
                 );
-                components.add(TooltipComponent.of(statusLine.asOrderedText()));
+                components.add(ClientTooltipComponent.create(statusLine.getVisualOrderText()));
             }
             if (TooltipInternalLineSupport.shouldShowErrorStatusLine(processedTooltip)) {
-                Text errorStatusLine = TooltipInternalLineSupport.createErrorStatusLine(processedTooltip.errorMessage());
-                components.add(TooltipComponent.of(errorStatusLine.asOrderedText()));
+                Component errorStatusLine = TooltipInternalLineSupport.createErrorStatusLine(processedTooltip.errorMessage());
+                components.add(ClientTooltipComponent.create(errorStatusLine.getVisualOrderText()));
             }
         }
 
         if (showRefreshNotice && !TooltipRefreshNoticeSupport.containsRefreshNoticeLine(sourceLines)) {
-            components.add(TooltipComponent.of(TooltipRefreshNoticeSupport.createRefreshNoticeLine().asOrderedText()));
+            components.add(ClientTooltipComponent.create(TooltipRefreshNoticeSupport.createRefreshNoticeLine().getVisualOrderText()));
         }
 
         TooltipTextMatcherSupport.logTooltipPassIfDev(
@@ -244,14 +244,14 @@ public abstract class DrawContextTooltipMixin {
     }
 
     @Unique
-    private Text translate_allinone$orderedTextToText(OrderedText orderedText) {
-        MutableText result = Text.empty();
+    private Component translate_allinone$orderedTextToText(FormattedCharSequence orderedText) {
+        MutableComponent result = Component.empty();
         StringBuilder currentSegment = new StringBuilder();
         Style[] currentStyle = {Style.EMPTY};
 
         orderedText.accept((index, style, codePoint) -> {
             if (!style.equals(currentStyle[0]) && currentSegment.length() > 0) {
-                result.append(Text.literal(currentSegment.toString()).setStyle(currentStyle[0]));
+                result.append(Component.literal(currentSegment.toString()).setStyle(currentStyle[0]));
                 currentSegment.setLength(0);
             }
             currentStyle[0] = style;
@@ -260,7 +260,7 @@ public abstract class DrawContextTooltipMixin {
         });
 
         if (currentSegment.length() > 0) {
-            result.append(Text.literal(currentSegment.toString()).setStyle(currentStyle[0]));
+            result.append(Component.literal(currentSegment.toString()).setStyle(currentStyle[0]));
         }
 
         return result;
@@ -268,7 +268,7 @@ public abstract class DrawContextTooltipMixin {
 
     @Unique
     private boolean translate_allinone$isSupportedExternalTooltip(
-            TooltipPositioner positioner,
+            ClientTooltipPositioner positioner,
             boolean isWynntilsItemStatTooltip
     ) {
         if (isWynntilsItemStatTooltip || TooltipTranslationContext.isInWynntilsQuestTooltipRender()) {

@@ -1,16 +1,15 @@
 package com.cedarxuesong.translate_allinone.utils.textmatcher;
 
-import net.minecraft.text.PlainTextContent;
-import net.minecraft.text.TextContent;
-import net.minecraft.text.TranslatableTextContent;
-
 import java.util.Objects;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
+import net.minecraft.network.chat.ComponentContents;
+import net.minecraft.network.chat.contents.PlainTextContents;
+import net.minecraft.network.chat.contents.TranslatableContents;
 
 @FunctionalInterface
 public interface ContentMatcher {
-    boolean matches(TextContent content);
+    boolean matches(ComponentContents content);
 
     default ContentMatcher or(ContentMatcher other) {
         Objects.requireNonNull(other, "other");
@@ -27,8 +26,8 @@ public interface ContentMatcher {
     }
 
     static ContentMatcher text(String exact) {
-        return content -> content instanceof PlainTextContent plainTextContent
-                && plainTextContent.string().equals(exact);
+        return content -> content instanceof PlainTextContents plainTextContent
+                && plainTextContent.text().equals(exact);
     }
 
     static ContentMatcher regex(String pattern) {
@@ -36,23 +35,23 @@ public interface ContentMatcher {
     }
 
     static ContentMatcher regex(Pattern pattern) {
-        return content -> content instanceof PlainTextContent plainTextContent
-                && pattern.matcher(plainTextContent.string()).matches();
+        return content -> content instanceof PlainTextContents plainTextContent
+                && pattern.matcher(plainTextContent.text()).matches();
     }
 
     static ContentMatcher contains(String substring) {
-        return content -> content instanceof PlainTextContent plainTextContent
-                && plainTextContent.string().contains(substring);
+        return content -> content instanceof PlainTextContents plainTextContent
+                && plainTextContent.text().contains(substring);
     }
 
     static ContentMatcher startsWith(String prefix) {
-        return content -> content instanceof PlainTextContent plainTextContent
-                && plainTextContent.string().startsWith(prefix);
+        return content -> content instanceof PlainTextContents plainTextContent
+                && plainTextContent.text().startsWith(prefix);
     }
 
     static ContentMatcher endsWith(String suffix) {
-        return content -> content instanceof PlainTextContent plainTextContent
-                && plainTextContent.string().endsWith(suffix);
+        return content -> content instanceof PlainTextContents plainTextContent
+                && plainTextContent.text().endsWith(suffix);
     }
 
     static ContentMatcher any() {
@@ -60,25 +59,25 @@ public interface ContentMatcher {
     }
 
     static ContentMatcher plainText() {
-        return content -> content instanceof PlainTextContent;
+        return content -> content instanceof PlainTextContents;
     }
 
     static ContentMatcher translatable(String key) {
-        return content -> content instanceof TranslatableTextContent translatableTextContent
+        return content -> content instanceof TranslatableContents translatableTextContent
                 && translatableTextContent.getKey().equals(key);
     }
 
     static ContentMatcher translatable() {
-        return content -> content instanceof TranslatableTextContent;
+        return content -> content instanceof TranslatableContents;
     }
 
     static ContentMatcher textMatching(Predicate<String> predicate) {
         Objects.requireNonNull(predicate, "predicate");
-        return content -> content instanceof PlainTextContent plainTextContent
-                && predicate.test(plainTextContent.string());
+        return content -> content instanceof PlainTextContents plainTextContent
+                && predicate.test(plainTextContent.text());
     }
 
-    static ContentMatcher contentMatching(Predicate<TextContent> predicate) {
+    static ContentMatcher contentMatching(Predicate<ComponentContents> predicate) {
         Objects.requireNonNull(predicate, "predicate");
         return predicate::test;
     }

@@ -1,11 +1,10 @@
 package com.cedarxuesong.translate_allinone.gui.configui.controls;
 
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.text.Text;
-
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.network.chat.Component;
 
 import static com.cedarxuesong.translate_allinone.gui.configui.render.ConfigUiDraw.drawOutline;
 
@@ -14,10 +13,10 @@ public final class CheckboxBlock {
     private final int y;
     private final int width;
     private final int height;
-    private final Supplier<Text> labelSupplier;
+    private final Supplier<Component> labelSupplier;
     private final Consumer<Boolean> changed;
     private final Style style;
-    private final Text tooltip;
+    private final Component tooltip;
 
     private boolean checked;
     private double visualChecked;
@@ -28,11 +27,11 @@ public final class CheckboxBlock {
             int y,
             int width,
             int height,
-            Supplier<Text> labelSupplier,
+            Supplier<Component> labelSupplier,
             boolean checked,
             Consumer<Boolean> changed,
             Style style,
-            Text tooltip
+            Component tooltip
     ) {
         this.x = x;
         this.y = y;
@@ -47,7 +46,7 @@ public final class CheckboxBlock {
         this.targetChecked = this.visualChecked;
     }
 
-    public Text tooltip() {
+    public Component tooltip() {
         return tooltip;
     }
 
@@ -72,7 +71,7 @@ public final class CheckboxBlock {
         visualChecked = clamp01(visualChecked);
     }
 
-    public void render(DrawContext context, TextRenderer textRenderer, int mouseX, int mouseY) {
+    public void render(GuiGraphicsExtractor context, Font textRenderer, int mouseX, int mouseY) {
         boolean hovered = contains(mouseX, mouseY);
         int background = checked ? style.blockSelectedColor() : style.blockColor();
         int backgroundHover = checked ? style.blockSelectedHoverColor() : style.blockHoverColor();
@@ -106,11 +105,11 @@ public final class CheckboxBlock {
             context.fill(innerLeft, innerTop, innerRight, innerBottom, indicatorColor);
         }
 
-        Text label = labelSupplier.get();
+        Component label = labelSupplier.get();
         int textX = boxX + boxSize + 6;
         int textY = y + 6;
         int textColor = mixRgb(style.textColor(), style.textCheckedColor(), eased);
-        context.drawText(textRenderer, label, textX, textY, textColor, false);
+        context.text(textRenderer, label, textX, textY, textColor, false);
     }
 
     private static double easeOutCubic(double value) {

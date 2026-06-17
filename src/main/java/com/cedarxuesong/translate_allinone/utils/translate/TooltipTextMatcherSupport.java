@@ -8,10 +8,6 @@ import com.cedarxuesong.translate_allinone.utils.textmatcher.FlatNode;
 import com.cedarxuesong.translate_allinone.utils.textmatcher.NodePredicateBuilder;
 import com.cedarxuesong.translate_allinone.utils.textmatcher.TextMatchResult;
 import com.cedarxuesong.translate_allinone.utils.textmatcher.TextPattern;
-import net.minecraft.text.PlainTextContent;
-import net.minecraft.text.Text;
-import net.minecraft.text.TextContent;
-import net.minecraft.text.TranslatableTextContent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,6 +17,10 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.ComponentContents;
+import net.minecraft.network.chat.contents.PlainTextContents;
+import net.minecraft.network.chat.contents.TranslatableContents;
 
 public final class TooltipTextMatcherSupport {
     private static final Logger LOGGER = LoggerFactory.getLogger("Translate_AllinOne/TooltipTextMatcherSupport");
@@ -70,16 +70,16 @@ public final class TooltipTextMatcherSupport {
     private TooltipTextMatcherSupport() {
     }
 
-    public static boolean shouldTranslateTooltipLine(Text line, boolean isFirstContentLine, ItemTranslateConfig config) {
+    public static boolean shouldTranslateTooltipLine(Component line, boolean isFirstContentLine, ItemTranslateConfig config) {
         return evaluateTooltipLine(line, isFirstContentLine, config).shouldTranslate();
     }
 
-    public static TooltipLineDecision evaluateTooltipLine(Text line, boolean isFirstContentLine, ItemTranslateConfig config) {
+    public static TooltipLineDecision evaluateTooltipLine(Component line, boolean isFirstContentLine, ItemTranslateConfig config) {
         return evaluateTooltipLine(line, isFirstContentLine, config, false);
     }
 
     public static TooltipLineDecision evaluateTooltipLine(
-            Text line,
+            Component line,
             boolean isFirstContentLine,
             ItemTranslateConfig config,
             boolean decorativeTooltipContext
@@ -234,11 +234,11 @@ public final class TooltipTextMatcherSupport {
         );
     }
 
-    public static boolean hasMeaningfulContent(Text line) {
+    public static boolean hasMeaningfulContent(Component line) {
         return hasMeaningfulContent(line, false);
     }
 
-    public static boolean hasMeaningfulContent(Text line, boolean decorativeTooltipContext) {
+    public static boolean hasMeaningfulContent(Component line, boolean decorativeTooltipContext) {
         ItemTranslateConfig config = new ItemTranslateConfig();
         config.enabled_translate_item_custom_name = true;
         config.enabled_translate_item_lore = true;
@@ -303,7 +303,7 @@ public final class TooltipTextMatcherSupport {
             ItemTranslateConfig config,
             String source,
             String phase,
-            List<Text> tooltipLines,
+            List<Component> tooltipLines,
             String detail
     ) {
         if (!shouldLogAnyTooltipDev(config) || source == null || source.isBlank() || phase == null || phase.isBlank()) {
@@ -317,7 +317,7 @@ public final class TooltipTextMatcherSupport {
         );
     }
 
-    public static boolean beginTooltipDevPass(ItemTranslateConfig config, String source, List<Text> tooltipLines) {
+    public static boolean beginTooltipDevPass(ItemTranslateConfig config, String source, List<Component> tooltipLines) {
         if (!shouldLogAnyTooltipDev(config) || source == null || source.isBlank() || tooltipLines == null || tooltipLines.isEmpty()) {
             return false;
         }
@@ -341,7 +341,7 @@ public final class TooltipTextMatcherSupport {
             String source,
             int lineIndex,
             TooltipLineDecision decision,
-            Text line
+            Component line
     ) {
         if (!emitDevLog || !shouldLogTooltipFilterResult(config) || decision == null) {
             return;
@@ -383,7 +383,7 @@ public final class TooltipTextMatcherSupport {
             boolean emitDevLog,
             String source,
             int lineIndex,
-            Text sourceLine,
+            Component sourceLine,
             TooltipTranslationSupport.TooltipLineResult lineResult,
             String route,
             String detail,
@@ -476,9 +476,9 @@ public final class TooltipTextMatcherSupport {
     }
 
     private static boolean hasLetterContentNode(FlatNode node) {
-        TextContent content = node.content();
-        return content instanceof PlainTextContent plainTextContent
-                && containsLetter(plainTextContent.string());
+        ComponentContents content = node.content();
+        return content instanceof PlainTextContents plainTextContent
+                && containsLetter(plainTextContent.text());
     }
 
     private static String firstMatchedBranch(TextMatchResult result) {
@@ -579,8 +579,8 @@ public final class TooltipTextMatcherSupport {
     }
 
     private static boolean isNumericOrSymbolicNode(FlatNode node) {
-        TextContent content = node.content();
-        if (content instanceof TranslatableTextContent) {
+        ComponentContents content = node.content();
+        if (content instanceof TranslatableContents) {
             return false;
         }
 
@@ -607,8 +607,8 @@ public final class TooltipTextMatcherSupport {
     }
 
     private static boolean isDecorativeNode(FlatNode node) {
-        TextContent content = node.content();
-        if (content instanceof TranslatableTextContent) {
+        ComponentContents content = node.content();
+        if (content instanceof TranslatableContents) {
             return false;
         }
 
@@ -660,16 +660,16 @@ public final class TooltipTextMatcherSupport {
                 || type == Character.OTHER_PUNCTUATION;
     }
 
-    private static int computeTooltipSignature(List<Text> tooltipLines) {
+    private static int computeTooltipSignature(List<Component> tooltipLines) {
         int hash = 1;
-        for (Text line : tooltipLines) {
+        for (Component line : tooltipLines) {
             String value = line == null ? "" : line.getString();
             hash = 31 * hash + value.hashCode();
         }
         return 31 * hash + tooltipLines.size();
     }
 
-    private static String summarizeNodes(Text line) {
+    private static String summarizeNodes(Component line) {
         if (line == null) {
             return "[]";
         }
@@ -686,14 +686,14 @@ public final class TooltipTextMatcherSupport {
             }
 
             FlatNode node = nodes.get(i);
-            TextContent content = node.content();
-            if (content instanceof TranslatableTextContent translatableTextContent) {
+            ComponentContents content = node.content();
+            if (content instanceof TranslatableContents translatableTextContent) {
                 builder.append("translatable(")
                         .append(translatableTextContent.getKey())
                         .append(")");
-            } else if (content instanceof PlainTextContent plainTextContent) {
+            } else if (content instanceof PlainTextContents plainTextContent) {
                 builder.append("plain(\"")
-                        .append(TranslateStringUtils.truncateForLog(plainTextContent.string(), 48))
+                        .append(TranslateStringUtils.truncateForLog(plainTextContent.text(), 48))
                         .append("\")");
             } else {
                 builder.append(content == null ? "null" : content.getClass().getSimpleName())

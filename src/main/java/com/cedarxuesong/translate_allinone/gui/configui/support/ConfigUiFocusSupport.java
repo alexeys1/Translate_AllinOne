@@ -1,8 +1,8 @@
 package com.cedarxuesong.translate_allinone.gui.configui.support;
 
 import com.cedarxuesong.translate_allinone.gui.configui.model.FocusTarget;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.TextFieldWidget;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.Screen;
 
 public final class ConfigUiFocusSupport {
     private ConfigUiFocusSupport() {
@@ -11,12 +11,12 @@ public final class ConfigUiFocusSupport {
     public static void applyPendingFocus(
             Screen screen,
             FocusTarget pendingFocusTarget,
-            TextFieldWidget providerSearchField,
-            TextFieldWidget addProviderNameField,
-            TextFieldWidget modelSettingsField,
-            TextFieldWidget customParameterNameField
+            EditBox providerSearchField,
+            EditBox addProviderNameField,
+            EditBox modelSettingsField,
+            EditBox customParameterNameField
     ) {
-        TextFieldWidget focusField = switch (pendingFocusTarget) {
+        EditBox focusField = switch (pendingFocusTarget) {
             case PROVIDER_SEARCH -> providerSearchField;
             case ADD_PROVIDER_NAME -> addProviderNameField;
             case MODEL_NAME -> modelSettingsField;

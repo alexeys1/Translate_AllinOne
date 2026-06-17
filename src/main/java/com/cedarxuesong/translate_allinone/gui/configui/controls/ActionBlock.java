@@ -1,34 +1,33 @@
 package com.cedarxuesong.translate_allinone.gui.configui.controls;
 
-import net.minecraft.text.Text;
-
 import java.util.function.Supplier;
+import net.minecraft.network.chat.Component;
 
 public final class ActionBlock {
     private final int x;
     private final int y;
     private final int width;
     private final int height;
-    private final Supplier<Text> labelSupplier;
+    private final Supplier<Component> labelSupplier;
     private final Runnable action;
     private final int color;
     private final int hoverColor;
     private final int textColor;
     private final boolean centered;
-    private final Text tooltip;
+    private final Component tooltip;
 
     public ActionBlock(
             int x,
             int y,
             int width,
             int height,
-            Supplier<Text> labelSupplier,
+            Supplier<Component> labelSupplier,
             Runnable action,
             int color,
             int hoverColor,
             int textColor,
             boolean centered,
-            Text tooltip
+            Component tooltip
     ) {
         this.x = x;
         this.y = y;
@@ -59,7 +58,7 @@ public final class ActionBlock {
         return height;
     }
 
-    public Text label() {
+    public Component label() {
         return labelSupplier.get();
     }
 
@@ -83,7 +82,7 @@ public final class ActionBlock {
         return centered;
     }
 
-    public Text tooltip() {
+    public Component tooltip() {
         return tooltip;
     }
 

@@ -7,10 +7,10 @@ import com.cedarxuesong.translate_allinone.utils.translate.TooltipTextDebugCopyS
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTranslationContext;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTranslationSupport;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.item.ItemStack;
-import net.minecraft.text.Text;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.ItemStack;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.spongepowered.asm.mixin.Mixin;
@@ -49,16 +49,16 @@ public abstract class DrawContextItemTooltipMixin {
     private static Method translate_allinone$wynnmodFeatureShouldFunctionMethod;
 
     @Inject(
-            method = "getTooltipFromItem(Lnet/minecraft/client/MinecraftClient;Lnet/minecraft/item/ItemStack;)Ljava/util/List;",
+            method = "getTooltipFromItem(Lnet/minecraft/client/Minecraft;Lnet/minecraft/world/item/ItemStack;)Ljava/util/List;",
             at = @At("RETURN"),
             cancellable = true
     )
     private static void translate_allinone$mirrorTooltipForRendering(
-            MinecraftClient client,
+            Minecraft client,
             ItemStack stack,
-            CallbackInfoReturnable<List<Text>> cir
+            CallbackInfoReturnable<List<Component>> cir
     ) {
-        List<Text> originalTooltip = cir.getReturnValue();
+        List<Component> originalTooltip = cir.getReturnValue();
         TooltipTextDebugCopySupport.maybeCopyCurrentTooltip(originalTooltip);
         if (translate_allinone$shouldUseWynnmodTooltipTracking() && TooltipTranslationContext.isInWynnmodTooltipRender()) {
             TooltipTranslationContext.setSkipDrawContextTranslation(false);
@@ -70,7 +70,7 @@ public abstract class DrawContextItemTooltipMixin {
         }
         TooltipTranslationSupport.TranslatedTooltipBuildResult mirrorResult =
                 translate_allinone$buildTooltipMirror(originalTooltip);
-        List<Text> mirroredTooltip = mirrorResult.translatedTooltip();
+        List<Component> mirroredTooltip = mirrorResult.translatedTooltip();
         TooltipRecentRenderGuardSupport.rememberMirroredTooltip(
                 originalTooltip,
                 mirroredTooltip,
@@ -84,7 +84,7 @@ public abstract class DrawContextItemTooltipMixin {
     }
 
     @Unique
-    private static TooltipTranslationSupport.TranslatedTooltipBuildResult translate_allinone$buildTooltipMirror(List<Text> originalTooltip) {
+    private static TooltipTranslationSupport.TranslatedTooltipBuildResult translate_allinone$buildTooltipMirror(List<Component> originalTooltip) {
         if (translate_allinone$isBuildingTooltipMirror.get()) {
             return new TooltipTranslationSupport.TranslatedTooltipBuildResult(originalTooltip, false);
         }
@@ -154,7 +154,7 @@ public abstract class DrawContextItemTooltipMixin {
     }
 
     @Unique
-    private static boolean translate_allinone$sameTooltipContent(List<Text> left, List<Text> right) {
+    private static boolean translate_allinone$sameTooltipContent(List<Component> left, List<Component> right) {
         if (left == right) {
             return true;
         }
@@ -163,8 +163,8 @@ public abstract class DrawContextItemTooltipMixin {
         }
 
         for (int i = 0; i < left.size(); i++) {
-            Text leftLine = left.get(i);
-            Text rightLine = right.get(i);
+            Component leftLine = left.get(i);
+            Component rightLine = right.get(i);
             String leftValue = leftLine == null ? "" : leftLine.getString();
             String rightValue = rightLine == null ? "" : rightLine.getString();
             if (!leftValue.equals(rightValue)) {

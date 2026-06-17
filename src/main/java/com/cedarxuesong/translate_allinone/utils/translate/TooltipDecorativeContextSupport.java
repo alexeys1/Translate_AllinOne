@@ -1,14 +1,13 @@
 package com.cedarxuesong.translate_allinone.utils.translate;
 
-import net.minecraft.text.Text;
-
 import java.util.List;
+import net.minecraft.network.chat.Component;
 
 public final class TooltipDecorativeContextSupport {
     private TooltipDecorativeContextSupport() {
     }
 
-    public static boolean isDecorativeTooltipContext(List<Text> tooltip) {
+    public static boolean isDecorativeTooltipContext(List<Component> tooltip) {
         if (TooltipTranslationContext.shouldRequireStrictParagraphStyleCoverage()
                 || TooltipRecentRenderGuardSupport.looksLikeDedicatedWynnmodTooltip(tooltip)) {
             return true;
@@ -17,7 +16,7 @@ public final class TooltipDecorativeContextSupport {
             return false;
         }
 
-        for (Text line : tooltip) {
+        for (Component line : tooltip) {
             if (line == null || TooltipInternalLineSupport.isInternalGeneratedLine(line)) {
                 continue;
             }

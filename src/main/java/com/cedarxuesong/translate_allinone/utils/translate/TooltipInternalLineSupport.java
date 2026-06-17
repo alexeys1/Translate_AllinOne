@@ -3,13 +3,12 @@ package com.cedarxuesong.translate_allinone.utils.translate;
 import com.cedarxuesong.translate_allinone.utils.AnimationManager;
 import com.cedarxuesong.translate_allinone.utils.cache.CacheStats;
 import com.cedarxuesong.translate_allinone.utils.cache.ItemTemplateCache;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 
 public final class TooltipInternalLineSupport {
     private static final String MISSING_KEY_HINT = "missing key";
@@ -21,7 +20,7 @@ public final class TooltipInternalLineSupport {
     private TooltipInternalLineSupport() {
     }
 
-    public static Text createStatusLine(
+    public static Component createStatusLine(
             CacheStats stats,
             boolean hasMissingKeyIssue,
             String animationKey
@@ -29,16 +28,16 @@ public final class TooltipInternalLineSupport {
         float percentage = (stats.total() > 0) ? ((float) stats.translated() / stats.total()) * 100 : 100;
         String progressText = String.format(" (%d/%d) - %.0f%%", stats.translated(), stats.total(), percentage);
 
-        Text statusMessage = hasMissingKeyIssue
-                ? Text.translatable(KEY_MISMATCH_STATUS_KEY).formatted(Formatting.RED)
-                : Text.translatable(TRANSLATING_STATUS_KEY).formatted(Formatting.GRAY);
+        Component statusMessage = hasMissingKeyIssue
+                ? Component.translatable(KEY_MISMATCH_STATUS_KEY).withStyle(ChatFormatting.RED)
+                : Component.translatable(TRANSLATING_STATUS_KEY).withStyle(ChatFormatting.GRAY);
 
-        MutableText statusText = AnimationManager.getAnimatedStyledText(statusMessage, animationKey, hasMissingKeyIssue);
-        return statusText.append(Text.literal(progressText).formatted(Formatting.YELLOW));
+        MutableComponent statusText = AnimationManager.getAnimatedStyledText(statusMessage, animationKey, hasMissingKeyIssue);
+        return statusText.append(Component.literal(progressText).withStyle(ChatFormatting.YELLOW));
     }
 
-    public static Text createErrorStatusLine(String errorMessage) {
-        return Text.translatable(ERROR_STATUS_KEY, TranslationErrorTextSupport.localizeReason(errorMessage)).formatted(Formatting.RED);
+    public static Component createErrorStatusLine(String errorMessage) {
+        return Component.translatable(ERROR_STATUS_KEY, TranslationErrorTextSupport.localizeReason(errorMessage)).withStyle(ChatFormatting.RED);
     }
 
     public static boolean shouldShowStatusLine(
@@ -57,8 +56,8 @@ public final class TooltipInternalLineSupport {
         return processedTooltip != null && !processedTooltip.errorMessage().isBlank();
     }
 
-    public static List<Text> appendStatusLineIfNeeded(
-            List<Text> tooltip,
+    public static List<Component> appendStatusLineIfNeeded(
+            List<Component> tooltip,
             TooltipTranslationSupport.TooltipProcessingResult processedTooltip,
             String animationKey
     ) {
@@ -73,7 +72,7 @@ public final class TooltipInternalLineSupport {
             return tooltip;
         }
 
-        List<Text> tooltipWithStatus = new ArrayList<>(tooltip.size() + 2);
+        List<Component> tooltipWithStatus = new ArrayList<>(tooltip.size() + 2);
         tooltipWithStatus.addAll(tooltip);
         if (showStatusLine) {
             tooltipWithStatus.add(createStatusLine(stats, processedTooltip.missingKeyIssue(), animationKey));
@@ -92,7 +91,7 @@ public final class TooltipInternalLineSupport {
         return lower.contains(MISSING_KEY_HINT) || lower.contains(KEY_MISMATCH_HINT);
     }
 
-    public static boolean isInternalStatusLine(Text line) {
+    public static boolean isInternalStatusLine(Component line) {
         if (line == null) {
             return false;
         }
@@ -104,26 +103,26 @@ public final class TooltipInternalLineSupport {
                 || content.startsWith(createErrorStatusLine("").getString());
     }
 
-    private static Text createTranslatingStatusText() {
-        return Text.translatable(TRANSLATING_STATUS_KEY).formatted(Formatting.GRAY);
+    private static Component createTranslatingStatusText() {
+        return Component.translatable(TRANSLATING_STATUS_KEY).withStyle(ChatFormatting.GRAY);
     }
 
-    private static Text createKeyMismatchStatusText() {
-        return Text.translatable(KEY_MISMATCH_STATUS_KEY).formatted(Formatting.RED);
+    private static Component createKeyMismatchStatusText() {
+        return Component.translatable(KEY_MISMATCH_STATUS_KEY).withStyle(ChatFormatting.RED);
     }
 
-    public static boolean isInternalGeneratedLine(Text line) {
+    public static boolean isInternalGeneratedLine(Component line) {
         return isInternalStatusLine(line) || TooltipRefreshNoticeSupport.isRefreshNoticeLine(line);
     }
 
-    public static List<Text> stripInternalGeneratedLines(List<Text> tooltip) {
+    public static List<Component> stripInternalGeneratedLines(List<Component> tooltip) {
         if (tooltip == null || tooltip.isEmpty()) {
             return tooltip;
         }
 
-        List<Text> sanitized = null;
+        List<Component> sanitized = null;
         for (int i = 0; i < tooltip.size(); i++) {
-            Text line = tooltip.get(i);
+            Component line = tooltip.get(i);
             if (!isInternalGeneratedLine(line)) {
                 if (sanitized != null) {
                     sanitized.add(line);

@@ -1,12 +1,11 @@
 package com.cedarxuesong.translate_allinone.utils.textmatcher;
 
-import net.minecraft.text.MutableText;
-import net.minecraft.text.PlainTextContent;
-import net.minecraft.text.Style;
-
 import java.util.Map;
 import java.util.List;
 import java.util.Set;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
+import net.minecraft.network.chat.contents.PlainTextContents;
 
 public final class TextMatchResult {
     public static final TextMatchResult FAILURE = new TextMatchResult(false, List.of(), List.of(), Map.of(), -1, -1);
@@ -105,8 +104,8 @@ public final class TextMatchResult {
         return builder.toString();
     }
 
-    public MutableText toText() {
-        MutableText base = MutableText.of(PlainTextContent.EMPTY);
+    public MutableComponent toText() {
+        MutableComponent base = MutableComponent.create(PlainTextContents.EMPTY);
         for (FlatNode node : matchedNodes) {
             base.append(node.toText());
         }

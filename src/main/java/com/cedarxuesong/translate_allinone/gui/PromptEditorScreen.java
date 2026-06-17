@@ -9,19 +9,19 @@ import com.cedarxuesong.translate_allinone.gui.configui.render.ConfigUiDraw;
 import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.cedarxuesong.translate_allinone.utils.translate.PromptMessageBuilder;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.Click;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.input.CharInput;
-import net.minecraft.client.input.KeyInput;
-import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.CharacterEvent;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.network.chat.Component;
 
 public class PromptEditorScreen extends Screen {
     private static final String I18N_PREFIX = "text.translate_allinone.configscreen.prompt_editor.";
@@ -93,12 +93,12 @@ public class PromptEditorScreen extends Screen {
         this.providerId = providerId;
     }
 
-    private static Text t(String key, Object... args) {
-        return Text.translatable(I18N_PREFIX + key, args);
+    private static Component t(String key, Object... args) {
+        return Component.translatable(I18N_PREFIX + key, args);
     }
 
     @Override
-    public boolean shouldPause() {
+    public boolean isPauseScreen() {
         return false;
     }
 
@@ -113,9 +113,9 @@ public class PromptEditorScreen extends Screen {
     }
 
     @Override
-    public void close() {
-        if (this.client != null) {
-            this.client.setScreen(parent);
+    public void onClose() {
+        if (this.minecraft != null) {
+            this.minecraft.setScreen(parent);
         }
     }
 
@@ -158,8 +158,8 @@ public class PromptEditorScreen extends Screen {
             }
         }
         profile.normalizePromptOverrides();
-        if (this.client != null) {
-            this.client.setScreen(parent);
+        if (this.minecraft != null) {
+            this.minecraft.setScreen(parent);
         }
     }
 
@@ -217,7 +217,7 @@ public class PromptEditorScreen extends Screen {
                 buttonWidth,
                 buttonHeight,
                 t("button.cancel"),
-                this::close,
+                this::onClose,
                 COLOR_BLOCK,
                 COLOR_BLOCK_HOVER,
                 COLOR_TEXT,
@@ -238,7 +238,7 @@ public class PromptEditorScreen extends Screen {
     }
 
     @Override
-    public boolean keyPressed(KeyInput input) {
+    public boolean keyPressed(KeyEvent input) {
         if (super.keyPressed(input)) {
             return true;
         }
@@ -248,7 +248,7 @@ public class PromptEditorScreen extends Screen {
         boolean shift = isShiftDown();
 
         if (key == GLFW.GLFW_KEY_ESCAPE) {
-            close();
+            onClose();
             return true;
         }
 
@@ -282,8 +282,8 @@ public class PromptEditorScreen extends Screen {
             if (selectionStart >= 0 && selectionEnd >= 0 && selectionStart != selectionEnd) {
                 int start = Math.min(selectionStart, selectionEnd);
                 int end = Math.max(selectionStart, selectionEnd);
-                if (this.client != null) {
-                    this.client.keyboard.setClipboard(text.substring(start, end));
+                if (this.minecraft != null) {
+                    this.minecraft.keyboardHandler.setClipboard(text.substring(start, end));
                 }
             }
             return true;
@@ -294,8 +294,8 @@ public class PromptEditorScreen extends Screen {
                 pushUndo();
                 int start = Math.min(selectionStart, selectionEnd);
                 int end = Math.max(selectionStart, selectionEnd);
-                if (this.client != null) {
-                    this.client.keyboard.setClipboard(text.substring(start, end));
+                if (this.minecraft != null) {
+                    this.minecraft.keyboardHandler.setClipboard(text.substring(start, end));
                 }
                 text.delete(start, end);
                 cursorPos = start;
@@ -306,9 +306,9 @@ public class PromptEditorScreen extends Screen {
         }
 
         if (ctrl && key == GLFW.GLFW_KEY_V) {
-            if (this.client != null) {
+            if (this.minecraft != null) {
                 pushUndo();
-                String clipboard = this.client.keyboard.getClipboard();
+                String clipboard = this.minecraft.keyboardHandler.getClipboard();
                 if (clipboard != null && !clipboard.isEmpty()) {
                     if (selectionStart >= 0 && selectionEnd >= 0 && selectionStart != selectionEnd) {
                         int start = Math.min(selectionStart, selectionEnd);
@@ -419,12 +419,12 @@ public class PromptEditorScreen extends Screen {
     }
 
     @Override
-    public boolean charTyped(CharInput input) {
+    public boolean charTyped(CharacterEvent input) {
         if (super.charTyped(input)) {
             return true;
         }
 
-        String str = input.asString();
+        String str = input.codepointAsString();
         if (str == null || str.isEmpty()) {
             return false;
         }
@@ -451,7 +451,7 @@ public class PromptEditorScreen extends Screen {
     }
 
     @Override
-    public boolean mouseClicked(Click click, boolean doubled) {
+    public boolean mouseClicked(MouseButtonEvent click, boolean doubled) {
         if (click.button() != 0) {
             return super.mouseClicked(click, doubled);
         }
@@ -509,7 +509,7 @@ public class PromptEditorScreen extends Screen {
     }
 
     @Override
-    public boolean mouseDragged(Click click, double deltaX, double deltaY) {
+    public boolean mouseDragged(MouseButtonEvent click, double deltaX, double deltaY) {
         if (click.button() != 0) {
             return super.mouseDragged(click, deltaX, deltaY);
         }
@@ -556,15 +556,15 @@ public class PromptEditorScreen extends Screen {
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
         renderChrome(context);
         renderLeftPanel(context, mouseX, mouseY);
         renderEditor(context);
         renderStatusBar(context);
-        ConfigUiControlRenderer.drawActionBlocks(context, this.textRenderer, actionBlocks, mouseX, mouseY, COLOR_BORDER);
+        ConfigUiControlRenderer.drawActionBlocks(context, this.font, actionBlocks, mouseX, mouseY, COLOR_BORDER);
     }
 
-    private void renderChrome(DrawContext context) {
+    private void renderChrome(GuiGraphicsExtractor context) {
         context.fill(0, 0, this.width, this.height, COLOR_BG);
         context.fill(0, 0, this.width, TOP_BAR_HEIGHT, COLOR_TOP_BAR);
         context.fill(0, TOP_BAR_HEIGHT, LEFT_PANEL_WIDTH, this.height, COLOR_LEFT_PANEL);
@@ -574,17 +574,17 @@ public class PromptEditorScreen extends Screen {
         ConfigUiDraw.drawOutline(context, 0, TOP_BAR_HEIGHT, LEFT_PANEL_WIDTH, this.height - TOP_BAR_HEIGHT, COLOR_BORDER);
         ConfigUiDraw.drawOutline(context, LEFT_PANEL_WIDTH, TOP_BAR_HEIGHT, this.width - LEFT_PANEL_WIDTH, this.height - TOP_BAR_HEIGHT, COLOR_BORDER);
 
-        Text title = t("screen_title", providerId);
-        context.drawText(this.textRenderer, title, 14, (TOP_BAR_HEIGHT - this.textRenderer.fontHeight) / 2, COLOR_TEXT_ACCENT, false);
+        Component title = t("screen_title", providerId);
+        context.text(this.font, title, 14, (TOP_BAR_HEIGHT - this.font.lineHeight) / 2, COLOR_TEXT_ACCENT, false);
 
         boolean unsaved = hasUnsavedChanges();
         if (unsaved) {
-            Text unsavedText = t("unsaved");
-            context.drawText(this.textRenderer, unsavedText, 14 + this.textRenderer.getWidth(title) + 12, (TOP_BAR_HEIGHT - this.textRenderer.fontHeight) / 2, COLOR_TEXT_MUTED, false);
+            Component unsavedText = t("unsaved");
+            context.text(this.font, unsavedText, 14 + this.font.width(title) + 12, (TOP_BAR_HEIGHT - this.font.lineHeight) / 2, COLOR_TEXT_MUTED, false);
         }
     }
 
-    private void renderLeftPanel(DrawContext context, int mouseX, int mouseY) {
+    private void renderLeftPanel(GuiGraphicsExtractor context, int mouseX, int mouseY) {
         int y = TOP_BAR_HEIGHT + 12;
         for (int i = 0; i < ROUTE_KEYS.length; i++) {
             String routeKey = ROUTE_KEYS[i];
@@ -600,19 +600,19 @@ public class PromptEditorScreen extends Screen {
             boolean hasContent = !text.isEmpty();
             int textColor = selected ? COLOR_TEXT_ACCENT : (hasContent ? COLOR_TEXT : COLOR_TEXT_MUTED);
 
-            context.drawText(this.textRenderer, routeDisplayName(routeKey), 16, y + 6, textColor, false);
+            context.text(this.font, routeDisplayName(routeKey), 16, y + 6, textColor, false);
 
             if (hasContent) {
-                String indicator = "●";
-                int indicatorWidth = this.textRenderer.getWidth(indicator);
-                context.drawText(this.textRenderer, indicator, LEFT_PANEL_WIDTH - 16 - indicatorWidth, y + 6, 0xFF59D185, false);
+                String indicator = "*";
+                int indicatorWidth = this.font.width(indicator);
+                context.text(this.font, indicator, LEFT_PANEL_WIDTH - 16 - indicatorWidth, y + 6, 0xFF59D185, false);
             }
 
             y += 28;
         }
     }
 
-    private void renderEditor(DrawContext context) {
+    private void renderEditor(GuiGraphicsExtractor context) {
         int labelX = LEFT_PANEL_WIDTH + EDITOR_PADDING;
         int editorHeight = this.height - TOP_BAR_HEIGHT - STATUS_BAR_HEIGHT - EDITOR_PADDING * 2;
 
@@ -637,14 +637,14 @@ public class PromptEditorScreen extends Screen {
         for (int i = scrollOffset; i < Math.min(lines.size(), scrollOffset + visibleLines); i++) {
             String lineStr = lines.get(i);
             String numStr = String.valueOf(i + 1);
-            int numWidth = this.textRenderer.getWidth(numStr);
-            context.drawText(this.textRenderer, numStr, numberX + LINE_NUMBER_WIDTH - numWidth - 8, lineY, COLOR_LINE_NUMBER, false);
-            context.drawText(this.textRenderer, lineStr, textX, lineY, COLOR_TEXT, false);
+            int numWidth = this.font.width(numStr);
+            context.text(this.font, numStr, numberX + LINE_NUMBER_WIDTH - numWidth - 8, lineY, COLOR_LINE_NUMBER, false);
+            context.text(this.font, lineStr, textX, lineY, COLOR_TEXT, false);
             lineY += LINE_HEIGHT;
         }
 
         if (fullText.isEmpty() && scrollOffset == 0) {
-            context.drawText(this.textRenderer, t("empty_placeholder"), textX, (TOP_BAR_HEIGHT + EDITOR_PADDING), COLOR_TEXT_MUTED, false);
+            context.text(this.font, t("empty_placeholder"), textX, (TOP_BAR_HEIGHT + EDITOR_PADDING), COLOR_TEXT_MUTED, false);
         }
 
         if (cursorVisible) {
@@ -654,7 +654,7 @@ public class PromptEditorScreen extends Screen {
             int cursorScreenLine = cursorRenderLine - scrollOffset;
             if (cursorScreenLine >= 0 && cursorScreenLine < visibleLines) {
                 String cursorLineText = cursorRenderLine < lines.size() ? lines.get(cursorRenderLine) : "";
-                int cursorX = textX + this.textRenderer.getWidth(cursorLineText.substring(0, Math.min(cursorRenderCol, cursorLineText.length())));
+                int cursorX = textX + this.font.width(cursorLineText.substring(0, Math.min(cursorRenderCol, cursorLineText.length())));
                 int cursorY = (TOP_BAR_HEIGHT + EDITOR_PADDING) + cursorScreenLine * LINE_HEIGHT;
                 context.fill(cursorX, cursorY, cursorX + 1, cursorY + LINE_HEIGHT, COLOR_CURSOR);
             }
@@ -670,7 +670,7 @@ public class PromptEditorScreen extends Screen {
         }
     }
 
-    private void renderStatusBar(DrawContext context) {
+    private void renderStatusBar(GuiGraphicsExtractor context) {
         int barY = this.height - STATUS_BAR_HEIGHT;
         context.fill(0, barY, this.width, this.height, COLOR_STATUS_BAR);
         ConfigUiDraw.drawOutline(context, 0, barY, this.width, STATUS_BAR_HEIGHT, COLOR_BORDER);
@@ -680,14 +680,14 @@ public class PromptEditorScreen extends Screen {
 
         String statusText = fullText.length() + " chars"
                 + "  |  ~" + currentTokens + " tokens";
-        context.drawText(this.textRenderer, statusText, LEFT_PANEL_WIDTH + EDITOR_PADDING, barY + (STATUS_BAR_HEIGHT - this.textRenderer.fontHeight) / 2, COLOR_TEXT_MUTED, false);
+        context.text(this.font, statusText, LEFT_PANEL_WIDTH + EDITOR_PADDING, barY + (STATUS_BAR_HEIGHT - this.font.lineHeight) / 2, COLOR_TEXT_MUTED, false);
 
         String defaultPrompt = PromptMessageBuilder.getDefaultPromptTemplate(selectedRoute);
         boolean hasOverride = !fullText.equals(defaultPrompt) && !fullText.isEmpty();
         if (hasOverride) {
             String overrideLabel = t("status.override_active").getString();
-            int labelWidth = this.textRenderer.getWidth(overrideLabel);
-            context.drawText(this.textRenderer, overrideLabel, this.width - labelWidth - 12, barY + (STATUS_BAR_HEIGHT - this.textRenderer.fontHeight) / 2, COLOR_STATUS_OK, false);
+            int labelWidth = this.font.width(overrideLabel);
+            context.text(this.font, overrideLabel, this.width - labelWidth - 12, barY + (STATUS_BAR_HEIGHT - this.font.lineHeight) / 2, COLOR_STATUS_OK, false);
         }
     }
 
@@ -780,7 +780,7 @@ public class PromptEditorScreen extends Screen {
         return new int[]{visualLines.size() - 1, visualLines.get(visualLines.size() - 1).length()};
     }
 
-    private void drawSelection(DrawContext context, String fullText, List<String> lines, int selStart, int selEnd, int scrollOffset) {
+    private void drawSelection(GuiGraphicsExtractor context, String fullText, List<String> lines, int selStart, int selEnd, int scrollOffset) {
         int textX = LEFT_PANEL_WIDTH + EDITOR_PADDING + LINE_NUMBER_WIDTH;
         int textY = TOP_BAR_HEIGHT + EDITOR_PADDING;
         int visibleLines = (this.height - TOP_BAR_HEIGHT - STATUS_BAR_HEIGHT - EDITOR_PADDING * 2) / LINE_HEIGHT;
@@ -799,8 +799,8 @@ public class PromptEditorScreen extends Screen {
                     if (screenLine >= 0 && screenLine < visibleLines) {
                         String beforeSel = vl.substring(0, selStartInLine);
                         String selText = vl.substring(selStartInLine, selEndInLine);
-                        int selX = textX + this.textRenderer.getWidth(beforeSel);
-                        int selW = this.textRenderer.getWidth(selText);
+                        int selX = textX + this.font.width(beforeSel);
+                        int selW = this.font.width(selText);
                         int selY = textY + screenLine * LINE_HEIGHT;
                         context.fill(selX, selY, selX + selW, selY + LINE_HEIGHT, COLOR_SELECTION);
                     }
@@ -816,7 +816,7 @@ public class PromptEditorScreen extends Screen {
     private int cursorColumnFromMouse(double mouseX, String lineText) {
         if (mouseX <= 0) return 0;
         for (int i = 1; i <= lineText.length(); i++) {
-            if (this.textRenderer.getWidth(lineText.substring(0, i)) > mouseX) {
+            if (this.font.width(lineText.substring(0, i)) > mouseX) {
                 return i - 1;
             }
         }
@@ -844,7 +844,7 @@ public class PromptEditorScreen extends Screen {
         int start = 0;
         while (start < line.length()) {
             int end = start + 1;
-            while (end <= line.length() && this.textRenderer.getWidth(line.substring(start, end)) <= maxWidth) {
+            while (end <= line.length() && this.font.width(line.substring(start, end)) <= maxWidth) {
                 end++;
             }
             end--;
@@ -857,18 +857,18 @@ public class PromptEditorScreen extends Screen {
         return result;
     }
 
-    private Text routeDisplayName(String routeKey) {
+    private Component routeDisplayName(String routeKey) {
         return t("route." + routeKey);
     }
 
     private static boolean isCtrlDown() {
-        long window = MinecraftClient.getInstance().getWindow().getHandle();
+        long window = Minecraft.getInstance().getWindow().handle();
         return GLFW.glfwGetKey(window, GLFW.GLFW_KEY_LEFT_CONTROL) == GLFW.GLFW_PRESS
                 || GLFW.glfwGetKey(window, GLFW.GLFW_KEY_RIGHT_CONTROL) == GLFW.GLFW_PRESS;
     }
 
     private static boolean isShiftDown() {
-        long window = MinecraftClient.getInstance().getWindow().getHandle();
+        long window = Minecraft.getInstance().getWindow().handle();
         return GLFW.glfwGetKey(window, GLFW.GLFW_KEY_LEFT_SHIFT) == GLFW.GLFW_PRESS
                 || GLFW.glfwGetKey(window, GLFW.GLFW_KEY_RIGHT_SHIFT) == GLFW.GLFW_PRESS;
     }

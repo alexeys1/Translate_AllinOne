@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class ReiScreenOverlayContextMixin {
     @Inject(
             method = {
-                    "renderTooltipInner(Lnet/minecraft/client/gui/screen/Screen;Lnet/minecraft/client/gui/DrawContext;Lme/shedaniel/rei/api/client/gui/widgets/Tooltip;II)V",
+                    "renderTooltipInner(Lnet/minecraft/client/gui/screens/Screen;Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lme/shedaniel/rei/api/client/gui/widgets/Tooltip;II)V",
                     "renderTooltipInner(Lnet/minecraft/class_437;Lnet/minecraft/class_332;Lme/shedaniel/rei/api/client/gui/widgets/Tooltip;II)V"
             },
             at = @At("HEAD"),
@@ -25,7 +25,7 @@ public abstract class ReiScreenOverlayContextMixin {
 
     @Inject(
             method = {
-                    "renderTooltipInner(Lnet/minecraft/client/gui/screen/Screen;Lnet/minecraft/client/gui/DrawContext;Lme/shedaniel/rei/api/client/gui/widgets/Tooltip;II)V",
+                    "renderTooltipInner(Lnet/minecraft/client/gui/screens/Screen;Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lme/shedaniel/rei/api/client/gui/widgets/Tooltip;II)V",
                     "renderTooltipInner(Lnet/minecraft/class_437;Lnet/minecraft/class_332;Lme/shedaniel/rei/api/client/gui/widgets/Tooltip;II)V"
             },
             at = @At("RETURN"),

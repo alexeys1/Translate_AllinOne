@@ -11,7 +11,7 @@ import com.cedarxuesong.translate_allinone.utils.translate.TooltipTextMatcherSup
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTranslationContext;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTranslationSupport;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.text.Text;
+import net.minecraft.network.chat.Component;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.Unique;
@@ -38,7 +38,7 @@ public abstract class WynnmodStatsTooltipContextMixin {
 
     @Unique
     private record DecoratedTooltipTranslationResult(
-            List<Text> tooltip,
+            List<Component> tooltip,
             boolean locallyStableForRecentGuard
     ) {
     }
@@ -86,7 +86,7 @@ public abstract class WynnmodStatsTooltipContextMixin {
             }
 
             ItemTranslateConfig config = Translate_AllinOne.getConfig().itemTranslate;
-            List<Text> currentTooltip = translate_allinone$getTooltipText(event);
+            List<Component> currentTooltip = translate_allinone$getTooltipText(event);
             if (currentTooltip == null || currentTooltip.isEmpty()) {
                 TooltipTextMatcherSupport.logTooltipGuardIfDev(
                         config,
@@ -98,7 +98,7 @@ public abstract class WynnmodStatsTooltipContextMixin {
                 return;
             }
 
-            List<Text> sanitizedTooltip = TooltipInternalLineSupport.stripInternalGeneratedLines(currentTooltip);
+            List<Component> sanitizedTooltip = TooltipInternalLineSupport.stripInternalGeneratedLines(currentTooltip);
             TooltipTextDebugCopySupport.maybeCopyCurrentTooltip(sanitizedTooltip);
             if (!usingWynnmodTooltipTracking) {
                 return;
@@ -116,7 +116,7 @@ public abstract class WynnmodStatsTooltipContextMixin {
                         "Configured keybinding mode is currently showing the original tooltip. showRefreshNotice="
                                 + showRefreshNotice
                 );
-                List<Text> tooltipToDisplay = TooltipRefreshNoticeSupport.appendRefreshNoticeLine(sanitizedTooltip, showRefreshNotice);
+                List<Component> tooltipToDisplay = TooltipRefreshNoticeSupport.appendRefreshNoticeLine(sanitizedTooltip, showRefreshNotice);
                 if (tooltipToDisplay != currentTooltip && translate_allinone$setTooltipText(event, tooltipToDisplay)) {
                     TooltipRecentRenderGuardSupport.clearRememberedTooltip();
                     TooltipTranslationContext.rememberExpectedDrawContextTooltip(tooltipToDisplay);
@@ -179,7 +179,7 @@ public abstract class WynnmodStatsTooltipContextMixin {
 
     @Unique
     @SuppressWarnings("unchecked")
-    private static List<Text> translate_allinone$getTooltipText(Object event) {
+    private static List<Component> translate_allinone$getTooltipText(Object event) {
         if (event == null) {
             return null;
         }
@@ -188,7 +188,7 @@ public abstract class WynnmodStatsTooltipContextMixin {
             Method method = event.getClass().getMethod("getText");
             Object result = method.invoke(event);
             if (result instanceof List<?> list) {
-                return (List<Text>) list;
+                return (List<Component>) list;
             }
         } catch (ReflectiveOperationException ignored) {
         }
@@ -198,13 +198,13 @@ public abstract class WynnmodStatsTooltipContextMixin {
 
     @Unique
     private static DecoratedTooltipTranslationResult translate_allinone$translateDecoratedTooltip(
-            List<Text> currentTooltip,
+            List<Component> currentTooltip,
             ItemTranslateConfig config,
             boolean showRefreshNotice,
             boolean emitDevLog,
             long tooltipStartedAtNanos
     ) {
-        List<Text> tooltip = TooltipInternalLineSupport.stripInternalGeneratedLines(currentTooltip);
+        List<Component> tooltip = TooltipInternalLineSupport.stripInternalGeneratedLines(currentTooltip);
         TooltipTranslationSupport.TooltipProcessingResult processedTooltip = TooltipTranslationSupport.processTooltipLines(
                 tooltip,
                 config,
@@ -212,7 +212,7 @@ public abstract class WynnmodStatsTooltipContextMixin {
                 emitDevLog,
                 "wynnmod"
         );
-        List<Text> translatedTooltip = TooltipInternalLineSupport.appendStatusLineIfNeeded(
+        List<Component> translatedTooltip = TooltipInternalLineSupport.appendStatusLineIfNeeded(
                 new ArrayList<>(processedTooltip.translatedLines()),
                 processedTooltip,
                 ITEM_STATUS_ANIMATION_KEY
@@ -232,7 +232,7 @@ public abstract class WynnmodStatsTooltipContextMixin {
     }
 
     @Unique
-    private static boolean translate_allinone$setTooltipText(Object event, List<Text> tooltip) {
+    private static boolean translate_allinone$setTooltipText(Object event, List<Component> tooltip) {
         if (event == null) {
             return false;
         }

@@ -1,13 +1,13 @@
 package com.cedarxuesong.translate_allinone.gui.configui.controls;
 
-import net.minecraft.text.Text;
+import net.minecraft.network.chat.Component;
 
 public record GroupBox(
         int x,
         int y,
         int width,
         int height,
-        Text title,
+        Component title,
         Style style
 ) {
     public record Style(

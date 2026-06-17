@@ -1,24 +1,24 @@
 package com.cedarxuesong.translate_allinone.gui.configui.render;
 
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.text.Text;
-
 import static com.cedarxuesong.translate_allinone.gui.configui.render.ConfigUiDraw.drawOutline;
+
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.network.chat.Component;
 
 public final class ConfigUiScreenRenderSupport {
     private ConfigUiScreenRenderSupport() {
     }
 
     public static void renderChrome(
-            DrawContext context,
-            TextRenderer textRenderer,
+            GuiGraphicsExtractor context,
+            Font textRenderer,
             int screenWidth,
             int screenHeight,
             int topBarHeight,
             int leftPanelWidth,
-            Text title,
-            Text panelTitle,
+            Component title,
+            Component panelTitle,
             boolean providersSectionSelected,
             Style style
     ) {
@@ -31,8 +31,8 @@ public final class ConfigUiScreenRenderSupport {
         drawOutline(context, 0, topBarHeight, leftPanelWidth, screenHeight - topBarHeight, style.colorBorder());
         drawOutline(context, leftPanelWidth, topBarHeight, screenWidth - leftPanelWidth, screenHeight - topBarHeight, style.colorBorder());
 
-        context.drawText(textRenderer, title, 14, 14, style.colorText(), false);
-        context.drawText(textRenderer, panelTitle, leftPanelWidth + 20, topBarHeight + 8, style.colorText(), false);
+        context.text(textRenderer, title, 14, 14, style.colorText(), false);
+        context.text(textRenderer, panelTitle, leftPanelWidth + 20, topBarHeight + 8, style.colorText(), false);
 
         if (providersSectionSelected) {
             // provider section groups are rendered through GroupBox controls.
@@ -40,8 +40,8 @@ public final class ConfigUiScreenRenderSupport {
     }
 
     public static void renderModalOverlayAndShell(
-            DrawContext context,
-            TextRenderer textRenderer,
+            GuiGraphicsExtractor context,
+            Font textRenderer,
             int screenWidth,
             int screenHeight,
             int topBarHeight,
@@ -53,14 +53,14 @@ public final class ConfigUiScreenRenderSupport {
             boolean updateNoticeModalOpen,
             boolean unsavedChangesConfirmModalOpen,
             boolean promptEditorWarningOpen,
-            Text addProviderTitle,
-            Text modelSettingsTitle,
-            Text customParametersTitle,
-            Text dictionaryFilesTitle,
-            Text resetConfirmTitle,
-            Text updateNoticeTitle,
-            Text unsavedChangesConfirmTitle,
-            Text promptEditorWarningTitle,
+            Component addProviderTitle,
+            Component modelSettingsTitle,
+            Component customParametersTitle,
+            Component dictionaryFilesTitle,
+            Component resetConfirmTitle,
+            Component updateNoticeTitle,
+            Component unsavedChangesConfirmTitle,
+            Component promptEditorWarningTitle,
             Style style
     ) {
         if (!ConfigUiModalSupport.isAnyModalOpen(
@@ -161,11 +161,11 @@ public final class ConfigUiScreenRenderSupport {
     }
 
     public static void renderStatusToast(
-            DrawContext context,
-            TextRenderer textRenderer,
+            GuiGraphicsExtractor context,
+            Font textRenderer,
             int screenWidth,
             int topBarHeight,
-            Text statusMessage,
+            Component statusMessage,
             int statusColor,
             long statusExpireAtMillis,
             long nowMillis,
@@ -182,11 +182,11 @@ public final class ConfigUiScreenRenderSupport {
             alpha = remaining / 500.0f;
         }
 
-        int textWidth = textRenderer.getWidth(statusMessage);
+        int textWidth = textRenderer.width(statusMessage);
         int paddingX = 16;
         int paddingY = 8;
         int toastWidth = textWidth + paddingX * 2;
-        int toastHeight = textRenderer.fontHeight + paddingY * 2;
+        int toastHeight = textRenderer.lineHeight + paddingY * 2;
         int toastX = (screenWidth - toastWidth) / 2;
         int toastY = topBarHeight + 12;
 
@@ -196,7 +196,7 @@ public final class ConfigUiScreenRenderSupport {
 
         context.fill(toastX, toastY, toastX + toastWidth, toastY + toastHeight, bg);
         drawOutline(context, toastX, toastY, toastWidth, toastHeight, border);
-        context.drawText(textRenderer, statusMessage, toastX + paddingX, toastY + paddingY, text, false);
+        context.text(textRenderer, statusMessage, toastX + paddingX, toastY + paddingY, text, false);
     }
 
     private static int applyAlpha(int color, float alpha) {

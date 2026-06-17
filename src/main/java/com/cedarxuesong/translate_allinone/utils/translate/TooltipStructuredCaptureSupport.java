@@ -6,17 +6,16 @@ import com.cedarxuesong.translate_allinone.utils.textmatcher.ContentMatcher;
 import com.cedarxuesong.translate_allinone.utils.textmatcher.FlatNode;
 import com.cedarxuesong.translate_allinone.utils.textmatcher.TextMatchResult;
 import com.cedarxuesong.translate_allinone.utils.textmatcher.TextPattern;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.PlainTextContent;
-import net.minecraft.text.Text;
-import net.minecraft.text.TextContent;
-
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.Predicate;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.ComponentContents;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.contents.PlainTextContents;
 
 final class TooltipStructuredCaptureSupport {
     private static final TextPattern STRUCTURED_LABEL_VALUE_PATTERN = TextPattern.builder()
@@ -52,7 +51,7 @@ final class TooltipStructuredCaptureSupport {
     private TooltipStructuredCaptureSupport() {
     }
 
-    static StructuredTooltipLineResult tryTranslateStructuredLine(Text line, boolean useTagStylePreservation) {
+    static StructuredTooltipLineResult tryTranslateStructuredLine(Component line, boolean useTagStylePreservation) {
         if (containsEmbeddedLegacyFormattingCodes(line)) {
             return null;
         }
@@ -70,7 +69,7 @@ final class TooltipStructuredCaptureSupport {
         return translateLabelValueStructuredLine(structuredLine, useTagStylePreservation);
     }
 
-    static Set<String> collectStructuredTemplateKeys(Text line, boolean useTagStylePreservation) {
+    static Set<String> collectStructuredTemplateKeys(Component line, boolean useTagStylePreservation) {
         if (containsEmbeddedLegacyFormattingCodes(line)) {
             return Set.of();
         }
@@ -89,7 +88,7 @@ final class TooltipStructuredCaptureSupport {
         return enchantListMatch == null ? Set.of() : enchantListMatch.translationTemplateKeys();
     }
 
-    static Set<String> collectRemoteStructuredTemplateKeys(Text line, boolean useTagStylePreservation) {
+    static Set<String> collectRemoteStructuredTemplateKeys(Component line, boolean useTagStylePreservation) {
         if (containsEmbeddedLegacyFormattingCodes(line)) {
             return Set.of();
         }
@@ -109,7 +108,7 @@ final class TooltipStructuredCaptureSupport {
     }
 
     static List<StructuredTextDebugSegment> collectStructuredTextDebugSegments(
-            Text line,
+            Component line,
             boolean useTagStylePreservation
     ) {
         if (containsEmbeddedLegacyFormattingCodes(line)) {
@@ -145,14 +144,14 @@ final class TooltipStructuredCaptureSupport {
         return segments;
     }
 
-    private static void addStructuredTextDebugSegment(List<StructuredTextDebugSegment> segments, Text text) {
+    private static void addStructuredTextDebugSegment(List<StructuredTextDebugSegment> segments, Component text) {
         if (segments == null || text == null || text.getString().isBlank()) {
             return;
         }
         segments.add(new StructuredTextDebugSegment(text));
     }
 
-    private static boolean containsEmbeddedLegacyFormattingCodes(Text line) {
+    private static boolean containsEmbeddedLegacyFormattingCodes(Component line) {
         if (line == null) {
             return false;
         }
@@ -192,7 +191,7 @@ final class TooltipStructuredCaptureSupport {
             }
         }
 
-        MutableText combined = Text.empty();
+        MutableComponent combined = Component.empty();
         appendPreservedPrefixPassThroughText(combined, structuredLine.prefixText());
         if (labelTranslation.translatedLine() != null) {
             combined.append(labelTranslation.translatedLine());
@@ -231,13 +230,13 @@ final class TooltipStructuredCaptureSupport {
             return null;
         }
 
-        Text prefixText = toText(match.groupNodes("prefix"));
+        Component prefixText = toText(match.groupNodes("prefix"));
         List<FlatNode> labelNodes = trimWhitespaceNodes(match.groupNodes("label"));
         List<FlatNode> valueNodes = trimWhitespaceNodes(match.groupNodes("value"));
-        Text labelText = toText(labelNodes);
-        Text colonText = toText(match.groupNodes("colon"));
-        Text spacingText = toText(match.groupNodes("spacing"));
-        Text valueText = toText(valueNodes);
+        Component labelText = toText(labelNodes);
+        Component colonText = toText(match.groupNodes("colon"));
+        Component spacingText = toText(match.groupNodes("spacing"));
+        Component valueText = toText(valueNodes);
         if (labelText == null || valueText == null) {
             return null;
         }
@@ -304,8 +303,8 @@ final class TooltipStructuredCaptureSupport {
 
         List<FlatNode> labelNodes = trimWhitespaceNodes(splitNodes.subList(prefixEnd, separatorStart));
         List<FlatNode> valueNodes = trimWhitespaceNodes(splitNodes.subList(valueStart, valueEnd));
-        Text labelText = toText(labelNodes);
-        Text valueText = toText(valueNodes);
+        Component labelText = toText(labelNodes);
+        Component valueText = toText(valueNodes);
         if (labelText == null || valueText == null) {
             return null;
         }
@@ -326,11 +325,11 @@ final class TooltipStructuredCaptureSupport {
     private static StructuredLineMatch buildStructuredLineMatch(
             List<FlatNode> labelNodes,
             List<FlatNode> valueNodes,
-            Text prefixText,
-            Text colonText,
-            Text spacingText,
-            Text labelText,
-            Text valueText,
+            Component prefixText,
+            Component colonText,
+            Component spacingText,
+            Component labelText,
+            Component valueText,
             boolean useTagStylePreservation,
             boolean allowWordPhraseValue
     ) {
@@ -339,14 +338,14 @@ final class TooltipStructuredCaptureSupport {
             return null;
         }
 
-        Text labelTranslationText = toCompactedText(labelNodes);
+        Component labelTranslationText = toCompactedText(labelNodes);
         String labelKey = TooltipTemplateRuntime.extractTemplateKeyForLine(labelTranslationText, useTagStylePreservation);
         if (labelKey == null || labelKey.isBlank()) {
             return null;
         }
 
         String valueKey = null;
-        Text valueTranslationText = valueText;
+        Component valueTranslationText = valueText;
         if (kind.translateValue()) {
             valueTranslationText = toCompactedText(valueNodes);
             valueKey = TooltipTemplateRuntime.extractTemplateKeyForLine(valueTranslationText, useTagStylePreservation);
@@ -377,7 +376,7 @@ final class TooltipStructuredCaptureSupport {
             return null;
         }
 
-        MutableText combined = Text.empty();
+        MutableComponent combined = Component.empty();
         boolean pending = false;
         boolean missingKeyIssue = false;
 
@@ -425,31 +424,31 @@ final class TooltipStructuredCaptureSupport {
         );
     }
 
-    private static void appendNormalizedPassThroughText(MutableText target, Text text) {
+    private static void appendNormalizedPassThroughText(MutableComponent target, Component text) {
         if (target == null || text == null) {
             return;
         }
 
-        Text normalized = TooltipTemplateRuntime.normalizeDecorativePassthroughText(text);
+        Component normalized = TooltipTemplateRuntime.normalizeDecorativePassthroughText(text);
         if (normalized != null) {
             target.append(normalized);
         }
     }
 
-    private static void appendPreservedPrefixPassThroughText(MutableText target, Text text) {
+    private static void appendPreservedPrefixPassThroughText(MutableComponent target, Component text) {
         if (target == null || text == null) {
             return;
         }
 
-        Text preserved = TooltipTemplateRuntime.preserveDecorativePrefixPassthroughText(text);
+        Component preserved = TooltipTemplateRuntime.preserveDecorativePrefixPassthroughText(text);
         if (preserved != null) {
             target.append(preserved);
         }
     }
 
     private static StructuredLineKind classifyStructuredLineKind(
-            Text labelText,
-            Text valueText,
+            Component labelText,
+            Component valueText,
             boolean allowWordPhraseValue
     ) {
         String normalizedLabel = normalizeLabel(textString(labelText));
@@ -586,9 +585,9 @@ final class TooltipStructuredCaptureSupport {
             return null;
         }
 
-        Text nameText = toText(nameNodes);
-        Text nameTranslationText = toCompactedText(nameNodes);
-        Text levelText = toText(levelNodes);
+        Component nameText = toText(nameNodes);
+        Component nameTranslationText = toCompactedText(nameNodes);
+        Component levelText = toText(levelNodes);
         if (nameText == null || nameTranslationText == null || levelText == null) {
             return null;
         }
@@ -665,19 +664,19 @@ final class TooltipStructuredCaptureSupport {
         return predicate;
     }
 
-    private static Text toText(List<FlatNode> nodes) {
+    private static Component toText(List<FlatNode> nodes) {
         if (nodes == null || nodes.isEmpty()) {
             return null;
         }
 
-        MutableText text = Text.empty();
+        MutableComponent text = Component.empty();
         for (FlatNode node : nodes) {
             text.append(node.toText());
         }
         return text;
     }
 
-    private static Text toCompactedText(List<FlatNode> nodes) {
+    private static Component toCompactedText(List<FlatNode> nodes) {
         if (nodes == null || nodes.isEmpty()) {
             return null;
         }
@@ -703,14 +702,14 @@ final class TooltipStructuredCaptureSupport {
         return List.copyOf(nodes.subList(start, end));
     }
 
-    private static List<FlatNode> splitStructuredNodes(Text line) {
+    private static List<FlatNode> splitStructuredNodes(Component line) {
         if (line == null) {
             return List.of();
         }
         return splitInlineNodes(line);
     }
 
-    private static String textString(Text text) {
+    private static String textString(Component text) {
         return text == null ? "" : text.getString();
     }
 
@@ -907,7 +906,7 @@ final class TooltipStructuredCaptureSupport {
     }
 
     private static boolean isLikelyEnchantName(List<FlatNode> nameNodes) {
-        Text nameText = toText(nameNodes);
+        Component nameText = toText(nameNodes);
         String normalized = normalizeLabel(textString(nameText));
         if (normalized.isEmpty()
                 || normalized.indexOf(':') >= 0
@@ -941,17 +940,17 @@ final class TooltipStructuredCaptureSupport {
         return true;
     }
 
-    private static List<FlatNode> splitInlineNodes(Text line) {
+    private static List<FlatNode> splitInlineNodes(Component line) {
         List<FlatNode> compactNodes = FlatNode.compact(FlatNode.flatten(line));
         List<FlatNode> splitNodes = new ArrayList<>();
         for (FlatNode node : compactNodes) {
-            TextContent content = node.content();
-            if (!(content instanceof PlainTextContent plainTextContent)) {
+            ComponentContents content = node.content();
+            if (!(content instanceof PlainTextContents plainTextContent)) {
                 splitNodes.add(node);
                 continue;
             }
 
-            String text = plainTextContent.string();
+            String text = plainTextContent.text();
             if (text == null || text.isEmpty()) {
                 continue;
             }
@@ -962,7 +961,7 @@ final class TooltipStructuredCaptureSupport {
                 int codePoint = text.codePointAt(offset);
                 InlineSegmentType nextType = classifyInlineSegmentType(codePoint);
                 if (currentType != null && currentType != nextType && segment.length() > 0) {
-                    splitNodes.add(new FlatNode(PlainTextContent.of(segment.toString()), node.style()));
+                    splitNodes.add(new FlatNode(PlainTextContents.create(segment.toString()), node.style()));
                     segment.setLength(0);
                 }
                 currentType = nextType;
@@ -971,7 +970,7 @@ final class TooltipStructuredCaptureSupport {
             }
 
             if (segment.length() > 0) {
-                splitNodes.add(new FlatNode(PlainTextContent.of(segment.toString()), node.style()));
+                splitNodes.add(new FlatNode(PlainTextContents.create(segment.toString()), node.style()));
             }
         }
         return splitNodes;
@@ -1223,18 +1222,18 @@ final class TooltipStructuredCaptureSupport {
         }
     }
 
-    record StructuredTextDebugSegment(Text text) {
+    record StructuredTextDebugSegment(Component text) {
     }
 
     private record StructuredLineMatch(
             StructuredLineKind kind,
-            Text prefixText,
-            Text labelText,
-            Text labelTranslationText,
-            Text colonText,
-            Text spacingText,
-            Text valueText,
-            Text valueTranslationText,
+            Component prefixText,
+            Component labelText,
+            Component labelTranslationText,
+            Component colonText,
+            Component spacingText,
+            Component valueText,
+            Component valueTranslationText,
             String labelKey,
             String valueKey
     ) {
@@ -1264,8 +1263,8 @@ final class TooltipStructuredCaptureSupport {
             return keys;
         }
 
-        private Text originalLine() {
-            MutableText original = Text.empty();
+        private Component originalLine() {
+            MutableComponent original = Component.empty();
             appendPreservedPrefixPassThroughText(original, prefixText);
             if (labelText != null) {
                 original.append(labelText);
@@ -1313,8 +1312,8 @@ final class TooltipStructuredCaptureSupport {
             return keys;
         }
 
-        private Text originalLine() {
-            MutableText original = Text.empty();
+        private Component originalLine() {
+            MutableComponent original = Component.empty();
             if (entries == null) {
                 return original;
             }
@@ -1347,13 +1346,13 @@ final class TooltipStructuredCaptureSupport {
     }
 
     private record EnchantListEntry(
-            Text leadingText,
-            Text nameText,
-            Text nameTranslationText,
-            Text bridgeText,
-            Text levelText,
-            Text trailingText,
-            Text delimiterText,
+            Component leadingText,
+            Component nameText,
+            Component nameTranslationText,
+            Component bridgeText,
+            Component levelText,
+            Component trailingText,
+            Component delimiterText,
             String nameKey
     ) {
     }

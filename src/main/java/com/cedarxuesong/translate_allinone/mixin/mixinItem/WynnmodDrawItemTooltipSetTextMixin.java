@@ -11,7 +11,6 @@ import com.cedarxuesong.translate_allinone.utils.translate.TooltipTextDebugCopyS
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTextMatcherSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTranslationContext;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTranslationSupport;
-import net.minecraft.text.Text;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.Unique;
@@ -21,6 +20,7 @@ import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import net.minecraft.network.chat.Component;
 
 @Pseudo
 @Mixin(targets = "com.wynnmod.mixin.events.ContainerEvents$DrawItemTooltip", remap = false)
@@ -33,13 +33,13 @@ public abstract class WynnmodDrawItemTooltipSetTextMixin {
             at = @At("HEAD"),
             argsOnly = true
     )
-    private List<Text> translate_allinone$translateDecoratedTooltipAtSetText(List<Text> tooltip) {
+    private List<Component> translate_allinone$translateDecoratedTooltipAtSetText(List<Component> tooltip) {
         ItemTranslateConfig config = Translate_AllinOne.getConfig().itemTranslate;
         if (tooltip == null || tooltip.isEmpty()) {
             return tooltip;
         }
 
-        List<Text> sanitizedTooltip = TooltipInternalLineSupport.stripInternalGeneratedLines(tooltip);
+        List<Component> sanitizedTooltip = TooltipInternalLineSupport.stripInternalGeneratedLines(tooltip);
         if (sanitizedTooltip == null || sanitizedTooltip.isEmpty()) {
             return tooltip;
         }
@@ -75,7 +75,7 @@ public abstract class WynnmodDrawItemTooltipSetTextMixin {
                 "wynnmod-setText"
         );
 
-        List<Text> translatedTooltip = TooltipInternalLineSupport.appendStatusLineIfNeeded(
+        List<Component> translatedTooltip = TooltipInternalLineSupport.appendStatusLineIfNeeded(
                 new ArrayList<>(processedTooltip.translatedLines()),
                 processedTooltip,
                 ITEM_STATUS_ANIMATION_KEY
@@ -102,7 +102,7 @@ public abstract class WynnmodDrawItemTooltipSetTextMixin {
     }
 
     @Unique
-    private static boolean translate_allinone$sameTooltipContent(List<Text> left, List<Text> right) {
+    private static boolean translate_allinone$sameTooltipContent(List<Component> left, List<Component> right) {
         if (left == right) {
             return true;
         }
@@ -111,8 +111,8 @@ public abstract class WynnmodDrawItemTooltipSetTextMixin {
         }
 
         for (int i = 0; i < left.size(); i++) {
-            Text leftLine = left.get(i);
-            Text rightLine = right.get(i);
+            Component leftLine = left.get(i);
+            Component rightLine = right.get(i);
             String leftValue = leftLine == null ? "" : leftLine.getString();
             String rightValue = rightLine == null ? "" : rightLine.getString();
             if (!leftValue.equals(rightValue)) {

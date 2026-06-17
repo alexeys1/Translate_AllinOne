@@ -10,16 +10,6 @@ import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
 import com.cedarxuesong.translate_allinone.utils.text.StylePreserver;
 import com.cedarxuesong.translate_allinone.utils.text.TemplateProcessor;
 import com.cedarxuesong.translate_allinone.utils.translate.TranslationErrorTextSupport;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.hud.InGameHud;
-import net.minecraft.scoreboard.Scoreboard;
-import net.minecraft.scoreboard.ScoreboardEntry;
-import net.minecraft.scoreboard.ScoreboardObjective;
-import net.minecraft.scoreboard.Team;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.spongepowered.asm.mixin.Mixin;
@@ -33,8 +23,18 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.Gui;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.world.scores.Objective;
+import net.minecraft.world.scores.PlayerScoreEntry;
+import net.minecraft.world.scores.PlayerTeam;
+import net.minecraft.world.scores.Scoreboard;
 
-@Mixin(InGameHud.class)
+@Mixin(Gui.class)
 public class InGameHudMixin {
     @Unique
     private static final Logger LOGGER = LoggerFactory.getLogger("Translate_AllinOne/InGameHudMixin");
@@ -49,10 +49,10 @@ public class InGameHudMixin {
     private static final String SCOREBOARD_TRANSLATION_ERROR_KEY = "text.translate_allinone.scoreboard.translation_error";
 
     @Unique
-    private static final ThreadLocal<Map<String, Text>> translate_allinone$scoreboardReplacements = new ThreadLocal<>();
+    private static final ThreadLocal<Map<String, Component>> translate_allinone$scoreboardReplacements = new ThreadLocal<>();
 
     @Unique
-    private Text translate_allinone$processTextForTranslation(Text originalText) {
+    private Component translate_allinone$processTextForTranslation(Component originalText) {
         if (originalText == null || originalText.getString().trim().isEmpty()) {
             return originalText;
         }
@@ -73,17 +73,17 @@ public class InGameHudMixin {
         }
 
         String reassembledOriginal = TemplateProcessor.reassemble(unicodeTemplate, templateResult.values());
-        Text originalTextObject = StylePreserver.reapplyStyles(reassembledOriginal, styleResult.styleMap);
+        Component originalTextObject = StylePreserver.reapplyStyles(reassembledOriginal, styleResult.styleMap);
 
         if (status == TranslationStatus.ERROR) {
             String errorMessage = lookupResult.errorMessage();
             if (translate_allinone$isMissingKeyIssue(errorMessage)) {
                 return AnimationManager.getAnimatedStyledText(originalTextObject, legacyTemplateKey, true);
             }
-            MutableText errorText = Text.translatable(
+            MutableComponent errorText = Component.translatable(
                     SCOREBOARD_TRANSLATION_ERROR_KEY,
                     TranslationErrorTextSupport.localizeReason(errorMessage)
-            ).formatted(Formatting.RED);
+            ).withStyle(ChatFormatting.RED);
             return errorText;
         }
 
@@ -100,10 +100,10 @@ public class InGameHudMixin {
     }
 
     @Inject(
-            method = "renderScoreboardSidebar(Lnet/minecraft/client/gui/DrawContext;Lnet/minecraft/scoreboard/ScoreboardObjective;)V",
+            method = "displayScoreboardSidebar(Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/world/scores/Objective;)V",
             at = @At("HEAD")
     )
-    private void onRenderScoreboardSidebarHead(DrawContext drawContext, ScoreboardObjective objective, CallbackInfo ci) {
+    private void onRenderScoreboardSidebarHead(GuiGraphicsExtractor drawContext, Objective objective, CallbackInfo ci) {
         try {
             ScoreboardConfig config = Translate_AllinOne.getConfig().scoreboardTranslate;
             if (!config.enabled) {
@@ -131,28 +131,28 @@ public class InGameHudMixin {
             }
 
             Scoreboard scoreboard = objective.getScoreboard();
-            Comparator<ScoreboardEntry> comparator = InGameHudAccessor.getScoreboardEntryComparator();
-            Map<String, Text> replacements = new HashMap<>();
+            Comparator<PlayerScoreEntry> comparator = InGameHudAccessor.getScoreboardEntryComparator();
+            Map<String, Component> replacements = new HashMap<>();
 
-            scoreboard.getScoreboardEntries(objective).stream()
-                    .filter(score -> !score.hidden())
+            scoreboard.listPlayerScores(objective).stream()
+                    .filter(score -> !score.isHidden())
                     .sorted(comparator)
                     .limit(15L)
                     .forEach(scoreboardEntry -> {
-                        Team team = scoreboard.getScoreHolderTeam(scoreboardEntry.owner());
-                        Text plainOwnerName = Text.literal(scoreboardEntry.owner());
-                        String originalDecoratedNameKey = Team.decorateName(team, plainOwnerName).getString();
+                        PlayerTeam team = scoreboard.getPlayersTeam(scoreboardEntry.owner());
+                        Component plainOwnerName = Component.literal(scoreboardEntry.owner());
+                        String originalDecoratedNameKey = PlayerTeam.formatNameForTeam(team, plainOwnerName).getString();
 
-                        MutableText newName = Text.empty();
+                        MutableComponent newName = Component.empty();
                         if (team != null) {
-                            Text prefix = config.enabled_translate_prefix_and_suffix_name ? translate_allinone$processTextForTranslation(team.getPrefix()) : team.getPrefix();
+                            Component prefix = config.enabled_translate_prefix_and_suffix_name ? translate_allinone$processTextForTranslation(team.getPlayerPrefix()) : team.getPlayerPrefix();
                             newName.append(prefix);
 
                             if (config.enabled_translate_player_name) {
                                 newName.append(plainOwnerName);
                             }
                             
-                            Text suffix = config.enabled_translate_prefix_and_suffix_name ? translate_allinone$processTextForTranslation(team.getSuffix()) : team.getSuffix();
+                            Component suffix = config.enabled_translate_prefix_and_suffix_name ? translate_allinone$processTextForTranslation(team.getPlayerSuffix()) : team.getPlayerSuffix();
                             newName.append(suffix);
 
                         } else {
@@ -171,30 +171,30 @@ public class InGameHudMixin {
     }
 
     @Redirect(
-            method = "renderScoreboardSidebar(Lnet/minecraft/client/gui/DrawContext;Lnet/minecraft/scoreboard/ScoreboardObjective;)V",
+            method = "displayScoreboardSidebar(Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/world/scores/Objective;)V",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/client/gui/DrawContext;drawText(Lnet/minecraft/client/font/TextRenderer;Lnet/minecraft/text/Text;IIIZ)V",
+                    target = "Lnet/minecraft/client/gui/GuiGraphicsExtractor;text(Lnet/minecraft/client/gui/Font;Lnet/minecraft/network/chat/Component;IIIZ)V",
                     ordinal = 1
             )
     )
-    private void redirectNameDraw(DrawContext instance, TextRenderer textRenderer, Text text, int x, int y, int color, boolean shadow) {
-        Map<String, Text> replacements = translate_allinone$scoreboardReplacements.get();
-        Text textToDraw = text;
+    private void redirectNameDraw(GuiGraphicsExtractor instance, Font textRenderer, Component text, int x, int y, int color, boolean shadow) {
+        Map<String, Component> replacements = translate_allinone$scoreboardReplacements.get();
+        Component textToDraw = text;
         if (replacements != null) {
-            Text replacement = replacements.get(text.getString());
+            Component replacement = replacements.get(text.getString());
             if (replacement != null) {
                 textToDraw = replacement;
             }
         }
-        instance.drawText(textRenderer, textToDraw, x, y, color, true);
+        instance.text(textRenderer, textToDraw, x, y, color, true);
     }
 
     @Inject(
-            method = "renderScoreboardSidebar(Lnet/minecraft/client/gui/DrawContext;Lnet/minecraft/scoreboard/ScoreboardObjective;)V",
+            method = "displayScoreboardSidebar(Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/world/scores/Objective;)V",
             at = @At("RETURN")
     )
-    private void onRenderScoreboardSidebarReturn(DrawContext drawContext, ScoreboardObjective objective, CallbackInfo ci) {
+    private void onRenderScoreboardSidebarReturn(GuiGraphicsExtractor drawContext, Objective objective, CallbackInfo ci) {
         translate_allinone$scoreboardReplacements.remove();
     }
 }

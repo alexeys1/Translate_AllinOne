@@ -4,12 +4,11 @@ import com.cedarxuesong.translate_allinone.gui.configui.support.ProviderEditorSu
 import com.cedarxuesong.translate_allinone.gui.configui.support.ProviderProfileSupport;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ApiProviderType;
-import net.minecraft.text.Text;
-
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import net.minecraft.network.chat.Component;
 
 public final class ProviderDetailSectionSupport {
     private static final int ROW_STEP = 24;
@@ -243,7 +242,7 @@ public final class ProviderDetailSectionSupport {
                         rowY,
                         mainWidth,
                         20,
-                        () -> Text.literal("[M] " + modelId + (active ? "  *" : "")),
+                        () -> Component.literal("[M] " + modelId + (active ? "  *" : "")),
                         () -> onSetDefaultModel.accept(profile, modelId),
                         active ? style.colorBlockSelected() : style.colorBlock(),
                         active ? style.colorBlockSelectedHover() : style.colorBlockHover(),
@@ -256,7 +255,7 @@ public final class ProviderDetailSectionSupport {
                         rowY,
                         settingsWidth,
                         20,
-                        () -> Text.literal("S"),
+                        () -> Component.literal("S"),
                         () -> onOpenModelSettings.accept(profile, modelId),
                         style.colorBlock(),
                         style.colorBlockHover(),
@@ -269,7 +268,7 @@ public final class ProviderDetailSectionSupport {
                         rowY,
                         deleteModelWidth,
                         20,
-                        () -> Text.literal("X"),
+                        () -> Component.literal("X"),
                         () -> onRemoveModel.accept(profile, modelId),
                         style.colorBlockDanger(),
                         style.colorBlockDangerHover(),
@@ -319,7 +318,7 @@ public final class ProviderDetailSectionSupport {
 
     private static void addGroupBox(
             GroupBoxAdder groupBoxAdder,
-            Text title,
+            Component title,
             int x,
             int width,
             int contentStartY,
@@ -458,7 +457,7 @@ public final class ProviderDetailSectionSupport {
             int x,
             int y,
             int width,
-            Text label,
+            Component label,
             String initialValue,
             Consumer<String> onChanged,
             int maxLength,
@@ -500,13 +499,13 @@ public final class ProviderDetailSectionSupport {
                 int y,
                 int width,
                 int height,
-                Supplier<Text> labelSupplier,
+                Supplier<Component> labelSupplier,
                 Runnable action,
                 int color,
                 int hoverColor,
                 int textColor,
                 boolean centered,
-                Text tooltip
+                Component tooltip
         );
     }
 
@@ -518,7 +517,7 @@ public final class ProviderDetailSectionSupport {
                 int width,
                 int maxLength,
                 String initialValue,
-                Text placeholder,
+                Component placeholder,
                 Consumer<String> changed,
                 boolean editable
         );
@@ -526,17 +525,17 @@ public final class ProviderDetailSectionSupport {
 
     @FunctionalInterface
     public interface Translator {
-        Text t(String key, Object... args);
+        Component t(String key, Object... args);
     }
 
     @FunctionalInterface
     public interface GroupBoxAdder {
-        void add(int x, int y, int width, int height, Text title);
+        void add(int x, int y, int width, int height, Component title);
     }
 
     @FunctionalInterface
     public interface ProviderTypeLabelProvider {
-        Text label(ApiProviderType providerType);
+        Component label(ApiProviderType providerType);
     }
 
     public record Style(

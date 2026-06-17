@@ -13,15 +13,6 @@ import com.cedarxuesong.translate_allinone.utils.llmapi.ProviderSettings;
 import com.cedarxuesong.translate_allinone.utils.llmapi.openai.OpenAIRequest;
 import com.cedarxuesong.translate_allinone.utils.text.StylePreserver;
 import com.cedarxuesong.translate_allinone.utils.text.TemplateProcessor;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.hud.ChatHud;
-import net.minecraft.client.gui.hud.ChatHudLine;
-import net.minecraft.text.ClickEvent;
-import net.minecraft.text.HoverEvent;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Style;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,12 +31,21 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.multiplayer.chat.GuiMessage;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.ChatComponent;
+import net.minecraft.network.chat.ClickEvent;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.HoverEvent;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
 
 public class ChatOutputTranslateManager {
     private static final Logger LOGGER = LoggerFactory.getLogger(ChatOutputTranslateManager.class);
     private static final String CHAT_TRANSLATE_ACTION = "translate";
     private static final String CHAT_RESTORE_ACTION = "restore";
-    private static final Map<UUID, ChatHudLine> activeTranslationLines = new ConcurrentHashMap<>();
+    private static final Map<UUID, GuiMessage> activeTranslationLines = new ConcurrentHashMap<>();
     private static final Map<UUID, Integer> lineLocateRetryCounts = new ConcurrentHashMap<>();
     private static ExecutorService translationExecutor;
     private static int currentConcurrentRequests = -1;
@@ -58,15 +58,15 @@ public class ChatOutputTranslateManager {
     private static final Pattern STYLE_TAG_PATTERN = Pattern.compile("<s(\\d+)>(.*?)</s\\1>", Pattern.DOTALL);
     private static final Pattern CHAT_IGNORABLE_PLACEHOLDER_PATTERN = Pattern.compile("\\{c(\\d+)}");
 
-    public static Text buildOriginalMessageWithToggle(UUID messageId, Text originalMessage) {
+    public static Component buildOriginalMessageWithToggle(UUID messageId, Component originalMessage) {
         return appendToggleButton(messageId, originalMessage, CHAT_TRANSLATE_ACTION, "text.translate_allinone.translate_button_hover");
     }
 
-    public static Text buildTranslatedMessageWithToggle(UUID messageId, Text translatedMessage) {
+    public static Component buildTranslatedMessageWithToggle(UUID messageId, Component translatedMessage) {
         return appendToggleButton(messageId, translatedMessage, CHAT_RESTORE_ACTION, "text.translate_allinone.restore_button_hover");
     }
 
-    public static void logInterceptedMessage(UUID messageId, Text originalMessage, String plainText, boolean autoTranslate) {
+    public static void logInterceptedMessage(UUID messageId, Component originalMessage, String plainText, boolean autoTranslate) {
         if (!shouldLogInterceptedMessage()) {
             return;
         }
@@ -98,16 +98,16 @@ public class ChatOutputTranslateManager {
         }
     }
 
-    public static void translate(UUID messageId, Text originalMessage) {
+    public static void translate(UUID messageId, Component originalMessage) {
         if (activeTranslationLines.containsKey(messageId)) {
             lineLocateRetryCounts.remove(messageId);
             return; // Already being translated
         }
 
-        MinecraftClient client = MinecraftClient.getInstance();
-        ChatHud chatHud = client.inGameHud.getChatHud();
+        Minecraft client = Minecraft.getInstance();
+        ChatComponent chatHud = client.gui.getChat();
         ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
-        List<ChatHudLine> messages = chatHudAccessor.getMessages();
+        List<GuiMessage> messages = chatHudAccessor.getMessages();
         LineSearchResult searchResult = findTargetLine(messages, originalMessage);
 
         if (searchResult == null) {
@@ -121,7 +121,7 @@ public class ChatOutputTranslateManager {
         }
         lineLocateRetryCounts.remove(messageId);
         int lineIndex = searchResult.lineIndex();
-        ChatHudLine targetLine = searchResult.line();
+        GuiMessage targetLine = searchResult.line();
         logChatLineMapping(messageId, "locate_original", lineIndex, targetLine.content());
 
         updateExecutorServiceIfNeeded();
@@ -140,33 +140,33 @@ public class ChatOutputTranslateManager {
 
         boolean isAutoTranslate = chatOutputConfig.auto_translate;
         boolean isStreaming = chatOutputConfig.streaming_response;
-        Text placeholderText;
+        Component placeholderText;
 
         if (isStreaming) {
-            placeholderText = Text.literal("Connecting...").formatted(Formatting.GRAY);
+            placeholderText = Component.literal("Connecting...").withStyle(ChatFormatting.GRAY);
         } else if (isAutoTranslate) {
             String plainText = AnimationManager.stripFormatting(originalMessage.getString());
-            MutableText newText = Text.literal(plainText);
+            MutableComponent newText = Component.literal(plainText);
 
             Style baseStyle = originalMessage.getStyle();
-            Style newStyle = baseStyle.withColor(Formatting.GRAY);
+            Style newStyle = baseStyle.withColor(ChatFormatting.GRAY);
             newText.setStyle(newStyle);
 
             if (!originalMessage.getSiblings().isEmpty()) {
-                MutableText fullText = Text.empty();
+                MutableComponent fullText = Component.empty();
                 originalMessage.getSiblings().forEach(sibling -> {
                     String plainSibling = AnimationManager.stripFormatting(sibling.getString());
-                    fullText.append(Text.literal(plainSibling).setStyle(sibling.getStyle().withColor(Formatting.GRAY)));
+                    fullText.append(Component.literal(plainSibling).setStyle(sibling.getStyle().withColor(ChatFormatting.GRAY)));
                 });
                 placeholderText = fullText;
             } else {
                 placeholderText = newText;
             }
         } else {
-            placeholderText = Text.translatable(TRANSLATING_KEY).formatted(Formatting.GRAY);
+            placeholderText = Component.translatable(TRANSLATING_KEY).withStyle(ChatFormatting.GRAY);
         }
 
-        ChatHudLine newLine = new ChatHudLine(targetLine.creationTick(), placeholderText, targetLine.signature(), targetLine.indicator());
+        GuiMessage newLine = new GuiMessage(targetLine.addedTime(), placeholderText, targetLine.signature(), targetLine.source(), targetLine.tag());
         int scrolledLines = chatHudAccessor.getScrolledLines();
         messages.set(lineIndex, newLine);
         activeTranslationLines.put(messageId, newLine);
@@ -206,13 +206,13 @@ public class ChatOutputTranslateManager {
                                 if (endTagIndex != -1) {
                                     inThinkTag.set(false);
                                     rawResponseBuffer.delete(0, endTagIndex + "</think>".length());
-                                    updateInProgressChatLine(messageId, Text.literal(visibleContentBuffer.toString().replaceAll("</?s\\d+>", "")));
+                                    updateInProgressChatLine(messageId, Component.literal(visibleContentBuffer.toString().replaceAll("</?s\\d+>", "")));
                                     continue;
                                 } else {
                                     int startTagIndex = rawResponseBuffer.indexOf("<think>");
                                     if (startTagIndex != -1) {
                                         String thinkContent = rawResponseBuffer.substring(startTagIndex + "<think>".length());
-                                        updateInProgressChatLine(messageId, Text.literal("Thinking: ").append(thinkContent).formatted(Formatting.GRAY));
+                                        updateInProgressChatLine(messageId, Component.literal("Thinking: ").append(thinkContent).withStyle(ChatFormatting.GRAY));
                                     }
                                     break;
                                 }
@@ -221,7 +221,7 @@ public class ChatOutputTranslateManager {
                                 if (startTagIndex != -1) {
                                     String translationPart = rawResponseBuffer.substring(0, startTagIndex);
                                     visibleContentBuffer.append(translationPart);
-                                    updateInProgressChatLine(messageId, Text.literal(visibleContentBuffer.toString().replaceAll("</?s\\d+>", "")));
+                                    updateInProgressChatLine(messageId, Component.literal(visibleContentBuffer.toString().replaceAll("</?s\\d+>", "")));
 
                                     rawResponseBuffer.delete(0, startTagIndex);
                                     inThinkTag.set(true);
@@ -229,14 +229,14 @@ public class ChatOutputTranslateManager {
                                 } else {
                                     visibleContentBuffer.append(rawResponseBuffer.toString());
                                     rawResponseBuffer.setLength(0);
-                                    updateInProgressChatLine(messageId, Text.literal(visibleContentBuffer.toString().replaceAll("</?s\\d+>", "")));
+                                    updateInProgressChatLine(messageId, Component.literal(visibleContentBuffer.toString().replaceAll("</?s\\d+>", "")));
                                     break;
                                 }
                             }
                         }
                     });
 
-                    Text finalStyledText = rebuildTranslatedText(visibleContentBuffer.toString().stripLeading(), preparedTranslation);
+                    Component finalStyledText = rebuildTranslatedText(visibleContentBuffer.toString().stripLeading(), preparedTranslation);
                     logReflowResult(
                             messageId,
                             true,
@@ -250,13 +250,13 @@ public class ChatOutputTranslateManager {
                     String result = llm.getCompletion(apiMessages, requestContext).join();
                     LOGGER.info("Finished translation for message ID: {}. Result: {}", messageId, result);
                     final String finalTranslation = result.stripLeading();
-                    Text finalStyledText = rebuildTranslatedText(finalTranslation, preparedTranslation);
+                    Component finalStyledText = rebuildTranslatedText(finalTranslation, preparedTranslation);
                     logReflowResult(messageId, false, result, finalTranslation, finalStyledText, styleMap);
                     updateChatLineWithFinalText(messageId, finalStyledText);
                 }
             } catch (Exception e) {
                 LOGGER.error("[Translate-Thread] Exception for message ID: {}. context={}", messageId, requestContext, e);
-                Text errorText = Text.translatable(TRANSLATION_ERROR_KEY, TranslationErrorTextSupport.localizeReason(e.getMessage())).formatted(Formatting.RED);
+                Component errorText = Component.translatable(TRANSLATION_ERROR_KEY, TranslationErrorTextSupport.localizeReason(e.getMessage())).withStyle(ChatFormatting.RED);
                 updateChatLineWithFinalText(messageId, errorText);
             }
         });
@@ -272,34 +272,34 @@ public class ChatOutputTranslateManager {
             return;
         }
 
-        Text originalMessage = trackedMessage.originalMessage();
-        Text translatedMessage = trackedMessage.translatedMessage();
+        Component originalMessage = trackedMessage.originalMessage();
+        Component translatedMessage = trackedMessage.translatedMessage();
         if (originalMessage == null || translatedMessage == null) {
             return;
         }
 
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client == null) {
             return;
         }
 
         client.execute(() -> {
-            ChatHud chatHud = client.inGameHud == null ? null : client.inGameHud.getChatHud();
+            ChatComponent chatHud = client.gui == null ? null : client.gui.getChat();
             if (chatHud == null) {
                 return;
             }
 
             ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
-            List<ChatHudLine> messages = chatHudAccessor.getMessages();
+            List<GuiMessage> messages = chatHudAccessor.getMessages();
             LineSearchResult searchResult = findTargetLine(messages, translatedMessage);
             if (searchResult == null) {
                 return;
             }
 
             int scrolledLines = chatHudAccessor.getScrolledLines();
-            Text restoredContent = buildOriginalMessageWithToggle(messageId, originalMessage);
-            ChatHudLine targetLine = searchResult.line();
-            ChatHudLine restoredLine = new ChatHudLine(targetLine.creationTick(), restoredContent, targetLine.signature(), targetLine.indicator());
+            Component restoredContent = buildOriginalMessageWithToggle(messageId, originalMessage);
+            GuiMessage targetLine = searchResult.line();
+            GuiMessage restoredLine = new GuiMessage(targetLine.addedTime(), restoredContent, targetLine.signature(), targetLine.source(), targetLine.tag());
             messages.set(searchResult.lineIndex(), restoredLine);
             chatHudAccessor.invokeRefresh();
             chatHudAccessor.setScrolledLines(scrolledLines);
@@ -307,22 +307,22 @@ public class ChatOutputTranslateManager {
         });
     }
 
-    private static void updateInProgressChatLine(UUID messageId, Text newContent) {
-        ChatHudLine lineToUpdate = activeTranslationLines.get(messageId);
+    private static void updateInProgressChatLine(UUID messageId, Component newContent) {
+        GuiMessage lineToUpdate = activeTranslationLines.get(messageId);
         if (lineToUpdate == null) return;
 
-        MinecraftClient.getInstance().execute(() -> {
-            ChatHud chatHud = MinecraftClient.getInstance().inGameHud.getChatHud();
+        Minecraft.getInstance().execute(() -> {
+            ChatComponent chatHud = Minecraft.getInstance().gui.getChat();
             if (chatHud == null) return;
 
             ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
-            List<ChatHudLine> messages = chatHudAccessor.getMessages();
+            List<GuiMessage> messages = chatHudAccessor.getMessages();
             int scrolledLines = chatHudAccessor.getScrolledLines();
 
             int lineIndex = messages.indexOf(lineToUpdate);
 
             if (lineIndex != -1) {
-                ChatHudLine newLine = new ChatHudLine(lineToUpdate.creationTick(), newContent, lineToUpdate.signature(), lineToUpdate.indicator());
+                GuiMessage newLine = new GuiMessage(lineToUpdate.addedTime(), newContent, lineToUpdate.signature(), lineToUpdate.source(), lineToUpdate.tag());
                 messages.set(lineIndex, newLine);
                 activeTranslationLines.put(messageId, newLine);
                 chatHudAccessor.invokeRefresh();
@@ -331,27 +331,27 @@ public class ChatOutputTranslateManager {
         });
     }
 
-    private static void updateChatLineWithFinalText(UUID messageId, Text finalContent) {
+    private static void updateChatLineWithFinalText(UUID messageId, Component finalContent) {
         lineLocateRetryCounts.remove(messageId);
-        ChatHudLine lineToUpdate = activeTranslationLines.remove(messageId);
+        GuiMessage lineToUpdate = activeTranslationLines.remove(messageId);
         if (lineToUpdate == null) {
             logChatLineMapping(messageId, "final_update_missing_active_line", -1, finalContent);
             return;
         }
 
-        MinecraftClient.getInstance().execute(() -> {
-            ChatHud chatHud = MinecraftClient.getInstance().inGameHud.getChatHud();
+        Minecraft.getInstance().execute(() -> {
+            ChatComponent chatHud = Minecraft.getInstance().gui.getChat();
             if (chatHud == null) return;
 
             ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
-            List<ChatHudLine> messages = chatHudAccessor.getMessages();
+            List<GuiMessage> messages = chatHudAccessor.getMessages();
             int scrolledLines = chatHudAccessor.getScrolledLines();
 
             int lineIndex = messages.indexOf(lineToUpdate);
 
             if (lineIndex != -1) {
-                Text finalLineContent = buildTranslatedMessageWithToggle(messageId, finalContent);
-                ChatHudLine newLine = new ChatHudLine(lineToUpdate.creationTick(), finalLineContent, lineToUpdate.signature(), lineToUpdate.indicator());
+                Component finalLineContent = buildTranslatedMessageWithToggle(messageId, finalContent);
+                GuiMessage newLine = new GuiMessage(lineToUpdate.addedTime(), finalLineContent, lineToUpdate.signature(), lineToUpdate.source(), lineToUpdate.tag());
                 messages.set(lineIndex, newLine);
                 chatHudAccessor.invokeRefresh();
                 chatHudAccessor.setScrolledLines(scrolledLines);
@@ -366,19 +366,19 @@ public class ChatOutputTranslateManager {
     private static void showTemporaryRouteError(
             UUID messageId,
             ChatHudAccessor chatHudAccessor,
-            List<ChatHudLine> messages,
+            List<GuiMessage> messages,
             int lineIndex,
-            ChatHudLine originalLine
+            GuiMessage originalLine
     ) {
         int scrolledLines = chatHudAccessor.getScrolledLines();
-        Text errorText = Text.translatable(NO_ROUTED_MODEL_ERROR_KEY).formatted(Formatting.RED);
-        ChatHudLine errorLine = new ChatHudLine(originalLine.creationTick(), errorText, originalLine.signature(), originalLine.indicator());
+        Component errorText = Component.translatable(NO_ROUTED_MODEL_ERROR_KEY).withStyle(ChatFormatting.RED);
+        GuiMessage errorLine = new GuiMessage(originalLine.addedTime(), errorText, originalLine.signature(), originalLine.source(), originalLine.tag());
         messages.set(lineIndex, errorLine);
         chatHudAccessor.invokeRefresh();
         chatHudAccessor.setScrolledLines(scrolledLines);
 
         CompletableFuture.delayedExecutor(ROUTE_ERROR_DISPLAY_MS, TimeUnit.MILLISECONDS).execute(() -> {
-            MinecraftClient client = MinecraftClient.getInstance();
+            Minecraft client = Minecraft.getInstance();
             if (client == null) {
                 return;
             }
@@ -388,19 +388,19 @@ public class ChatOutputTranslateManager {
         MessageUtils.removeTrackedMessage(messageId);
     }
 
-    private static void restoreLineAfterTemporaryError(UUID messageId, ChatHudLine errorLine, ChatHudLine originalLine) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client == null || client.inGameHud == null) {
+    private static void restoreLineAfterTemporaryError(UUID messageId, GuiMessage errorLine, GuiMessage originalLine) {
+        Minecraft client = Minecraft.getInstance();
+        if (client == null || client.gui == null) {
             return;
         }
 
-        ChatHud chatHud = client.inGameHud.getChatHud();
+        ChatComponent chatHud = client.gui.getChat();
         if (chatHud == null) {
             return;
         }
 
         ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
-        List<ChatHudLine> messages = chatHudAccessor.getMessages();
+        List<GuiMessage> messages = chatHudAccessor.getMessages();
         int lineIndex = messages.indexOf(errorLine);
         if (lineIndex != -1) {
             int scrolledLines = chatHudAccessor.getScrolledLines();
@@ -412,16 +412,16 @@ public class ChatOutputTranslateManager {
         lineLocateRetryCounts.remove(messageId);
     }
 
-    private static LineSearchResult findTargetLine(List<ChatHudLine> messages, Text originalMessage) {
+    private static LineSearchResult findTargetLine(List<GuiMessage> messages, Component originalMessage) {
         for (int i = 0; i < messages.size(); i++) {
-            ChatHudLine line = messages.get(i);
+            GuiMessage line = messages.get(i);
             if (matchesTargetTextReference(line.content(), originalMessage)) {
                 return new LineSearchResult(i, line);
             }
         }
 
         for (int i = 0; i < messages.size(); i++) {
-            ChatHudLine line = messages.get(i);
+            GuiMessage line = messages.get(i);
             if (matchesTargetTextByContent(line.content(), originalMessage)) {
                 return new LineSearchResult(i, line);
             }
@@ -429,14 +429,14 @@ public class ChatOutputTranslateManager {
         return null;
     }
 
-    private static boolean matchesTargetTextReference(Text lineContent, Text originalMessage) {
+    private static boolean matchesTargetTextReference(Component lineContent, Component originalMessage) {
         if (lineContent.equals(originalMessage)) {
             return true;
         }
         return !lineContent.getSiblings().isEmpty() && lineContent.getSiblings().get(0).equals(originalMessage);
     }
 
-    private static boolean matchesTargetTextByContent(Text lineContent, Text originalMessage) {
+    private static boolean matchesTargetTextByContent(Component lineContent, Component originalMessage) {
         String original = originalMessage.getString();
         if (lineContent.getString().equals(original)) {
             return true;
@@ -444,7 +444,7 @@ public class ChatOutputTranslateManager {
         return !lineContent.getSiblings().isEmpty() && lineContent.getSiblings().get(0).getString().equals(original);
     }
 
-    private static boolean scheduleLineLocateRetry(UUID messageId, Text originalMessage) {
+    private static boolean scheduleLineLocateRetry(UUID messageId, Component originalMessage) {
         int attempt = lineLocateRetryCounts.merge(messageId, 1, Integer::sum);
         if (attempt > MAX_LINE_LOCATE_RETRIES) {
             return false;
@@ -452,7 +452,7 @@ public class ChatOutputTranslateManager {
         logLocateRetry(messageId, attempt, originalMessage);
 
         CompletableFuture.delayedExecutor(LINE_LOCATE_RETRY_DELAY_MS, TimeUnit.MILLISECONDS).execute(() -> {
-            MinecraftClient client = MinecraftClient.getInstance();
+            Minecraft client = Minecraft.getInstance();
             if (client == null) {
                 return;
             }
@@ -461,10 +461,10 @@ public class ChatOutputTranslateManager {
         return true;
     }
 
-    private record LineSearchResult(int lineIndex, ChatHudLine line) {
+    private record LineSearchResult(int lineIndex, GuiMessage line) {
     }
 
-    static PreparedChatTranslation prepareTranslationPayload(Text originalMessage) {
+    static PreparedChatTranslation prepareTranslationPayload(Component originalMessage) {
         StylePreserver.ExtractionResult extraction = StylePreserver.extractAndMarkWithTags(originalMessage);
         TemplateProcessor.TemplateExtractionResult templateResult = TemplateProcessor.extract(extraction.markedText);
         TemplateProcessor.DecorativeGlyphExtractionResult glyphResult = TemplateProcessor.extractDecorativeGlyphTags(templateResult.template());
@@ -479,9 +479,9 @@ public class ChatOutputTranslateManager {
         );
     }
 
-    static Text rebuildTranslatedText(String translatedText, PreparedChatTranslation preparedTranslation) {
+    static Component rebuildTranslatedText(String translatedText, PreparedChatTranslation preparedTranslation) {
         if (preparedTranslation == null) {
-            return Text.literal(translatedText == null ? "" : translatedText);
+            return Component.literal(translatedText == null ? "" : translatedText);
         }
 
         String reassembled = TemplateProcessor.reassemble(
@@ -604,13 +604,13 @@ public class ChatOutputTranslateManager {
     private record IgnorableChatSegmentExtractionResult(String template, List<String> values) {
     }
 
-    private static Text appendToggleButton(UUID messageId, Text messageContent, String action, String hoverTranslationKey) {
-        MutableText root = Text.empty().append(messageContent.copy());
-        MutableText toggleButton = Text.literal(" [T]");
+    private static Component appendToggleButton(UUID messageId, Component messageContent, String action, String hoverTranslationKey) {
+        MutableComponent root = Component.empty().append(messageContent.copy());
+        MutableComponent toggleButton = Component.literal(" [T]");
         Style toggleStyle = Style.EMPTY
-                .withColor(Formatting.GRAY)
+                .withColor(ChatFormatting.GRAY)
                 .withClickEvent(new ClickEvent.RunCommand("/translate_allinone translatechatline " + messageId + " " + action))
-                .withHoverEvent(new HoverEvent.ShowText(Text.translatable(hoverTranslationKey)));
+                .withHoverEvent(new HoverEvent.ShowText(Component.translatable(hoverTranslationKey)));
         toggleButton.setStyle(toggleStyle);
         root.append(toggleButton);
         return root;
@@ -671,7 +671,7 @@ public class ChatOutputTranslateManager {
             UUID messageId,
             ApiProviderProfile providerProfile,
             ChatTranslateConfig.ChatOutputTranslateConfig chatOutputConfig,
-            Text originalMessage,
+            Component originalMessage,
             String markedText,
             Map<Integer, Style> styleMap,
             List<OpenAIRequest.Message> apiMessages,
@@ -701,7 +701,7 @@ public class ChatOutputTranslateManager {
             boolean streaming,
             String rawModelOutput,
             String visibleTranslation,
-            Text finalStyledText,
+            Component finalStyledText,
             Map<Integer, Style> styleMap
     ) {
         if (!shouldLogReflowMapping()) {
@@ -720,7 +720,7 @@ public class ChatOutputTranslateManager {
         );
     }
 
-    private static void logChatLineMapping(UUID messageId, String action, int lineIndex, Text content) {
+    private static void logChatLineMapping(UUID messageId, String action, int lineIndex, Component content) {
         if (!shouldLogReflowMapping()) {
             return;
         }
@@ -735,7 +735,7 @@ public class ChatOutputTranslateManager {
         );
     }
 
-    private static void logLocateRetry(UUID messageId, int attempt, Text originalMessage) {
+    private static void logLocateRetry(UUID messageId, int attempt, Component originalMessage) {
         if (!shouldLogReflowMapping()) {
             return;
         }
@@ -803,7 +803,7 @@ public class ChatOutputTranslateManager {
                 .collect(Collectors.joining(", ", "{", "}"));
     }
 
-    private static String describeTextSegments(Text text) {
+    private static String describeTextSegments(Component text) {
         if (text == null) {
             return "[]";
         }
@@ -825,7 +825,7 @@ public class ChatOutputTranslateManager {
 
         List<String> fields = new ArrayList<>();
         if (style.getColor() != null) {
-            fields.add("color=" + formatRgb(style.getColor().getRgb()));
+            fields.add("color=" + formatRgb(style.getColor().getValue()));
         }
         if (style.isBold()) {
             fields.add("bold");
@@ -846,7 +846,7 @@ public class ChatOutputTranslateManager {
             fields.add("font=" + style.getFont());
         }
         if (style.getClickEvent() != null) {
-            fields.add("click=" + style.getClickEvent().getAction().asString());
+            fields.add("click=" + style.getClickEvent().action().getSerializedName());
         }
         if (style.getHoverEvent() != null) {
             fields.add("hover");

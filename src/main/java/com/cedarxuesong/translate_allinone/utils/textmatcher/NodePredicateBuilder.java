@@ -1,14 +1,13 @@
 package com.cedarxuesong.translate_allinone.utils.textmatcher;
 
-import net.minecraft.text.Style;
-import net.minecraft.text.TextColor;
-import net.minecraft.util.Identifier;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import net.minecraft.network.chat.Style;
+import net.minecraft.network.chat.TextColor;
+import net.minecraft.resources.Identifier;
 
 public final class NodePredicateBuilder {
     private final List<Predicate<FlatNode>> predicates = new ArrayList<>();
@@ -17,7 +16,7 @@ public final class NodePredicateBuilder {
         int normalizedRgb = rgb & 0xFFFFFF;
         predicates.add(node -> {
             TextColor color = resolveStyle(node).getColor();
-            return color != null && (color.getRgb() & 0xFFFFFF) == normalizedRgb;
+            return color != null && (color.getValue() & 0xFFFFFF) == normalizedRgb;
         });
         return this;
     }
@@ -28,7 +27,7 @@ public final class NodePredicateBuilder {
     }
 
     public NodePredicateBuilder font(String namespace, String path) {
-        return font(Identifier.of(namespace, path));
+        return font(Identifier.fromNamespaceAndPath(namespace, path));
     }
 
     public NodePredicateBuilder font(Identifier font) {

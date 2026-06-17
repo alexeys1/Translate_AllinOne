@@ -1,16 +1,15 @@
 package com.cedarxuesong.translate_allinone.utils;
 
 import com.cedarxuesong.translate_allinone.utils.text.StylePreserver;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Style;
-import net.minecraft.text.Text;
-import net.minecraft.text.TextColor;
-import net.minecraft.util.math.ColorHelper;
-
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
+import net.minecraft.network.chat.TextColor;
+import net.minecraft.util.ARGB;
 
 public class AnimationManager {
     private static final int DARK_GREY = 0x555555;
@@ -44,17 +43,17 @@ public class AnimationManager {
         return STRIP_FORMATTING_PATTERN.matcher(text).replaceAll("");
     }
 
-    public static MutableText getAnimatedText(String text) {
+    public static MutableComponent getAnimatedText(String text) {
         String plainText = stripFormatting(text);
-        MutableText animatedText = Text.empty();
+        MutableComponent animatedText = Component.empty();
         long time = System.currentTimeMillis();
 
         int codePointIndex = 0;
         for (int offset = 0; offset < plainText.length(); ) {
             int codePoint = plainText.codePointAt(offset);
             float sine = (float) (Math.sin(time / 200.0 + codePointIndex / 5.0) + 1.0) / 2.0f;
-            int color = ColorHelper.lerp(sine, DARK_GREY, LIGHT_GREY);
-            animatedText.append(Text.literal(new String(Character.toChars(codePoint)))
+            int color = ARGB.srgbLerp(sine, DARK_GREY, LIGHT_GREY);
+            animatedText.append(Component.literal(new String(Character.toChars(codePoint)))
                     .setStyle(Style.EMPTY.withColor(TextColor.fromRgb(color))));
             offset += Character.charCount(codePoint);
             codePointIndex++;
@@ -62,12 +61,12 @@ public class AnimationManager {
         return animatedText;
     }
 
-    public static MutableText getAnimatedStyledText(Text originalText) {
+    public static MutableComponent getAnimatedStyledText(Component originalText) {
         return getAnimatedStyledText(originalText, null, false);
     }
 
-    public static MutableText getAnimatedStyledText(Text originalText, String animationKey, boolean alertMissingKeys) {
-        MutableText animatedText = Text.empty();
+    public static MutableComponent getAnimatedStyledText(Component originalText, String animationKey, boolean alertMissingKeys) {
+        MutableComponent animatedText = Component.empty();
         if (originalText == null) {
             return animatedText;
         }
@@ -100,7 +99,7 @@ public class AnimationManager {
     }
 
     private static void appendAnimatedSegment(
-            MutableText animatedText,
+            MutableComponent animatedText,
             Style style,
             String text,
             long time,
@@ -117,12 +116,12 @@ public class AnimationManager {
             float baseSine = (float) (Math.sin(time / 200.0 + charIndex.get() / 5.0) + 1.0) / 2.0f;
             float alertSine = (float) (Math.sin(time / 120.0 + charIndex.get() / 2.5) + 1.0) / 2.0f;
 
-            int baseColor = ColorHelper.lerp(baseSine, DARK_GREY, LIGHT_GREY);
-            int alertColor = ColorHelper.lerp(alertSine, DARK_RED, LIGHT_RED);
-            int color = ColorHelper.lerp(alertProgress, baseColor, alertColor);
+            int baseColor = ARGB.srgbLerp(baseSine, DARK_GREY, LIGHT_GREY);
+            int alertColor = ARGB.srgbLerp(alertSine, DARK_RED, LIGHT_RED);
+            int color = ARGB.srgbLerp(alertProgress, baseColor, alertColor);
 
             Style newStyle = resolvedStyle.withColor(TextColor.fromRgb(color));
-            animatedText.append(Text.literal(new String(Character.toChars(codePoint))).setStyle(newStyle));
+            animatedText.append(Component.literal(new String(Character.toChars(codePoint))).setStyle(newStyle));
             offset += Character.charCount(codePoint);
             charIndex.incrementAndGet();
         }

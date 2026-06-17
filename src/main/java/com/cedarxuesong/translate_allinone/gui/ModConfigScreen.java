@@ -54,14 +54,14 @@ import com.cedarxuesong.translate_allinone.utils.translate.DictionaryFileSelecti
 import com.cedarxuesong.translate_allinone.utils.update.UpdateCheckManager;
 import com.google.gson.Gson;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.client.gui.Click;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.client.input.CharInput;
-import net.minecraft.client.input.KeyInput;
-import net.minecraft.text.OrderedText;
-import net.minecraft.text.Text;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.CharacterEvent;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.network.chat.Component;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Util;
 
 import java.io.IOException;
@@ -274,8 +274,8 @@ public class ModConfigScreen extends Screen {
     private final ActionBlockRegistry contentActionBlockRegistry = new ActionBlockRegistry(contentActionBlocks, COLOR_BLOCK, COLOR_BLOCK_HOVER, COLOR_TEXT);
     private final ActionBlockRegistry floatingActionBlockRegistry = new ActionBlockRegistry(floatingActionBlocks, COLOR_BLOCK, COLOR_BLOCK_HOVER, COLOR_TEXT);
     private final List<IntSliderBlock> sliderBlocks = new ArrayList<>();
-    private final List<TextFieldWidget> providerEditorFields = new ArrayList<>();
-    private final List<TextFieldWidget> floatingEditorFields = new ArrayList<>();
+    private final List<EditBox> providerEditorFields = new ArrayList<>();
+    private final List<EditBox> floatingEditorFields = new ArrayList<>();
     private IntSliderBlock draggingSlider;
     private long sliderAnimationLastNanos = System.nanoTime();
 
@@ -286,9 +286,9 @@ public class ModConfigScreen extends Screen {
     private String providerSearchQuery = "";
     private RouteSlot routeDropdownSlot;
 
-    private TextFieldWidget providerSearchField;
-    private TextFieldWidget addProviderNameField;
-    private TextFieldWidget modelSettingsField;
+    private EditBox providerSearchField;
+    private EditBox addProviderNameField;
+    private EditBox modelSettingsField;
 
     private boolean addProviderModalOpen;
     private String addProviderNameDraft = "";
@@ -316,8 +316,8 @@ public class ModConfigScreen extends Screen {
     private String promptEditorProviderId = "";
     private boolean updateNoticeAutoPrompted;
     private String selectedCustomParameterPath = "";
-    private TextFieldWidget customParameterNameField;
-    private TextFieldWidget customParameterValueField;
+    private EditBox customParameterNameField;
+    private EditBox customParameterValueField;
     private boolean modelSettingsSetDefault;
     private DictionaryFileSelectionSupport.Slot dictionaryFilesModalSlot = DictionaryFileSelectionSupport.Slot.WYNNCRAFT_DIALOGUE;
     private List<String> dictionaryFilesSelectionBackup = new ArrayList<>();
@@ -337,7 +337,7 @@ public class ModConfigScreen extends Screen {
     private int contentDragStartOffset;
     private double contentDragStartMouseY;
 
-    private Text statusMessage = Text.empty();
+    private Component statusMessage = Component.empty();
     private int statusColor = COLOR_STATUS_OK;
     private long statusExpireAtMillis;
     private boolean restoreSnapshotOnClose = true;
@@ -357,8 +357,8 @@ public class ModConfigScreen extends Screen {
         this.selectedSection = selectedSection;
     }
 
-    private static Text t(String key, Object... args) {
-        return Text.translatable(I18N_PREFIX + key, args);
+    private static Component t(String key, Object... args) {
+        return Component.translatable(I18N_PREFIX + key, args);
     }
 
     private static Path resolveScreenStatePath() {
@@ -429,7 +429,7 @@ public class ModConfigScreen extends Screen {
                 .orElse("");
     }
 
-    private Text versionLinkText() {
+    private Component versionLinkText() {
         return t("version_link", modVersion);
     }
 
@@ -438,25 +438,25 @@ public class ModConfigScreen extends Screen {
             return new UiRect(0, 0, 0, 0);
         }
 
-        Text versionText = versionLinkText();
-        int textWidth = this.textRenderer.getWidth(versionText);
+        Component versionText = versionLinkText();
+        int textWidth = this.font.width(versionText);
         if (textWidth <= 0) {
             return new UiRect(0, 0, 0, 0);
         }
 
-        int minX = TOP_BAR_TITLE_X + this.textRenderer.getWidth(this.title) + TOP_BAR_LINK_GAP;
+        int minX = TOP_BAR_TITLE_X + this.font.width(this.title) + TOP_BAR_LINK_GAP;
         int x = this.width - TOP_BAR_ACTIONS_LEFT_MARGIN - TOP_BAR_LINK_GAP - textWidth;
         if (x < minX) {
             return new UiRect(0, 0, 0, 0);
         }
-        return new UiRect(x, TOP_BAR_TEXT_Y, textWidth, this.textRenderer.fontHeight + 2);
+        return new UiRect(x, TOP_BAR_TEXT_Y, textWidth, this.font.lineHeight + 2);
     }
 
     private void updateVersionLinkRect() {
         versionLinkRect = resolveVersionLinkRect();
     }
 
-    private void renderVersionLink(DrawContext context, int mouseX, int mouseY, long nowMillis) {
+    private void renderVersionLink(GuiGraphicsExtractor context, int mouseX, int mouseY, long nowMillis) {
         updateVersionLinkRect();
         if (versionLinkRect.width <= 0 || versionLinkRect.height <= 0) {
             return;
@@ -464,10 +464,10 @@ public class ModConfigScreen extends Screen {
 
         boolean hovered = versionLinkRect.contains(mouseX, mouseY);
         int color = hovered ? COLOR_TEXT_LINK_HOVER : COLOR_TEXT_LINK;
-        Text versionText = versionLinkText();
-        context.drawText(this.textRenderer, versionText, versionLinkRect.x, versionLinkRect.y, color, false);
+        Component versionText = versionLinkText();
+        context.text(this.font, versionText, versionLinkRect.x, versionLinkRect.y, color, false);
 
-        int underlineY = versionLinkRect.y + this.textRenderer.fontHeight + 1;
+        int underlineY = versionLinkRect.y + this.font.lineHeight + 1;
         context.fill(versionLinkRect.x, underlineY, versionLinkRect.right(), underlineY + 1, color);
     }
 
@@ -513,8 +513,8 @@ public class ModConfigScreen extends Screen {
         restoreSnapshotOnClose = false;
         unsavedChangesConfirmModalOpen = false;
 
-        if (this.client != null) {
-            this.client.setScreen(parent);
+        if (this.minecraft != null) {
+            this.minecraft.setScreen(parent);
         }
     }
 
@@ -541,7 +541,7 @@ public class ModConfigScreen extends Screen {
 
     private void rebuildActionBlocks(FocusTarget focusTarget) {
         ensureSelectedSectionVisible();
-        clearChildren();
+        clearWidgets();
         actionBlocks.clear();
         contentActionBlocks.clear();
         floatingActionBlocks.clear();
@@ -658,9 +658,9 @@ public class ModConfigScreen extends Screen {
     }
 
     private boolean shouldShowDebugSection() {
-        return this.client != null
-                && this.client.player != null
-                && DEBUG_SECTION_ACCOUNT_UUID.equalsIgnoreCase(this.client.player.getUuid().toString());
+        return this.minecraft != null
+                && this.minecraft.player != null
+                && DEBUG_SECTION_ACCOUNT_UUID.equalsIgnoreCase(this.minecraft.player.getUUID().toString());
     }
 
     private void addSectionSpecificActions() {
@@ -856,7 +856,7 @@ public class ModConfigScreen extends Screen {
         draggingContentByMouse = false;
     }
 
-    private void drawContentScrollbar(DrawContext context, int mouseX, int mouseY) {
+    private void drawContentScrollbar(GuiGraphicsExtractor context, int mouseX, int mouseY) {
         UiRect track = scrollbarTrackRect();
         UiRect thumb = scrollbarThumbRect();
         if (track == null || thumb == null) {
@@ -870,7 +870,7 @@ public class ModConfigScreen extends Screen {
         ConfigUiDraw.drawOutline(context, track.x, track.y, track.width, track.height, COLOR_BORDER);
     }
 
-    private Text providerTypeDisplayName(ApiProviderType providerType) {
+    private Component providerTypeDisplayName(ApiProviderType providerType) {
         return t("provider_type." + providerType.name().toLowerCase(Locale.ROOT));
     }
 
@@ -966,8 +966,8 @@ public class ModConfigScreen extends Screen {
                         COLOR_STATUS_OK,
                         COLOR_STATUS_ERROR,
                         runnable -> {
-                            if (this.client != null) {
-                                this.client.execute(runnable);
+                            if (this.minecraft != null) {
+                                this.minecraft.execute(runnable);
                             } else {
                                 runnable.run();
                             }
@@ -1009,26 +1009,26 @@ public class ModConfigScreen extends Screen {
         return result.contentBottomY();
     }
 
-    private TextFieldWidget addTextField(
+    private EditBox addTextField(
             int x,
             int y,
             int width,
             int maxLength,
             String initialValue,
-            Text placeholder,
+            Component placeholder,
             Consumer<String> changed,
             boolean editable
     ) {
         return addTextField(x, y, width, maxLength, initialValue, placeholder, changed, value -> true, editable, false);
     }
 
-    private TextFieldWidget addTextField(
+    private EditBox addTextField(
             int x,
             int y,
             int width,
             int maxLength,
             String initialValue,
-            Text placeholder,
+            Component placeholder,
             Consumer<String> changed,
             Predicate<String> textPredicate,
             boolean editable
@@ -1036,13 +1036,13 @@ public class ModConfigScreen extends Screen {
         return addTextField(x, y, width, maxLength, initialValue, placeholder, changed, textPredicate, editable, false);
     }
 
-    private TextFieldWidget addTextField(
+    private EditBox addTextField(
             int x,
             int y,
             int width,
             int maxLength,
             String initialValue,
-            Text placeholder,
+            Component placeholder,
             Consumer<String> changed,
             boolean editable,
             boolean floating
@@ -1050,21 +1050,21 @@ public class ModConfigScreen extends Screen {
         return addTextField(x, y, width, maxLength, initialValue, placeholder, changed, value -> true, editable, floating);
     }
 
-    private TextFieldWidget addTextField(
+    private EditBox addTextField(
             int x,
             int y,
             int width,
             int maxLength,
             String initialValue,
-            Text placeholder,
+            Component placeholder,
             Consumer<String> changed,
             Predicate<String> textPredicate,
             boolean editable,
             boolean floating
     ) {
         return ConfigUiTextFieldSupport.create(
-                this.textRenderer,
-                this::addDrawableChild,
+                this.font,
+                this::addRenderableWidget,
                 providerEditorFields,
                 floatingEditorFields,
                 x,
@@ -1207,8 +1207,8 @@ public class ModConfigScreen extends Screen {
 
     private void openPromptEditorScreen() {
         promptEditorWarningOpen = false;
-        if (this.client != null) {
-            this.client.setScreen(new PromptEditorScreen(this, promptEditorProviderId));
+        if (this.minecraft != null) {
+            this.minecraft.setScreen(new PromptEditorScreen(this, promptEditorProviderId));
         }
     }
 
@@ -1376,7 +1376,7 @@ public class ModConfigScreen extends Screen {
         rebuildActionBlocks();
     }
 
-    private void addToggleAction(int x, int y, int width, Text label, BooleanSupplier getter, Consumer<Boolean> setter, Text tooltip) {
+    private void addToggleAction(int x, int y, int width, Component label, BooleanSupplier getter, Consumer<Boolean> setter, Component tooltip) {
         checkboxBlocks.add(new CheckboxBlock(
                 x,
                 y,
@@ -1390,11 +1390,11 @@ public class ModConfigScreen extends Screen {
         ));
     }
 
-    private void addGroupBox(int x, int y, int width, int height, Text title) {
+    private void addGroupBox(int x, int y, int width, int height, Component title) {
         groupBoxes.add(new GroupBox(x, y, width, height, title, GROUP_BOX_STYLE));
     }
 
-    private void addActionRow(int x, int y, int width, Text label, Runnable action, Text tooltip) {
+    private void addActionRow(int x, int y, int width, Component label, Runnable action, Component tooltip) {
         contentActionBlockRegistry.add(x, y, width, 20, label, action, tooltip);
     }
 
@@ -1402,16 +1402,16 @@ public class ModConfigScreen extends Screen {
             int x,
             int y,
             int width,
-            Text label,
+            Component label,
             int maxLength,
             String initialValue,
-            Text placeholder,
+            Component placeholder,
             Consumer<String> changed,
             Predicate<String> textPredicate,
             boolean editable
     ) {
         if (!editable) {
-            addStaticTextRow(x, y, width, label, Text.literal(initialValue == null ? "" : initialValue));
+            addStaticTextRow(x, y, width, label, Component.literal(initialValue == null ? "" : initialValue));
             return;
         }
 
@@ -1435,7 +1435,7 @@ public class ModConfigScreen extends Screen {
         );
     }
 
-    private void addStaticTextRow(int x, int y, int width, Text label, Text value) {
+    private void addStaticTextRow(int x, int y, int width, Component label, Component value) {
         int labelWidth = responsiveLabelWidth(width);
         staticTextRows.add(new StaticTextRow(
                 x,
@@ -1454,7 +1454,7 @@ public class ModConfigScreen extends Screen {
         return Math.min(180, Math.max(minimum, width / 3));
     }
 
-    private Text hotkeyBindingLabel(ConfigSectionContentSupport.HotkeyTarget target, InputBindingConfig binding) {
+    private Component hotkeyBindingLabel(ConfigSectionContentSupport.HotkeyTarget target, InputBindingConfig binding) {
         if (hotkeyCaptureTarget == target) {
             return hotkeyBindingLabelText(target, t("state.hotkey_listening"));
         }
@@ -1463,7 +1463,7 @@ public class ModConfigScreen extends Screen {
             return hotkeyBindingLabelText(target, t("state.hotkey_unbound"));
         }
 
-        return hotkeyBindingLabelText(target, Text.literal(KeybindingManager.displayName(binding)));
+        return hotkeyBindingLabelText(target, Component.literal(KeybindingManager.displayName(binding)));
     }
 
     private void startHotkeyCapture(ConfigSectionContentSupport.HotkeyTarget target) {
@@ -1640,7 +1640,7 @@ public class ModConfigScreen extends Screen {
         InputBindingConfig binding = ensureBinding(target);
         KeybindingManager.apply(binding, captured);
         hotkeyCaptureTarget = null;
-        setStatus(t("status.hotkey_bound", sectionLabel(target), Text.literal(KeybindingManager.displayName(binding))), COLOR_STATUS_OK);
+        setStatus(t("status.hotkey_bound", sectionLabel(target), Component.literal(KeybindingManager.displayName(binding))), COLOR_STATUS_OK);
         rebuildActionBlocks();
     }
 
@@ -1653,7 +1653,7 @@ public class ModConfigScreen extends Screen {
         rebuildActionBlocks();
     }
 
-    private Text sectionLabel(ConfigSectionContentSupport.HotkeyTarget target) {
+    private Component sectionLabel(ConfigSectionContentSupport.HotkeyTarget target) {
         return switch (target) {
             case CHAT_INPUT -> t("section.chat_input");
             case ITEM -> t("section.item");
@@ -1664,7 +1664,7 @@ public class ModConfigScreen extends Screen {
         };
     }
 
-    private Text hotkeyBindingLabelText(ConfigSectionContentSupport.HotkeyTarget target, Text bindingLabel) {
+    private Component hotkeyBindingLabelText(ConfigSectionContentSupport.HotkeyTarget target, Component bindingLabel) {
         return switch (target) {
             case ITEM_REFRESH -> t("label.item_refresh_hotkey_binding", bindingLabel);
             case WYNNTILS_TASK_TRACKER_REFRESH -> t("label.item_refresh_hotkey_binding", bindingLabel);
@@ -1672,7 +1672,7 @@ public class ModConfigScreen extends Screen {
         };
     }
 
-    private Text modeLabel(String modeName) {
+    private Component modeLabel(String modeName) {
         return switch (modeName) {
             case "HOLD_TO_TRANSLATE" -> t("state.hold_to_translate");
             case "HOLD_TO_SEE_ORIGINAL" -> t("state.hold_to_see_original");
@@ -1685,11 +1685,11 @@ public class ModConfigScreen extends Screen {
             int y,
             int width,
             int height,
-            Supplier<Text> labelSupplier,
+            Supplier<Component> labelSupplier,
             BooleanSupplier checked,
             Consumer<Boolean> changed,
             CheckboxBlock.Style style,
-            Text tooltip
+            Component tooltip
     ) {
         floatingCheckboxBlocks.add(new CheckboxBlock(
                 x,
@@ -1708,21 +1708,21 @@ public class ModConfigScreen extends Screen {
             int x,
             int y,
             int width,
-            Text label,
+            Component label,
             int min,
             int max,
             IntSupplier getter,
             IntConsumer setter,
-            Text tooltip
+            Component tooltip
     ) {
-        sliderBlocks.add(new IntSliderBlock(x, y, width, SLIDER_BLOCK_HEIGHT, label, min, max, getter, setter, textRenderer, SLIDER_STYLE, tooltip));
+        sliderBlocks.add(new IntSliderBlock(x, y, width, SLIDER_BLOCK_HEIGHT, label, min, max, getter, setter, font, SLIDER_STYLE, tooltip));
     }
 
-    private Text resolveHoveredTooltip(double mouseX, double mouseY, boolean modalOpen) {
+    private Component resolveHoveredTooltip(double mouseX, double mouseY, boolean modalOpen) {
         if (modalOpen) {
             for (CheckboxBlock checkbox : floatingCheckboxBlocks) {
                 if (checkbox.contains(mouseX, mouseY)) {
-                    Text t = checkbox.tooltip();
+                    Component t = checkbox.tooltip();
                     if (t != null && !t.getString().isEmpty()) {
                         return t;
                     }
@@ -1730,7 +1730,7 @@ public class ModConfigScreen extends Screen {
             }
             for (ActionBlock action : floatingActionBlocks) {
                 if (action.contains(mouseX, mouseY)) {
-                    Text t = action.tooltip();
+                    Component t = action.tooltip();
                     if (t != null && !t.getString().isEmpty()) {
                         return t;
                     }
@@ -1739,7 +1739,7 @@ public class ModConfigScreen extends Screen {
         } else {
             for (CheckboxBlock checkbox : checkboxBlocks) {
                 if (checkbox.contains(mouseX, mouseY)) {
-                    Text t = checkbox.tooltip();
+                    Component t = checkbox.tooltip();
                     if (t != null && !t.getString().isEmpty()) {
                         return t;
                     }
@@ -1747,7 +1747,7 @@ public class ModConfigScreen extends Screen {
             }
             for (IntSliderBlock slider : sliderBlocks) {
                 if (slider.contains(mouseX, mouseY)) {
-                    Text t = slider.tooltip();
+                    Component t = slider.tooltip();
                     if (t != null && !t.getString().isEmpty()) {
                         return t;
                     }
@@ -1755,7 +1755,7 @@ public class ModConfigScreen extends Screen {
             }
             for (ActionBlock action : contentActionBlocks) {
                 if (action.contains(mouseX, mouseY)) {
-                    Text t = action.tooltip();
+                    Component t = action.tooltip();
                     if (t != null && !t.getString().isEmpty()) {
                         return t;
                     }
@@ -1765,7 +1765,7 @@ public class ModConfigScreen extends Screen {
         return null;
     }
 
-    private void setStatus(Text message, int color) {
+    private void setStatus(Component message, int color) {
         this.statusMessage = message;
         this.statusColor = color;
         this.statusExpireAtMillis = System.currentTimeMillis() + 3000;
@@ -1775,8 +1775,8 @@ public class ModConfigScreen extends Screen {
         Path cacheDirectory = CacheBackupManager.getCacheDirectory();
         try {
             Files.createDirectories(cacheDirectory);
-            Util.getOperatingSystem().open(cacheDirectory.toUri());
-            setStatus(t("status.opened_cache_directory", Text.literal(cacheDirectory.toString())), COLOR_STATUS_OK);
+            Util.getPlatform().openUri(cacheDirectory.toUri());
+            setStatus(t("status.opened_cache_directory", Component.literal(cacheDirectory.toString())), COLOR_STATUS_OK);
         } catch (IOException e) {
             Translate_AllinOne.LOGGER.warn("Failed to open cache directory {}", cacheDirectory, e);
             setStatus(t("status.failed_open_cache_directory"), COLOR_STATUS_ERROR);
@@ -1790,8 +1790,8 @@ public class ModConfigScreen extends Screen {
                 .resolve("dictionary");
         try {
             Files.createDirectories(dictionaryDirectory);
-            Util.getOperatingSystem().open(dictionaryDirectory.toUri());
-            setStatus(t("status.opened_dictionary_directory", Text.literal(dictionaryDirectory.toString())), COLOR_STATUS_OK);
+            Util.getPlatform().openUri(dictionaryDirectory.toUri());
+            setStatus(t("status.opened_dictionary_directory", Component.literal(dictionaryDirectory.toString())), COLOR_STATUS_OK);
         } catch (IOException e) {
             Translate_AllinOne.LOGGER.warn("Failed to open dictionary directory {}", dictionaryDirectory, e);
             setStatus(t("status.failed_open_dictionary_directory"), COLOR_STATUS_ERROR);
@@ -1799,10 +1799,10 @@ public class ModConfigScreen extends Screen {
     }
 
     private void openWynnDialogueHudEditor() {
-        if (this.client == null) {
+        if (this.minecraft == null) {
             return;
         }
-        this.client.setScreen(new WynnDialogueHudEditorScreen(this));
+        this.minecraft.setScreen(new WynnDialogueHudEditorScreen(this));
     }
 
     private void openRepositoryLink() {
@@ -1812,7 +1812,7 @@ public class ModConfigScreen extends Screen {
         }
 
         try {
-            Util.getOperatingSystem().open(repositoryUrl);
+            Util.getPlatform().openUri(repositoryUrl);
             setStatus(t("status.opened_repository"), COLOR_STATUS_OK);
         } catch (Exception e) {
             Translate_AllinOne.LOGGER.warn("Failed to open repository url {}", repositoryUrl, e);
@@ -1836,7 +1836,7 @@ public class ModConfigScreen extends Screen {
     }
 
     private void cancelAndClose() {
-        close();
+        onClose();
     }
 
     private void discardChangesAndClose() {
@@ -2096,9 +2096,9 @@ public class ModConfigScreen extends Screen {
                     break;
                 }
                 boolean selected = selectedFiles.contains(fileName);
-                Text label = selected
+                Component label = selected
                         ? t("modal.dictionary_files.entry_selected", fileName)
-                        : Text.literal(fileName);
+                        : Component.literal(fileName);
                 floatingActionBlockRegistry.add(
                         contentX,
                         rowY,
@@ -2191,58 +2191,58 @@ public class ModConfigScreen extends Screen {
         );
     }
 
-    private void renderResetConfirmModalMessage(DrawContext context) {
+    private void renderResetConfirmModalMessage(GuiGraphicsExtractor context) {
         UiRect modalRect = ConfigUiModalSupport.resetConfirmModalRect(this.width, this.height);
         int textX = modalRect.x + 16;
         int textY = modalRect.y + 48;
         int maxWidth = Math.max(10, modalRect.width - 32);
-        List<OrderedText> lines = this.textRenderer.wrapLines(t("modal.reset_confirm.message"), maxWidth);
+        List<FormattedCharSequence> lines = this.font.split(t("modal.reset_confirm.message"), maxWidth);
         int lineY = textY;
-        for (OrderedText line : lines) {
-            context.drawText(this.textRenderer, line, textX, lineY, COLOR_TEXT_MUTED, false);
-            lineY += this.textRenderer.fontHeight + 2;
+        for (FormattedCharSequence line : lines) {
+            context.text(this.font, line, textX, lineY, COLOR_TEXT_MUTED, false);
+            lineY += this.font.lineHeight + 2;
         }
     }
 
-    private void renderUpdateNoticeModalMessage(DrawContext context) {
+    private void renderUpdateNoticeModalMessage(GuiGraphicsExtractor context) {
         UiRect modalRect = ConfigUiModalSupport.updateNoticeModalRect(this.width, this.height);
         int textX = modalRect.x + 16;
         int textY = modalRect.y + 48;
         int maxWidth = Math.max(10, modalRect.width - 32);
-        List<OrderedText> lines = this.textRenderer.wrapLines(
+        List<FormattedCharSequence> lines = this.font.split(
                 t("modal.update_notice.message", UpdateCheckManager.latestVersion(), UpdateCheckManager.currentVersion()),
                 maxWidth
         );
         int lineY = textY;
-        for (OrderedText line : lines) {
-            context.drawText(this.textRenderer, line, textX, lineY, COLOR_TEXT_MUTED, false);
-            lineY += this.textRenderer.fontHeight + 2;
+        for (FormattedCharSequence line : lines) {
+            context.text(this.font, line, textX, lineY, COLOR_TEXT_MUTED, false);
+            lineY += this.font.lineHeight + 2;
         }
     }
 
-    private void renderUnsavedChangesConfirmModalMessage(DrawContext context) {
+    private void renderUnsavedChangesConfirmModalMessage(GuiGraphicsExtractor context) {
         UiRect modalRect = ConfigUiModalSupport.unsavedChangesConfirmModalRect(this.width, this.height);
         int textX = modalRect.x + 16;
         int textY = modalRect.y + 48;
         int maxWidth = Math.max(10, modalRect.width - 32);
-        List<OrderedText> lines = this.textRenderer.wrapLines(t("modal.unsaved_changes.message"), maxWidth);
+        List<FormattedCharSequence> lines = this.font.split(t("modal.unsaved_changes.message"), maxWidth);
         int lineY = textY;
-        for (OrderedText line : lines) {
-            context.drawText(this.textRenderer, line, textX, lineY, COLOR_TEXT_MUTED, false);
-            lineY += this.textRenderer.fontHeight + 2;
+        for (FormattedCharSequence line : lines) {
+            context.text(this.font, line, textX, lineY, COLOR_TEXT_MUTED, false);
+            lineY += this.font.lineHeight + 2;
         }
     }
 
-    private void renderPromptEditorWarningMessage(DrawContext context) {
+    private void renderPromptEditorWarningMessage(GuiGraphicsExtractor context) {
         UiRect rect = ConfigUiModalSupport.promptEditorWarningRect(this.width, this.height);
         int textX = rect.x + 16;
         int textY = rect.y + 48;
         int maxWidth = Math.max(10, rect.width - 32);
-        List<OrderedText> lines = this.textRenderer.wrapLines(t("modal.prompt_editor_warning_message"), maxWidth);
+        List<FormattedCharSequence> lines = this.font.split(t("modal.prompt_editor_warning_message"), maxWidth);
         int lineY = textY;
-        for (OrderedText line : lines) {
-            context.drawText(this.textRenderer, line, textX, lineY, COLOR_STATUS_ERROR, false);
-            lineY += this.textRenderer.fontHeight + 2;
+        for (FormattedCharSequence line : lines) {
+            context.text(this.font, line, textX, lineY, COLOR_STATUS_ERROR, false);
+            lineY += this.font.lineHeight + 2;
         }
     }
 
@@ -2264,7 +2264,7 @@ public class ModConfigScreen extends Screen {
     }
 
     @Override
-    public void close() {
+    public void onClose() {
         hotkeyCaptureTarget = null;
         stopScrollingDrag();
         ConfigUiModalInteractionSupport.ModalCloseAction action = ConfigUiModalInteractionSupport.closeByPriority(
@@ -2332,7 +2332,7 @@ public class ModConfigScreen extends Screen {
     }
 
     @Override
-    public boolean mouseClicked(Click click, boolean doubled) {
+    public boolean mouseClicked(MouseButtonEvent click, boolean doubled) {
         if (hotkeyCaptureTarget != null) {
             if (hotkeyCaptureTarget != ConfigSectionContentSupport.HotkeyTarget.CHAT_INPUT) {
                 InputBindingConfig captured = KeybindingManager.captureMouseBinding(click.button());
@@ -2507,7 +2507,7 @@ public class ModConfigScreen extends Screen {
     }
 
     @Override
-    public boolean mouseDragged(Click click, double deltaX, double deltaY) {
+    public boolean mouseDragged(MouseButtonEvent click, double deltaX, double deltaY) {
         if (draggingSlider != null && click.button() == 0) {
             draggingSlider.dragTo(click.x());
             return true;
@@ -2546,7 +2546,7 @@ public class ModConfigScreen extends Screen {
     }
 
     @Override
-    public boolean mouseReleased(Click click) {
+    public boolean mouseReleased(MouseButtonEvent click) {
         if (draggingSlider != null && click.button() == 0) {
             draggingSlider.release();
             draggingSlider = null;
@@ -2582,7 +2582,7 @@ public class ModConfigScreen extends Screen {
     }
 
     @Override
-    public boolean keyPressed(KeyInput input) {
+    public boolean keyPressed(KeyEvent input) {
         if (hotkeyCaptureTarget != null) {
             if (KeybindingManager.isEscape(input)) {
                 cancelHotkeyCapture();
@@ -2599,7 +2599,7 @@ public class ModConfigScreen extends Screen {
     }
 
     @Override
-    public boolean charTyped(CharInput input) {
+    public boolean charTyped(CharacterEvent input) {
         if (hotkeyCaptureTarget != null) {
             return true;
         }
@@ -2607,14 +2607,14 @@ public class ModConfigScreen extends Screen {
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
         updateControlAnimations();
 
         long nowMillis = System.currentTimeMillis();
         boolean modalOpen = isAnyModalOpen();
         ConfigUiScreenRenderSupport.renderChrome(
                 context,
-                this.textRenderer,
+                this.font,
                 this.width,
                 this.height,
                 TOP_BAR_HEIGHT,
@@ -2626,16 +2626,16 @@ public class ModConfigScreen extends Screen {
         );
         renderVersionLink(context, mouseX, mouseY, nowMillis);
 
-        ConfigUiControlRenderer.drawActionBlocks(context, this.textRenderer, actionBlocks, mouseX, mouseY, COLOR_BORDER);
+        ConfigUiControlRenderer.drawActionBlocks(context, this.font, actionBlocks, mouseX, mouseY, COLOR_BORDER);
 
         ConfigUiDraw.withScissor(context, contentClipViewport(), () -> {
-            ConfigUiControlRenderer.drawGroupBoxes(context, this.textRenderer, groupBoxes);
-            ConfigUiControlRenderer.drawActionBlocks(context, this.textRenderer, contentActionBlocks, mouseX, mouseY, COLOR_BORDER);
-            ConfigUiControlRenderer.drawStaticTextRows(context, this.textRenderer, staticTextRows);
+            ConfigUiControlRenderer.drawGroupBoxes(context, this.font, groupBoxes);
+            ConfigUiControlRenderer.drawActionBlocks(context, this.font, contentActionBlocks, mouseX, mouseY, COLOR_BORDER);
+            ConfigUiControlRenderer.drawStaticTextRows(context, this.font, staticTextRows);
             ConfigUiControlRenderer.drawSliderBlocks(context, sliderBlocks, mouseX, mouseY);
-            ConfigUiControlRenderer.drawCheckboxBlocks(context, this.textRenderer, checkboxBlocks, mouseX, mouseY);
+            ConfigUiControlRenderer.drawCheckboxBlocks(context, this.font, checkboxBlocks, mouseX, mouseY);
             if (!modalOpen) {
-                super.render(context, mouseX, mouseY, delta);
+                super.extractRenderState(context, mouseX, mouseY, delta);
             }
         });
 
@@ -2645,7 +2645,7 @@ public class ModConfigScreen extends Screen {
 
         ConfigUiScreenRenderSupport.renderModalOverlayAndShell(
                 context,
-                this.textRenderer,
+                this.font,
                 this.width,
                 this.height,
                 TOP_BAR_HEIGHT,
@@ -2679,14 +2679,14 @@ public class ModConfigScreen extends Screen {
         }
 
         if (modalOpen) {
-            super.render(context, mouseX, mouseY, delta);
+            super.extractRenderState(context, mouseX, mouseY, delta);
         }
-        ConfigUiControlRenderer.drawCheckboxBlocks(context, this.textRenderer, floatingCheckboxBlocks, mouseX, mouseY);
-        ConfigUiControlRenderer.drawActionBlocks(context, this.textRenderer, floatingActionBlocks, mouseX, mouseY, COLOR_BORDER);
+        ConfigUiControlRenderer.drawCheckboxBlocks(context, this.font, floatingCheckboxBlocks, mouseX, mouseY);
+        ConfigUiControlRenderer.drawActionBlocks(context, this.font, floatingActionBlocks, mouseX, mouseY, COLOR_BORDER);
 
         ConfigUiScreenRenderSupport.renderStatusToast(
                 context,
-                this.textRenderer,
+                this.font,
                 this.width,
                 TOP_BAR_HEIGHT,
                 statusMessage,
@@ -2697,11 +2697,11 @@ public class ModConfigScreen extends Screen {
                 0xCC3A3A3A
         );
 
-        Text hoveredTooltip = resolveHoveredTooltip(mouseX, mouseY, modalOpen);
-        ConfigUiDraw.drawTooltip(context, this.textRenderer, hoveredTooltip, mouseX, mouseY, this.width, this.height);
+        Component hoveredTooltip = resolveHoveredTooltip(mouseX, mouseY, modalOpen);
+        ConfigUiDraw.drawTooltip(context, this.font, hoveredTooltip, mouseX, mouseY, this.width, this.height);
     }
 
-    private Text dictionarySlotLabel(DictionaryFileSelectionSupport.Slot slot) {
+    private Component dictionarySlotLabel(DictionaryFileSelectionSupport.Slot slot) {
         return switch (slot) {
             case ITEM_SKILL -> t("label.dictionary_slot_item_skill");
             case WYNNCRAFT_DIALOGUE -> t("label.dictionary_slot_dialogue");
@@ -2709,12 +2709,12 @@ public class ModConfigScreen extends Screen {
         };
     }
 
-    private Text dictionaryFileDisplayValue(DictionaryConfig dictionaryConfig, DictionaryFileSelectionSupport.Slot slot) {
+    private Component dictionaryFileDisplayValue(DictionaryConfig dictionaryConfig, DictionaryFileSelectionSupport.Slot slot) {
         String effectiveSelection = DictionaryFileSelectionSupport.describeEffectiveSelection(dictionaryConfig, slot);
         if (effectiveSelection == null || effectiveSelection.isBlank()) {
             return t("value.dictionary_file_none_selected");
         }
-        return Text.literal(effectiveSelection);
+        return Component.literal(effectiveSelection);
     }
 
     private DictionaryConfig ensureDictionaryConfig() {

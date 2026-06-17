@@ -1,13 +1,13 @@
 package com.cedarxuesong.translate_allinone.utils.translate;
 
 import com.cedarxuesong.translate_allinone.utils.AnimationManager;
-import net.minecraft.text.Text;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import net.minecraft.network.chat.Component;
 
 public final class TooltipTranslationContext {
     private static final long REI_CONTEXT_STALE_MILLIS = 10_000L;
@@ -63,7 +63,7 @@ public final class TooltipTranslationContext {
         return true;
     }
 
-    public static boolean consumeSkipDrawContextTranslation(List<Text> tooltipLines) {
+    public static boolean consumeSkipDrawContextTranslation(List<Component> tooltipLines) {
         if (!SKIP_DRAW_CONTEXT_TRANSLATION.get()) {
             return false;
         }
@@ -87,7 +87,7 @@ public final class TooltipTranslationContext {
         return true;
     }
 
-    public static void rememberExpectedDrawContextTooltip(List<Text> tooltipLines) {
+    public static void rememberExpectedDrawContextTooltip(List<Component> tooltipLines) {
         if (tooltipLines == null || tooltipLines.isEmpty()) {
             clearExpectedDrawContextTooltip();
             return;
@@ -169,7 +169,7 @@ public final class TooltipTranslationContext {
         return WYNNMOD_TOOLTIP_RENDER_DEPTH.get() > 0;
     }
 
-    private static boolean matchesExpectedDrawContextTooltip(List<Text> tooltipLines) {
+    private static boolean matchesExpectedDrawContextTooltip(List<Component> tooltipLines) {
         if (tooltipLines == null || tooltipLines.isEmpty()) {
             return false;
         }
@@ -319,7 +319,7 @@ public final class TooltipTranslationContext {
                 || isInWynntilsQuestTooltipRender();
     }
 
-    public static void rememberRecentTranslatedTooltip(List<Text> tooltipLines) {
+    public static void rememberRecentTranslatedTooltip(List<Component> tooltipLines) {
         if (tooltipLines == null || tooltipLines.isEmpty()) {
             RECENT_TRANSLATED_TOOLTIPS.get().clear();
             return;
@@ -335,7 +335,7 @@ public final class TooltipTranslationContext {
         }
     }
 
-    public static boolean matchesRecentTranslatedTooltip(List<Text> tooltipLines) {
+    public static boolean matchesRecentTranslatedTooltip(List<Component> tooltipLines) {
         if (tooltipLines == null || tooltipLines.isEmpty()) {
             return false;
         }
@@ -357,25 +357,25 @@ public final class TooltipTranslationContext {
         return false;
     }
 
-    private static int computeTooltipSignature(List<Text> tooltipLines) {
+    private static int computeTooltipSignature(List<Component> tooltipLines) {
         int hash = 1;
-        for (Text line : tooltipLines) {
+        for (Component line : tooltipLines) {
             String value = line == null ? "" : line.getString();
             hash = 31 * hash + value.hashCode();
         }
         return 31 * hash + tooltipLines.size();
     }
 
-    private static int computeVisibleTooltipSignature(List<Text> tooltipLines) {
+    private static int computeVisibleTooltipSignature(List<Component> tooltipLines) {
         int hash = 1;
-        for (Text line : tooltipLines) {
+        for (Component line : tooltipLines) {
             String value = normalizeVisibleTooltipLine(line);
             hash = 31 * hash + value.hashCode();
         }
         return 31 * hash + tooltipLines.size();
     }
 
-    private static String normalizeVisibleTooltipLine(Text line) {
+    private static String normalizeVisibleTooltipLine(Component line) {
         if (line == null) {
             return "";
         }

@@ -5,10 +5,7 @@ import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.util.InputUtil;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import com.mojang.blaze3d.platform.InputConstants;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
@@ -18,6 +15,9 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 
 public final class TooltipTextDebugCopySupport {
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
@@ -72,7 +72,7 @@ public final class TooltipTextDebugCopySupport {
         }
     }
 
-    public static void maybeCopyCurrentTooltip(List<Text> tooltipLines) {
+    public static void maybeCopyCurrentTooltip(List<Component> tooltipLines) {
         maybeCopyEntries(collectDictionaryEntries(tooltipLines), "text.translate_allinone.tooltip_debug.copied");
     }
 
@@ -80,21 +80,21 @@ public final class TooltipTextDebugCopySupport {
         maybeCopyEntries(entries, copiedMessageKey);
     }
 
-    public static void tick(MinecraftClient client) {
+    public static void tick(Minecraft client) {
         if (!isEnabled() || !isCopyShortcutDown(client)) {
             resetCopyShortcutState();
         }
     }
 
-    private static boolean isCopyShortcutDown(MinecraftClient client) {
-        if (client == null || client.getWindow() == null || client.keyboard == null) {
+    private static boolean isCopyShortcutDown(Minecraft client) {
+        if (client == null || client.getWindow() == null || client.keyboardHandler == null) {
             return false;
         }
 
         try {
-            boolean controlDown = InputUtil.isKeyPressed(client.getWindow(), GLFW.GLFW_KEY_LEFT_CONTROL)
-                    || InputUtil.isKeyPressed(client.getWindow(), GLFW.GLFW_KEY_RIGHT_CONTROL);
-            return controlDown && InputUtil.isKeyPressed(client.getWindow(), GLFW.GLFW_KEY_C);
+            boolean controlDown = InputConstants.isKeyDown(client.getWindow(), GLFW.GLFW_KEY_LEFT_CONTROL)
+                    || InputConstants.isKeyDown(client.getWindow(), GLFW.GLFW_KEY_RIGHT_CONTROL);
+            return controlDown && InputConstants.isKeyDown(client.getWindow(), GLFW.GLFW_KEY_C);
         } catch (Exception ignored) {
             return false;
         }
@@ -106,7 +106,7 @@ public final class TooltipTextDebugCopySupport {
             return;
         }
 
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         boolean shortcutDown = isCopyShortcutDown(client);
         if (!shortcutDown) {
             resetCopyShortcutState();
@@ -125,13 +125,13 @@ public final class TooltipTextDebugCopySupport {
         copyShortcutWasDown = true;
         lastCopiedCandidate = candidate;
         lastCopiedClipboardText = clipboardText;
-        client.keyboard.setClipboard(clipboardText);
+        client.keyboardHandler.setClipboard(clipboardText);
         if (!copySuccessMessageWasSent && client.player != null) {
             copySuccessMessageWasSent = true;
             String messageKey = copiedMessageKey == null || copiedMessageKey.isBlank()
                     ? "text.translate_allinone.tooltip_debug.copied"
                     : copiedMessageKey;
-            client.player.sendMessage(Text.translatable(messageKey).formatted(Formatting.GOLD), false);
+            client.player.sendSystemMessage(Component.translatable(messageKey).withStyle(ChatFormatting.GOLD));
         }
     }
 
@@ -165,12 +165,12 @@ public final class TooltipTextDebugCopySupport {
                 && candidate.meaningfulTextScore() > lastCopiedCandidate.meaningfulTextScore();
     }
 
-    private static List<TextDebugEntry> collectDictionaryEntries(List<Text> tooltipLines) {
+    private static List<TextDebugEntry> collectDictionaryEntries(List<Component> tooltipLines) {
         if (tooltipLines == null || tooltipLines.isEmpty()) {
             return List.of();
         }
 
-        List<Text> sanitizedTooltip = TooltipInternalLineSupport.stripInternalGeneratedLines(tooltipLines);
+        List<Component> sanitizedTooltip = TooltipInternalLineSupport.stripInternalGeneratedLines(tooltipLines);
         if (sanitizedTooltip == null || sanitizedTooltip.isEmpty()) {
             return List.of();
         }
@@ -192,7 +192,7 @@ public final class TooltipTextDebugCopySupport {
             }
         }
 
-        for (Text line : sanitizedTooltip) {
+        for (Component line : sanitizedTooltip) {
             if (line == null || TooltipInternalLineSupport.isInternalGeneratedLine(line)) {
                 continue;
             }
@@ -274,7 +274,7 @@ public final class TooltipTextDebugCopySupport {
         return builder.toString();
     }
 
-    private static void addTextDebugSegmentEntries(List<TextDebugEntry> entries, Set<String> sourceKeys, Text text) {
+    private static void addTextDebugSegmentEntries(List<TextDebugEntry> entries, Set<String> sourceKeys, Component text) {
         if (text == null) {
             return;
         }
@@ -289,7 +289,7 @@ public final class TooltipTextDebugCopySupport {
         addDictionaryEntry(entries, sourceKeys, originalKey, valueText, ORIGINAL_LINE_PREFIX);
     }
 
-    private static void addFallbackTextDebugEntries(List<TextDebugEntry> entries, Set<String> sourceKeys, Text line) {
+    private static void addFallbackTextDebugEntries(List<TextDebugEntry> entries, Set<String> sourceKeys, Component line) {
         String valueText = cleanDictionaryValueText(TooltipTemplateRuntime.buildLegacyCompatibilityKey(line));
         List<String> valueSegments = splitDictionaryValueSegments(valueText);
         List<String> originalKeySegments = splitDictionaryOriginalKeySegments(line.getString(), valueSegments);

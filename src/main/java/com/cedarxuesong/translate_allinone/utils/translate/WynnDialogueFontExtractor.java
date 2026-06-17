@@ -1,16 +1,15 @@
 package com.cedarxuesong.translate_allinone.utils.translate;
 
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
-import net.minecraft.text.Style;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
-
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.Style;
+import net.minecraft.resources.Identifier;
 
 final class WynnDialogueFontExtractor {
 
@@ -21,7 +20,7 @@ final class WynnDialogueFontExtractor {
     private WynnDialogueFontExtractor() {
     }
 
-    static FontExtractionResult extract(Text text) {
+    static FontExtractionResult extract(Component text) {
         if (text == null) {
             return FontExtractionResult.empty();
         }
@@ -112,7 +111,7 @@ final class WynnDialogueFontExtractor {
                     if (extracted.contains(",")) {
                         extracted = extracted.split(",")[0].trim();
                     }
-                    return Identifier.of(extracted);
+                    return Identifier.parse(extracted);
                 } catch (Exception ignored) {
                     Translate_AllinOne.LOGGER.debug("Font identifier resolution failed for extracted value: {}", extracted);
                 }

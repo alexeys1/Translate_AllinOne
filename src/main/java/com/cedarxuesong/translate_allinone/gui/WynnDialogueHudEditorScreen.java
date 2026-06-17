@@ -9,14 +9,13 @@ import com.cedarxuesong.translate_allinone.gui.configui.render.ConfigUiDraw;
 import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.WynnCraftConfig;
 import com.cedarxuesong.translate_allinone.utils.translate.WynnDialogueHudRenderer;
-import net.minecraft.client.gui.Click;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.input.KeyInput;
-import net.minecraft.text.Text;
-
 import java.util.ArrayList;
 import java.util.List;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.network.chat.Component;
 
 public class WynnDialogueHudEditorScreen extends Screen {
     private static final String I18N_PREFIX = "text.translate_allinone.configscreen.hud_editor.";
@@ -46,8 +45,8 @@ public class WynnDialogueHudEditorScreen extends Screen {
         this.parent = parent;
     }
 
-    private static Text t(String key, Object... args) {
-        return Text.translatable(I18N_PREFIX + key, args);
+    private static Component t(String key, Object... args) {
+        return Component.translatable(I18N_PREFIX + key, args);
     }
 
     @Override
@@ -56,25 +55,25 @@ public class WynnDialogueHudEditorScreen extends Screen {
     }
 
     @Override
-    public boolean shouldPause() {
+    public boolean isPauseScreen() {
         return false;
     }
 
     @Override
-    public void close() {
+    public void onClose() {
         draggingHud = false;
-        if (this.client != null) {
-            this.client.setScreen(parent);
+        if (this.minecraft != null) {
+            this.minecraft.setScreen(parent);
         }
     }
 
     @Override
-    public boolean keyPressed(KeyInput input) {
+    public boolean keyPressed(KeyEvent input) {
         return super.keyPressed(input);
     }
 
     @Override
-    public boolean mouseClicked(Click click, boolean doubled) {
+    public boolean mouseClicked(MouseButtonEvent click, boolean doubled) {
         if (click.button() != 0) {
             return super.mouseClicked(click, doubled);
         }
@@ -98,7 +97,7 @@ public class WynnDialogueHudEditorScreen extends Screen {
     }
 
     @Override
-    public boolean mouseDragged(Click click, double deltaX, double deltaY) {
+    public boolean mouseDragged(MouseButtonEvent click, double deltaX, double deltaY) {
         if (!draggingHud || click.button() != 0) {
             return super.mouseDragged(click, deltaX, deltaY);
         }
@@ -108,7 +107,7 @@ public class WynnDialogueHudEditorScreen extends Screen {
     }
 
     @Override
-    public boolean mouseReleased(Click click) {
+    public boolean mouseReleased(MouseButtonEvent click) {
         if (draggingHud && click.button() == 0) {
             draggingHud = false;
             return true;
@@ -140,8 +139,8 @@ public class WynnDialogueHudEditorScreen extends Screen {
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        WynnDialogueHudRenderer.drawHudEditorPreview(context, this.textRenderer, this.width, this.height);
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
+        WynnDialogueHudRenderer.drawHudEditorPreview(context, this.font, this.width, this.height);
         WynnDialogueHudRenderer.EditorPreviewLayout layout = currentLayout();
         HudTarget hoverTarget = targetAt(layout, mouseX, mouseY);
 
@@ -156,7 +155,7 @@ public class WynnDialogueHudEditorScreen extends Screen {
                 selectedTarget == HudTarget.OPTIONS || hoverTarget == HudTarget.OPTIONS || draggingHud && selectedTarget == HudTarget.OPTIONS
         );
         drawInfoPanel(context, currentSnapshot(layout, selectedTarget), selectedTarget);
-        ConfigUiControlRenderer.drawActionBlocks(context, this.textRenderer, actionBlocks, mouseX, mouseY, COLOR_PANEL_BORDER);
+        ConfigUiControlRenderer.drawActionBlocks(context, this.font, actionBlocks, mouseX, mouseY, COLOR_PANEL_BORDER);
     }
 
     private void rebuildActionBlocks() {
@@ -174,7 +173,7 @@ public class WynnDialogueHudEditorScreen extends Screen {
                 buttonWidth,
                 buttonHeight,
                 t("button.done"),
-                this::close,
+                this::onClose,
                 COLOR_BUTTON,
                 COLOR_BUTTON_HOVER,
                 COLOR_TEXT,
@@ -194,7 +193,7 @@ public class WynnDialogueHudEditorScreen extends Screen {
         );
     }
 
-    private void drawSelection(DrawContext context, WynnDialogueHudRenderer.EditorPreviewSnapshot snapshot, boolean active) {
+    private void drawSelection(GuiGraphicsExtractor context, WynnDialogueHudRenderer.EditorPreviewSnapshot snapshot, boolean active) {
         if (snapshot.width() <= 0 || snapshot.height() <= 0) {
             return;
         }
@@ -223,11 +222,11 @@ public class WynnDialogueHudEditorScreen extends Screen {
         );
     }
 
-    private void drawHandle(DrawContext context, int x, int y, int size) {
+    private void drawHandle(GuiGraphicsExtractor context, int x, int y, int size) {
         context.fill(x, y, x + size, y + size, COLOR_SELECTION);
     }
 
-    private void drawInfoPanel(DrawContext context, WynnDialogueHudRenderer.EditorPreviewSnapshot snapshot, HudTarget target) {
+    private void drawInfoPanel(GuiGraphicsExtractor context, WynnDialogueHudRenderer.EditorPreviewSnapshot snapshot, HudTarget target) {
         int panelX = 14;
         int panelY = 14;
         int panelWidth = 310;
@@ -236,16 +235,16 @@ public class WynnDialogueHudEditorScreen extends Screen {
         context.fill(panelX, panelY, panelX + panelWidth, panelY + panelHeight, COLOR_PANEL_BG);
         ConfigUiDraw.drawOutline(context, panelX, panelY, panelWidth, panelHeight, COLOR_PANEL_BORDER);
 
-        context.drawText(this.textRenderer, this.title, panelX + 10, panelY + 8, COLOR_TEXT_ACCENT, false);
-        context.drawText(this.textRenderer, t("status.target", targetName(target).getString()), panelX + 10, panelY + 24, COLOR_TEXT_ACCENT, false);
-        context.drawText(this.textRenderer, t("instruction.drag"), panelX + 10, panelY + 38, COLOR_TEXT, false);
-        context.drawText(this.textRenderer, t("instruction.scroll"), panelX + 10, panelY + 50, COLOR_TEXT, false);
-        context.drawText(this.textRenderer, t("instruction.close"), panelX + 10, panelY + 62, COLOR_TEXT_MUTED, false);
+        context.text(this.font, this.title, panelX + 10, panelY + 8, COLOR_TEXT_ACCENT, false);
+        context.text(this.font, t("status.target", targetName(target).getString()), panelX + 10, panelY + 24, COLOR_TEXT_ACCENT, false);
+        context.text(this.font, t("instruction.drag"), panelX + 10, panelY + 38, COLOR_TEXT, false);
+        context.text(this.font, t("instruction.scroll"), panelX + 10, panelY + 50, COLOR_TEXT, false);
+        context.text(this.font, t("instruction.close"), panelX + 10, panelY + 62, COLOR_TEXT_MUTED, false);
 
         String layoutValue = t("status.layout", snapshot.scalePercent(), snapshot.xOffset(), snapshot.yOffset()).getString();
-        int layoutWidth = this.textRenderer.getWidth(layoutValue);
-        context.drawText(
-                this.textRenderer,
+        int layoutWidth = this.font.width(layoutValue);
+        context.text(
+                this.font,
                 layoutValue,
                 this.width - 14 - layoutWidth,
                 42,
@@ -255,7 +254,7 @@ public class WynnDialogueHudEditorScreen extends Screen {
     }
 
     private WynnDialogueHudRenderer.EditorPreviewLayout currentLayout() {
-        return WynnDialogueHudRenderer.getEditorPreviewLayout(this.textRenderer, this.width, this.height);
+        return WynnDialogueHudRenderer.getEditorPreviewLayout(this.font, this.width, this.height);
     }
 
     private WynnDialogueHudRenderer.EditorPreviewSnapshot currentSnapshot(
@@ -335,7 +334,7 @@ public class WynnDialogueHudEditorScreen extends Screen {
         return null;
     }
 
-    private Text targetName(HudTarget target) {
+    private Component targetName(HudTarget target) {
         return t(target == HudTarget.OPTIONS ? "target.options" : "target.dialogue");
     }
 

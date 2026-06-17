@@ -3,10 +3,9 @@ package com.cedarxuesong.translate_allinone.gui.configui.sections;
 import com.cedarxuesong.translate_allinone.gui.configui.model.RouteModelOption;
 import com.cedarxuesong.translate_allinone.gui.configui.model.RouteSlot;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ProviderManagerConfig;
-import net.minecraft.text.Text;
-
 import java.util.List;
 import java.util.function.Supplier;
+import net.minecraft.network.chat.Component;
 
 public final class RouteModelSelectorSectionSupport {
     private static final int OPTION_HEIGHT = 20;
@@ -111,12 +110,12 @@ public final class RouteModelSelectorSectionSupport {
 
     @FunctionalInterface
     public interface Translator {
-        Text t(String key, Object... args);
+        Component t(String key, Object... args);
     }
 
     @FunctionalInterface
     public interface RouteSelectionHandler {
-        void onSelected(String routeKey, Text displayLabel);
+        void onSelected(String routeKey, Component displayLabel);
     }
 
     @FunctionalInterface
@@ -126,7 +125,7 @@ public final class RouteModelSelectorSectionSupport {
                 int y,
                 int width,
                 int height,
-                Supplier<Text> labelSupplier,
+                Supplier<Component> labelSupplier,
                 Runnable action,
                 int color,
                 int hoverColor,
@@ -142,7 +141,7 @@ public final class RouteModelSelectorSectionSupport {
                 int y,
                 int width,
                 int height,
-                Supplier<Text> labelSupplier,
+                Supplier<Component> labelSupplier,
                 Runnable action,
                 int color,
                 int hoverColor,

@@ -3,13 +3,12 @@ package com.cedarxuesong.translate_allinone.gui.configui.modals;
 import com.cedarxuesong.translate_allinone.gui.configui.model.UiRect;
 import com.cedarxuesong.translate_allinone.gui.configui.render.ConfigUiModalSupport;
 import com.cedarxuesong.translate_allinone.gui.configui.support.ProviderProfileSupport;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.text.Text;
-
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.network.chat.Component;
 
 public final class PromptEditorModalSupport {
     private static final int ROW_HEIGHT = 24;
@@ -55,13 +54,13 @@ public final class PromptEditorModalSupport {
         int labelWidth = Math.max(140, rect.width / 2 - 40);
         int fieldWidth = rect.right() - rightX - 20;
 
-        Map<String, Text> routeLabels = routeLabels(translator);
+        Map<String, Component> routeLabels = routeLabels(translator);
         String[] routeKeys = {ROUTE_ITEM, ROUTE_SCOREBOARD, ROUTE_CHAT_OUTPUT, ROUTE_CHAT_INPUT_TRANSLATE, ROUTE_WYNN_NPC_DIALOGUE, ROUTE_WYNNTILS_TASK_TRACKER};
-        Map<String, TextFieldWidget> fields = new LinkedHashMap<>();
+        Map<String, EditBox> fields = new LinkedHashMap<>();
         int rowY = contentTop;
 
         for (String routeKey : routeKeys) {
-            Text label = routeLabels.getOrDefault(routeKey, Text.literal(routeKey));
+            Component label = routeLabels.getOrDefault(routeKey, Component.literal(routeKey));
             floatingActionBlockAdder.add(
                     leftX,
                     rowY,
@@ -77,7 +76,7 @@ public final class PromptEditorModalSupport {
             );
 
             String value = ProviderProfileSupport.sanitizeText(draftOverrides.getOrDefault(routeKey, ""));
-            TextFieldWidget field = floatingTextFieldAdder.add(
+            EditBox field = floatingTextFieldAdder.add(
                     rightX,
                     rowY,
                     fieldWidth,
@@ -136,8 +135,8 @@ public final class PromptEditorModalSupport {
         return new Fields(fields);
     }
 
-    private static Map<String, Text> routeLabels(Translator translator) {
-        Map<String, Text> labels = new LinkedHashMap<>();
+    private static Map<String, Component> routeLabels(Translator translator) {
+        Map<String, Component> labels = new LinkedHashMap<>();
         labels.put(ROUTE_ITEM, translator.t("prompt_editor.route.item"));
         labels.put(ROUTE_SCOREBOARD, translator.t("prompt_editor.route.scoreboard"));
         labels.put(ROUTE_CHAT_OUTPUT, translator.t("prompt_editor.route.chat_output"));
@@ -149,18 +148,18 @@ public final class PromptEditorModalSupport {
 
     @FunctionalInterface
     public interface Translator {
-        Text t(String key, Object... args);
+        Component t(String key, Object... args);
     }
 
     @FunctionalInterface
     public interface FloatingTextFieldAdder {
-        TextFieldWidget add(
+        EditBox add(
                 int x,
                 int y,
                 int width,
                 int maxLength,
                 String initialValue,
-                Text placeholder,
+                Component placeholder,
                 Consumer<String> changed,
                 boolean editable
         );
@@ -173,7 +172,7 @@ public final class PromptEditorModalSupport {
                 int y,
                 int width,
                 int height,
-                Supplier<Text> labelSupplier,
+                Supplier<Component> labelSupplier,
                 Runnable action,
                 int color,
                 int hoverColor,
@@ -194,6 +193,6 @@ public final class PromptEditorModalSupport {
     ) {
     }
 
-    public record Fields(Map<String, TextFieldWidget> fields) {
+    public record Fields(Map<String, EditBox> fields) {
     }
 }

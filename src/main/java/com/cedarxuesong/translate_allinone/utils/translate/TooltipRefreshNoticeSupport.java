@@ -3,8 +3,6 @@ package com.cedarxuesong.translate_allinone.utils.translate;
 import com.cedarxuesong.translate_allinone.utils.cache.ItemTemplateCache;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -13,6 +11,8 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.Component;
 
 public final class TooltipRefreshNoticeSupport {
     private static final String TOOLTIP_REFRESH_NOTICE_KEY = "text.translate_allinone.item.tooltip_refresh_forced";
@@ -28,7 +28,7 @@ public final class TooltipRefreshNoticeSupport {
     private TooltipRefreshNoticeSupport() {
     }
 
-    public static void maybeForceRefreshCurrentTooltip(List<Text> tooltip, ItemTranslateConfig config) {
+    public static void maybeForceRefreshCurrentTooltip(List<Component> tooltip, ItemTranslateConfig config) {
         Set<String> keysToRefresh = TooltipTranslationSupport.collectRemoteTranslationTemplateKeys(tooltip, config);
         maybeForceRefreshCurrentTooltip(keysToRefresh, config);
     }
@@ -64,11 +64,11 @@ public final class TooltipRefreshNoticeSupport {
         }
     }
 
-    public static void queueRemoteTranslationForCurrentTooltip(List<Text> tooltip, ItemTranslateConfig config) {
+    public static void queueRemoteTranslationForCurrentTooltip(List<Component> tooltip, ItemTranslateConfig config) {
         queueRemoteTranslationForCurrentTooltip(tooltip, config, null);
     }
 
-    public static void queueRemoteTranslationForCurrentTooltip(List<Text> tooltip, ItemTranslateConfig config, String source) {
+    public static void queueRemoteTranslationForCurrentTooltip(List<Component> tooltip, ItemTranslateConfig config, String source) {
         Set<String> keysToQueue = TooltipTranslationSupport.collectRemoteTranslationTemplateKeys(tooltip, config);
         if (keysToQueue != null && !keysToQueue.isEmpty()) {
             if (source != null && config != null && config.debug.enabled) {
@@ -82,7 +82,7 @@ public final class TooltipRefreshNoticeSupport {
         }
     }
 
-    public static boolean shouldShowRefreshNotice(List<Text> tooltip, ItemTranslateConfig config) {
+    public static boolean shouldShowRefreshNotice(List<Component> tooltip, ItemTranslateConfig config) {
         Set<String> keys = TooltipTranslationSupport.collectRemoteTranslationTemplateKeys(tooltip, config);
         return shouldShowRefreshNotice(keys);
     }
@@ -99,23 +99,23 @@ public final class TooltipRefreshNoticeSupport {
         return computeTooltipSignature(keys) == refreshNoticeTooltipSignature;
     }
 
-    public static Text createRefreshNoticeLine() {
-        return Text.translatable(TOOLTIP_REFRESH_NOTICE_KEY).formatted(Formatting.GREEN);
+    public static Component createRefreshNoticeLine() {
+        return Component.translatable(TOOLTIP_REFRESH_NOTICE_KEY).withStyle(ChatFormatting.GREEN);
     }
 
-    public static boolean isRefreshNoticeLine(Text line) {
+    public static boolean isRefreshNoticeLine(Component line) {
         if (line == null) {
             return false;
         }
         return createRefreshNoticeLine().getString().equals(line.getString());
     }
 
-    public static boolean containsRefreshNoticeLine(List<Text> tooltip) {
+    public static boolean containsRefreshNoticeLine(List<Component> tooltip) {
         if (tooltip == null || tooltip.isEmpty()) {
             return false;
         }
 
-        for (Text line : tooltip) {
+        for (Component line : tooltip) {
             if (isRefreshNoticeLine(line)) {
                 return true;
             }
@@ -123,7 +123,7 @@ public final class TooltipRefreshNoticeSupport {
         return false;
     }
 
-    public static List<Text> appendRefreshNoticeLine(List<Text> tooltip, boolean showRefreshNotice) {
+    public static List<Component> appendRefreshNoticeLine(List<Component> tooltip, boolean showRefreshNotice) {
         if (!showRefreshNotice || tooltip == null) {
             return tooltip;
         }
@@ -132,7 +132,7 @@ public final class TooltipRefreshNoticeSupport {
             return tooltip;
         }
 
-        List<Text> tooltipWithNotice = new ArrayList<>(tooltip.size() + 1);
+        List<Component> tooltipWithNotice = new ArrayList<>(tooltip.size() + 1);
         tooltipWithNotice.addAll(tooltip);
         tooltipWithNotice.add(createRefreshNoticeLine());
         return tooltipWithNotice;

@@ -1,25 +1,24 @@
 package com.cedarxuesong.translate_allinone.gui.configui.controls;
 
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.text.Text;
-
 import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.network.chat.Component;
 
 public final class IntSliderBlock {
     private final int x;
     private final int y;
     private final int width;
     private final int height;
-    private final Text label;
+    private final Component label;
     private final int min;
     private final int max;
     private final IntSupplier getter;
     private final IntConsumer setter;
-    private final TextRenderer textRenderer;
+    private final Font textRenderer;
     private final Style style;
-    private final Text tooltip;
+    private final Component tooltip;
 
     private double visualPosition;
     private double targetPosition;
@@ -32,14 +31,14 @@ public final class IntSliderBlock {
             int y,
             int width,
             int height,
-            Text label,
+            Component label,
             int min,
             int max,
             IntSupplier getter,
             IntConsumer setter,
-            TextRenderer textRenderer,
+            Font textRenderer,
             Style style,
-            Text tooltip
+            Component tooltip
     ) {
         this.x = x;
         this.y = y;
@@ -63,7 +62,7 @@ public final class IntSliderBlock {
         this.targetPosition = this.visualPosition;
     }
 
-    public Text tooltip() {
+    public Component tooltip() {
         return tooltip;
     }
 
@@ -119,7 +118,7 @@ public final class IntSliderBlock {
         segmentPulse = Math.max(0.0, segmentPulse - deltaSeconds * 3.0);
     }
 
-    public void render(DrawContext context, int mouseX, int mouseY) {
+    public void render(GuiGraphicsExtractor context, int mouseX, int mouseY) {
         boolean hovered = contains(mouseX, mouseY);
         int background = hovered || dragging ? style.blockHoverColor() : style.blockColor();
         context.fill(x, y, x + width, y + height, background);
@@ -128,13 +127,13 @@ public final class IntSliderBlock {
         int textY = y + 5;
         int trackY = y + height - 7;
 
-        Text valueText = Text.literal(Integer.toString(value));
-        int valueWidth = textRenderer.getWidth(valueText);
+        Component valueText = Component.literal(Integer.toString(value));
+        int valueWidth = textRenderer.width(valueText);
         int valueX = x + width - valueWidth - 6;
         int labelMaxWidth = Math.max(40, width - valueWidth - 20);
-        String clippedLabel = textRenderer.trimToWidth(label.getString(), labelMaxWidth);
-        context.drawText(textRenderer, clippedLabel, x + 6, textY, style.textColor(), false);
-        context.drawText(textRenderer, valueText, valueX, textY, dragging ? style.textAccentColor() : style.textMutedColor(), false);
+        String clippedLabel = textRenderer.plainSubstrByWidth(label.getString(), labelMaxWidth);
+        context.text(textRenderer, clippedLabel, x + 6, textY, style.textColor(), false);
+        context.text(textRenderer, valueText, valueX, textY, dragging ? style.textAccentColor() : style.textMutedColor(), false);
 
         int trackLeft = trackLeft();
         int trackRight = trackRight();
@@ -213,7 +212,7 @@ public final class IntSliderBlock {
         return x + width - 8;
     }
 
-    private void drawOutline(DrawContext context, int x, int y, int width, int height, int color) {
+    private void drawOutline(GuiGraphicsExtractor context, int x, int y, int width, int height, int color) {
         if (width <= 0 || height <= 0) {
             return;
         }

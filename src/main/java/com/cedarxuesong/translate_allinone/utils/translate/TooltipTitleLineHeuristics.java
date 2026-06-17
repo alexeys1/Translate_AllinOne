@@ -1,6 +1,6 @@
 package com.cedarxuesong.translate_allinone.utils.translate;
 
-import net.minecraft.text.Text;
+import net.minecraft.network.chat.Component;
 
 final class TooltipTitleLineHeuristics {
     private TooltipTitleLineHeuristics() {
@@ -14,7 +14,7 @@ final class TooltipTitleLineHeuristics {
     }
 
     static TitleLineEvaluation evaluateLine(
-            Text line,
+            Component line,
             boolean nameSlotAvailable,
             boolean decorativeTooltipContext,
             String firstTitleComparisonText
@@ -33,7 +33,7 @@ final class TooltipTitleLineHeuristics {
         );
     }
 
-    private static boolean looksLikeDuplicateWynnTitleLine(Text line, String firstTitleComparisonText) {
+    private static boolean looksLikeDuplicateWynnTitleLine(Component line, String firstTitleComparisonText) {
         if (line == null
                 || firstTitleComparisonText == null
                 || firstTitleComparisonText.isBlank()) {
@@ -54,7 +54,7 @@ final class TooltipTitleLineHeuristics {
                 || hasEquivalentNumericBracketSuffix(currentComparisonText, firstTitleComparisonText);
     }
 
-    private static String extractTitleComparisonText(Text line) {
+    private static String extractTitleComparisonText(Component line) {
         if (line == null) {
             return "";
         }

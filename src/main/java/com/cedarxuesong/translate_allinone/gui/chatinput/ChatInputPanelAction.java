@@ -1,6 +1,6 @@
 package com.cedarxuesong.translate_allinone.gui.chatinput;
 
-import net.minecraft.text.Text;
+import net.minecraft.network.chat.Component;
 
 public enum ChatInputPanelAction {
     TRANSLATE("text.translate_allinone.chat_input_panel.translate", "T", 0xFF569BE6),
@@ -20,8 +20,8 @@ public enum ChatInputPanelAction {
         this.accentColor = accentColor;
     }
 
-    public Text label() {
-        return Text.translatable(this.key);
+    public Component label() {
+        return Component.translatable(this.key);
     }
 
     public String icon() {
