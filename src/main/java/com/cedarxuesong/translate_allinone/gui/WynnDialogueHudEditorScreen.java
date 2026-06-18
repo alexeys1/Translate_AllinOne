@@ -63,7 +63,7 @@ public class WynnDialogueHudEditorScreen extends Screen {
     public void onClose() {
         draggingHud = false;
         if (this.minecraft != null) {
-            this.minecraft.setScreen(parent);
+            this.minecraft.gui.setScreen(parent);
         }
     }
 

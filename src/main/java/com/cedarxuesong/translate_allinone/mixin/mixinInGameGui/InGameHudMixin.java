@@ -25,8 +25,8 @@ import java.util.Locale;
 import java.util.Map;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.Hud;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.world.scores.Objective;
@@ -34,7 +34,7 @@ import net.minecraft.world.scores.PlayerScoreEntry;
 import net.minecraft.world.scores.PlayerTeam;
 import net.minecraft.world.scores.Scoreboard;
 
-@Mixin(Gui.class)
+@Mixin(Hud.class)
 public class InGameHudMixin {
     @Unique
     private static final Logger LOGGER = LoggerFactory.getLogger("Translate_AllinOne/InGameHudMixin");

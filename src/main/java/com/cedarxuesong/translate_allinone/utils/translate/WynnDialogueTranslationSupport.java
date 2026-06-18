@@ -732,7 +732,7 @@ public final class WynnDialogueTranslationSupport {
         }
 
         Minecraft client = Minecraft.getInstance();
-        if (client != null && client.screen != null) {
+        if (client != null && client.gui.screen() != null) {
             return;
         }
 

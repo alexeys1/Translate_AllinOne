@@ -105,7 +105,7 @@ public class ChatOutputTranslateManager {
         }
 
         Minecraft client = Minecraft.getInstance();
-        ChatComponent chatHud = client.gui.getChat();
+        ChatComponent chatHud = client.gui.hud.getChat();
         ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
         List<GuiMessage> messages = chatHudAccessor.getMessages();
         LineSearchResult searchResult = findTargetLine(messages, originalMessage);
@@ -284,7 +284,7 @@ public class ChatOutputTranslateManager {
         }
 
         client.execute(() -> {
-            ChatComponent chatHud = client.gui == null ? null : client.gui.getChat();
+            ChatComponent chatHud = client.gui == null ? null : client.gui.hud.getChat();
             if (chatHud == null) {
                 return;
             }
@@ -312,7 +312,7 @@ public class ChatOutputTranslateManager {
         if (lineToUpdate == null) return;
 
         Minecraft.getInstance().execute(() -> {
-            ChatComponent chatHud = Minecraft.getInstance().gui.getChat();
+            ChatComponent chatHud = Minecraft.getInstance().gui.hud.getChat();
             if (chatHud == null) return;
 
             ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
@@ -340,7 +340,7 @@ public class ChatOutputTranslateManager {
         }
 
         Minecraft.getInstance().execute(() -> {
-            ChatComponent chatHud = Minecraft.getInstance().gui.getChat();
+            ChatComponent chatHud = Minecraft.getInstance().gui.hud.getChat();
             if (chatHud == null) return;
 
             ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
@@ -394,7 +394,7 @@ public class ChatOutputTranslateManager {
             return;
         }
 
-        ChatComponent chatHud = client.gui.getChat();
+        ChatComponent chatHud = client.gui.hud.getChat();
         if (chatHud == null) {
             return;
         }

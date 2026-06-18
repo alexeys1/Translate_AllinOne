@@ -328,7 +328,7 @@ public final class WynnDialogueHudRenderer {
             return;
         }
 
-        if (client.screen != null) {
+        if (client.gui.screen() != null) {
             return;
         }
 

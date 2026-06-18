@@ -53,7 +53,7 @@ public class LifecycleEventManager {
 
     private static void registerReadinessTickHandler() {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            if (awaitingReadinessCheck && client.player != null && client.level != null && client.screen == null) {
+            if (awaitingReadinessCheck && client.player != null && client.level != null && client.gui.screen() == null) {
                 awaitingReadinessCheck = false;
                 readinessGracePeriodTicks = GRACE_PERIOD_DURATION_TICKS;
                 LOGGER.info("Client is ready. Starting grace period for {} ticks before enabling translations.", readinessGracePeriodTicks);

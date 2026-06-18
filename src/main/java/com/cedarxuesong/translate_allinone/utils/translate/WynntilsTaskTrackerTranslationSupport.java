@@ -436,10 +436,9 @@ public final class WynntilsTaskTrackerTranslationSupport {
         if (style.getColor() != null) {
             boolean appendedFormattingColor = false;
             for (ChatFormatting formatting : ChatFormatting.values()) {
-                if (formatting.isColor()
-                        && formatting.getColor() != null
-                        && formatting.getColor().equals(style.getColor().getValue())) {
-                    builder.append('§').append(formatting.getChar());
+                TextColor formattingColor = TextColor.fromLegacyFormat(formatting);
+                if (formattingColor != null && formattingColor.getValue() == style.getColor().getValue()) {
+                    builder.append(formatting);
                     appendedFormattingColor = true;
                     break;
                 }

@@ -422,8 +422,7 @@ public class ModConfigScreen extends Screen {
                 .getModContainer(Translate_AllinOne.MOD_ID)
                 .map(container -> {
                     var contact = container.getMetadata().getContact();
-                    return contact.get("sources")
-                            .or(() -> contact.get("homepage"))
+                    return contact.get("modrinth")
                             .orElse("");
                 })
                 .orElse("");
@@ -514,7 +513,7 @@ public class ModConfigScreen extends Screen {
         unsavedChangesConfirmModalOpen = false;
 
         if (this.minecraft != null) {
-            this.minecraft.setScreen(parent);
+            this.minecraft.gui.setScreen(parent);
         }
     }
 
@@ -1208,7 +1207,7 @@ public class ModConfigScreen extends Screen {
     private void openPromptEditorScreen() {
         promptEditorWarningOpen = false;
         if (this.minecraft != null) {
-            this.minecraft.setScreen(new PromptEditorScreen(this, promptEditorProviderId));
+            this.minecraft.gui.setScreen(new PromptEditorScreen(this, promptEditorProviderId));
         }
     }
 
@@ -1802,7 +1801,7 @@ public class ModConfigScreen extends Screen {
         if (this.minecraft == null) {
             return;
         }
-        this.minecraft.setScreen(new WynnDialogueHudEditorScreen(this));
+        this.minecraft.gui.setScreen(new WynnDialogueHudEditorScreen(this));
     }
 
     private void openRepositoryLink() {

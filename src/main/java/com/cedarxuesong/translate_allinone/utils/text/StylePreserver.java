@@ -12,6 +12,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
+import net.minecraft.network.chat.TextColor;
 
 public class StylePreserver {
 
@@ -517,8 +518,9 @@ public class StylePreserver {
         StringBuilder sb = new StringBuilder();
         if (style.getColor() != null) {
             for (ChatFormatting f : ChatFormatting.values()) {
-                if (f.isColor() && f.getColor() != null && f.getColor().equals(style.getColor().getValue())) {
-                    sb.append('§').append(f.getChar());
+                TextColor formattingColor = TextColor.fromLegacyFormat(f);
+                if (formattingColor != null && formattingColor.getValue() == style.getColor().getValue()) {
+                    sb.append(f);
                     break;
                 }
             }
@@ -557,7 +559,7 @@ public class StylePreserver {
                 ChatFormatting formatting = ChatFormatting.getByCode(formatChar);
 
                 if (formatting != null) {
-                    if (formatting.isColor() || formatting == ChatFormatting.RESET) {
+                    if (TextColor.fromLegacyFormat(formatting) != null || formatting == ChatFormatting.RESET) {
                         currentStyle = Style.EMPTY.applyFormat(formatting);
                     } else {
                         currentStyle = currentStyle.applyFormat(formatting);

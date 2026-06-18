@@ -115,7 +115,7 @@ public class PromptEditorScreen extends Screen {
     @Override
     public void onClose() {
         if (this.minecraft != null) {
-            this.minecraft.setScreen(parent);
+            this.minecraft.gui.setScreen(parent);
         }
     }
 
@@ -159,7 +159,7 @@ public class PromptEditorScreen extends Screen {
         }
         profile.normalizePromptOverrides();
         if (this.minecraft != null) {
-            this.minecraft.setScreen(parent);
+            this.minecraft.gui.setScreen(parent);
         }
     }
 
