@@ -10,7 +10,8 @@
 	],
 	"contact": {
 		"homepage": "https://github.com/alexeys1/Translate_AllinOne",
-		"sources": "https://github.com/alexeys1/Translate_AllinOne"
+		"sources": "https://github.com/alexeys1/Translate_AllinOne",
+    "modrinth": "https://modrinth.com/mod/translate_allinone(fork)"
 	},
 	"license": "MIT",
 	"icon": "assets/translate_allinone/icon.png",
@@ -32,6 +33,12 @@
 		"java": ">=21",
 		"fabric-api": "*",
 		"modmenu": ">=16.0.0"
-	}
-
+	},
+  "custom": {
+    "modmenu": {
+      "links": {
+        "modmenu.modrinth": "https://modrinth.com/mod/translate_allinone(fork)"
+      }
+    }
+  }
 }

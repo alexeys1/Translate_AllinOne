@@ -3,10 +3,10 @@ plugins {
 	id 'maven-publish'
 }
 
-version = project.mod_version
+version = "${project.mod_version}+mc${project.minecraft_version}"
 group = project.maven_group
 
-def modArchiveVersion = "${project.mod_version}-mc${project.minecraft_version}"
+def modArchiveVersion = "${project.mod_version}+mc${project.minecraft_version}"
 
 base {
 	archivesName = project.archives_base_name

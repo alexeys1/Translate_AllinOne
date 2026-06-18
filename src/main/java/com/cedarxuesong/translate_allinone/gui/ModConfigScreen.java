@@ -422,8 +422,7 @@ public class ModConfigScreen extends Screen {
                 .getModContainer(Translate_AllinOne.MOD_ID)
                 .map(container -> {
                     var contact = container.getMetadata().getContact();
-                    return contact.get("sources")
-                            .or(() -> contact.get("homepage"))
+                    return contact.get("modrinth")
                             .orElse("");
                 })
                 .orElse("");
