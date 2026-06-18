@@ -1,18 +1,17 @@
 package com.cedarxuesong.translate_allinone.gui.configui.render;
 
 import com.cedarxuesong.translate_allinone.gui.configui.model.UiRect;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.text.OrderedText;
-import net.minecraft.text.Text;
-
 import java.util.List;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.network.chat.Component;
+import net.minecraft.util.FormattedCharSequence;
 
 public final class ConfigUiDraw {
     private ConfigUiDraw() {
     }
 
-    public static void drawOutline(DrawContext context, int x, int y, int width, int height, int color) {
+    public static void drawOutline(GuiGraphicsExtractor context, int x, int y, int width, int height, int color) {
         if (width <= 0 || height <= 0) {
             return;
         }
@@ -31,9 +30,9 @@ public final class ConfigUiDraw {
     private static final int TOOLTIP_MOUSE_OFFSET = 12;
 
     public static void drawTooltip(
-            DrawContext context,
-            TextRenderer textRenderer,
-            Text tooltip,
+            GuiGraphicsExtractor context,
+            Font textRenderer,
+            Component tooltip,
             int mouseX,
             int mouseY,
             int screenWidth,
@@ -43,15 +42,15 @@ public final class ConfigUiDraw {
             return;
         }
 
-        List<OrderedText> lines = textRenderer.wrapLines(tooltip, TOOLTIP_MAX_WIDTH);
+        List<FormattedCharSequence> lines = textRenderer.split(tooltip, TOOLTIP_MAX_WIDTH);
         if (lines.isEmpty()) {
             return;
         }
 
-        int lineHeight = textRenderer.fontHeight + 1;
+        int lineHeight = textRenderer.lineHeight + 1;
         int textWidth = 0;
-        for (OrderedText line : lines) {
-            int w = textRenderer.getWidth(line);
+        for (FormattedCharSequence line : lines) {
+            int w = textRenderer.width(line);
             if (w > textWidth) {
                 textWidth = w;
             }
@@ -80,13 +79,13 @@ public final class ConfigUiDraw {
         drawOutline(context, boxX, boxY, boxWidth, boxHeight, TOOLTIP_BORDER);
 
         int textY = boxY + TOOLTIP_PADDING_Y;
-        for (OrderedText line : lines) {
-            context.drawText(textRenderer, line, boxX + TOOLTIP_PADDING_X, textY, TOOLTIP_TEXT, false);
+        for (FormattedCharSequence line : lines) {
+            context.text(textRenderer, line, boxX + TOOLTIP_PADDING_X, textY, TOOLTIP_TEXT, false);
             textY += lineHeight;
         }
     }
 
-    public static void withScissor(DrawContext context, UiRect rect, Runnable drawer) {
+    public static void withScissor(GuiGraphicsExtractor context, UiRect rect, Runnable drawer) {
         if (drawer == null) {
             return;
         }

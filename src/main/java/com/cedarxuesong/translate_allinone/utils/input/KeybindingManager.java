@@ -1,9 +1,9 @@
 package com.cedarxuesong.translate_allinone.utils.input;
 
 import com.cedarxuesong.translate_allinone.utils.config.pojos.InputBindingConfig;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.input.KeyInput;
-import net.minecraft.client.util.InputUtil;
+import com.mojang.blaze3d.platform.InputConstants;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.input.KeyEvent;
 import org.lwjgl.glfw.GLFW;
 
 public final class KeybindingManager {
@@ -14,11 +14,11 @@ public final class KeybindingManager {
         return binding != null && binding.isBound();
     }
 
-    public static boolean isEscape(KeyInput keyInput) {
+    public static boolean isEscape(KeyEvent keyInput) {
         return extractKeyCode(keyInput) == GLFW.GLFW_KEY_ESCAPE;
     }
 
-    public static boolean matchesKeyInput(InputBindingConfig binding, KeyInput keyInput) {
+    public static boolean matchesKeyInput(InputBindingConfig binding, KeyEvent keyInput) {
         if (!isBound(binding) || binding.type != InputBindingConfig.InputType.KEYSYM) {
             return false;
         }
@@ -30,7 +30,7 @@ public final class KeybindingManager {
             return false;
         }
 
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client == null || client.getWindow() == null) {
             return false;
         }
@@ -43,15 +43,15 @@ public final class KeybindingManager {
         try {
             if (binding.type == InputBindingConfig.InputType.MOUSE) {
                 return code <= GLFW.GLFW_MOUSE_BUTTON_LAST
-                        && GLFW.glfwGetMouseButton(client.getWindow().getHandle(), code) == GLFW.GLFW_PRESS;
+                        && GLFW.glfwGetMouseButton(client.getWindow().handle(), code) == GLFW.GLFW_PRESS;
             }
-            return code <= GLFW.GLFW_KEY_LAST && InputUtil.isKeyPressed(client.getWindow(), code);
+            return code <= GLFW.GLFW_KEY_LAST && InputConstants.isKeyDown(client.getWindow(), code);
         } catch (Exception e) {
             return false;
         }
     }
 
-    public static InputBindingConfig captureKeyboardBinding(KeyInput keyInput) {
+    public static InputBindingConfig captureKeyboardBinding(KeyEvent keyInput) {
         int code = extractKeyCode(keyInput);
         if (code < 0) {
             return null;
@@ -95,9 +95,9 @@ public final class KeybindingManager {
 
         try {
             if (binding.type == InputBindingConfig.InputType.MOUSE) {
-                return InputUtil.Type.MOUSE.createFromCode(binding.code).getLocalizedText().getString();
+                return InputConstants.Type.MOUSE.getOrCreate(binding.code).getDisplayName().getString();
             }
-            return InputUtil.Type.KEYSYM.createFromCode(binding.code).getLocalizedText().getString();
+            return InputConstants.Type.KEYSYM.getOrCreate(binding.code).getDisplayName().getString();
         } catch (Exception e) {
             if (binding.type == InputBindingConfig.InputType.MOUSE) {
                 return "Mouse " + (binding.code + 1);
@@ -106,7 +106,7 @@ public final class KeybindingManager {
         }
     }
 
-    private static int extractKeyCode(KeyInput keyInput) {
+    private static int extractKeyCode(KeyEvent keyInput) {
         if (keyInput == null) {
             return -1;
         }

@@ -8,15 +8,15 @@ import com.cedarxuesong.translate_allinone.registration.ConfigManager;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ChatTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
 import com.cedarxuesong.translate_allinone.utils.translate.ChatInputTranslateManager;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.Click;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.ChatScreen;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.client.input.CharInput;
-import net.minecraft.client.input.KeyInput;
-import net.minecraft.text.Text;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.ChatScreen;
+import net.minecraft.client.input.CharacterEvent;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -29,7 +29,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(ChatScreen.class)
 public class ChatScreenMixin {
     @Shadow
-    protected TextFieldWidget chatField;
+    protected EditBox input;
 
     @Unique
     private static final int PANEL_WIDTH = 308;
@@ -177,7 +177,7 @@ public class ChatScreenMixin {
     private static String instructionDraft = "";
 
     @Unique
-    private TextFieldWidget translate_allinone$instructionField;
+    private EditBox translate_allinone$instructionField;
 
     @Inject(method = "init", at = @At("TAIL"), require = 0)
     private void onInit(CallbackInfo ci) {
@@ -191,7 +191,7 @@ public class ChatScreenMixin {
     }
 
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
-    private void onKeyPressed(KeyInput keyInput, CallbackInfoReturnable<Boolean> cir) {
+    private void onKeyPressed(KeyEvent keyInput, CallbackInfoReturnable<Boolean> cir) {
         ChatInputTranslateManager.PanelAvailability availability = translate_allinone$getPanelAvailability();
 
         if (translate_allinone$isInstructionFieldFocused()) {
@@ -216,14 +216,14 @@ public class ChatScreenMixin {
 
         if (KeybindingManager.matchesKeyInput(Translate_AllinOne.getConfig().chatTranslate.input.keybinding, keyInput)) {
             if (availability != ChatInputTranslateManager.PanelAvailability.NO_MODEL) {
-                ChatInputTranslateManager.translate(this.chatField);
+                ChatInputTranslateManager.translate(this.input);
             }
             cir.setReturnValue(true);
         }
     }
 
     @Inject(method = "charTyped", at = @At("HEAD"), cancellable = true, require = 0)
-    private void onCharTyped(CharInput charInput, CallbackInfoReturnable<Boolean> cir) {
+    private void onCharTyped(CharacterEvent charInput, CallbackInfoReturnable<Boolean> cir) {
         if (translate_allinone$isInstructionFieldFocused()
                 && translate_allinone$isInstructionEnabled(translate_allinone$getPanelAvailability())) {
             this.translate_allinone$instructionField.charTyped(charInput);
@@ -231,8 +231,8 @@ public class ChatScreenMixin {
         }
     }
 
-    @Inject(method = "render", at = @At("TAIL"))
-    private void onRender(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+    @Inject(method = "extractRenderState", at = @At("TAIL"))
+    private void onRender(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
         if (!translate_allinone$isPanelVisible()) {
             panelDragging = false;
             if (this.translate_allinone$instructionField != null) {
@@ -244,8 +244,8 @@ public class ChatScreenMixin {
         translate_allinone$ensurePanelPosition();
         ChatInputTranslateManager.PanelAvailability availability = translate_allinone$getPanelAvailability();
         if (panelDragging) {
-            MinecraftClient client = MinecraftClient.getInstance();
-            if (client == null || GLFW.glfwGetMouseButton(client.getWindow().getHandle(), GLFW.GLFW_MOUSE_BUTTON_LEFT) != GLFW.GLFW_PRESS) {
+            Minecraft client = Minecraft.getInstance();
+            if (client == null || GLFW.glfwGetMouseButton(client.getWindow().handle(), GLFW.GLFW_MOUSE_BUTTON_LEFT) != GLFW.GLFW_PRESS) {
                 panelDragging = false;
                 translate_allinone$persistPanelState();
             } else {
@@ -272,7 +272,7 @@ public class ChatScreenMixin {
     }
 
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
-    private void onMouseClicked(Click click, boolean bl, CallbackInfoReturnable<Boolean> cir) {
+    private void onMouseClicked(MouseButtonEvent click, boolean bl, CallbackInfoReturnable<Boolean> cir) {
         panelDragging = false;
 
         if (!translate_allinone$isPanelVisible()) {
@@ -357,7 +357,7 @@ public class ChatScreenMixin {
 
     @Unique
     private boolean translate_allinone$isPanelVisible() {
-        if (this.chatField == null) {
+        if (this.input == null) {
             return false;
         }
         ChatTranslateConfig.ChatInputTranslateConfig inputConfig = Translate_AllinOne.getConfig().chatTranslate.input;
@@ -391,11 +391,11 @@ public class ChatScreenMixin {
     }
 
     @Unique
-    private Text translate_allinone$subtitleText(ChatInputTranslateManager.PanelAvailability availability) {
+    private Component translate_allinone$subtitleText(ChatInputTranslateManager.PanelAvailability availability) {
         return switch (availability) {
-            case FULL -> Text.translatable("text.translate_allinone.chat_input_panel.subtitle");
-            case NO_MODEL -> Text.translatable("text.translate_allinone.chat_input_panel.status_no_model");
-            case TRANSLATE_ONLY -> Text.translatable("text.translate_allinone.chat_input_panel.status_translate_only");
+            case FULL -> Component.translatable("text.translate_allinone.chat_input_panel.subtitle");
+            case NO_MODEL -> Component.translatable("text.translate_allinone.chat_input_panel.status_no_model");
+            case TRANSLATE_ONLY -> Component.translatable("text.translate_allinone.chat_input_panel.status_translate_only");
         };
     }
 
@@ -409,23 +409,23 @@ public class ChatScreenMixin {
     }
 
     @Unique
-    private Text translate_allinone$instructionPlaceholder(ChatInputTranslateManager.PanelAvailability availability) {
+    private Component translate_allinone$instructionPlaceholder(ChatInputTranslateManager.PanelAvailability availability) {
         return switch (availability) {
-            case FULL -> Text.translatable("text.translate_allinone.chat_input_panel.instruction_placeholder");
-            case NO_MODEL -> Text.translatable("text.translate_allinone.chat_input_panel.status_no_model");
-            case TRANSLATE_ONLY -> Text.translatable("text.translate_allinone.chat_input_panel.status_translate_only_short");
+            case FULL -> Component.translatable("text.translate_allinone.chat_input_panel.instruction_placeholder");
+            case NO_MODEL -> Component.translatable("text.translate_allinone.chat_input_panel.status_no_model");
+            case TRANSLATE_ONLY -> Component.translatable("text.translate_allinone.chat_input_panel.status_translate_only_short");
         };
     }
 
     @Unique
-    private Text translate_allinone$applyButtonLabel(boolean enabled, ChatInputTranslateManager.PanelAvailability availability) {
+    private Component translate_allinone$applyButtonLabel(boolean enabled, ChatInputTranslateManager.PanelAvailability availability) {
         if (enabled) {
-            return Text.translatable("text.translate_allinone.chat_input_panel.apply_instruction");
+            return Component.translatable("text.translate_allinone.chat_input_panel.apply_instruction");
         }
         return switch (availability) {
-            case NO_MODEL -> Text.translatable("text.translate_allinone.chat_input_panel.status_no_model");
-            case TRANSLATE_ONLY -> Text.translatable("text.translate_allinone.chat_input_panel.status_translate_only_short");
-            case FULL -> Text.translatable("text.translate_allinone.chat_input_panel.apply_instruction");
+            case NO_MODEL -> Component.translatable("text.translate_allinone.chat_input_panel.status_no_model");
+            case TRANSLATE_ONLY -> Component.translatable("text.translate_allinone.chat_input_panel.status_translate_only_short");
+            case FULL -> Component.translatable("text.translate_allinone.chat_input_panel.apply_instruction");
         };
     }
 
@@ -465,24 +465,24 @@ public class ChatScreenMixin {
         if (this.translate_allinone$instructionField != null) {
             return;
         }
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client == null) {
             return;
         }
 
         ChatInputPanelRect inputRect = translate_allinone$instructionInputInnerRect(translate_allinone$panelRect());
-        this.translate_allinone$instructionField = new TextFieldWidget(
-                client.textRenderer,
+        this.translate_allinone$instructionField = new EditBox(
+                client.font,
                 inputRect.x(),
                 inputRect.y(),
                 inputRect.width(),
                 inputRect.height(),
-                Text.empty()
+                Component.empty()
         );
         this.translate_allinone$instructionField.setMaxLength(INPUT_MAX_LENGTH);
-        this.translate_allinone$instructionField.setPlaceholder(Text.translatable("text.translate_allinone.chat_input_panel.instruction_placeholder"));
-        this.translate_allinone$instructionField.setText(instructionDraft);
-        this.translate_allinone$instructionField.setChangedListener(value -> instructionDraft = value);
+        this.translate_allinone$instructionField.setHint(Component.translatable("text.translate_allinone.chat_input_panel.instruction_placeholder"));
+        this.translate_allinone$instructionField.setValue(instructionDraft);
+        this.translate_allinone$instructionField.setResponder(value -> instructionDraft = value);
         this.translate_allinone$instructionField.setFocused(false);
     }
 
@@ -498,18 +498,18 @@ public class ChatScreenMixin {
 
     @Unique
     private void translate_allinone$renderPanel(
-            DrawContext context,
+            GuiGraphicsExtractor context,
             int mouseX,
             int mouseY,
             float delta,
             ChatInputTranslateManager.PanelAvailability availability
     ) {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client == null) {
             return;
         }
 
-        TextRenderer textRenderer = client.textRenderer;
+        Font textRenderer = client.font;
         ChatInputPanelRect panelRect = translate_allinone$panelRect();
         ChatInputPanelRect headerRect = translate_allinone$headerRect(panelRect);
         ChatInputPanelRect quickCardRect = translate_allinone$quickActionCardRect(panelRect);
@@ -521,15 +521,15 @@ public class ChatScreenMixin {
 
         context.fill(headerRect.x(), headerRect.y(), headerRect.right(), headerRect.bottom(), COLOR_HEADER_BG);
         context.fill(panelRect.x() + 1, panelRect.y() + HEADER_HEIGHT, panelRect.right() - 1, panelRect.y() + HEADER_HEIGHT + 1, COLOR_HEADER_DIVIDER);
-        context.drawText(
+        context.text(
                 textRenderer,
-                Text.translatable("text.translate_allinone.chat_input_panel.title"),
+                Component.translatable("text.translate_allinone.chat_input_panel.title"),
                 panelRect.x() + PANEL_PADDING,
                 panelRect.y() + 4,
                 COLOR_HEADER_TEXT,
                 false
         );
-        context.drawText(
+        context.text(
                 textRenderer,
                 translate_allinone$subtitleText(availability),
                 panelRect.x() + PANEL_PADDING,
@@ -537,7 +537,7 @@ public class ChatScreenMixin {
                 translate_allinone$subtitleColor(availability),
                 false
         );
-        context.drawText(textRenderer, ":::", panelRect.right() - 40, panelRect.y() + 8, COLOR_HEADER_GRIP, false);
+        context.text(textRenderer, ":::", panelRect.right() - 40, panelRect.y() + 8, COLOR_HEADER_GRIP, false);
 
         ChatInputPanelRect collapseRect = translate_allinone$collapseToggleRect(panelRect);
         boolean collapseHovered = collapseRect.contains(mouseX, mouseY);
@@ -556,17 +556,17 @@ public class ChatScreenMixin {
                 collapseRect.height(),
                 collapseHovered ? COLOR_BUTTON_BORDER_HOVER : COLOR_BUTTON_BORDER
         );
-        context.drawText(
+        context.text(
                 textRenderer,
                 "-",
-                collapseRect.x() + (collapseRect.width() - textRenderer.getWidth("-")) / 2,
-                collapseRect.y() + (collapseRect.height() - textRenderer.fontHeight) / 2,
+                collapseRect.x() + (collapseRect.width() - textRenderer.width("-")) / 2,
+                collapseRect.y() + (collapseRect.height() - textRenderer.lineHeight) / 2,
                 COLOR_COLLAPSE_TOGGLE_TEXT,
                 false
         );
 
-        translate_allinone$drawCardShell(context, quickCardRect, Text.translatable("text.translate_allinone.chat_input_panel.quick_actions"), textRenderer);
-        translate_allinone$drawCardShell(context, instructionCardRect, Text.translatable("text.translate_allinone.chat_input_panel.instruction"), textRenderer);
+        translate_allinone$drawCardShell(context, quickCardRect, Component.translatable("text.translate_allinone.chat_input_panel.quick_actions"), textRenderer);
+        translate_allinone$drawCardShell(context, instructionCardRect, Component.translatable("text.translate_allinone.chat_input_panel.instruction"), textRenderer);
 
         ChatInputPanelAction[] actions = ChatInputPanelAction.values();
         for (int i = 0; i < actions.length; i++) {
@@ -599,11 +599,11 @@ public class ChatScreenMixin {
             );
 
             String icon = actions[i].icon();
-            int iconTextX = iconX + (iconSize - textRenderer.getWidth(icon)) / 2;
-            int textY = buttonRect.y() + (BUTTON_HEIGHT - textRenderer.fontHeight) / 2;
-            context.drawText(textRenderer, icon, iconTextX, textY, iconTextColor, false);
+            int iconTextX = iconX + (iconSize - textRenderer.width(icon)) / 2;
+            int textY = buttonRect.y() + (BUTTON_HEIGHT - textRenderer.lineHeight) / 2;
+            context.text(textRenderer, icon, iconTextX, textY, iconTextColor, false);
 
-            context.drawText(textRenderer, actions[i].label(), buttonRect.x() + 24, textY, textColor, false);
+            context.text(textRenderer, actions[i].label(), buttonRect.x() + 24, textY, textColor, false);
         }
 
         boolean instructionEnabled = translate_allinone$isInstructionEnabled(availability);
@@ -627,12 +627,12 @@ public class ChatScreenMixin {
         translate_allinone$layoutInstructionField(panelRect);
         if (this.translate_allinone$instructionField != null) {
             this.translate_allinone$instructionField.setEditable(instructionEnabled);
-            this.translate_allinone$instructionField.setPlaceholder(translate_allinone$instructionPlaceholder(availability));
+            this.translate_allinone$instructionField.setHint(translate_allinone$instructionPlaceholder(availability));
             if (instructionEnabled) {
-                this.translate_allinone$instructionField.render(context, mouseX, mouseY, delta);
+                this.translate_allinone$instructionField.extractRenderState(context, mouseX, mouseY, delta);
             } else {
-                int hintY = inputOuterRect.y() + (inputOuterRect.height() - textRenderer.fontHeight) / 2;
-                context.drawText(
+                int hintY = inputOuterRect.y() + (inputOuterRect.height() - textRenderer.lineHeight) / 2;
+                context.text(
                         textRenderer,
                         translate_allinone$instructionPlaceholder(availability),
                         inputOuterRect.x() + 6,
@@ -663,10 +663,10 @@ public class ChatScreenMixin {
                 applyRect.height(),
                 applyEnabled ? COLOR_APPLY_BORDER : COLOR_APPLY_BORDER_DISABLED
         );
-        Text applyLabel = translate_allinone$applyButtonLabel(applyEnabled, availability);
-        int applyTextX = applyRect.x() + (applyRect.width() - textRenderer.getWidth(applyLabel)) / 2;
-        int applyTextY = applyRect.y() + (applyRect.height() - textRenderer.fontHeight) / 2;
-        context.drawText(
+        Component applyLabel = translate_allinone$applyButtonLabel(applyEnabled, availability);
+        int applyTextX = applyRect.x() + (applyRect.width() - textRenderer.width(applyLabel)) / 2;
+        int applyTextY = applyRect.y() + (applyRect.height() - textRenderer.lineHeight) / 2;
+        context.text(
                 textRenderer,
                 applyLabel,
                 applyTextX,
@@ -677,13 +677,13 @@ public class ChatScreenMixin {
     }
 
     @Unique
-    private void translate_allinone$renderCollapsedPanel(DrawContext context, int mouseX, int mouseY) {
-        MinecraftClient client = MinecraftClient.getInstance();
+    private void translate_allinone$renderCollapsedPanel(GuiGraphicsExtractor context, int mouseX, int mouseY) {
+        Minecraft client = Minecraft.getInstance();
         if (client == null) {
             return;
         }
 
-        TextRenderer textRenderer = client.textRenderer;
+        Font textRenderer = client.font;
         ChatInputPanelRect panelRect = translate_allinone$panelRect();
         boolean hovered = panelRect.contains(mouseX, mouseY);
         int borderColor = hovered ? COLOR_BUTTON_BORDER_HOVER : COLOR_PANEL_BORDER;
@@ -695,9 +695,9 @@ public class ChatScreenMixin {
         ConfigUiDraw.drawOutline(context, panelRect.x(), panelRect.y(), panelRect.width(), panelRect.height(), borderColor);
 
         String expandIcon = "+";
-        int iconX = panelRect.x() + (panelRect.width() - textRenderer.getWidth(expandIcon)) / 2;
-        int iconY = panelRect.y() + (panelRect.height() - textRenderer.fontHeight) / 2;
-        context.drawText(
+        int iconX = panelRect.x() + (panelRect.width() - textRenderer.width(expandIcon)) / 2;
+        int iconY = panelRect.y() + (panelRect.height() - textRenderer.lineHeight) / 2;
+        context.text(
                 textRenderer,
                 expandIcon,
                 iconX,
@@ -708,10 +708,10 @@ public class ChatScreenMixin {
     }
 
     @Unique
-    private void translate_allinone$drawCardShell(DrawContext context, ChatInputPanelRect cardRect, Text title, TextRenderer textRenderer) {
+    private void translate_allinone$drawCardShell(GuiGraphicsExtractor context, ChatInputPanelRect cardRect, Component title, Font textRenderer) {
         context.fill(cardRect.x(), cardRect.y(), cardRect.right(), cardRect.bottom(), COLOR_CARD_BG);
         ConfigUiDraw.drawOutline(context, cardRect.x(), cardRect.y(), cardRect.width(), cardRect.height(), COLOR_CARD_BORDER);
-        context.drawText(textRenderer, title, cardRect.x() + CARD_PADDING, cardRect.y() + CARD_PADDING - 1, COLOR_CARD_TITLE, false);
+        context.text(textRenderer, title, cardRect.x() + CARD_PADDING, cardRect.y() + CARD_PADDING - 1, COLOR_CARD_TITLE, false);
     }
 
     @Unique
@@ -729,12 +729,12 @@ public class ChatScreenMixin {
     @Unique
     private void translate_allinone$performAction(ChatInputPanelAction action) {
         switch (action) {
-            case TRANSLATE -> ChatInputTranslateManager.translate(this.chatField);
-            case PROFESSIONAL -> ChatInputTranslateManager.translateProfessional(this.chatField);
-            case FRIENDLY -> ChatInputTranslateManager.translateFriendly(this.chatField);
-            case EXPAND -> ChatInputTranslateManager.translateExpand(this.chatField);
-            case CONCISE -> ChatInputTranslateManager.translateConcise(this.chatField);
-            case RESTORE -> ChatInputTranslateManager.restoreOriginal(this.chatField);
+            case TRANSLATE -> ChatInputTranslateManager.translate(this.input);
+            case PROFESSIONAL -> ChatInputTranslateManager.translateProfessional(this.input);
+            case FRIENDLY -> ChatInputTranslateManager.translateFriendly(this.input);
+            case EXPAND -> ChatInputTranslateManager.translateExpand(this.input);
+            case CONCISE -> ChatInputTranslateManager.translateConcise(this.input);
+            case RESTORE -> ChatInputTranslateManager.restoreOriginal(this.input);
         }
     }
 
@@ -743,12 +743,12 @@ public class ChatScreenMixin {
         if (this.translate_allinone$instructionField == null) {
             return;
         }
-        String instruction = this.translate_allinone$instructionField.getText();
-        ChatInputTranslateManager.rewriteByInstruction(this.chatField, instruction);
+        String instruction = this.translate_allinone$instructionField.getValue();
+        ChatInputTranslateManager.rewriteByInstruction(this.input, instruction);
     }
 
     @Unique
-    private boolean translate_allinone$isEnterKey(KeyInput keyInput) {
+    private boolean translate_allinone$isEnterKey(KeyEvent keyInput) {
         Integer keyCode = translate_allinone$extractKeyCode(keyInput);
         if (keyCode == null) {
             return false;
@@ -757,7 +757,7 @@ public class ChatScreenMixin {
     }
 
     @Unique
-    private Integer translate_allinone$extractKeyCode(KeyInput keyInput) {
+    private Integer translate_allinone$extractKeyCode(KeyEvent keyInput) {
         if (keyInput == null) {
             return null;
         }
@@ -864,14 +864,14 @@ public class ChatScreenMixin {
 
     @Unique
     private int translate_allinone$screenWidth() {
-        MinecraftClient client = MinecraftClient.getInstance();
-        return client == null ? 320 : client.getWindow().getScaledWidth();
+        Minecraft client = Minecraft.getInstance();
+        return client == null ? 320 : client.getWindow().getGuiScaledWidth();
     }
 
     @Unique
     private int translate_allinone$screenHeight() {
-        MinecraftClient client = MinecraftClient.getInstance();
-        return client == null ? 240 : client.getWindow().getScaledHeight();
+        Minecraft client = Minecraft.getInstance();
+        return client == null ? 240 : client.getWindow().getGuiScaledHeight();
     }
 
     @Unique

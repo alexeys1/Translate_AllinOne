@@ -1,7 +1,7 @@
 package com.cedarxuesong.translate_allinone.utils.translate;
 
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Text;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 
 public final class TranslationErrorTextSupport {
     private static final String NO_ROUTED_MODEL_ERROR = "No routed model selected";
@@ -12,26 +12,26 @@ public final class TranslationErrorTextSupport {
     private TranslationErrorTextSupport() {
     }
 
-    public static Text localizeReason(String errorMessage) {
+    public static Component localizeReason(String errorMessage) {
         if (errorMessage == null || errorMessage.isEmpty()) {
-            return Text.literal("");
+            return Component.literal("");
         }
         if (NO_ROUTED_MODEL_ERROR.equals(errorMessage)) {
-            return Text.translatable(NO_ROUTED_MODEL_ERROR_KEY);
+            return Component.translatable(NO_ROUTED_MODEL_ERROR_KEY);
         }
         int handshakeErrorStart = errorMessage.indexOf(REMOTE_HOST_TERMINATED_HANDSHAKE_ERROR);
         if (handshakeErrorStart >= 0) {
             return replaceHandshakeError(errorMessage, handshakeErrorStart);
         }
-        return Text.literal(errorMessage);
+        return Component.literal(errorMessage);
     }
 
-    private static Text replaceHandshakeError(String errorMessage, int handshakeErrorStart) {
-        MutableText localized = Text.literal(errorMessage.substring(0, handshakeErrorStart));
-        localized.append(Text.translatable(REMOTE_HOST_TERMINATED_HANDSHAKE_ERROR_KEY));
+    private static Component replaceHandshakeError(String errorMessage, int handshakeErrorStart) {
+        MutableComponent localized = Component.literal(errorMessage.substring(0, handshakeErrorStart));
+        localized.append(Component.translatable(REMOTE_HOST_TERMINATED_HANDSHAKE_ERROR_KEY));
         int handshakeErrorEnd = handshakeErrorStart + REMOTE_HOST_TERMINATED_HANDSHAKE_ERROR.length();
         if (handshakeErrorEnd < errorMessage.length()) {
-            localized.append(Text.literal(errorMessage.substring(handshakeErrorEnd)));
+            localized.append(Component.literal(errorMessage.substring(handshakeErrorEnd)));
         }
         return localized;
     }

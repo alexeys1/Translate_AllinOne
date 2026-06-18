@@ -10,12 +10,6 @@ import com.cedarxuesong.translate_allinone.utils.text.TemplateProcessor;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipRoutePlanner.TooltipParagraphBlock;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTemplateRuntime.PreparedParagraphTemplate;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTemplateRuntime.PreparedTooltipTemplate;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.OrderedText;
-import net.minecraft.text.Style;
-import net.minecraft.text.Text;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,6 +25,12 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
+import net.minecraft.util.FormattedCharSequence;
 
 final class TooltipParagraphSupport {
     private static final Pattern ENGLISH_CONNECTOR_PATTERN =
@@ -129,7 +129,7 @@ final class TooltipParagraphSupport {
         List<TooltipTranslationSupport.TooltipLineResult> fallbackResults = new ArrayList<>(block.preparedLines().size());
         for (int i = 0; i < block.preparedLines().size(); i++) {
             PreparedTooltipTemplate preparedLine = block.preparedLines().get(i);
-            Text originalLine = TooltipTemplateRuntime.renderOriginalPreparedLine(preparedLine);
+            Component originalLine = TooltipTemplateRuntime.renderOriginalPreparedLine(preparedLine);
             if (pending) {
                 originalLine = AnimationManager.getAnimatedStyledText(
                         originalLine,
@@ -369,7 +369,7 @@ final class TooltipParagraphSupport {
             return null;
         }
 
-        Text renderedParagraphText = renderTranslatedParagraphText(
+        Component renderedParagraphText = renderTranslatedParagraphText(
                 block,
                 normalizedTemplate,
                 config,
@@ -381,7 +381,7 @@ final class TooltipParagraphSupport {
             return null;
         }
 
-        List<Text> wrappedLines = wrapParagraphText(renderedParagraphText, block.paragraphTemplate().wrapWidth());
+        List<Component> wrappedLines = wrapParagraphText(renderedParagraphText, block.paragraphTemplate().wrapWidth());
         if (wrappedLines.isEmpty()) {
             logParagraphRenderIfDev(
                     config,
@@ -399,7 +399,7 @@ final class TooltipParagraphSupport {
         }
 
         List<TooltipTranslationSupport.TooltipLineResult> results = new ArrayList<>(wrappedLines.size());
-        for (Text wrappedLine : wrappedLines) {
+        for (Component wrappedLine : wrappedLines) {
             if (wrappedLine == null) {
                 continue;
             }
@@ -482,7 +482,7 @@ final class TooltipParagraphSupport {
         return language.contains("chinese") || language.contains("中文") || language.startsWith("zh");
     }
 
-    private static Text renderTranslatedParagraphText(
+    private static Component renderTranslatedParagraphText(
             TooltipParagraphBlock block,
             String normalizedTemplate,
             ItemTranslateConfig config,
@@ -527,7 +527,7 @@ final class TooltipParagraphSupport {
         }
 
         if (trustedLocalDictionary && !containsParagraphStyleTags(reassembledTranslated)) {
-            Text localRenderedText = renderTrustedPlainOrLegacyLocalParagraphText(block, reassembledTranslated);
+            Component localRenderedText = renderTrustedPlainOrLegacyLocalParagraphText(block, reassembledTranslated);
             if (localRenderedText == null || localRenderedText.getString().isBlank()) {
                 logParagraphRenderIfDev(
                         config,
@@ -568,7 +568,7 @@ final class TooltipParagraphSupport {
         String taggedWithLineBreaks = shouldPreserveParagraphLineBreaks(block)
                 ? insertLineBreaksAtLineBoundaries(reassembledTranslated, paragraphTemplate.lineEndStyleIds())
                 : reassembledTranslated;
-        Text renderedText = StylePreserver.reapplyStylesFromTags(
+        Component renderedText = StylePreserver.reapplyStylesFromTags(
                 taggedWithLineBreaks,
                 paragraphTemplate.styleMap(),
                 true
@@ -591,12 +591,12 @@ final class TooltipParagraphSupport {
         return renderedText;
     }
 
-    private static Text renderTrustedPlainOrLegacyLocalParagraphText(
+    private static Component renderTrustedPlainOrLegacyLocalParagraphText(
             TooltipParagraphBlock block,
             String reassembledTranslated
     ) {
         if (reassembledTranslated == null || reassembledTranslated.isBlank()) {
-            return Text.empty();
+            return Component.empty();
         }
 
         if (containsLegacyFormattingCode(reassembledTranslated)) {
@@ -604,7 +604,7 @@ final class TooltipParagraphSupport {
         }
 
         Style inheritedStyle = resolveParagraphBodyVisualStyle(block);
-        return Text.literal(reassembledTranslated).setStyle(inheritedStyle == null ? Style.EMPTY : inheritedStyle);
+        return Component.literal(reassembledTranslated).setStyle(inheritedStyle == null ? Style.EMPTY : inheritedStyle);
     }
 
     private static boolean containsLegacyFormattingCode(String text) {
@@ -1425,24 +1425,24 @@ final class TooltipParagraphSupport {
                 || script == Character.UnicodeScript.HANGUL;
     }
 
-    private static List<Text> wrapParagraphText(Text paragraphText, int wrapWidth) {
+    private static List<Component> wrapParagraphText(Component paragraphText, int wrapWidth) {
         if (paragraphText == null || paragraphText.getString().isBlank()) {
             return List.of();
         }
 
-        TextRenderer textRenderer = getTooltipTextRenderer();
+        Font textRenderer = getTooltipTextRenderer();
         if (textRenderer == null || wrapWidth <= 0) {
             return List.of(paragraphText);
         }
 
-        List<OrderedText> wrappedOrderedLines = textRenderer.wrapLines(paragraphText, wrapWidth);
+        List<FormattedCharSequence> wrappedOrderedLines = textRenderer.split(paragraphText, wrapWidth);
         if (wrappedOrderedLines == null || wrappedOrderedLines.isEmpty()) {
             return List.of(paragraphText);
         }
 
-        List<Text> wrappedLines = new ArrayList<>(wrappedOrderedLines.size());
-        for (OrderedText orderedLine : wrappedOrderedLines) {
-            Text wrappedLine = orderedTextToText(orderedLine);
+        List<Component> wrappedLines = new ArrayList<>(wrappedOrderedLines.size());
+        for (FormattedCharSequence orderedLine : wrappedOrderedLines) {
+            Component wrappedLine = orderedTextToText(orderedLine);
             if (wrappedLine != null) {
                 wrappedLines.add(wrappedLine);
             }
@@ -1450,23 +1450,23 @@ final class TooltipParagraphSupport {
         return wrappedLines.isEmpty() ? List.of(paragraphText) : wrappedLines;
     }
 
-    private static TextRenderer getTooltipTextRenderer() {
-        MinecraftClient client = MinecraftClient.getInstance();
-        return client == null ? null : client.textRenderer;
+    private static Font getTooltipTextRenderer() {
+        Minecraft client = Minecraft.getInstance();
+        return client == null ? null : client.font;
     }
 
-    private static Text orderedTextToText(OrderedText orderedText) {
+    private static Component orderedTextToText(FormattedCharSequence orderedText) {
         if (orderedText == null) {
-            return Text.empty();
+            return Component.empty();
         }
 
-        MutableText result = Text.empty();
+        MutableComponent result = Component.empty();
         StringBuilder currentSegment = new StringBuilder();
         Style[] currentStyle = {Style.EMPTY};
 
         orderedText.accept((index, style, codePoint) -> {
             if (!style.equals(currentStyle[0]) && currentSegment.length() > 0) {
-                result.append(Text.literal(currentSegment.toString()).setStyle(currentStyle[0]));
+                result.append(Component.literal(currentSegment.toString()).setStyle(currentStyle[0]));
                 currentSegment.setLength(0);
             }
             currentStyle[0] = style;
@@ -1475,7 +1475,7 @@ final class TooltipParagraphSupport {
         });
 
         if (currentSegment.length() > 0) {
-            result.append(Text.literal(currentSegment.toString()).setStyle(currentStyle[0]));
+            result.append(Component.literal(currentSegment.toString()).setStyle(currentStyle[0]));
         }
         return result;
     }
@@ -1879,7 +1879,7 @@ final class TooltipParagraphSupport {
             String detail,
             String normalizedTemplate,
             String renderedText,
-            List<Text> wrappedLines
+            List<Component> wrappedLines
     ) {
         if (!emitDevLog || !TooltipTextMatcherSupport.shouldLogTooltipParagraphResult(config) || block == null) {
             return;
@@ -2075,7 +2075,7 @@ final class TooltipParagraphSupport {
             return "-";
         }
 
-        int rgb = style.getColor().getRgb() & 0xFFFFFF;
+        int rgb = style.getColor().getValue() & 0xFFFFFF;
         return String.format(Locale.ROOT, "#%06X", rgb);
     }
 
@@ -2102,13 +2102,13 @@ final class TooltipParagraphSupport {
         return builder.toString();
     }
 
-    private static String summarizeWrappedLines(List<Text> wrappedLines) {
+    private static String summarizeWrappedLines(List<Component> wrappedLines) {
         if (wrappedLines == null || wrappedLines.isEmpty()) {
             return "";
         }
 
         StringBuilder builder = new StringBuilder();
-        for (Text wrappedLine : wrappedLines) {
+        for (Component wrappedLine : wrappedLines) {
             if (wrappedLine == null) {
                 continue;
             }

@@ -18,13 +18,12 @@ import com.cedarxuesong.translate_allinone.utils.config.pojos.ProviderManagerCon
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ScoreboardConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.WynnCraftConfig;
 import com.cedarxuesong.translate_allinone.utils.translate.DictionaryFileSelectionSupport;
-import net.minecraft.text.Text;
-
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
 import java.util.function.Predicate;
+import net.minecraft.network.chat.Component;
 
 public final class ConfigSectionContentSupport {
     private static final int ROW_STEP = 24;
@@ -869,7 +868,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.cache_entries_item"),
                         64,
                         translator.t("value.cache_entries", itemStats.translated(), itemStats.total()).getString(),
-                        Text.empty(),
+                        Component.empty(),
                         value -> {
                         },
                         value -> true,
@@ -883,7 +882,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.cache_entries_scoreboard"),
                         64,
                         translator.t("value.cache_entries", scoreboardStats.translated(), scoreboardStats.total()).getString(),
-                        Text.empty(),
+                        Component.empty(),
                         value -> {
                         },
                         value -> true,
@@ -897,7 +896,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.cache_entries_wynn_dialogue"),
                         64,
                         translator.t("value.cache_entries", dialogueStats.translated(), dialogueStats.total()).getString(),
-                        Text.empty(),
+                        Component.empty(),
                         value -> {
                         },
                         value -> true,
@@ -911,7 +910,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.cache_entries_wynntils_task_tracker"),
                         64,
                         translator.t("value.cache_entries", taskTrackerStats.translated(), taskTrackerStats.total()).getString(),
-                        Text.empty(),
+                        Component.empty(),
                         value -> {
                         },
                         value -> true,
@@ -925,7 +924,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.cache_entries_total"),
                         64,
                         translator.t("value.cache_entries", totalTranslated, totalTracked).getString(),
-                        Text.empty(),
+                        Component.empty(),
                         value -> {
                         },
                         value -> true,
@@ -949,7 +948,7 @@ public final class ConfigSectionContentSupport {
         return y;
     }
 
-    private static Text tooltip(Translator t, String prefixedKey) {
+    private static Component tooltip(Translator t, String prefixedKey) {
         int dot = prefixedKey.indexOf('.');
         String suffix = dot >= 0 ? prefixedKey.substring(dot + 1) : prefixedKey;
         return t.t("desc." + suffix);
@@ -957,7 +956,7 @@ public final class ConfigSectionContentSupport {
 
     private static void addGroupBox(
             GroupBoxAdder groupBoxAdder,
-            Text title,
+            Component title,
             int x,
             int width,
             int contentStartY,
@@ -971,7 +970,7 @@ public final class ConfigSectionContentSupport {
         groupBoxAdder.add(groupX, groupY, groupWidth, groupHeight, title);
     }
 
-    private static Text modeText(Translator translator, String modeName) {
+    private static Component modeText(Translator translator, String modeName) {
         return switch (modeName) {
             case "HOLD_TO_TRANSLATE" -> translator.t("state.hold_to_translate");
             case "HOLD_TO_SEE_ORIGINAL" -> translator.t("state.hold_to_see_original");
@@ -1016,7 +1015,7 @@ public final class ConfigSectionContentSupport {
                 translator.t(labelKey),
                 256,
                 selectedFileSummary(translator, dictionaryConfig, slot),
-                Text.empty(),
+                Component.empty(),
                 value -> {
                 },
                 value -> true,
@@ -1078,27 +1077,27 @@ public final class ConfigSectionContentSupport {
 
     @FunctionalInterface
     public interface Translator {
-        Text t(String key, Object... args);
+        Component t(String key, Object... args);
     }
 
     @FunctionalInterface
     public interface GroupBoxAdder {
-        void add(int x, int y, int width, int height, Text title);
+        void add(int x, int y, int width, int height, Component title);
     }
 
     @FunctionalInterface
     public interface ToggleAdder {
-        void add(int x, int y, int width, Text label, BooleanSupplier getter, Consumer<Boolean> setter, Text tooltip);
+        void add(int x, int y, int width, Component label, BooleanSupplier getter, Consumer<Boolean> setter, Component tooltip);
     }
 
     @FunctionalInterface
     public interface IntSliderAdder {
-        void add(int x, int y, int width, Text label, int min, int max, IntSupplier getter, IntConsumer setter, Text tooltip);
+        void add(int x, int y, int width, Component label, int min, int max, IntSupplier getter, IntConsumer setter, Component tooltip);
     }
 
     @FunctionalInterface
     public interface ActionAdder {
-        void add(int x, int y, int width, Text label, Runnable action, Text tooltip);
+        void add(int x, int y, int width, Component label, Runnable action, Component tooltip);
     }
 
     @FunctionalInterface
@@ -1107,10 +1106,10 @@ public final class ConfigSectionContentSupport {
                 int x,
                 int y,
                 int width,
-                Text label,
+                Component label,
                 int maxLength,
                 String initialValue,
-                Text placeholder,
+                Component placeholder,
                 Consumer<String> changed,
                 Predicate<String> textPredicate,
                 boolean editable
@@ -1119,7 +1118,7 @@ public final class ConfigSectionContentSupport {
 
     @FunctionalInterface
     public interface BindingLabelProvider {
-        Text label(HotkeyTarget target, InputBindingConfig binding);
+        Component label(HotkeyTarget target, InputBindingConfig binding);
     }
 
     @FunctionalInterface

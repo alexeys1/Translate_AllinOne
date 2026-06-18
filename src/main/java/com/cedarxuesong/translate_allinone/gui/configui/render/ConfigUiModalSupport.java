@@ -1,9 +1,9 @@
 package com.cedarxuesong.translate_allinone.gui.configui.render;
 
 import com.cedarxuesong.translate_allinone.gui.configui.model.UiRect;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.text.Text;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.network.chat.Component;
 
 import static com.cedarxuesong.translate_allinone.gui.configui.render.ConfigUiDraw.drawOutline;
 
@@ -142,10 +142,10 @@ public final class ConfigUiModalSupport {
     }
 
     public static void renderModalShell(
-            DrawContext context,
-            TextRenderer textRenderer,
+            GuiGraphicsExtractor context,
+            Font textRenderer,
             UiRect rect,
-            Text title,
+            Component title,
             int backgroundColor,
             int borderColor,
             int textColor
@@ -153,7 +153,7 @@ public final class ConfigUiModalSupport {
         context.fill(rect.x, rect.y, rect.right(), rect.bottom(), backgroundColor);
         drawOutline(context, rect.x, rect.y, rect.width, rect.height, borderColor);
 
-        context.drawText(textRenderer, title, rect.x + 16, rect.y + 12, textColor, false);
+        context.text(textRenderer, title, rect.x + 16, rect.y + 12, textColor, false);
         context.fill(rect.x + 16, rect.y + 34, rect.right() - 16, rect.y + 35, borderColor);
     }
 }

@@ -1,9 +1,8 @@
 package com.cedarxuesong.translate_allinone.gui.configui.controls;
 
-import net.minecraft.text.Text;
-
 import java.util.List;
 import java.util.function.Supplier;
+import net.minecraft.network.chat.Component;
 
 public final class ActionBlockRegistry {
     private final List<ActionBlock> blocks;
@@ -18,15 +17,15 @@ public final class ActionBlockRegistry {
         this.defaultTextColor = defaultTextColor;
     }
 
-    public void add(int x, int y, int width, int height, Text label, Runnable action) {
+    public void add(int x, int y, int width, int height, Component label, Runnable action) {
         add(x, y, width, height, () -> label, action, defaultColor, defaultHoverColor, defaultTextColor, false, null);
     }
 
-    public void add(int x, int y, int width, int height, Text label, Runnable action, Text tooltip) {
+    public void add(int x, int y, int width, int height, Component label, Runnable action, Component tooltip) {
         add(x, y, width, height, () -> label, action, defaultColor, defaultHoverColor, defaultTextColor, false, tooltip);
     }
 
-    public void add(int x, int y, int width, int height, Supplier<Text> labelSupplier, Runnable action) {
+    public void add(int x, int y, int width, int height, Supplier<Component> labelSupplier, Runnable action) {
         add(x, y, width, height, labelSupplier, action, defaultColor, defaultHoverColor, defaultTextColor, false, null);
     }
 
@@ -35,7 +34,7 @@ public final class ActionBlockRegistry {
             int y,
             int width,
             int height,
-            Text label,
+            Component label,
             Runnable action,
             int color,
             int hoverColor,
@@ -50,7 +49,7 @@ public final class ActionBlockRegistry {
             int y,
             int width,
             int height,
-            Supplier<Text> labelSupplier,
+            Supplier<Component> labelSupplier,
             Runnable action,
             int color,
             int hoverColor,
@@ -65,13 +64,13 @@ public final class ActionBlockRegistry {
             int y,
             int width,
             int height,
-            Supplier<Text> labelSupplier,
+            Supplier<Component> labelSupplier,
             Runnable action,
             int color,
             int hoverColor,
             int textColor,
             boolean centered,
-            Text tooltip
+            Component tooltip
     ) {
         blocks.add(new ActionBlock(x, y, width, height, labelSupplier, action, color, hoverColor, textColor, centered, tooltip));
     }

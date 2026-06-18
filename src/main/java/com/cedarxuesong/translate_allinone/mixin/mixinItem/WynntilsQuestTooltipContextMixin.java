@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class WynntilsQuestTooltipContextMixin {
     @Inject(
             method = {
-                    "renderTooltips(Lnet/minecraft/client/gui/DrawContext;II)V",
+                    "renderTooltips(Lnet/minecraft/client/gui/GuiGraphicsExtractor;II)V",
                     "renderTooltips(Lnet/minecraft/class_332;II)V"
             },
             at = @At("HEAD"),
@@ -25,7 +25,7 @@ public abstract class WynntilsQuestTooltipContextMixin {
 
     @Inject(
             method = {
-                    "renderTooltips(Lnet/minecraft/client/gui/DrawContext;II)V",
+                    "renderTooltips(Lnet/minecraft/client/gui/GuiGraphicsExtractor;II)V",
                     "renderTooltips(Lnet/minecraft/class_332;II)V"
             },
             at = @At("RETURN"),

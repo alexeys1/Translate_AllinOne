@@ -1,14 +1,13 @@
 package com.cedarxuesong.translate_allinone.utils.translate;
 
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
-import net.minecraft.text.Text;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import net.minecraft.network.chat.Component;
 
 final class TooltipRoutePlanner {
     private TooltipRoutePlanner() {
@@ -23,7 +22,7 @@ final class TooltipRoutePlanner {
 
     record TooltipLineCandidate(
             int lineIndex,
-            Text line,
+            Component line,
             boolean firstContentLine,
             TooltipTextMatcherSupport.TooltipLineDecision decision
     ) {
@@ -58,7 +57,7 @@ final class TooltipRoutePlanner {
     ) {
     }
 
-    static TooltipPlan planTooltip(List<Text> tooltip, ItemTranslateConfig config, boolean useTagStylePreservation) {
+    static TooltipPlan planTooltip(List<Component> tooltip, ItemTranslateConfig config, boolean useTagStylePreservation) {
         if (tooltip == null || tooltip.isEmpty()) {
             return new TooltipPlan(List.of(), List.of(), Collections.emptySet());
         }
@@ -186,7 +185,7 @@ final class TooltipRoutePlanner {
     }
 
     private static List<TooltipLineCandidate> evaluateTooltipLines(
-            List<Text> tooltip,
+            List<Component> tooltip,
             ItemTranslateConfig config,
             boolean decorativeTooltipContext
     ) {
@@ -195,7 +194,7 @@ final class TooltipRoutePlanner {
         String firstTitleComparisonText = "";
 
         for (int lineIndex = 0; lineIndex < tooltip.size(); lineIndex++) {
-            Text line = tooltip.get(lineIndex);
+            Component line = tooltip.get(lineIndex);
             if (line == null || line.getString().trim().isEmpty() || TooltipInternalLineSupport.isInternalGeneratedLine(line)) {
                 candidates.add(new TooltipLineCandidate(
                         lineIndex,

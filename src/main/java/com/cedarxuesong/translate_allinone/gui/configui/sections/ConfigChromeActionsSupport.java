@@ -1,11 +1,10 @@
 package com.cedarxuesong.translate_allinone.gui.configui.sections;
 
 import com.cedarxuesong.translate_allinone.gui.configui.model.ConfigSection;
-import net.minecraft.text.Text;
-
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import net.minecraft.network.chat.Component;
 
 public final class ConfigChromeActionsSupport {
     private ConfigChromeActionsSupport() {
@@ -80,7 +79,7 @@ public final class ConfigChromeActionsSupport {
                     20,
                     () -> {
                         String prefix = selectedSection == current ? "> " : "  ";
-                        return Text.literal(prefix).append(translator.t(current.translationKey()));
+                        return Component.literal(prefix).append(translator.t(current.translationKey()));
                     },
                     () -> onSelectSection.accept(current),
                     style.colorBlock(),
@@ -94,7 +93,7 @@ public final class ConfigChromeActionsSupport {
 
     @FunctionalInterface
     public interface Translator {
-        Text t(String key, Object... args);
+        Component t(String key, Object... args);
     }
 
     @FunctionalInterface
@@ -104,7 +103,7 @@ public final class ConfigChromeActionsSupport {
                 int y,
                 int width,
                 int height,
-                Supplier<Text> labelSupplier,
+                Supplier<Component> labelSupplier,
                 Runnable action,
                 int color,
                 int hoverColor,

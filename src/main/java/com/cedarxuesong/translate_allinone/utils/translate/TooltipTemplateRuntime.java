@@ -9,13 +9,6 @@ import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfi
 import com.cedarxuesong.translate_allinone.utils.text.StylePreserver;
 import com.cedarxuesong.translate_allinone.utils.text.TemplateProcessor;
 import com.cedarxuesong.translate_allinone.utils.textmatcher.FlatNode;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Style;
-import net.minecraft.text.StyleSpriteSource;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,6 +24,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.FontDescription;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
+import net.minecraft.resources.Identifier;
 
 final class TooltipTemplateRuntime {
     private static final String STORED_LEGACY_PREFIX = "[taio:legacy]";
@@ -78,8 +78,8 @@ final class TooltipTemplateRuntime {
             "you",
             "your"
     );
-    private static final StyleSpriteSource.Font WYNNCRAFT_TOOLTIP_FONT =
-            new StyleSpriteSource.Font(Identifier.of("minecraft", "language/wynncraft"));
+    private static final FontDescription.Resource WYNNCRAFT_TOOLTIP_FONT =
+            new FontDescription.Resource(Identifier.fromNamespaceAndPath("minecraft", "language/wynncraft"));
 
     static boolean isSuspiciousEnglishConnector(String word) {
         return word != null && SUSPICIOUS_ENGLISH_CONNECTORS.contains(word);
@@ -94,7 +94,7 @@ final class TooltipTemplateRuntime {
     }
 
     record PreparedTooltipTemplate(
-            Text sourceLine,
+            Component sourceLine,
             boolean useTagStylePreservation,
             StylePreserver.ExtractionResult styleResult,
             TemplateProcessor.TemplateExtractionResult templateResult,
@@ -143,7 +143,7 @@ final class TooltipTemplateRuntime {
     private record ResolvedTemplateLookup(
             LookupResult lookupResult,
             CachedTranslationFormat format,
-            Text renderedLineOverride
+            Component renderedLineOverride
     ) {
     }
 
@@ -160,11 +160,11 @@ final class TooltipTemplateRuntime {
         private int suppressedCount = 0;
     }
 
-    static TooltipTranslationSupport.TooltipLineResult translateLine(Text line, boolean useTagStylePreservation) {
+    static TooltipTranslationSupport.TooltipLineResult translateLine(Component line, boolean useTagStylePreservation) {
         return translatePreparedTemplate(prepareTemplate(line, useTagStylePreservation));
     }
 
-    static boolean hasLocalDictionaryTranslation(Text line) {
+    static boolean hasLocalDictionaryTranslation(Component line) {
         if (line == null) {
             return false;
         }
@@ -178,7 +178,7 @@ final class TooltipTemplateRuntime {
         return evaluateLocalDictionaryLookup(sourceText).accepted();
     }
 
-    static String describeLocalDictionaryLookup(Text line) {
+    static String describeLocalDictionaryLookup(Component line) {
         if (line == null) {
             return "dictionary=miss";
         }
@@ -274,11 +274,11 @@ final class TooltipTemplateRuntime {
                 TemplateProcessor.reassemble(preparedTemplate.normalizedTemplate(), preparedTemplate.templateResult().values()),
                 preparedTemplate.glyphResult().values()
         );
-        Text originalTextObject = preparedTemplate.useTagStylePreservation()
+        Component originalTextObject = preparedTemplate.useTagStylePreservation()
                 ? StylePreserver.reapplyStylesFromTags(reassembledOriginal, preparedTemplate.styleResult().styleMap)
                 : StylePreserver.reapplyStyles(reassembledOriginal, preparedTemplate.styleResult().styleMap);
 
-        Text finalTooltipLine;
+        Component finalTooltipLine;
         String errorMessage = "";
         if (status == TranslationStatus.TRANSLATED && resolvedLookup.renderedLineOverride() != null) {
             finalTooltipLine = resolvedLookup.renderedLineOverride();
@@ -312,11 +312,11 @@ final class TooltipTemplateRuntime {
         return new TooltipTranslationSupport.TooltipLineResult(finalTooltipLine, pending, missingKeyIssue, errorMessage);
     }
 
-    static String extractTemplateKeyForLine(Text line, boolean useTagStylePreservation) {
+    static String extractTemplateKeyForLine(Component line, boolean useTagStylePreservation) {
         return prepareTemplate(line, useTagStylePreservation).translationTemplateKey();
     }
 
-    static PreparedTooltipTemplate prepareTemplate(Text line, boolean useTagStylePreservation) {
+    static PreparedTooltipTemplate prepareTemplate(Component line, boolean useTagStylePreservation) {
         boolean resolvedUseTagStylePreservation = shouldUseTagStylePreservation(line, useTagStylePreservation);
         StylePreserver.ExtractionResult styleResult = resolvedUseTagStylePreservation
                 ? StylePreserver.extractAndMarkWithTags(line)
@@ -410,7 +410,7 @@ final class TooltipTemplateRuntime {
         );
     }
 
-    static Text renderOriginalPreparedLine(PreparedTooltipTemplate preparedTemplate) {
+    static Component renderOriginalPreparedLine(PreparedTooltipTemplate preparedTemplate) {
         String reassembledOriginal = TemplateProcessor.reassembleDecorativeGlyphs(
                 TemplateProcessor.reassemble(preparedTemplate.normalizedTemplate(), preparedTemplate.templateResult().values()),
                 preparedTemplate.glyphResult().values()
@@ -420,7 +420,7 @@ final class TooltipTemplateRuntime {
                 : StylePreserver.reapplyStyles(reassembledOriginal, preparedTemplate.styleResult().styleMap);
     }
 
-    static Text normalizeDecorativePassthroughText(Text text) {
+    static Component normalizeDecorativePassthroughText(Component text) {
         if (text == null) {
             return null;
         }
@@ -428,19 +428,19 @@ final class TooltipTemplateRuntime {
         StylePreserver.ExtractionResult styleResult = StylePreserver.extractAndMarkWithTags(text);
         String normalized = TemplateProcessor.normalizeWynnInlineSpacerGlyphsInTaggedText(styleResult.markedText);
         if (normalized == null || normalized.isEmpty()) {
-            return Text.empty();
+            return Component.empty();
         }
         return StylePreserver.reapplyStylesFromTags(normalized, styleResult.styleMap, true);
     }
 
-    static Text preserveDecorativePrefixPassthroughText(Text text) {
+    static Component preserveDecorativePrefixPassthroughText(Component text) {
         if (text == null) {
             return null;
         }
 
         StylePreserver.ExtractionResult styleResult = StylePreserver.extractAndMarkWithTags(text);
         if (styleResult.markedText == null || styleResult.markedText.isEmpty()) {
-            return Text.empty();
+            return Component.empty();
         }
         return StylePreserver.reapplyStylesFromTags(styleResult.markedText, styleResult.styleMap, true);
     }
@@ -592,7 +592,7 @@ final class TooltipTemplateRuntime {
                 continue;
             }
 
-            Text compatibilityRenderedText = renderCompatibilityText(
+            Component compatibilityRenderedText = renderCompatibilityText(
                     preparedTemplate,
                     decodedCompatibilityTranslation.translation(),
                     decodedCompatibilityTranslation.format()
@@ -1049,16 +1049,16 @@ final class TooltipTemplateRuntime {
         }
     }
 
-    static Text renderLocalDictionaryTranslation(
+    static Component renderLocalDictionaryTranslation(
             PreparedTooltipTemplate preparedTemplate,
             String translation
     ) {
         if (translation == null || translation.isBlank()) {
-            return Text.empty();
+            return Component.empty();
         }
 
         if (containsLegacyFormattingCode(translation)) {
-            Text legacyRendered = renderLegacyFormattedLocalDictionaryTranslation(preparedTemplate, translation);
+            Component legacyRendered = renderLegacyFormattedLocalDictionaryTranslation(preparedTemplate, translation);
             if (legacyRendered != null) {
                 return legacyRendered;
             }
@@ -1069,14 +1069,14 @@ final class TooltipTemplateRuntime {
                 resolveLeadingVisibleStyle(renderOriginalPreparedLine(preparedTemplate)),
                 true
         );
-        return Text.literal(translation).setStyle(inheritedStyle);
+        return Component.literal(translation).setStyle(inheritedStyle);
     }
 
-    private static Text renderLegacyFormattedLocalDictionaryTranslation(
+    private static Component renderLegacyFormattedLocalDictionaryTranslation(
             PreparedTooltipTemplate preparedTemplate,
             String translation
     ) {
-        Text parsedLegacy = StylePreserver.fromLegacyText(translation);
+        Component parsedLegacy = StylePreserver.fromLegacyText(translation);
         if (parsedLegacy == null) {
             return null;
         }
@@ -1086,7 +1086,7 @@ final class TooltipTemplateRuntime {
             return normalizeDecorativePassthroughText(parsedLegacy);
         }
 
-        MutableText rebuilt = Text.empty();
+        MutableComponent rebuilt = Component.empty();
         parsedLegacy.visit((style, string) -> {
             appendLegacyLocalDictionarySegment(rebuilt, string, style, decorativeSourceStyle);
             return Optional.empty();
@@ -1098,7 +1098,7 @@ final class TooltipTemplateRuntime {
         return value != null && value.indexOf('§') >= 0;
     }
 
-    private static Style resolveLeadingVisibleStyle(Text text) {
+    private static Style resolveLeadingVisibleStyle(Component text) {
         if (text == null) {
             return Style.EMPTY;
         }
@@ -1119,7 +1119,7 @@ final class TooltipTemplateRuntime {
             return Style.EMPTY;
         }
 
-        Text sourceLine = preparedTemplate.sourceLine();
+        Component sourceLine = preparedTemplate.sourceLine();
         if (sourceLine != null) {
             final Style[] sourceResolved = {Style.EMPTY};
             sourceLine.visit((style, string) -> {
@@ -1145,7 +1145,7 @@ final class TooltipTemplateRuntime {
             }
         }
 
-        Text originalText = renderOriginalPreparedLine(preparedTemplate);
+        Component originalText = renderOriginalPreparedLine(preparedTemplate);
         if (originalText == null) {
             return Style.EMPTY;
         }
@@ -1171,7 +1171,7 @@ final class TooltipTemplateRuntime {
     }
 
     private static void appendLegacyLocalDictionarySegment(
-            MutableText target,
+            MutableComponent target,
             String content,
             Style legacyStyle,
             Style decorativeSourceStyle
@@ -1195,7 +1195,7 @@ final class TooltipTemplateRuntime {
             boolean decorativeGlyph = isDecorativeGlyphCodePoint(codePoint);
 
             if (decorativeRun != null && decorativeRun != decorativeGlyph && run.length() > 0) {
-                target.append(Text.literal(run.toString()).setStyle(Boolean.TRUE.equals(decorativeRun) ? decorativeStyle : readableStyle));
+                target.append(Component.literal(run.toString()).setStyle(Boolean.TRUE.equals(decorativeRun) ? decorativeStyle : readableStyle));
                 run.setLength(0);
             }
 
@@ -1205,7 +1205,7 @@ final class TooltipTemplateRuntime {
         }
 
         if (run.length() > 0) {
-            target.append(Text.literal(run.toString()).setStyle(Boolean.TRUE.equals(decorativeRun) ? decorativeStyle : readableStyle));
+            target.append(Component.literal(run.toString()).setStyle(Boolean.TRUE.equals(decorativeRun) ? decorativeStyle : readableStyle));
         }
     }
 
@@ -1298,7 +1298,7 @@ final class TooltipTemplateRuntime {
         return translation;
     }
 
-    private static Text renderCompatibilityText(
+    private static Component renderCompatibilityText(
             PreparedTooltipTemplate preparedTemplate,
             String cachedTranslation,
             CachedTranslationFormat format
@@ -1320,7 +1320,7 @@ final class TooltipTemplateRuntime {
     private static boolean isSafeAdaptedTranslation(
             PreparedTooltipTemplate preparedTemplate,
             AdaptedCachedTranslation adaptedTranslation,
-            Text compatibilityRenderedText
+            Component compatibilityRenderedText
     ) {
         if (adaptedTranslation == null
                 || adaptedTranslation.format() != CachedTranslationFormat.TAGGED
@@ -1338,7 +1338,7 @@ final class TooltipTemplateRuntime {
             return false;
         }
 
-        Text adaptedRenderedText = StylePreserver.reapplyStylesFromTags(
+        Component adaptedRenderedText = StylePreserver.reapplyStylesFromTags(
                 reassembledTranslated,
                 preparedTemplate.styleResult().styleMap,
                 true
@@ -1357,7 +1357,7 @@ final class TooltipTemplateRuntime {
             String cachedTranslation,
             CachedTranslationFormat format
     ) {
-        Text renderedText = renderCompatibilityText(preparedTemplate, cachedTranslation, format);
+        Component renderedText = renderCompatibilityText(preparedTemplate, cachedTranslation, format);
         return renderedText != null && !containsNumericPlaceholder(renderedText.getString());
     }
 
@@ -1423,7 +1423,7 @@ final class TooltipTemplateRuntime {
         );
     }
 
-    static String buildLegacyCompatibilityKey(Text line) {
+    static String buildLegacyCompatibilityKey(Component line) {
         if (line == null) {
             return null;
         }
@@ -1433,11 +1433,11 @@ final class TooltipTemplateRuntime {
         return StylePreserver.toLegacyTemplate(legacyTemplateResult.template(), legacyStyleResult.styleMap);
     }
 
-    private static boolean shouldUseTagStylePreservation(Text line, boolean useTagStylePreservation) {
+    private static boolean shouldUseTagStylePreservation(Component line, boolean useTagStylePreservation) {
         return useTagStylePreservation || requiresRichStylePreservation(line);
     }
 
-    private static boolean requiresRichStylePreservation(Text line) {
+    private static boolean requiresRichStylePreservation(Component line) {
         if (line == null) {
             return false;
         }
@@ -1517,7 +1517,7 @@ final class TooltipTemplateRuntime {
     }
 
     private static int computeParagraphWrapWidth(List<PreparedTooltipTemplate> preparedLines) {
-        TextRenderer textRenderer = getTooltipTextRenderer();
+        Font textRenderer = getTooltipTextRenderer();
         if (textRenderer == null || preparedLines == null || preparedLines.isEmpty()) {
             return -1;
         }
@@ -1527,14 +1527,14 @@ final class TooltipTemplateRuntime {
             if (preparedLine == null || preparedLine.sourceLine() == null) {
                 continue;
             }
-            maxWidth = Math.max(maxWidth, textRenderer.getWidth(preparedLine.sourceLine()));
+            maxWidth = Math.max(maxWidth, textRenderer.width(preparedLine.sourceLine()));
         }
         return maxWidth;
     }
 
-    private static TextRenderer getTooltipTextRenderer() {
-        MinecraftClient client = MinecraftClient.getInstance();
-        return client == null ? null : client.textRenderer;
+    private static Font getTooltipTextRenderer() {
+        Minecraft client = Minecraft.getInstance();
+        return client == null ? null : client.font;
     }
 
     private static boolean shouldBypassCompatibilityFallback(String translationTemplateKey) {

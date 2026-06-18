@@ -5,17 +5,16 @@ import com.cedarxuesong.translate_allinone.gui.configui.model.RouteSlot;
 import com.cedarxuesong.translate_allinone.gui.configui.support.ProviderProfileSupport;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ProviderManagerConfig;
-import net.minecraft.text.Text;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
+import net.minecraft.network.chat.Component;
 
 public final class RouteModelSectionSupport {
     private RouteModelSectionSupport() {
     }
 
-    public static List<RouteModelOption> buildRouteModelOptions(ProviderManagerConfig manager, Text noneOptionLabel) {
+    public static List<RouteModelOption> buildRouteModelOptions(ProviderManagerConfig manager, Component noneOptionLabel) {
         List<RouteModelOption> options = new ArrayList<>();
         options.add(new RouteModelOption("", noneOptionLabel));
 
@@ -33,7 +32,7 @@ public final class RouteModelSectionSupport {
                     continue;
                 }
                 String routeKey = ProviderManagerConfig.composeRouteKey(profile.id, modelId);
-                Text display = Text.literal(ProviderProfileSupport.safeProviderName(profile) + "/" + modelId);
+                Component display = Component.literal(ProviderProfileSupport.safeProviderName(profile) + "/" + modelId);
                 options.add(new RouteModelOption(routeKey, display));
             }
         }
@@ -64,11 +63,11 @@ public final class RouteModelSectionSupport {
         }
     }
 
-    public static Text describeRouteModel(
+    public static Component describeRouteModel(
             String routeKey,
             ProviderManagerConfig manager,
-            Text noneLabel,
-            Function<String, Text> missingLabelFactory
+            Component noneLabel,
+            Function<String, Component> missingLabelFactory
     ) {
         if (routeKey == null || routeKey.isBlank()) {
             return noneLabel;
@@ -88,7 +87,7 @@ public final class RouteModelSectionSupport {
         if (profile.getModelSettings(modelId) == null) {
             return missingLabelFactory.apply(routeKey);
         }
-        return Text.literal(ProviderProfileSupport.safeProviderName(profile) + "/" + modelId);
+        return Component.literal(ProviderProfileSupport.safeProviderName(profile) + "/" + modelId);
     }
 
     public static void clearRouteIfMatched(ProviderManagerConfig manager, String providerId) {

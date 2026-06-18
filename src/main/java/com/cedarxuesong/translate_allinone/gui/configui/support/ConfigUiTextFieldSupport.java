@@ -1,28 +1,27 @@
 package com.cedarxuesong.translate_allinone.gui.configui.support;
 
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.text.Text;
-
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.network.chat.Component;
 
 public final class ConfigUiTextFieldSupport {
     private ConfigUiTextFieldSupport() {
     }
 
-    public static TextFieldWidget create(
-            TextRenderer textRenderer,
-            Consumer<TextFieldWidget> registerField,
-            List<TextFieldWidget> providerEditorFields,
-            List<TextFieldWidget> floatingEditorFields,
+    public static EditBox create(
+            Font textRenderer,
+            Consumer<EditBox> registerField,
+            List<EditBox> providerEditorFields,
+            List<EditBox> floatingEditorFields,
             int x,
             int y,
             int width,
             int maxLength,
             String initialValue,
-            Text placeholder,
+            Component placeholder,
             Consumer<String> changed,
             Predicate<String> textPredicate,
             boolean editable,
@@ -36,14 +35,11 @@ public final class ConfigUiTextFieldSupport {
             renderY = -10000;
         }
 
-        TextFieldWidget field = new TextFieldWidget(textRenderer, renderX, renderY, width, 20, Text.empty());
+        EditBox field = new EditBox(textRenderer, renderX, renderY, width, 20, Component.empty());
         field.setMaxLength(maxLength);
-        field.setText(initialValue == null ? "" : initialValue);
-        if (textPredicate != null) {
-            field.setTextPredicate(textPredicate::test);
-        }
-        field.setChangedListener(changed);
-        field.setPlaceholder(placeholder);
+        field.setValue(initialValue == null ? "" : initialValue);
+        field.setResponder(changed);
+        field.setHint(placeholder);
         field.setEditable(editable);
 
         registerField.accept(field);

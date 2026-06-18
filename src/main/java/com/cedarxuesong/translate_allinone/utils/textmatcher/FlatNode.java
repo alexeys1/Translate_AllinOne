@@ -1,51 +1,50 @@
 package com.cedarxuesong.translate_allinone.utils.textmatcher;
 
-import net.minecraft.text.MutableText;
-import net.minecraft.text.PlainTextContent;
-import net.minecraft.text.Style;
-import net.minecraft.text.Text;
-import net.minecraft.text.TextContent;
-
 import java.util.ArrayList;
 import java.util.List;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.ComponentContents;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
+import net.minecraft.network.chat.contents.PlainTextContents;
 
 /**
  * Minimal 1.21.10-compatible TextMatcher-style flat text node.
  */
-public record FlatNode(TextContent content, Style style) {
-    public MutableText toText() {
-        return MutableText.of(content).setStyle(style);
+public record FlatNode(ComponentContents content, Style style) {
+    public MutableComponent toText() {
+        return MutableComponent.create(content).setStyle(style);
     }
 
     public String extractString() {
         return extractString(content);
     }
 
-    public static String extractString(TextContent content) {
-        if (content instanceof PlainTextContent plainTextContent) {
-            return plainTextContent.string();
+    public static String extractString(ComponentContents content) {
+        if (content instanceof PlainTextContents plainTextContent) {
+            return plainTextContent.text();
         }
         return content == null ? "" : content.toString();
     }
 
-    public static List<FlatNode> flatten(Text text) {
+    public static List<FlatNode> flatten(Component text) {
         List<FlatNode> result = new ArrayList<>();
         visit(text, Style.EMPTY, result);
         return result;
     }
 
-    private static void visit(Text text, Style parentStyle, List<FlatNode> result) {
+    private static void visit(Component text, Style parentStyle, List<FlatNode> result) {
         if (text == null) {
             return;
         }
 
-        Style resolvedStyle = text.getStyle().withParent(parentStyle);
-        TextContent content = text.getContent();
-        if (content != PlainTextContent.EMPTY) {
+        Style resolvedStyle = text.getStyle().applyTo(parentStyle);
+        ComponentContents content = text.getContents();
+        if (content != PlainTextContents.EMPTY) {
             result.add(new FlatNode(content, resolvedStyle));
         }
 
-        for (Text sibling : text.getSiblings()) {
+        for (Component sibling : text.getSiblings()) {
             visit(sibling, resolvedStyle, result);
         }
     }
@@ -60,21 +59,21 @@ public record FlatNode(TextContent content, Style style) {
         Style currentStyle = Style.EMPTY;
 
         for (FlatNode node : nodes) {
-            TextContent content = node.content();
-            if (content instanceof PlainTextContent plainTextContent
+            ComponentContents content = node.content();
+            if (content instanceof PlainTextContents plainTextContent
                     && accumulator != null
                     && node.style().equals(currentStyle)) {
-                accumulator.append(plainTextContent.string());
+                accumulator.append(plainTextContent.text());
                 continue;
             }
 
             if (accumulator != null) {
-                result.add(new FlatNode(PlainTextContent.of(accumulator.toString()), currentStyle));
+                result.add(new FlatNode(PlainTextContents.create(accumulator.toString()), currentStyle));
                 accumulator = null;
             }
 
-            if (content instanceof PlainTextContent plainTextContent) {
-                accumulator = new StringBuilder(plainTextContent.string());
+            if (content instanceof PlainTextContents plainTextContent) {
+                accumulator = new StringBuilder(plainTextContent.text());
                 currentStyle = node.style();
             } else {
                 result.add(node);
@@ -82,7 +81,7 @@ public record FlatNode(TextContent content, Style style) {
         }
 
         if (accumulator != null) {
-            result.add(new FlatNode(PlainTextContent.of(accumulator.toString()), currentStyle));
+            result.add(new FlatNode(PlainTextContents.create(accumulator.toString()), currentStyle));
         }
 
         return result;

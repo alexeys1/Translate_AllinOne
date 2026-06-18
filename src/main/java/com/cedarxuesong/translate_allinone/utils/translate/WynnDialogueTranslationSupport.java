@@ -10,9 +10,6 @@ import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
 import com.cedarxuesong.translate_allinone.utils.config.ProviderRouteResolver;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.WynnCraftConfig;
 import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.text.Text;
-
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -23,6 +20,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 
 public final class WynnDialogueTranslationSupport {
     private static final Pattern CHAT_DIALOGUE_PATTERN = Pattern.compile("^\\[(\\d+/\\d+)]\\s*([^:]+):\\s*(.+)$");
@@ -107,7 +106,7 @@ public final class WynnDialogueTranslationSupport {
         return config.wynnCraft.target_language.trim();
     }
 
-    public static void traceChatEntry(Text message) {
+    public static void traceChatEntry(Component message) {
         if (!isDebugEnabled()) {
             return;
         }
@@ -130,7 +129,7 @@ public final class WynnDialogueTranslationSupport {
         );
     }
 
-    public static void traceOverlayEntry(Text message) {
+    public static void traceOverlayEntry(Component message) {
         if (!isDebugEnabled()) {
             return;
         }
@@ -150,7 +149,7 @@ public final class WynnDialogueTranslationSupport {
         );
     }
 
-    public static void handleChatMessage(Text message) {
+    public static void handleChatMessage(Component message) {
         if (message == null) {
             return;
         }
@@ -206,7 +205,7 @@ public final class WynnDialogueTranslationSupport {
         refreshCurrentDialogueDisplay();
     }
 
-    public static void handleOverlayMessage(Text message) {
+    public static void handleOverlayMessage(Component message) {
         if (message == null) {
             return;
         }
@@ -399,7 +398,7 @@ public final class WynnDialogueTranslationSupport {
         PresentedDialogueState presentedState = lastPresentedState;
         long capturedNonce = presentedState == null ? 0L : presentedState.observedNonce();
         Map<String, String> snapshot = Map.copyOf(translations);
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client != null) {
             client.execute(() -> applyCacheTranslationsToHud(snapshot, capturedNonce));
             return;
@@ -732,8 +731,8 @@ public final class WynnDialogueTranslationSupport {
             return;
         }
 
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client != null && client.currentScreen != null) {
+        Minecraft client = Minecraft.getInstance();
+        if (client != null && client.screen != null) {
             return;
         }
 
@@ -1743,7 +1742,7 @@ public final class WynnDialogueTranslationSupport {
     }
 
     private static String getPlayerName() {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client == null || client.player == null || client.player.getName() == null) {
             return "";
         }
@@ -1941,7 +1940,7 @@ public final class WynnDialogueTranslationSupport {
     }
 
     private static OverlayReadableParse tryFontBasedOverlayParse(
-            Text message,
+            Component message,
             String readableText,
             List<String> readableSegments,
             boolean shouldTranslateOptions

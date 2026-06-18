@@ -1,26 +1,25 @@
 package com.cedarxuesong.translate_allinone.utils.translate;
 
 import com.cedarxuesong.translate_allinone.utils.textmatcher.FlatNode;
-import net.minecraft.text.StyleSpriteSource;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
-
 import java.util.List;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.FontDescription;
+import net.minecraft.resources.Identifier;
 
 public final class TooltipRecentRenderGuardSupport {
-    private static final StyleSpriteSource.Font WYNNCRAFT_TOOLTIP_FONT =
-            new StyleSpriteSource.Font(Identifier.of("minecraft", "language/wynncraft"));
+    private static final FontDescription.Resource WYNNCRAFT_TOOLTIP_FONT =
+            new FontDescription.Resource(Identifier.fromNamespaceAndPath("minecraft", "language/wynncraft"));
 
     private TooltipRecentRenderGuardSupport() {
     }
 
-    public static void rememberMirroredTooltip(List<Text> originalTooltip, List<Text> mirroredTooltip) {
+    public static void rememberMirroredTooltip(List<Component> originalTooltip, List<Component> mirroredTooltip) {
         rememberMirroredTooltip(originalTooltip, mirroredTooltip, false);
     }
 
     public static void rememberMirroredTooltip(
-            List<Text> originalTooltip,
-            List<Text> mirroredTooltip,
+            List<Component> originalTooltip,
+            List<Component> mirroredTooltip,
             boolean tooltipLocallyStable
     ) {
         if (mirroredTooltip == originalTooltip) {
@@ -30,11 +29,11 @@ public final class TooltipRecentRenderGuardSupport {
         rememberTooltipIfStable(originalTooltip, tooltipLocallyStable);
     }
 
-    public static void rememberTooltipIfStable(List<Text> tooltip) {
+    public static void rememberTooltipIfStable(List<Component> tooltip) {
         rememberTooltipIfStable(tooltip, false);
     }
 
-    public static void rememberTooltipIfStable(List<Text> tooltip, boolean tooltipLocallyStable) {
+    public static void rememberTooltipIfStable(List<Component> tooltip, boolean tooltipLocallyStable) {
         TooltipTranslationContext.rememberRecentTranslatedTooltip(
                 stableTooltipForRemembering(tooltip, tooltipLocallyStable)
         );
@@ -44,27 +43,27 @@ public final class TooltipRecentRenderGuardSupport {
         TooltipTranslationContext.rememberRecentTranslatedTooltip(null);
     }
 
-    public static boolean shouldSkipDuplicateRender(List<Text> tooltip, boolean showRefreshNotice) {
+    public static boolean shouldSkipDuplicateRender(List<Component> tooltip, boolean showRefreshNotice) {
         if (showRefreshNotice) {
             return false;
         }
 
-        List<Text> sanitizedTooltip = TooltipInternalLineSupport.stripInternalGeneratedLines(tooltip);
+        List<Component> sanitizedTooltip = TooltipInternalLineSupport.stripInternalGeneratedLines(tooltip);
         return sanitizedTooltip != null
                 && !sanitizedTooltip.isEmpty()
                 && TooltipTranslationContext.matchesRecentTranslatedTooltip(sanitizedTooltip);
     }
 
-    public static boolean canRememberRecentTranslatedTooltip(List<Text> tooltip) {
+    public static boolean canRememberRecentTranslatedTooltip(List<Component> tooltip) {
         return stableTooltipForRemembering(tooltip, false) != null;
     }
 
-    public static boolean looksLikeDedicatedWynnmodTooltip(List<Text> tooltip) {
+    public static boolean looksLikeDedicatedWynnmodTooltip(List<Component> tooltip) {
         if (tooltip == null || tooltip.isEmpty()) {
             return false;
         }
 
-        List<Text> sanitizedTooltip = TooltipInternalLineSupport.stripInternalGeneratedLines(tooltip);
+        List<Component> sanitizedTooltip = TooltipInternalLineSupport.stripInternalGeneratedLines(tooltip);
         if (sanitizedTooltip == null || sanitizedTooltip.isEmpty()) {
             return false;
         }
@@ -72,7 +71,7 @@ public final class TooltipRecentRenderGuardSupport {
         boolean hasWynncraftFont = false;
         boolean hasMeaningfulLine = false;
         boolean hasDecorativeGlyph = false;
-        for (Text line : sanitizedTooltip) {
+        for (Component line : sanitizedTooltip) {
             if (line == null) {
                 continue;
             }
@@ -100,13 +99,13 @@ public final class TooltipRecentRenderGuardSupport {
         return hasWynncraftFont && hasMeaningfulLine && hasDecorativeGlyph;
     }
 
-    private static List<Text> stableTooltipForRemembering(List<Text> tooltip, boolean tooltipLocallyStable) {
+    private static List<Component> stableTooltipForRemembering(List<Component> tooltip, boolean tooltipLocallyStable) {
         if (tooltip == null || tooltip.isEmpty()) {
             return null;
         }
 
         boolean containsInternalGeneratedLine = false;
-        for (Text line : tooltip) {
+        for (Component line : tooltip) {
             if (TooltipInternalLineSupport.isInternalGeneratedLine(line)) {
                 containsInternalGeneratedLine = true;
                 break;
@@ -116,7 +115,7 @@ public final class TooltipRecentRenderGuardSupport {
             return null;
         }
 
-        List<Text> sanitizedTooltip = TooltipInternalLineSupport.stripInternalGeneratedLines(tooltip);
+        List<Component> sanitizedTooltip = TooltipInternalLineSupport.stripInternalGeneratedLines(tooltip);
         return sanitizedTooltip == null || sanitizedTooltip.isEmpty() ? null : sanitizedTooltip;
     }
 }

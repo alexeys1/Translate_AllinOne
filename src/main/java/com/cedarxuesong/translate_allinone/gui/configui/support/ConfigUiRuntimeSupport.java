@@ -5,9 +5,8 @@ import com.cedarxuesong.translate_allinone.utils.config.pojos.ApiProviderProfile
 import com.cedarxuesong.translate_allinone.utils.llmapi.ProviderConnectionTester;
 import com.cedarxuesong.translate_allinone.utils.translate.ItemTranslateManager;
 import com.cedarxuesong.translate_allinone.utils.translate.WynnSharedDictionaryService;
-import net.minecraft.text.Text;
-
 import java.util.function.Consumer;
+import net.minecraft.network.chat.Component;
 
 public final class ConfigUiRuntimeSupport {
     private ConfigUiRuntimeSupport() {
@@ -69,12 +68,12 @@ public final class ConfigUiRuntimeSupport {
 
     @FunctionalInterface
     public interface Translator {
-        Text t(String key, Object... args);
+        Component t(String key, Object... args);
     }
 
     @FunctionalInterface
     public interface StatusSetter {
-        void set(Text message, int color);
+        void set(Component message, int color);
     }
 
     @FunctionalInterface

@@ -7,13 +7,12 @@ import com.cedarxuesong.translate_allinone.gui.configui.render.ConfigUiModalSupp
 import com.cedarxuesong.translate_allinone.gui.configui.support.CustomParameterTreeSupport;
 import com.cedarxuesong.translate_allinone.gui.configui.support.ProviderProfileSupport;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.CustomParameterEntry;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.text.Text;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.network.chat.Component;
 
 public final class CustomParametersModalSupport {
     private CustomParametersModalSupport() {
@@ -36,7 +35,7 @@ public final class CustomParametersModalSupport {
             Translator translator,
             FloatingActionBlockAdder floatingActionBlockAdder,
             FloatingTextFieldAdder floatingTextFieldAdder,
-            Consumer<Text> errorReporter,
+            Consumer<Component> errorReporter,
             Runnable rebuildCustomFocus,
             Runnable onCancel,
             Runnable onDone,
@@ -97,7 +96,7 @@ public final class CustomParametersModalSupport {
                 String indent = "  ".repeat(Math.max(0, row.depth()));
                 String typePrefix = entry.is_object ? "{ } " : "";
                 String valueText = entry.is_object ? "" : " = " + ProviderProfileSupport.sanitizeText(entry.value);
-                Text label = Text.literal(indent + typePrefix + ProviderProfileSupport.sanitizeText(entry.key) + valueText);
+                Component label = Component.literal(indent + typePrefix + ProviderProfileSupport.sanitizeText(entry.key) + valueText);
 
                 floatingActionBlockAdder.add(
                         leftX,
@@ -135,8 +134,8 @@ public final class CustomParametersModalSupport {
                 false
         );
 
-        TextFieldWidget customParameterNameField = null;
-        TextFieldWidget customParameterValueField = null;
+        EditBox customParameterNameField = null;
+        EditBox customParameterValueField = null;
         CustomParameterEntry selectedEntry = CustomParameterTreeSupport.findByPath(modelSettingsCustomParametersDraft, selectedPathSupplier.get());
         if (selectedEntry == null) {
             floatingActionBlockAdder.add(
@@ -363,23 +362,23 @@ public final class CustomParametersModalSupport {
         return translator.t("custom_params.value_type_string").getString();
     }
 
-    public record Fields(TextFieldWidget nameField, TextFieldWidget valueField) {
+    public record Fields(EditBox nameField, EditBox valueField) {
     }
 
     @FunctionalInterface
     public interface Translator {
-        Text t(String key, Object... args);
+        Component t(String key, Object... args);
     }
 
     @FunctionalInterface
     public interface FloatingTextFieldAdder {
-        TextFieldWidget add(
+        EditBox add(
                 int x,
                 int y,
                 int width,
                 int maxLength,
                 String initialValue,
-                Text placeholder,
+                Component placeholder,
                 Consumer<String> changed,
                 boolean editable
         );
@@ -392,7 +391,7 @@ public final class CustomParametersModalSupport {
                 int y,
                 int width,
                 int height,
-                Supplier<Text> labelSupplier,
+                Supplier<Component> labelSupplier,
                 Runnable action,
                 int color,
                 int hoverColor,

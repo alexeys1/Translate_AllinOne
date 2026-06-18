@@ -9,7 +9,6 @@ import com.cedarxuesong.translate_allinone.utils.translate.TooltipRoutePlanner.T
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipRoutePlanner.TooltipRouteKind;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipRoutePlanner.TooltipRouteSegment;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTemplateRuntime.PreparedTooltipTemplate;
-import net.minecraft.text.Text;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,6 +18,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
+import net.minecraft.network.chat.Component;
 
 public final class TooltipTranslationSupport {
     private static final Logger LOGGER = LoggerFactory.getLogger("Translate_AllinOne/TooltipTranslationSupport");
@@ -46,8 +46,8 @@ public final class TooltipTranslationSupport {
     private TooltipTranslationSupport() {
     }
 
-    public record TooltipLineResult(Text translatedLine, boolean pending, boolean missingKeyIssue, String errorMessage) {
-        public TooltipLineResult(Text translatedLine, boolean pending, boolean missingKeyIssue) {
+    public record TooltipLineResult(Component translatedLine, boolean pending, boolean missingKeyIssue, String errorMessage) {
+        public TooltipLineResult(Component translatedLine, boolean pending, boolean missingKeyIssue) {
             this(translatedLine, pending, missingKeyIssue, "");
         }
 
@@ -57,14 +57,14 @@ public final class TooltipTranslationSupport {
     }
 
     public record TooltipProcessingResult(
-            List<Text> translatedLines,
+            List<Component> translatedLines,
             int translatableLines,
             boolean pending,
             boolean missingKeyIssue,
             String errorMessage
     ) {
         public TooltipProcessingResult(
-                List<Text> translatedLines,
+                List<Component> translatedLines,
                 int translatableLines,
                 boolean pending,
                 boolean missingKeyIssue
@@ -78,7 +78,7 @@ public final class TooltipTranslationSupport {
     }
 
     public record TranslatedTooltipBuildResult(
-            List<Text> translatedTooltip,
+            List<Component> translatedTooltip,
             boolean locallyStableForRecentGuard
     ) {
     }
@@ -91,24 +91,24 @@ public final class TooltipTranslationSupport {
         };
     }
 
-    public static TooltipLineResult translateLine(Text line) {
+    public static TooltipLineResult translateLine(Component line) {
         return translateLine(line, false);
     }
 
-    public static TooltipLineResult translateLine(Text line, boolean useTagStylePreservation) {
+    public static TooltipLineResult translateLine(Component line, boolean useTagStylePreservation) {
         return TooltipTemplateRuntime.translateLine(line, useTagStylePreservation);
     }
 
-    public static List<Text> buildTranslatedTooltip(List<Text> originalTooltip, String animationKey) {
+    public static List<Component> buildTranslatedTooltip(List<Component> originalTooltip, String animationKey) {
         return buildTranslatedTooltipResult(originalTooltip, animationKey).translatedTooltip();
     }
 
-    public static Set<String> collectTranslationTemplateKeys(List<Text> tooltip, ItemTranslateConfig config) {
+    public static Set<String> collectTranslationTemplateKeys(List<Component> tooltip, ItemTranslateConfig config) {
         if (tooltip == null || tooltip.isEmpty() || config == null || !config.enabled) {
             return Set.of();
         }
 
-        List<Text> sanitizedTooltip = TooltipInternalLineSupport.stripInternalGeneratedLines(tooltip);
+        List<Component> sanitizedTooltip = TooltipInternalLineSupport.stripInternalGeneratedLines(tooltip);
         if (sanitizedTooltip == null || sanitizedTooltip.isEmpty()) {
             return Set.of();
         }
@@ -117,12 +117,12 @@ public final class TooltipTranslationSupport {
         return TooltipRoutePlanner.planTooltip(sanitizedTooltip, config, decorativeTooltipContext).translationTemplateKeys();
     }
 
-    static Set<String> collectRemoteTranslationTemplateKeys(List<Text> tooltip, ItemTranslateConfig config) {
+    static Set<String> collectRemoteTranslationTemplateKeys(List<Component> tooltip, ItemTranslateConfig config) {
         if (tooltip == null || tooltip.isEmpty() || config == null || !config.enabled) {
             return Set.of();
         }
 
-        List<Text> sanitizedTooltip = TooltipInternalLineSupport.stripInternalGeneratedLines(tooltip);
+        List<Component> sanitizedTooltip = TooltipInternalLineSupport.stripInternalGeneratedLines(tooltip);
         if (sanitizedTooltip == null || sanitizedTooltip.isEmpty()) {
             return Set.of();
         }
@@ -156,12 +156,12 @@ public final class TooltipTranslationSupport {
         }
     }
 
-    public static TranslatedTooltipBuildResult buildTranslatedTooltipResult(List<Text> originalTooltip, String animationKey) {
+    public static TranslatedTooltipBuildResult buildTranslatedTooltipResult(List<Component> originalTooltip, String animationKey) {
         if (originalTooltip == null || originalTooltip.isEmpty()) {
             return new TranslatedTooltipBuildResult(originalTooltip, false);
         }
 
-        List<Text> tooltip = TooltipInternalLineSupport.stripInternalGeneratedLines(originalTooltip);
+        List<Component> tooltip = TooltipInternalLineSupport.stripInternalGeneratedLines(originalTooltip);
         if (tooltip.isEmpty()) {
             return new TranslatedTooltipBuildResult(tooltip, false);
         }
@@ -192,7 +192,7 @@ public final class TooltipTranslationSupport {
 
         boolean isKeyPressed = KeybindingManager.isPressed(config.keybinding.binding);
         if (shouldShowOriginal(config.keybinding.mode, isKeyPressed)) {
-            List<Text> tooltipWithNotice = TooltipRefreshNoticeSupport.appendRefreshNoticeLine(tooltip, showRefreshNotice);
+            List<Component> tooltipWithNotice = TooltipRefreshNoticeSupport.appendRefreshNoticeLine(tooltip, showRefreshNotice);
             return new TranslatedTooltipBuildResult(tooltipWithNotice, false);
         }
 
@@ -219,7 +219,7 @@ public final class TooltipTranslationSupport {
                     emitDevLog,
                     "screen-mirror"
             );
-            List<Text> mirroredTooltip = TooltipInternalLineSupport.appendStatusLineIfNeeded(
+            List<Component> mirroredTooltip = TooltipInternalLineSupport.appendStatusLineIfNeeded(
                     new ArrayList<>(processedTooltip.translatedLines()),
                     processedTooltip,
                     animationKey
@@ -248,7 +248,7 @@ public final class TooltipTranslationSupport {
     }
 
     public static TooltipProcessingResult processTooltipLines(
-            List<Text> tooltip,
+            List<Component> tooltip,
             ItemTranslateConfig config,
             boolean useTagStylePreservation,
             boolean emitDevLog,
@@ -270,7 +270,7 @@ public final class TooltipTranslationSupport {
             return new TooltipProcessingResult(List.of(), 0, false, false);
         }
 
-        List<Text> translatedLines = new ArrayList<>(tooltipPlan.segments().size());
+        List<Component> translatedLines = new ArrayList<>(tooltipPlan.segments().size());
         int translatableLines = 0;
         boolean hasPending = false;
         boolean hasMissingKeyIssue = false;
@@ -402,10 +402,10 @@ public final class TooltipTranslationSupport {
         return new TooltipProcessingResult(translatedLines, translatableLines, hasPending, hasMissingKeyIssue, errorMessage);
     }
 
-    private static int computeTooltipFingerprint(List<Text> tooltip, ItemTranslateConfig config) {
+    private static int computeTooltipFingerprint(List<Component> tooltip, ItemTranslateConfig config) {
         int hash = config.enabled ? 1 : 0;
         hash = 31 * hash + Long.hashCode(WynnSharedDictionaryService.getInstance().getItemSkillVersion());
-        for (Text line : tooltip) {
+        for (Component line : tooltip) {
             if (line != null) {
                 hash = 31 * hash + line.getString().hashCode();
                 hash = 31 * hash + line.getStyle().hashCode();

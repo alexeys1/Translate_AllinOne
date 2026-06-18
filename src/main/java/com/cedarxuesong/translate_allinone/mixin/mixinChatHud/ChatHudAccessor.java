@@ -1,25 +1,25 @@
 package com.cedarxuesong.translate_allinone.mixin.mixinChatHud;
 
-import net.minecraft.client.gui.hud.ChatHud;
-import net.minecraft.client.gui.hud.ChatHudLine;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 import org.spongepowered.asm.mixin.gen.Invoker;
 
 import java.util.List;
+import net.minecraft.client.multiplayer.chat.GuiMessage;
+import net.minecraft.client.gui.components.ChatComponent;
 
-@Mixin(ChatHud.class)
+@Mixin(ChatComponent.class)
 public interface ChatHudAccessor {
-    @Accessor("messages")
-    List<ChatHudLine> getMessages();
+    @Accessor("allMessages")
+    List<GuiMessage> getMessages();
 
-    @Accessor("scrolledLines")
+    @Accessor("chatScrollbarPos")
     int getScrolledLines();
 
-    @Accessor("scrolledLines")
+    @Accessor("chatScrollbarPos")
     void setScrolledLines(int scrolledLines);
 
-    @Invoker("refresh")
+    @Invoker("refreshTrimmedMessages")
     void invokeRefresh();
 
     @Invoker("getLineHeight")

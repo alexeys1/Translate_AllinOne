@@ -3,11 +3,10 @@ package com.cedarxuesong.translate_allinone.gui.configui.sections;
 import com.cedarxuesong.translate_allinone.gui.configui.support.ProviderProfileSupport;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ProviderManagerConfig;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.text.Text;
-
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.network.chat.Component;
 
 public final class ProviderManagerSectionSupport {
     private static final int CONTENT_TOP_INSET = 16;
@@ -182,7 +181,7 @@ public final class ProviderManagerSectionSupport {
 
     private static void addGroupBox(
             ProviderDetailSectionSupport.GroupBoxAdder groupBoxAdder,
-            Text title,
+            Component title,
             int x,
             int width,
             int contentStartY,
@@ -198,9 +197,9 @@ public final class ProviderManagerSectionSupport {
 
     @FunctionalInterface
     public interface Translator {
-        Text t(String key, Object... args);
+        Component t(String key, Object... args);
     }
 
-    public record RenderResult(TextFieldWidget providerSearchField, String selectedProviderId, int contentBottomY) {
+    public record RenderResult(EditBox providerSearchField, String selectedProviderId, int contentBottomY) {
     }
 }

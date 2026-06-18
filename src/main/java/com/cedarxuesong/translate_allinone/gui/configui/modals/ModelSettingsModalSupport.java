@@ -5,18 +5,17 @@ import com.cedarxuesong.translate_allinone.gui.configui.model.UiRect;
 import com.cedarxuesong.translate_allinone.gui.configui.render.ConfigUiModalSupport;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ApiProviderType;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.text.Text;
-
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.network.chat.Component;
 
 public final class ModelSettingsModalSupport {
     private ModelSettingsModalSupport() {
     }
 
-    public static TextFieldWidget render(
+    public static EditBox render(
             ApiProviderProfile profile,
             int screenWidth,
             int screenHeight,
@@ -67,7 +66,7 @@ public final class ModelSettingsModalSupport {
                 false
         , null);
 
-        TextFieldWidget modelNameField = floatingTextFieldAdder.add(
+        EditBox modelNameField = floatingTextFieldAdder.add(
                 fieldX,
                 rowY,
                 fieldWidth,
@@ -271,18 +270,18 @@ public final class ModelSettingsModalSupport {
 
     @FunctionalInterface
     public interface Translator {
-        Text t(String key, Object... args);
+        Component t(String key, Object... args);
     }
 
     @FunctionalInterface
     public interface FloatingTextFieldAdder {
-        TextFieldWidget add(
+        EditBox add(
                 int x,
                 int y,
                 int width,
                 int maxLength,
                 String initialValue,
-                Text placeholder,
+                Component placeholder,
                 Consumer<String> changed,
                 boolean editable
         );
@@ -295,11 +294,11 @@ public final class ModelSettingsModalSupport {
                 int y,
                 int width,
                 int height,
-                Supplier<Text> labelSupplier,
+                Supplier<Component> labelSupplier,
                 BooleanSupplier checked,
                 Consumer<Boolean> changed,
                 CheckboxBlock.Style style,
-                Text tooltip
+                Component tooltip
         );
     }
 
@@ -310,13 +309,13 @@ public final class ModelSettingsModalSupport {
                 int y,
                 int width,
                 int height,
-                Supplier<Text> labelSupplier,
+                Supplier<Component> labelSupplier,
                 Runnable action,
                 int color,
                 int hoverColor,
                 int textColor,
                 boolean centered,
-                Text tooltip
+                Component tooltip
         );
     }
 

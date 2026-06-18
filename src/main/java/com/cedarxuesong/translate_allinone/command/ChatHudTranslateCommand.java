@@ -6,12 +6,11 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
-import net.minecraft.text.Text;
-
+import net.minecraft.network.chat.Component;
 import java.util.UUID;
 
-import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.argument;
-import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.literal;
+import static net.fabricmc.fabric.api.client.command.v2.ClientCommands.argument;
+import static net.fabricmc.fabric.api.client.command.v2.ClientCommands.literal;
 
 public class ChatHudTranslateCommand {
     private static final String INVALID_MESSAGE_ID_KEY = "text.translate_allinone.command.error.invalid_message_id";
@@ -36,13 +35,13 @@ public class ChatHudTranslateCommand {
         try {
             messageId = UUID.fromString(messageIdStr);
         } catch (IllegalArgumentException e) {
-            context.getSource().sendError(Text.translatable(INVALID_MESSAGE_ID_KEY, messageIdStr));
+            context.getSource().sendError(Component.translatable(INVALID_MESSAGE_ID_KEY, messageIdStr));
             return 0;
         }
 
-        Text originalMessage = MessageUtils.getTrackedMessage(messageId);
+        Component originalMessage = MessageUtils.getTrackedMessage(messageId);
         if (originalMessage == null) {
-            context.getSource().sendError(Text.translatable(MESSAGE_NOT_FOUND_KEY, messageIdStr));
+            context.getSource().sendError(Component.translatable(MESSAGE_NOT_FOUND_KEY, messageIdStr));
             return 0;
         }
 

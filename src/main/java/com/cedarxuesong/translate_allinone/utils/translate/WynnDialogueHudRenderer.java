@@ -4,16 +4,17 @@ import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.utils.AnimationManager;
 import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.WynnCraftConfig;
-import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.render.RenderTickCounter;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.OrderedText;
-import net.minecraft.text.Style;
-import net.minecraft.text.Text;
-
+import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
+import net.minecraft.client.DeltaTracker;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.resources.Identifier;
+import net.minecraft.network.chat.Style;
+import net.minecraft.util.FormattedCharSequence;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -64,7 +65,11 @@ public final class WynnDialogueHudRenderer {
         if (initialized) {
             return;
         }
-        HudRenderCallback.EVENT.register(WynnDialogueHudRenderer::render);
+        HudElementRegistry.attachElementAfter(
+                VanillaHudElements.CHAT,
+                Identifier.fromNamespaceAndPath(Translate_AllinOne.MOD_ID, "wynn_dialogue"),
+                WynnDialogueHudRenderer::render
+        );
         initialized = true;
     }
 
@@ -184,7 +189,7 @@ public final class WynnDialogueHudRenderer {
     }
 
     public static EditorPreviewSnapshot getEditorPreviewSnapshot(
-            TextRenderer textRenderer,
+            Font textRenderer,
             int viewportWidth,
             int viewportHeight
     ) {
@@ -192,7 +197,7 @@ public final class WynnDialogueHudRenderer {
     }
 
     public static EditorPreviewLayout getEditorPreviewLayout(
-            TextRenderer textRenderer,
+            Font textRenderer,
             int viewportWidth,
             int viewportHeight
     ) {
@@ -254,8 +259,8 @@ public final class WynnDialogueHudRenderer {
     }
 
     public static void drawHudEditorPreview(
-            DrawContext drawContext,
-            TextRenderer textRenderer,
+            GuiGraphicsExtractor drawContext,
+            Font textRenderer,
             int viewportWidth,
             int viewportHeight
     ) {
@@ -285,9 +290,9 @@ public final class WynnDialogueHudRenderer {
         }
     }
 
-    private static void render(DrawContext drawContext, RenderTickCounter tickCounter) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client == null || client.player == null || client.world == null) {
+    private static void render(GuiGraphicsExtractor drawContext, DeltaTracker tickCounter) {
+        Minecraft client = Minecraft.getInstance();
+        if (client == null || client.player == null || client.level == null) {
             return;
         }
 
@@ -323,23 +328,23 @@ public final class WynnDialogueHudRenderer {
             return;
         }
 
-        if (client.currentScreen != null) {
+        if (client.screen != null) {
             return;
         }
 
-        TextRenderer textRenderer = client.textRenderer;
+        Font textRenderer = client.font;
         HudLayout hudLayout = resolveHudLayout();
         DialogueRenderData renderData = prepareDialogueRenderData(
                 textRenderer,
-                drawContext.getScaledWindowWidth(),
-                drawContext.getScaledWindowHeight(),
+                drawContext.guiWidth(),
+                drawContext.guiHeight(),
                 new DialogueContent(
                         pageInfo,
                         npcName,
                         pending
-                                ? AnimationManager.getAnimatedStyledText(Text.literal(translation), animationKey, false)
-                                : Text.literal(translation),
-                        Text.literal(optionsText)
+                                ? AnimationManager.getAnimatedStyledText(Component.literal(translation), animationKey, false)
+                                : Component.literal(translation),
+                        Component.literal(optionsText)
                 ),
                 hudLayout
         );
@@ -351,9 +356,9 @@ public final class WynnDialogueHudRenderer {
         if (optionsText != null && !optionsText.isBlank()) {
             optionsRenderData = prepareOptionsRenderData(
                     textRenderer,
-                    drawContext.getScaledWindowWidth(),
-                    drawContext.getScaledWindowHeight(),
-                    Text.literal(optionsText),
+                    drawContext.guiWidth(),
+                    drawContext.guiHeight(),
+                    Component.literal(optionsText),
                     resolveOptionsHudLayout()
             );
             drawOptionsRows(drawContext, textRenderer, optionsRenderData, 0, 0, optionsAnimationKeys);
@@ -392,23 +397,23 @@ public final class WynnDialogueHudRenderer {
     }
 
     private static DialogueRenderData prepareDialogueRenderData(
-            TextRenderer textRenderer,
+            Font textRenderer,
             int viewportWidth,
             int viewportHeight,
             DialogueContent content,
             HudLayout hudLayout
     ) {
-        Text title = buildTitle(content.pageInfo(), content.npcName());
+        Component title = buildTitle(content.pageInfo(), content.npcName());
         int widthBudget = (int) Math.floor((viewportWidth - SCREEN_MARGIN) / hudLayout.scale()) - PADDING * 2;
         int maxContentWidth = Math.min(MAX_BOX_WIDTH, Math.max(MIN_CONTENT_WIDTH, widthBudget));
-        List<OrderedText> wrappedLines = wrapTextLines(textRenderer, content.translation(), maxContentWidth);
+        List<FormattedCharSequence> wrappedLines = wrapTextLines(textRenderer, content.translation(), maxContentWidth);
         if (wrappedLines.isEmpty()) {
-            wrappedLines = List.of(content.translation().asOrderedText());
+            wrappedLines = List.of(content.translation().getVisualOrderText());
         }
 
-        int contentWidth = textRenderer.getWidth(title.asOrderedText());
-        for (OrderedText line : wrappedLines) {
-            contentWidth = Math.max(contentWidth, textRenderer.getWidth(line));
+        int contentWidth = textRenderer.width(title.getVisualOrderText());
+        for (FormattedCharSequence line : wrappedLines) {
+            contentWidth = Math.max(contentWidth, textRenderer.width(line));
         }
 
         int boxWidth = Math.min(maxContentWidth + PADDING * 2, contentWidth + PADDING * 2);
@@ -431,27 +436,27 @@ public final class WynnDialogueHudRenderer {
     }
 
     private static DialogueRenderData prepareOptionsRenderData(
-            TextRenderer textRenderer,
+            Font textRenderer,
             int viewportWidth,
             int viewportHeight,
-            Text optionsText,
+            Component optionsText,
             HudLayout hudLayout
     ) {
-        Text title = Text.empty();
+        Component title = Component.empty();
         int widthBudget = (int) Math.floor((viewportWidth - SCREEN_MARGIN) / hudLayout.scale()) - PADDING * 2;
         int maxContentWidth = Math.min(MAX_BOX_WIDTH, Math.max(MIN_CONTENT_WIDTH, widthBudget));
-        List<List<OrderedText>> optionGroups = wrapOptionsGroups(textRenderer, optionsText, maxContentWidth);
+        List<List<FormattedCharSequence>> optionGroups = wrapOptionsGroups(textRenderer, optionsText, maxContentWidth);
         if (optionGroups.isEmpty()) {
-            optionGroups = List.of(List.of(optionsText.asOrderedText()));
+            optionGroups = List.of(List.of(optionsText.getVisualOrderText()));
         }
 
         List<String> rawSegments = new ArrayList<>();
         int contentWidth = 0;
-        List<OrderedText> flatLines = new ArrayList<>();
-        for (List<OrderedText> group : optionGroups) {
+        List<FormattedCharSequence> flatLines = new ArrayList<>();
+        for (List<FormattedCharSequence> group : optionGroups) {
             StringBuilder sb = new StringBuilder();
-            for (OrderedText line : group) {
-                contentWidth = Math.max(contentWidth, textRenderer.getWidth(line));
+            for (FormattedCharSequence line : group) {
+                contentWidth = Math.max(contentWidth, textRenderer.width(line));
                 flatLines.add(line);
                 line.accept((charIndex, style, codePoint) -> {
                     sb.appendCodePoint(codePoint);
@@ -491,9 +496,9 @@ public final class WynnDialogueHudRenderer {
         return paddingHeight + lineHeight + gaps;
     }
 
-    private static List<List<OrderedText>> wrapOptionsGroups(
-            TextRenderer textRenderer,
-            Text optionsText,
+    private static List<List<FormattedCharSequence>> wrapOptionsGroups(
+            Font textRenderer,
+            Component optionsText,
             int maxContentWidth
     ) {
         if (optionsText == null) {
@@ -501,44 +506,44 @@ public final class WynnDialogueHudRenderer {
         }
         String plain = optionsText.getString();
         if (plain.indexOf('\n') < 0) {
-            return List.of(textRenderer.wrapLines(optionsText, maxContentWidth));
+            return List.of(textRenderer.split(optionsText, maxContentWidth));
         }
-        List<List<OrderedText>> groups = new ArrayList<>();
+        List<List<FormattedCharSequence>> groups = new ArrayList<>();
         for (String segment : plain.split("\n", -1)) {
             if (segment.isEmpty()) {
-                groups.add(List.of(Text.empty().asOrderedText()));
+                groups.add(List.of(Component.empty().getVisualOrderText()));
             } else {
-                groups.add(textRenderer.wrapLines(Text.literal(segment), maxContentWidth));
+                groups.add(textRenderer.split(Component.literal(segment), maxContentWidth));
             }
         }
         return groups;
     }
 
-    private static List<OrderedText> wrapTextLines(TextRenderer textRenderer, Text text, int maxContentWidth) {
+    private static List<FormattedCharSequence> wrapTextLines(Font textRenderer, Component text, int maxContentWidth) {
         if (text == null) {
             return List.of();
         }
 
         String plain = text.getString();
         if (plain.indexOf('\n') < 0) {
-            return textRenderer.wrapLines(text, maxContentWidth);
+            return textRenderer.split(text, maxContentWidth);
         }
 
-        List<OrderedText> wrappedLines = new ArrayList<>();
-        for (Text line : splitTextByNewlines(text)) {
+        List<FormattedCharSequence> wrappedLines = new ArrayList<>();
+        for (Component line : splitTextByNewlines(text)) {
             String linePlain = line.getString();
             if (linePlain.isEmpty()) {
-                wrappedLines.add(Text.empty().asOrderedText());
+                wrappedLines.add(Component.empty().getVisualOrderText());
                 continue;
             }
-            wrappedLines.addAll(textRenderer.wrapLines(line, maxContentWidth));
+            wrappedLines.addAll(textRenderer.split(line, maxContentWidth));
         }
         return wrappedLines;
     }
 
-    private static List<Text> splitTextByNewlines(Text text) {
-        List<Text> lines = new ArrayList<>();
-        MutableText[] current = { Text.empty() };
+    private static List<Component> splitTextByNewlines(Component text) {
+        List<Component> lines = new ArrayList<>();
+        MutableComponent[] current = { Component.empty() };
         text.visit((style, s) -> {
             if (s == null || s.isEmpty()) {
                 return Optional.empty();
@@ -549,15 +554,15 @@ public final class WynnDialogueHudRenderer {
             for (int i = 0; i < len; i++) {
                 if (s.charAt(i) == '\n') {
                     if (i > start) {
-                        current[0].append(Text.literal(s.substring(start, i)).setStyle(resolvedStyle));
+                        current[0].append(Component.literal(s.substring(start, i)).setStyle(resolvedStyle));
                     }
                     lines.add(current[0]);
-                    current[0] = Text.empty();
+                    current[0] = Component.empty();
                     start = i + 1;
                 }
             }
             if (start < len) {
-                current[0].append(Text.literal(s.substring(start)).setStyle(resolvedStyle));
+                current[0].append(Component.literal(s.substring(start)).setStyle(resolvedStyle));
             }
             return Optional.empty();
         }, Style.EMPTY);
@@ -581,103 +586,103 @@ public final class WynnDialogueHudRenderer {
             visibleUntil = displayUntil;
         }
 
-        Text previewOptionsText = Text.translatable("text.translate_allinone.configscreen.preview.wynn_npc_dialogue_options");
+        Component previewOptionsText = Component.translatable("text.translate_allinone.configscreen.preview.wynn_npc_dialogue_options");
         if (translation != null && !translation.isBlank() && System.currentTimeMillis() <= visibleUntil) {
-            Text visibleOptionsText = optionsText == null || optionsText.isBlank()
+            Component visibleOptionsText = optionsText == null || optionsText.isBlank()
                     ? previewOptionsText
-                    : Text.literal(optionsText);
-            return new DialogueContent(pageInfo, npcName, Text.literal(translation), visibleOptionsText);
+                    : Component.literal(optionsText);
+            return new DialogueContent(pageInfo, npcName, Component.literal(translation), visibleOptionsText);
         }
 
         return new DialogueContent(
                 "",
-                Text.translatable("text.translate_allinone.configscreen.preview.wynn_npc_dialogue_npc").getString(),
-                Text.translatable("text.translate_allinone.configscreen.preview.wynn_npc_dialogue_body"),
+                Component.translatable("text.translate_allinone.configscreen.preview.wynn_npc_dialogue_npc").getString(),
+                Component.translatable("text.translate_allinone.configscreen.preview.wynn_npc_dialogue_body"),
                 previewOptionsText
         );
     }
 
     private static void drawDialogueBox(
-            DrawContext drawContext,
-            TextRenderer textRenderer,
+            GuiGraphicsExtractor drawContext,
+            Font textRenderer,
             DialogueRenderData renderData,
             int viewportX,
             int viewportY
     ) {
-        drawContext.getMatrices().pushMatrix();
-        drawContext.getMatrices().translate((float) (viewportX + renderData.x()), (float) (viewportY + renderData.y()));
-        drawContext.getMatrices().scale(renderData.hudLayout().scale(), renderData.hudLayout().scale());
+        drawContext.pose().pushMatrix();
+        drawContext.pose().translate((float) (viewportX + renderData.x()), (float) (viewportY + renderData.y()));
+        drawContext.pose().scale(renderData.hudLayout().scale(), renderData.hudLayout().scale());
 
         drawContext.fill(0, 0, renderData.boxWidth(), renderData.boxHeight(), BOX_BACKGROUND_COLOR);
-        drawContext.drawStrokedRectangle(0, 0, renderData.boxWidth(), renderData.boxHeight(), BOX_BORDER_COLOR);
+        drawContext.outline(0, 0, renderData.boxWidth(), renderData.boxHeight(), BOX_BORDER_COLOR);
 
         int textX = PADDING;
         int textY = PADDING;
-        drawContext.drawTextWithShadow(textRenderer, renderData.title(), textX, textY, TITLE_COLOR);
+        drawContext.text(textRenderer, renderData.title(), textX, textY, TITLE_COLOR);
         textY += 9 + TITLE_GAP;
 
-        for (OrderedText line : renderData.wrappedLines()) {
-            drawContext.drawTextWithShadow(textRenderer, line, textX, textY, BODY_COLOR);
+        for (FormattedCharSequence line : renderData.wrappedLines()) {
+            drawContext.text(textRenderer, line, textX, textY, BODY_COLOR);
             textY += LINE_HEIGHT;
         }
 
-        drawContext.getMatrices().popMatrix();
+        drawContext.pose().popMatrix();
     }
 
     private static void drawErrorStatusLine(
-            DrawContext drawContext,
-            TextRenderer textRenderer,
+            GuiGraphicsExtractor drawContext,
+            Font textRenderer,
             DialogueRenderData renderData,
             String errorMessage
     ) {
-        drawContext.getMatrices().pushMatrix();
-        drawContext.getMatrices().translate((float) renderData.x(), (float) (renderData.y() + renderData.scaledBoxHeight() + 2));
-        drawContext.getMatrices().scale(renderData.hudLayout().scale(), renderData.hudLayout().scale());
-        Text statusText = errorMessage == null || errorMessage.isBlank()
-                ? Text.translatable(STATUS_ERROR_KEY)
-                : Text.translatable(STATUS_ERROR_WITH_REASON_KEY, TranslationErrorTextSupport.localizeReason(errorMessage));
-        drawContext.drawTextWithShadow(textRenderer, statusText, 0, 0, STATUS_LINE_COLOR);
-        drawContext.getMatrices().popMatrix();
+        drawContext.pose().pushMatrix();
+        drawContext.pose().translate((float) renderData.x(), (float) (renderData.y() + renderData.scaledBoxHeight() + 2));
+        drawContext.pose().scale(renderData.hudLayout().scale(), renderData.hudLayout().scale());
+        Component statusText = errorMessage == null || errorMessage.isBlank()
+                ? Component.translatable(STATUS_ERROR_KEY)
+                : Component.translatable(STATUS_ERROR_WITH_REASON_KEY, TranslationErrorTextSupport.localizeReason(errorMessage));
+        drawContext.text(textRenderer, statusText, 0, 0, STATUS_LINE_COLOR);
+        drawContext.pose().popMatrix();
     }
 
     private static void drawOptionsRows(
-            DrawContext drawContext,
-            TextRenderer textRenderer,
+            GuiGraphicsExtractor drawContext,
+            Font textRenderer,
             DialogueRenderData renderData,
             int viewportX,
             int viewportY,
             List<String> perLineAnimationKeys
     ) {
-        drawContext.getMatrices().pushMatrix();
-        drawContext.getMatrices().translate((float) (viewportX + renderData.x()), (float) (viewportY + renderData.y()));
-        drawContext.getMatrices().scale(renderData.hudLayout().scale(), renderData.hudLayout().scale());
+        drawContext.pose().pushMatrix();
+        drawContext.pose().translate((float) (viewportX + renderData.x()), (float) (viewportY + renderData.y()));
+        drawContext.pose().scale(renderData.hudLayout().scale(), renderData.hudLayout().scale());
 
-        List<List<OrderedText>> groups = renderData.optionGroups();
+        List<List<FormattedCharSequence>> groups = renderData.optionGroups();
         List<String> rawSegments = renderData.rawSegments();
         if (groups == null || groups.isEmpty()) {
-            drawContext.getMatrices().popMatrix();
+            drawContext.pose().popMatrix();
             return;
         }
 
         int maxContentWidth = renderData.maxContentWidth();
         int yOffset = 0;
         for (int gi = 0; gi < groups.size(); gi++) {
-            List<OrderedText> group = groups.get(gi);
+            List<FormattedCharSequence> group = groups.get(gi);
 
-            List<OrderedText> renderLines;
+            List<FormattedCharSequence> renderLines;
             String lineAnimationKey = (perLineAnimationKeys != null && gi < perLineAnimationKeys.size())
                     ? perLineAnimationKeys.get(gi) : "";
             if (!lineAnimationKey.isBlank() && rawSegments != null && gi < rawSegments.size()) {
-                Text animatedText = AnimationManager.getAnimatedStyledText(
-                        Text.literal(rawSegments.get(gi)), lineAnimationKey, false);
-                renderLines = textRenderer.wrapLines(animatedText, maxContentWidth);
+                Component animatedText = AnimationManager.getAnimatedStyledText(
+                        Component.literal(rawSegments.get(gi)), lineAnimationKey, false);
+                renderLines = textRenderer.split(animatedText, maxContentWidth);
             } else {
                 renderLines = group;
             }
 
             int maxLineWidth = 0;
-            for (OrderedText line : renderLines) {
-                maxLineWidth = Math.max(maxLineWidth, textRenderer.getWidth(line));
+            for (FormattedCharSequence line : renderLines) {
+                maxLineWidth = Math.max(maxLineWidth, textRenderer.width(line));
             }
 
             int rowHeight = OPTION_ROW_PADDING_Y * 2 + renderLines.size() * LINE_HEIGHT;
@@ -686,17 +691,17 @@ public final class WynnDialogueHudRenderer {
             fillRoundedRect(drawContext, 0, yOffset, bgWidth, rowBottom, BOX_BACKGROUND_COLOR);
             int textY = yOffset + OPTION_ROW_PADDING_Y;
             int textX = PADDING / 2;
-            for (OrderedText line : renderLines) {
-                drawContext.drawTextWithShadow(textRenderer, line, textX, textY, BODY_COLOR);
+            for (FormattedCharSequence line : renderLines) {
+                drawContext.text(textRenderer, line, textX, textY, BODY_COLOR);
                 textY += LINE_HEIGHT;
             }
             yOffset = rowBottom + OPTION_ROW_GAP;
         }
 
-        drawContext.getMatrices().popMatrix();
+        drawContext.pose().popMatrix();
     }
 
-    private static void fillRoundedRect(DrawContext ctx, int x, int y, int x2, int y2, int color) {
+    private static void fillRoundedRect(GuiGraphicsExtractor ctx, int x, int y, int x2, int y2, int color) {
         int w = x2 - x;
         int h = y2 - y;
         if (w <= 0 || h <= 0) return;
@@ -712,7 +717,7 @@ public final class WynnDialogueHudRenderer {
         }
     }
 
-    private static Text buildTitle(String pageInfo, String npcName) {
+    private static Component buildTitle(String pageInfo, String npcName) {
         StringBuilder builder = new StringBuilder();
         if (pageInfo != null && !pageInfo.isBlank()) {
             builder.append(pageInfo.trim()).append(' ');
@@ -722,7 +727,7 @@ public final class WynnDialogueHudRenderer {
         } else {
             builder.append("Dialogue:");
         }
-        return Text.literal(builder.toString());
+        return Component.literal(builder.toString());
     }
 
     private static HudLayout resolveHudLayout() {
@@ -805,8 +810,8 @@ public final class WynnDialogueHudRenderer {
     }
 
     private record DialogueRenderData(
-            Text title,
-            List<OrderedText> wrappedLines,
+            Component title,
+            List<FormattedCharSequence> wrappedLines,
             int boxWidth,
             int boxHeight,
             int scaledBoxWidth,
@@ -814,13 +819,13 @@ public final class WynnDialogueHudRenderer {
             int x,
             int y,
             HudLayout hudLayout,
-            List<List<OrderedText>> optionGroups,
+            List<List<FormattedCharSequence>> optionGroups,
             List<String> rawSegments,
             int maxContentWidth
     ) {
         DialogueRenderData(
-                Text title,
-                List<OrderedText> wrappedLines,
+                Component title,
+                List<FormattedCharSequence> wrappedLines,
                 int boxWidth,
                 int boxHeight,
                 int scaledBoxWidth,
@@ -833,7 +838,7 @@ public final class WynnDialogueHudRenderer {
         }
     }
 
-    private record DialogueContent(String pageInfo, String npcName, Text translation, Text optionsText) {
+    private record DialogueContent(String pageInfo, String npcName, Component translation, Component optionsText) {
     }
 
     public record EditorPreviewSnapshot(

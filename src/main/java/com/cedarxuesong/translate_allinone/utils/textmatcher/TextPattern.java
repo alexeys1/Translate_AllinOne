@@ -1,7 +1,5 @@
 package com.cedarxuesong.translate_allinone.utils.textmatcher;
 
-import net.minecraft.text.Text;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -9,6 +7,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import net.minecraft.network.chat.Component;
 
 public final class TextPattern {
     private final List<PatternStep> steps;
@@ -24,19 +23,19 @@ public final class TextPattern {
         return new Builder();
     }
 
-    public TextMatchResult match(Text text) {
+    public TextMatchResult match(Component text) {
         return match(text, true);
     }
 
-    public TextMatchResult match(Text text, boolean compact) {
+    public TextMatchResult match(Component text, boolean compact) {
         return match(normalize(text, compact));
     }
 
-    public TextMatchResult find(Text text) {
+    public TextMatchResult find(Component text) {
         return find(text, true);
     }
 
-    public TextMatchResult find(Text text, boolean compact) {
+    public TextMatchResult find(Component text, boolean compact) {
         return find(normalize(text, compact));
     }
 
@@ -72,7 +71,7 @@ public final class TextPattern {
         return TextMatchResult.FAILURE;
     }
 
-    private static List<FlatNode> normalize(Text text, boolean compact) {
+    private static List<FlatNode> normalize(Component text, boolean compact) {
         List<FlatNode> nodes = FlatNode.flatten(text);
         return compact ? FlatNode.compact(nodes) : nodes;
     }

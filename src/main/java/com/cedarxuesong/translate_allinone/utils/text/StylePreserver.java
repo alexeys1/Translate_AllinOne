@@ -1,10 +1,5 @@
 package com.cedarxuesong.translate_allinone.utils.text;
 
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Style;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -13,6 +8,10 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
 
 public class StylePreserver {
 
@@ -33,7 +32,7 @@ public class StylePreserver {
         }
     }
 
-    public static ExtractionResult extractAndMark(Text message) {
+    public static ExtractionResult extractAndMark(Component message) {
         StringBuilder markedText = new StringBuilder();
         Map<Integer, Style> styleMap = new HashMap<>();
         AtomicInteger counter = new AtomicInteger(0); // Start from 0 to align with char offset
@@ -57,7 +56,7 @@ public class StylePreserver {
         return new ExtractionResult(markedText.toString(), styleMap);
     }
     
-    public static ExtractionResult extractAndMarkWithTags(Text message) {
+    public static ExtractionResult extractAndMarkWithTags(Component message) {
         StringBuilder markedText = new StringBuilder();
         Map<Integer, Style> styleMap = new HashMap<>();
         AtomicInteger counter = new AtomicInteger(0);
@@ -78,14 +77,14 @@ public class StylePreserver {
         return new ExtractionResult(markedText.toString(), styleMap);
     }
 
-    public static Text reapplyStyles(String translatedText, Map<Integer, Style> styleMap) {
-        MutableText resultText = Text.empty();
+    public static Component reapplyStyles(String translatedText, Map<Integer, Style> styleMap) {
+        MutableComponent resultText = Component.empty();
         Matcher matcher = PLACEHOLDER_PATTERN.matcher(translatedText);
         int lastEnd = 0;
 
         while (matcher.find()) {
             if (matcher.start() > lastEnd) {
-                resultText.append(Text.literal(translatedText.substring(lastEnd, matcher.start())));
+                resultText.append(Component.literal(translatedText.substring(lastEnd, matcher.start())));
             }
             
             char placeholder = matcher.group(1).charAt(0);
@@ -93,19 +92,19 @@ public class StylePreserver {
             String content = matcher.group(2);
             Style style = styleMap.getOrDefault(id, Style.EMPTY);
             
-            resultText.append(Text.literal(content).setStyle(style));
+            resultText.append(Component.literal(content).setStyle(style));
             
             lastEnd = matcher.end();
         }
 
         if (lastEnd < translatedText.length()) {
-            resultText.append(Text.literal(translatedText.substring(lastEnd)));
+            resultText.append(Component.literal(translatedText.substring(lastEnd)));
         }
 
         return resultText;
     }
 
-    public static Text reapplyStylesFromTags(String translatedText, Map<Integer, Style> styleMap) {
+    public static Component reapplyStylesFromTags(String translatedText, Map<Integer, Style> styleMap) {
         return reapplyStylesFromTags(translatedText, styleMap, false);
     }
 
@@ -113,8 +112,8 @@ public class StylePreserver {
         return sanitizeStyle(style == null ? Style.EMPTY : style, stripFont);
     }
 
-    public static Text reapplyStylesFromTags(String translatedText, Map<Integer, Style> styleMap, boolean stripFont) {
-        MutableText resultText = Text.empty();
+    public static Component reapplyStylesFromTags(String translatedText, Map<Integer, Style> styleMap, boolean stripFont) {
+        MutableComponent resultText = Component.empty();
         Matcher matcher = STYLE_TAG_MARKER_PATTERN.matcher(translatedText);
         int lastEnd = 0;
         Integer activeStyleId = null;
@@ -146,7 +145,7 @@ public class StylePreserver {
     }
 
     private static void appendTaggedOrPlainContent(
-            MutableText target,
+            MutableComponent target,
             String content,
             Integer activeStyleId,
             Map<Integer, Style> styleMap,
@@ -157,7 +156,7 @@ public class StylePreserver {
         }
 
         if (activeStyleId == null) {
-            target.append(Text.literal(content));
+            target.append(Component.literal(content));
             return;
         }
 
@@ -262,7 +261,7 @@ public class StylePreserver {
         }
     }
 
-    private static void appendTaggedContent(MutableText target, String content, Style originalStyle, boolean stripFont) {
+    private static void appendTaggedContent(MutableComponent target, String content, Style originalStyle, boolean stripFont) {
         if (content == null || content.isEmpty()) {
             return;
         }
@@ -276,13 +275,13 @@ public class StylePreserver {
         }
 
         if (stripFont && shouldKeepOriginalFontForSegment(normalizedContent, originalStyle)) {
-            target.append(Text.literal(normalizedContent).setStyle(originalStyle));
+            target.append(Component.literal(normalizedContent).setStyle(originalStyle));
             return;
         }
 
         Style sanitizedStyle = sanitizeStyle(originalStyle, stripFont);
         if (!stripFont || originalStyle.equals(sanitizedStyle)) {
-            target.append(Text.literal(normalizedContent).setStyle(sanitizedStyle));
+            target.append(Component.literal(normalizedContent).setStyle(sanitizedStyle));
             return;
         }
 
@@ -294,7 +293,7 @@ public class StylePreserver {
             boolean keepOriginalFont = isDecorativeGlyphCodePoint(codePoint);
 
             if (keepOriginalFontForRun != null && keepOriginalFontForRun != keepOriginalFont && run.length() > 0) {
-                target.append(Text.literal(run.toString()).setStyle(keepOriginalFontForRun ? originalStyle : sanitizedStyle));
+                target.append(Component.literal(run.toString()).setStyle(keepOriginalFontForRun ? originalStyle : sanitizedStyle));
                 run.setLength(0);
             }
 
@@ -304,7 +303,7 @@ public class StylePreserver {
         }
 
         if (run.length() > 0) {
-            target.append(Text.literal(run.toString()).setStyle(Boolean.TRUE.equals(keepOriginalFontForRun) ? originalStyle : sanitizedStyle));
+            target.append(Component.literal(run.toString()).setStyle(Boolean.TRUE.equals(keepOriginalFontForRun) ? originalStyle : sanitizedStyle));
         }
     }
 
@@ -440,7 +439,7 @@ public class StylePreserver {
 
         sanitized = sanitized.withBold(style.isBold());
         sanitized = sanitized.withItalic(style.isItalic());
-        sanitized = sanitized.withUnderline(style.isUnderlined());
+        sanitized = sanitized.withUnderlined(style.isUnderlined());
         sanitized = sanitized.withStrikethrough(style.isStrikethrough());
         sanitized = sanitized.withObfuscated(style.isObfuscated());
 
@@ -517,9 +516,9 @@ public class StylePreserver {
         }
         StringBuilder sb = new StringBuilder();
         if (style.getColor() != null) {
-            for (Formatting f : Formatting.values()) {
-                if (f.isColor() && f.getColorValue() != null && f.getColorValue().equals(style.getColor().getRgb())) {
-                    sb.append('§').append(f.getCode());
+            for (ChatFormatting f : ChatFormatting.values()) {
+                if (f.isColor() && f.getColor() != null && f.getColor().equals(style.getColor().getValue())) {
+                    sb.append('§').append(f.getChar());
                     break;
                 }
             }
@@ -532,13 +531,13 @@ public class StylePreserver {
         return sb.toString();
     }
 
-    public static Text fromLegacyText(String text) {
+    public static Component fromLegacyText(String text) {
         if (text == null || text.isEmpty()) {
-            return Text.empty();
+            return Component.empty();
         }
 
-        MutableText result = Text.empty();
-        MutableText currentComponent = Text.literal("");
+        MutableComponent result = Component.empty();
+        MutableComponent currentComponent = Component.literal("");
         Style currentStyle = Style.EMPTY;
 
         for (int i = 0; i < text.length(); i++) {
@@ -552,16 +551,16 @@ public class StylePreserver {
                 if (!currentComponent.getString().isEmpty()) {
                     result.append(currentComponent.setStyle(currentStyle));
                 }
-                currentComponent = Text.literal("");
+                currentComponent = Component.literal("");
 
                 char formatChar = Character.toLowerCase(text.charAt(i + 1));
-                Formatting formatting = Formatting.byCode(formatChar);
+                ChatFormatting formatting = ChatFormatting.getByCode(formatChar);
 
                 if (formatting != null) {
-                    if (formatting.isColor() || formatting == Formatting.RESET) {
-                        currentStyle = Style.EMPTY.withFormatting(formatting);
+                    if (formatting.isColor() || formatting == ChatFormatting.RESET) {
+                        currentStyle = Style.EMPTY.applyFormat(formatting);
                     } else {
-                        currentStyle = currentStyle.withFormatting(formatting);
+                        currentStyle = currentStyle.applyFormat(formatting);
                     }
                 }
                 i++; 
@@ -663,8 +662,8 @@ public class StylePreserver {
         Style candidate = sanitizeStyle(candidateStyle == null ? Style.EMPTY : candidateStyle, true);
         Style legacy = sanitizeStyle(legacyStyle == null ? Style.EMPTY : legacyStyle, false);
 
-        int candidateColor = candidate.getColor() == null ? Integer.MIN_VALUE : candidate.getColor().getRgb();
-        int legacyColor = legacy.getColor() == null ? Integer.MIN_VALUE : legacy.getColor().getRgb();
+        int candidateColor = candidate.getColor() == null ? Integer.MIN_VALUE : candidate.getColor().getValue();
+        int legacyColor = legacy.getColor() == null ? Integer.MIN_VALUE : legacy.getColor().getValue();
         return candidateColor == legacyColor
                 && candidate.isBold() == legacy.isBold()
                 && candidate.isItalic() == legacy.isItalic()
