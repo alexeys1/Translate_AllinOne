@@ -132,6 +132,10 @@ public final class DictionaryFileSelectionSupport {
         };
     }
 
+    public static boolean isSlotEnabled(Slot slot) {
+        return isSlotEnabled(currentDictionaryConfig(), slot);
+    }
+
     public static void setSlotEnabled(DictionaryConfig config, Slot slot, boolean enabled) {
         if (config == null || slot == null) {
             return;
@@ -146,7 +150,7 @@ public final class DictionaryFileSelectionSupport {
 
     public static Path resolveItemDictionaryPath() {
         DictionaryConfig config = currentDictionaryConfig();
-        if (!isSlotEnabled(config, Slot.ITEM_SKILL)) {
+        if (!isDictionaryEnabled(config) || !isSlotEnabled(config, Slot.ITEM_SKILL)) {
             return null;
         }
         List<Path> paths = resolveItemSkillDictionaryPaths(config);
@@ -158,7 +162,7 @@ public final class DictionaryFileSelectionSupport {
 
     public static Path resolveSkillDictionaryPath() {
         DictionaryConfig config = currentDictionaryConfig();
-        if (!isSlotEnabled(config, Slot.ITEM_SKILL)) {
+        if (!isDictionaryEnabled(config) || !isSlotEnabled(config, Slot.ITEM_SKILL)) {
             return null;
         }
         List<Path> paths = resolveItemSkillDictionaryPaths(config);
@@ -167,7 +171,7 @@ public final class DictionaryFileSelectionSupport {
 
     public static List<Path> resolveItemSkillDictionaryPaths() {
         DictionaryConfig config = currentDictionaryConfig();
-        if (!isSlotEnabled(config, Slot.ITEM_SKILL)) {
+        if (!isDictionaryEnabled(config) || !isSlotEnabled(config, Slot.ITEM_SKILL)) {
             return List.of();
         }
         return resolveItemSkillDictionaryPaths(config);
@@ -190,7 +194,7 @@ public final class DictionaryFileSelectionSupport {
     public static Path resolveDialogueDictionaryPath() {
         DictionaryConfig config = currentDictionaryConfig();
         String selectedFile = getSelectedFile(config, Slot.WYNNCRAFT_DIALOGUE);
-        if (!isSlotEnabled(config, Slot.WYNNCRAFT_DIALOGUE)) {
+        if (!isDictionaryEnabled(config) || !isSlotEnabled(config, Slot.WYNNCRAFT_DIALOGUE)) {
             return null;
         }
         if (selectedFile.isBlank()) {
@@ -202,7 +206,7 @@ public final class DictionaryFileSelectionSupport {
     public static Path resolveQuestDictionaryPath() {
         DictionaryConfig config = currentDictionaryConfig();
         String selectedFile = getSelectedFile(config, Slot.WYNNCRAFT_QUEST);
-        if (!isSlotEnabled(config, Slot.WYNNCRAFT_QUEST)) {
+        if (!isDictionaryEnabled(config) || !isSlotEnabled(config, Slot.WYNNCRAFT_QUEST)) {
             return null;
         }
         if (selectedFile.isBlank()) {
@@ -237,6 +241,14 @@ public final class DictionaryFileSelectionSupport {
         } catch (IllegalStateException ignored) {
             return null;
         }
+    }
+
+    private static boolean isDictionaryEnabled(DictionaryConfig config) {
+        if (config == null) {
+            return true;
+        }
+        config.normalize();
+        return config.isEnabled();
     }
 
     private static String sanitizeFileName(String fileName) {

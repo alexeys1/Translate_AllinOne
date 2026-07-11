@@ -152,7 +152,10 @@ public final class WynnDialogueLocalDictionary {
 
     private DictionarySnapshot loadSnapshot() {
         Path configuredDictionaryPath = resolveDictionaryFilePath();
-        if (configuredDictionaryPath != null && Files.exists(configuredDictionaryPath)) {
+        if (configuredDictionaryPath == null) {
+            return DictionarySnapshot.empty();
+        }
+        if (Files.exists(configuredDictionaryPath)) {
             try (var reader = Files.newBufferedReader(configuredDictionaryPath, StandardCharsets.UTF_8)) {
                 return parseSnapshot(reader, configuredDictionaryPath.toString());
             } catch (IOException | RuntimeException e) {
