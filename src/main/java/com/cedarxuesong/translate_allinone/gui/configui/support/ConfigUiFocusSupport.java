@@ -14,13 +14,15 @@ public final class ConfigUiFocusSupport {
             EditBox providerSearchField,
             EditBox addProviderNameField,
             EditBox modelSettingsField,
-            EditBox customParameterNameField
+            EditBox customParameterNameField,
+            EditBox modelTemperatureChatField
     ) {
         EditBox focusField = switch (pendingFocusTarget) {
             case PROVIDER_SEARCH -> providerSearchField;
             case ADD_PROVIDER_NAME -> addProviderNameField;
             case MODEL_NAME -> modelSettingsField;
             case CUSTOM_PARAMETER_NAME -> customParameterNameField;
+            case MODEL_TEMPERATURE_CHAT -> modelTemperatureChatField;
             default -> null;
         };
 

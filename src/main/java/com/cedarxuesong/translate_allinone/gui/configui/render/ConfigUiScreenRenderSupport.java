@@ -48,6 +48,7 @@ public final class ConfigUiScreenRenderSupport {
             boolean addProviderModalOpen,
             boolean modelSettingsModalOpen,
             boolean customParametersModalOpen,
+            boolean modelTemperatureModalOpen,
             boolean dictionaryFilesModalOpen,
             boolean resetConfirmModalOpen,
             boolean updateNoticeModalOpen,
@@ -56,6 +57,7 @@ public final class ConfigUiScreenRenderSupport {
             Component addProviderTitle,
             Component modelSettingsTitle,
             Component customParametersTitle,
+            Component modelTemperatureTitle,
             Component dictionaryFilesTitle,
             Component resetConfirmTitle,
             Component updateNoticeTitle,
@@ -67,6 +69,7 @@ public final class ConfigUiScreenRenderSupport {
                 addProviderModalOpen,
                 modelSettingsModalOpen,
                 customParametersModalOpen,
+                modelTemperatureModalOpen,
                 dictionaryFilesModalOpen,
                 resetConfirmModalOpen,
                 updateNoticeModalOpen,
@@ -123,6 +126,16 @@ public final class ConfigUiScreenRenderSupport {
                     textRenderer,
                     ConfigUiModalSupport.customParametersModalRect(screenWidth, screenHeight),
                     customParametersTitle,
+                    style.colorMainPanel(),
+                    style.colorBorder(),
+                    style.colorText()
+            );
+        } else if (modelTemperatureModalOpen) {
+            ConfigUiModalSupport.renderModalShell(
+                    context,
+                    textRenderer,
+                    ConfigUiModalSupport.modelTemperatureModalRect(screenWidth, screenHeight),
+                    modelTemperatureTitle,
                     style.colorMainPanel(),
                     style.colorBorder(),
                     style.colorText()

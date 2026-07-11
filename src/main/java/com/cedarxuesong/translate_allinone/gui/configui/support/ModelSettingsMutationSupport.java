@@ -20,7 +20,11 @@ public final class ModelSettingsMutationSupport {
             ApiProviderProfile profile,
             String originalModelId,
             String nextModelId,
-            double temperature,
+            double chatTemperature,
+            double itemTemperature,
+            double scoreboardTemperature,
+            double wynntilsTaskTrackerTemperature,
+            double wynnNpcDialogueTemperature,
             String keepAliveTime,
             boolean supportsSystemMessage,
             boolean injectPromptIntoUser,
@@ -39,7 +43,12 @@ public final class ModelSettingsMutationSupport {
         }
 
         settings.model_id = nextModelId;
-        settings.temperature = temperature;
+        settings.temperature = chatTemperature;
+        settings.chat_temperature = chatTemperature;
+        settings.item_temperature = itemTemperature;
+        settings.scoreboard_temperature = scoreboardTemperature;
+        settings.wynntils_task_tracker_temperature = wynntilsTaskTrackerTemperature;
+        settings.wynn_npc_dialogue_temperature = wynnNpcDialogueTemperature;
         settings.keep_alive_time = keepAliveTime;
         settings.supports_system_message = supportsSystemMessage;
         settings.inject_system_prompt_into_user_message = injectPromptIntoUser;
