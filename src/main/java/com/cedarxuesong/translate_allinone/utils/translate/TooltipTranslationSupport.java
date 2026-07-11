@@ -18,6 +18,7 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 public final class TooltipTranslationSupport {
@@ -25,23 +26,46 @@ public final class TooltipTranslationSupport {
 
     private static final class TooltipFrameCache {
         int fingerprint;
+        boolean useTagStylePreservation;
         TooltipPlan plan;
         Set<String> remoteTranslationTemplateKeys;
+        boolean hasRemoteTranslationTemplateKeys;
         boolean decorativeTooltipContext;
 
-        boolean match(int fp) {
-            return fp != 0 && fingerprint == fp;
+        boolean match(int fp, boolean preserveStyle) {
+            return fp != 0 && fingerprint == fp && useTagStylePreservation == preserveStyle && plan != null;
         }
 
-        void set(int fp, TooltipPlan p, Set<String> keys, boolean decorative) {
+        void setPlan(int fp, boolean preserveStyle, TooltipPlan p, boolean decorative) {
             this.fingerprint = fp;
+            this.useTagStylePreservation = preserveStyle;
             this.plan = p;
-            this.remoteTranslationTemplateKeys = keys;
+            this.remoteTranslationTemplateKeys = null;
+            this.hasRemoteTranslationTemplateKeys = false;
+            this.decorativeTooltipContext = decorative;
+        }
+
+        void setPlanWithRemoteKeys(
+                int fp,
+                boolean preserveStyle,
+                TooltipPlan p,
+                Set<String> keys,
+                boolean decorative
+        ) {
+            this.fingerprint = fp;
+            this.useTagStylePreservation = preserveStyle;
+            this.plan = p;
+            this.remoteTranslationTemplateKeys = keys == null ? Set.of() : keys;
+            this.hasRemoteTranslationTemplateKeys = true;
             this.decorativeTooltipContext = decorative;
         }
     }
 
     private static final TooltipFrameCache FRAME_CACHE = new TooltipFrameCache();
+    private static final AtomicLong TOOLTIP_PLAN_CACHE_HITS = new AtomicLong();
+    private static final AtomicLong TOOLTIP_PLAN_CACHE_MISSES = new AtomicLong();
+    private static final AtomicLong REMOTE_KEYS_CACHE_HITS = new AtomicLong();
+    private static final AtomicLong REMOTE_KEYS_CACHE_MISSES = new AtomicLong();
 
     private TooltipTranslationSupport() {
     }
@@ -171,20 +195,48 @@ public final class TooltipTranslationSupport {
             return new TranslatedTooltipBuildResult(tooltip, false);
         }
 
-        int fingerprint = computeTooltipFingerprint(tooltip, config);
+        boolean decorativeTooltipContext = TooltipDecorativeContextSupport.isDecorativeTooltipContext(tooltip);
+        int fingerprint = computeTooltipFingerprint(tooltip, config, decorativeTooltipContext);
         TooltipPlan tooltipPlan;
         Set<String> remoteTranslationTemplateKeys;
-        boolean decorativeTooltipContext;
+        String planCacheResult;
+        String remoteKeysCacheResult;
 
-        if (FRAME_CACHE.match(fingerprint)) {
+        if (FRAME_CACHE.match(fingerprint, decorativeTooltipContext)) {
+            TOOLTIP_PLAN_CACHE_HITS.incrementAndGet();
+            planCacheResult = "hit";
             tooltipPlan = FRAME_CACHE.plan;
-            remoteTranslationTemplateKeys = FRAME_CACHE.remoteTranslationTemplateKeys;
             decorativeTooltipContext = FRAME_CACHE.decorativeTooltipContext;
+            if (FRAME_CACHE.hasRemoteTranslationTemplateKeys) {
+                REMOTE_KEYS_CACHE_HITS.incrementAndGet();
+                remoteKeysCacheResult = "hit";
+                remoteTranslationTemplateKeys = FRAME_CACHE.remoteTranslationTemplateKeys;
+            } else {
+                REMOTE_KEYS_CACHE_MISSES.incrementAndGet();
+                remoteKeysCacheResult = "miss";
+                remoteTranslationTemplateKeys = collectRemoteTranslationTemplateKeys(tooltipPlan, decorativeTooltipContext);
+                FRAME_CACHE.setPlanWithRemoteKeys(
+                        fingerprint,
+                        decorativeTooltipContext,
+                        tooltipPlan,
+                        remoteTranslationTemplateKeys,
+                        decorativeTooltipContext
+                );
+            }
         } else {
-            decorativeTooltipContext = TooltipDecorativeContextSupport.isDecorativeTooltipContext(tooltip);
+            TOOLTIP_PLAN_CACHE_MISSES.incrementAndGet();
+            REMOTE_KEYS_CACHE_MISSES.incrementAndGet();
+            planCacheResult = "miss";
+            remoteKeysCacheResult = "miss";
             tooltipPlan = TooltipRoutePlanner.planTooltip(tooltip, config, decorativeTooltipContext);
             remoteTranslationTemplateKeys = collectRemoteTranslationTemplateKeys(tooltipPlan, decorativeTooltipContext);
-            FRAME_CACHE.set(fingerprint, tooltipPlan, remoteTranslationTemplateKeys, decorativeTooltipContext);
+            FRAME_CACHE.setPlanWithRemoteKeys(
+                    fingerprint,
+                    decorativeTooltipContext,
+                    tooltipPlan,
+                    remoteTranslationTemplateKeys,
+                    decorativeTooltipContext
+            );
         }
 
         TooltipRefreshNoticeSupport.maybeForceRefreshCurrentTooltip(remoteTranslationTemplateKeys, config);
@@ -210,6 +262,7 @@ public final class TooltipTranslationSupport {
         boolean emitDevLog = TooltipTextMatcherSupport.beginTooltipDevPass(config, "screen-mirror", tooltip);
         long tooltipStartedAtNanos = emitDevLog ? System.nanoTime() : 0L;
         TooltipRoutePlanner.logLineDecisionsIfDev(tooltipPlan, config, emitDevLog, "screen-mirror");
+        logFrameCacheStatsIfDev(config, emitDevLog, "screen-mirror", planCacheResult, remoteKeysCacheResult);
 
         try {
             TooltipProcessingResult processedTooltip = processTooltipPlan(
@@ -254,8 +307,23 @@ public final class TooltipTranslationSupport {
             boolean emitDevLog,
             String devSource
     ) {
-        TooltipPlan tooltipPlan = TooltipRoutePlanner.planTooltip(tooltip, config, useTagStylePreservation);
+        int fingerprint = computeTooltipFingerprint(tooltip, config, useTagStylePreservation);
+        TooltipPlan tooltipPlan;
+        String planCacheResult;
+        if (FRAME_CACHE.match(fingerprint, useTagStylePreservation)) {
+            TOOLTIP_PLAN_CACHE_HITS.incrementAndGet();
+            planCacheResult = "hit";
+            tooltipPlan = FRAME_CACHE.plan;
+        } else {
+            TOOLTIP_PLAN_CACHE_MISSES.incrementAndGet();
+            planCacheResult = "miss";
+            boolean decorativeTooltipContext = useTagStylePreservation
+                    || TooltipDecorativeContextSupport.isDecorativeTooltipContext(tooltip);
+            tooltipPlan = TooltipRoutePlanner.planTooltip(tooltip, config, useTagStylePreservation);
+            FRAME_CACHE.setPlan(fingerprint, useTagStylePreservation, tooltipPlan, decorativeTooltipContext);
+        }
         TooltipRoutePlanner.logLineDecisionsIfDev(tooltipPlan, config, emitDevLog, devSource);
+        logFrameCacheStatsIfDev(config, emitDevLog, devSource, planCacheResult, "n/a");
         return processTooltipPlan(tooltipPlan, config, useTagStylePreservation, emitDevLog, devSource);
     }
 
@@ -402,8 +470,15 @@ public final class TooltipTranslationSupport {
         return new TooltipProcessingResult(translatedLines, translatableLines, hasPending, hasMissingKeyIssue, errorMessage);
     }
 
-    private static int computeTooltipFingerprint(List<Text> tooltip, ItemTranslateConfig config) {
+    private static int computeTooltipFingerprint(
+            List<Text> tooltip,
+            ItemTranslateConfig config,
+            boolean useTagStylePreservation
+    ) {
         int hash = config.enabled ? 1 : 0;
+        hash = 31 * hash + Boolean.hashCode(useTagStylePreservation);
+        hash = 31 * hash + Boolean.hashCode(config.enabled_translate_item_custom_name);
+        hash = 31 * hash + Boolean.hashCode(config.enabled_translate_item_lore);
         hash = 31 * hash + Long.hashCode(WynnSharedDictionaryService.getInstance().getItemSkillVersion());
         for (Text line : tooltip) {
             if (line != null) {
@@ -412,6 +487,26 @@ public final class TooltipTranslationSupport {
             }
         }
         return hash;
+    }
+
+    private static void logFrameCacheStatsIfDev(
+            ItemTranslateConfig config,
+            boolean emitDevLog,
+            String source,
+            String planCacheResult,
+            String remoteKeysCacheResult
+    ) {
+        TooltipTextMatcherSupport.logTooltipCacheStatsIfDev(
+                config,
+                emitDevLog,
+                source,
+                "planLast=" + planCacheResult
+                        + " planHits=" + TOOLTIP_PLAN_CACHE_HITS.get()
+                        + " planMisses=" + TOOLTIP_PLAN_CACHE_MISSES.get()
+                        + " remoteKeysLast=" + remoteKeysCacheResult
+                        + " remoteKeysHits=" + REMOTE_KEYS_CACHE_HITS.get()
+                        + " remoteKeysMisses=" + REMOTE_KEYS_CACHE_MISSES.get()
+        );
     }
 
     private static Set<String> collectRemoteTranslationTemplateKeys(

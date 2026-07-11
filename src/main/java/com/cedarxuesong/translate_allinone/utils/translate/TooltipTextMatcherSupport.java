@@ -447,6 +447,23 @@ public final class TooltipTextMatcherSupport {
         );
     }
 
+    public static void logTooltipCacheStatsIfDev(
+            ItemTranslateConfig config,
+            boolean emitDevLog,
+            String source,
+            String detail
+    ) {
+        if (!emitDevLog || !shouldLogTooltipTiming(config) || source == null || source.isBlank()) {
+            return;
+        }
+
+        LOGGER.info(
+                "[TooltipDev:{}] cacheStats {}",
+                source,
+                detail == null ? "" : detail
+        );
+    }
+
     public enum TooltipLineKind {
         INTERNAL_OR_NULL,
         EMPTY,

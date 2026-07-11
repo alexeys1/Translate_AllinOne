@@ -33,6 +33,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Mixin(DrawContext.class)
 public abstract class DrawContextTooltipMixin {
@@ -47,6 +48,15 @@ public abstract class DrawContextTooltipMixin {
 
     @Unique
     private static int translate_allinone$lastTooltipHash = 0;
+
+    @Unique
+    private static ParsedTooltip translate_allinone$lastParsedTooltip = null;
+
+    @Unique
+    private static final AtomicLong translate_allinone$parsedTooltipCacheHits = new AtomicLong();
+
+    @Unique
+    private static final AtomicLong translate_allinone$parsedTooltipCacheMisses = new AtomicLong();
 
     @Unique
     private static final String REI_PACKAGE_PREFIX = "me.shedaniel.rei.";
@@ -88,9 +98,19 @@ public abstract class DrawContextTooltipMixin {
             return;
         }
 
-        ParsedTooltip parsedTooltip = translate_allinone$parseTooltip(components);
-        if (parsedTooltip.hash() != translate_allinone$lastTooltipHash) {
-            translate_allinone$lastTooltipHash = parsedTooltip.hash();
+        int componentHash = translate_allinone$quickComponentHash(components);
+        ParsedTooltip parsedTooltip;
+        boolean parsedTooltipCacheHit;
+        if (componentHash == translate_allinone$lastTooltipHash && translate_allinone$lastParsedTooltip != null) {
+            translate_allinone$parsedTooltipCacheHits.incrementAndGet();
+            parsedTooltipCacheHit = true;
+            parsedTooltip = translate_allinone$lastParsedTooltip;
+        } else {
+            translate_allinone$parsedTooltipCacheMisses.incrementAndGet();
+            parsedTooltipCacheHit = false;
+            parsedTooltip = translate_allinone$parseTooltip(components);
+            translate_allinone$lastTooltipHash = componentHash;
+            translate_allinone$lastParsedTooltip = parsedTooltip;
         }
 
         List<Text> tooltipLines = new ArrayList<>(parsedTooltip.orderedLines().size());
@@ -134,6 +154,7 @@ public abstract class DrawContextTooltipMixin {
                     components,
                     config,
                     showRefreshNotice,
+                    parsedTooltipCacheHit,
                     emitDevLog,
                     tooltipStartedAtNanos
             );
@@ -145,6 +166,21 @@ public abstract class DrawContextTooltipMixin {
         if (locallyStable) {
             TooltipRecentRenderGuardSupport.rememberTooltipIfStable(tooltipLines, true);
         }
+    }
+
+    @Unique
+    private int translate_allinone$quickComponentHash(List<TooltipComponent> components) {
+        int hash = 1;
+        for (TooltipComponent component : components) {
+            hash = 31 * hash + System.identityHashCode(component);
+            if (component instanceof OrderedTextTooltipComponent orderedTextComponent) {
+                OrderedTextTooltipComponentAccessor accessor = (OrderedTextTooltipComponentAccessor) orderedTextComponent;
+                hash = 31 * hash + System.identityHashCode(accessor.getText());
+            } else {
+                hash = 31 * hash + component.hashCode();
+            }
+        }
+        return hash;
     }
 
     @Unique
@@ -170,6 +206,7 @@ public abstract class DrawContextTooltipMixin {
             List<TooltipComponent> components,
             ItemTranslateConfig config,
             boolean showRefreshNotice,
+            boolean parsedTooltipCacheHit,
             boolean emitDevLog,
             long tooltipStartedAtNanos
     ) {
@@ -239,6 +276,14 @@ public abstract class DrawContextTooltipMixin {
                 orderedLines.size(),
                 processedTooltip.translatableLines(),
                 tooltipStartedAtNanos
+        );
+        TooltipTextMatcherSupport.logTooltipCacheStatsIfDev(
+                config,
+                emitDevLog,
+                "draw-context",
+                "parsedTooltipLast=" + (parsedTooltipCacheHit ? "hit" : "miss")
+                        + " parsedTooltipHits=" + translate_allinone$parsedTooltipCacheHits.get()
+                        + " parsedTooltipMisses=" + translate_allinone$parsedTooltipCacheMisses.get()
         );
         return !processedTooltip.pending() && !processedTooltip.missingKeyIssue();
     }
