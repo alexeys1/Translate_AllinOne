@@ -10,9 +10,9 @@ import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
 import com.cedarxuesong.translate_allinone.utils.text.StylePreserver;
 import com.cedarxuesong.translate_allinone.utils.text.TemplateProcessor;
 import com.cedarxuesong.translate_allinone.utils.translate.TranslationErrorTextSupport;
-import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.hud.InGameHud;
+import net.minecraft.scoreboard.AbstractTeam;
 import net.minecraft.scoreboard.Scoreboard;
 import net.minecraft.scoreboard.ScoreboardEntry;
 import net.minecraft.scoreboard.ScoreboardObjective;
@@ -101,7 +101,8 @@ public class InGameHudMixin {
 
     @Inject(
             method = "renderScoreboardSidebar(Lnet/minecraft/client/gui/DrawContext;Lnet/minecraft/scoreboard/ScoreboardObjective;)V",
-            at = @At("HEAD")
+            at = @At("HEAD"),
+            require = 0
     )
     private void onRenderScoreboardSidebarHead(DrawContext drawContext, ScoreboardObjective objective, CallbackInfo ci) {
         try {
@@ -171,28 +172,28 @@ public class InGameHudMixin {
     }
 
     @Redirect(
-            method = "renderScoreboardSidebar(Lnet/minecraft/client/gui/DrawContext;Lnet/minecraft/scoreboard/ScoreboardObjective;)V",
+            method = "method_55439(Lnet/minecraft/scoreboard/Scoreboard;Lnet/minecraft/scoreboard/number/NumberFormat;Lnet/minecraft/scoreboard/ScoreboardEntry;)Lnet/minecraft/client/gui/hud/InGameHud$SidebarEntry;",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/client/gui/DrawContext;drawText(Lnet/minecraft/client/font/TextRenderer;Lnet/minecraft/text/Text;IIIZ)V",
-                    ordinal = 1
-            )
+                    target = "Lnet/minecraft/scoreboard/Team;decorateName(Lnet/minecraft/scoreboard/AbstractTeam;Lnet/minecraft/text/Text;)Lnet/minecraft/text/MutableText;"
+            ),
+            require = 0
     )
-    private void redirectNameDraw(DrawContext instance, TextRenderer textRenderer, Text text, int x, int y, int color, boolean shadow) {
+    private MutableText redirectDecoratedSidebarName(AbstractTeam team, Text name) {
+        MutableText decoratedName = Team.decorateName(team, name);
         Map<String, Text> replacements = translate_allinone$scoreboardReplacements.get();
-        Text textToDraw = text;
-        if (replacements != null) {
-            Text replacement = replacements.get(text.getString());
-            if (replacement != null) {
-                textToDraw = replacement;
-            }
+        if (replacements == null) {
+            return decoratedName;
         }
-        instance.drawText(textRenderer, textToDraw, x, y, color, true);
+
+        Text replacement = replacements.get(decoratedName.getString());
+        return replacement == null ? decoratedName : replacement.copy();
     }
 
     @Inject(
             method = "renderScoreboardSidebar(Lnet/minecraft/client/gui/DrawContext;Lnet/minecraft/scoreboard/ScoreboardObjective;)V",
-            at = @At("RETURN")
+            at = @At("RETURN"),
+            require = 0
     )
     private void onRenderScoreboardSidebarReturn(DrawContext drawContext, ScoreboardObjective objective, CallbackInfo ci) {
         translate_allinone$scoreboardReplacements.remove();
