@@ -12,10 +12,8 @@ import net.fabricmc.loader.api.FabricLoader;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -155,11 +153,7 @@ public class ScoreboardTextCache {
                 GSON.toJson(runtimeState.templateCache(), writer);
             }
 
-            try {
-                Files.move(tempPath, cacheFilePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException e) {
-                Files.move(tempPath, cacheFilePath, StandardCopyOption.REPLACE_EXISTING);
-            }
+            CacheFileSaveSupport.replaceWithRetry(tempPath, cacheFilePath);
 
             Translate_AllinOne.LOGGER.info("Successfully saved {} scoreboard translation cache entries.", runtimeState.templateCache().size());
             if (passiveBackupEnabled) {
