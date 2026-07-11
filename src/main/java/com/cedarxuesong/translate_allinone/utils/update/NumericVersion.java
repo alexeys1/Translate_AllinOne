@@ -5,9 +5,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.regex.Pattern;
 
-/**
- * 只接受纯数字版本（例如 2 / 2.0 / 2.1.3）。
- */
 public final class NumericVersion implements Comparable<NumericVersion> {
     private static final Pattern NUMERIC_VERSION_PATTERN = Pattern.compile("^\\d+(\\.\\d+)*$");
 
@@ -29,16 +26,14 @@ public final class NumericVersion implements Comparable<NumericVersion> {
             return null;
         }
 
-        // Strip leading 'v'/'V' prefix (e.g. "v2.5.3" → "2.5.3")
         if (normalized.length() > 1 && (normalized.charAt(0) == 'v' || normalized.charAt(0) == 'V')
                 && Character.isDigit(normalized.charAt(1))) {
             normalized = normalized.substring(1);
         }
 
-        // Strip pre-release suffix (e.g. "2.6.1-beta" → "2.6.1")
-        int dashIdx = normalized.indexOf('-');
-        if (dashIdx > 0) {
-            normalized = normalized.substring(0, dashIdx);
+        int suffixIdx = firstSuffixIndex(normalized);
+        if (suffixIdx > 0) {
+            normalized = normalized.substring(0, suffixIdx);
         }
 
         if (!NUMERIC_VERSION_PATTERN.matcher(normalized).matches()) {
@@ -56,6 +51,18 @@ public final class NumericVersion implements Comparable<NumericVersion> {
         }
 
         return new NumericVersion(normalized, Collections.unmodifiableList(parsed));
+    }
+
+    private static int firstSuffixIndex(String value) {
+        int dashIdx = value.indexOf('-');
+        int plusIdx = value.indexOf('+');
+        if (dashIdx < 0) {
+            return plusIdx;
+        }
+        if (plusIdx < 0) {
+            return dashIdx;
+        }
+        return Math.min(dashIdx, plusIdx);
     }
 
     public String raw() {
