@@ -24,7 +24,6 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import net.minecraft.ChatFormatting;
-import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.Hud;
 import net.minecraft.network.chat.Component;
@@ -33,6 +32,7 @@ import net.minecraft.world.scores.Objective;
 import net.minecraft.world.scores.PlayerScoreEntry;
 import net.minecraft.world.scores.PlayerTeam;
 import net.minecraft.world.scores.Scoreboard;
+import net.minecraft.world.scores.Team;
 
 @Mixin(Hud.class)
 public class InGameHudMixin {
@@ -101,7 +101,8 @@ public class InGameHudMixin {
 
     @Inject(
             method = "displayScoreboardSidebar(Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/world/scores/Objective;)V",
-            at = @At("HEAD")
+            at = @At("HEAD"),
+            require = 0
     )
     private void onRenderScoreboardSidebarHead(GuiGraphicsExtractor drawContext, Objective objective, CallbackInfo ci) {
         try {
@@ -171,28 +172,28 @@ public class InGameHudMixin {
     }
 
     @Redirect(
-            method = "displayScoreboardSidebar(Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/world/scores/Objective;)V",
+            method = "lambda$displayScoreboardSidebar$1(Lnet/minecraft/world/scores/Scoreboard;Lnet/minecraft/network/chat/numbers/NumberFormat;Lnet/minecraft/world/scores/PlayerScoreEntry;)Lnet/minecraft/client/gui/Hud$1DisplayEntry;",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/client/gui/GuiGraphicsExtractor;text(Lnet/minecraft/client/gui/Font;Lnet/minecraft/network/chat/Component;IIIZ)V",
-                    ordinal = 1
-            )
+                    target = "Lnet/minecraft/world/scores/PlayerTeam;formatNameForTeam(Lnet/minecraft/world/scores/Team;Lnet/minecraft/network/chat/Component;)Lnet/minecraft/network/chat/MutableComponent;"
+            ),
+            require = 0
     )
-    private void redirectNameDraw(GuiGraphicsExtractor instance, Font textRenderer, Component text, int x, int y, int color, boolean shadow) {
+    private MutableComponent redirectDecoratedSidebarName(Team team, Component name) {
+        MutableComponent decoratedName = PlayerTeam.formatNameForTeam(team, name);
         Map<String, Component> replacements = translate_allinone$scoreboardReplacements.get();
-        Component textToDraw = text;
-        if (replacements != null) {
-            Component replacement = replacements.get(text.getString());
-            if (replacement != null) {
-                textToDraw = replacement;
-            }
+        if (replacements == null) {
+            return decoratedName;
         }
-        instance.text(textRenderer, textToDraw, x, y, color, true);
+
+        Component replacement = replacements.get(decoratedName.getString());
+        return replacement == null ? decoratedName : replacement.copy();
     }
 
     @Inject(
             method = "displayScoreboardSidebar(Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/world/scores/Objective;)V",
-            at = @At("RETURN")
+            at = @At("RETURN"),
+            require = 0
     )
     private void onRenderScoreboardSidebarReturn(GuiGraphicsExtractor drawContext, Objective objective, CallbackInfo ci) {
         translate_allinone$scoreboardReplacements.remove();
