@@ -6,6 +6,12 @@ import java.util.List;
 import java.util.Map;
 
 public class ApiProviderProfile {
+    public static final double DEFAULT_CHAT_TEMPERATURE = 1.3;
+    public static final double DEFAULT_ITEM_TEMPERATURE = 0.5;
+    public static final double DEFAULT_SCOREBOARD_TEMPERATURE = 0.5;
+    public static final double DEFAULT_WYNNTILS_TASK_TRACKER_TEMPERATURE = 0.5;
+    public static final double DEFAULT_WYNN_NPC_DIALOGUE_TEMPERATURE = 1.3;
+
     public String id = "provider";
     public String name = "Provider";
     public boolean enabled = true;
@@ -17,8 +23,12 @@ public class ApiProviderProfile {
     public List<String> model_ids = new ArrayList<>(List.of("gpt-4o"));
     public List<ModelSettings> model_settings = new ArrayList<>(List.of(ModelSettings.openAiDefault("gpt-4o")));
 
-    // Legacy fields kept for backward compatibility.
-    public double temperature = 0.7;
+    public Double temperature = null;
+    public Double chat_temperature = null;
+    public Double item_temperature = null;
+    public Double scoreboard_temperature = null;
+    public Double wynntils_task_tracker_temperature = null;
+    public Double wynn_npc_dialogue_temperature = null;
     public String keep_alive_time = "1m";
     public boolean enable_structured_output_if_available = false;
     public boolean supports_system_message = true;
@@ -153,8 +163,12 @@ public class ApiProviderProfile {
     }
 
     public double activeTemperature() {
+        return activeTemperature(TemperatureScene.CHAT);
+    }
+
+    public double activeTemperature(TemperatureScene scene) {
         ModelSettings settings = getActiveModelSettings();
-        return settings == null ? temperature : settings.temperature;
+        return settings == null ? temperatureForScene(scene) : settings.temperatureFor(scene);
     }
 
     public String activeKeepAliveTime() {
@@ -171,7 +185,12 @@ public class ApiProviderProfile {
         if (active == null) {
             return;
         }
-        temperature = active.temperature;
+        temperature = active.temperatureFor(TemperatureScene.CHAT);
+        chat_temperature = active.temperatureFor(TemperatureScene.CHAT);
+        item_temperature = active.temperatureFor(TemperatureScene.ITEM);
+        scoreboard_temperature = active.temperatureFor(TemperatureScene.SCOREBOARD);
+        wynntils_task_tracker_temperature = active.temperatureFor(TemperatureScene.WYNNTILS_TASK_TRACKER);
+        wynn_npc_dialogue_temperature = active.temperatureFor(TemperatureScene.WYNN_NPC_DIALOGUE);
         keep_alive_time = normalizeKeepAlive(active.keep_alive_time);
         enable_structured_output_if_available = active.enable_structured_output_if_available;
         supports_system_message = active.supports_system_message;
@@ -183,7 +202,13 @@ public class ApiProviderProfile {
     private ModelSettings normalizeModelSettings(ModelSettings source, String normalizedId) {
         ModelSettings settings = new ModelSettings();
         settings.model_id = normalizedId;
-        settings.temperature = source.temperature;
+        Double legacyTemperature = normalizeTemperatureOrNull(source.temperature);
+        settings.chat_temperature = normalizeTemperature(source.chat_temperature, DEFAULT_CHAT_TEMPERATURE);
+        settings.item_temperature = normalizeTemperature(source.item_temperature, legacyOrDefault(legacyTemperature, DEFAULT_ITEM_TEMPERATURE));
+        settings.scoreboard_temperature = normalizeTemperature(source.scoreboard_temperature, legacyOrDefault(legacyTemperature, DEFAULT_SCOREBOARD_TEMPERATURE));
+        settings.wynntils_task_tracker_temperature = normalizeTemperature(source.wynntils_task_tracker_temperature, legacyOrDefault(legacyTemperature, DEFAULT_WYNNTILS_TASK_TRACKER_TEMPERATURE));
+        settings.wynn_npc_dialogue_temperature = normalizeTemperature(source.wynn_npc_dialogue_temperature, DEFAULT_WYNN_NPC_DIALOGUE_TEMPERATURE);
+        settings.temperature = settings.temperatureFor(TemperatureScene.CHAT);
         settings.keep_alive_time = normalizeKeepAlive(source.keep_alive_time);
         settings.enable_structured_output_if_available = source.enable_structured_output_if_available;
         settings.supports_system_message = source.supports_system_message;
@@ -196,7 +221,13 @@ public class ApiProviderProfile {
     private ModelSettings createDefaultModelSettings(String modelId) {
         ModelSettings settings = new ModelSettings();
         settings.model_id = modelId;
-        settings.temperature = temperature;
+        Double legacyTemperature = normalizeTemperatureOrNull(temperature);
+        settings.chat_temperature = normalizeTemperature(chat_temperature, DEFAULT_CHAT_TEMPERATURE);
+        settings.item_temperature = normalizeTemperature(item_temperature, legacyOrDefault(legacyTemperature, DEFAULT_ITEM_TEMPERATURE));
+        settings.scoreboard_temperature = normalizeTemperature(scoreboard_temperature, legacyOrDefault(legacyTemperature, DEFAULT_SCOREBOARD_TEMPERATURE));
+        settings.wynntils_task_tracker_temperature = normalizeTemperature(wynntils_task_tracker_temperature, legacyOrDefault(legacyTemperature, DEFAULT_WYNNTILS_TASK_TRACKER_TEMPERATURE));
+        settings.wynn_npc_dialogue_temperature = normalizeTemperature(wynn_npc_dialogue_temperature, DEFAULT_WYNN_NPC_DIALOGUE_TEMPERATURE);
+        settings.temperature = settings.temperatureFor(TemperatureScene.CHAT);
         settings.keep_alive_time = normalizeKeepAlive(keep_alive_time);
         settings.enable_structured_output_if_available = enable_structured_output_if_available;
         settings.supports_system_message = supports_system_message;
@@ -219,13 +250,48 @@ public class ApiProviderProfile {
         return suffixRaw == null ? "" : suffixRaw;
     }
 
+    private double temperatureForScene(TemperatureScene scene) {
+        return switch (scene == null ? TemperatureScene.CHAT : scene) {
+            case CHAT -> normalizeTemperature(chat_temperature, DEFAULT_CHAT_TEMPERATURE);
+            case ITEM -> normalizeTemperature(item_temperature, legacyOrDefault(normalizeTemperatureOrNull(temperature), DEFAULT_ITEM_TEMPERATURE));
+            case SCOREBOARD -> normalizeTemperature(scoreboard_temperature, legacyOrDefault(normalizeTemperatureOrNull(temperature), DEFAULT_SCOREBOARD_TEMPERATURE));
+            case WYNNTILS_TASK_TRACKER -> normalizeTemperature(wynntils_task_tracker_temperature, legacyOrDefault(normalizeTemperatureOrNull(temperature), DEFAULT_WYNNTILS_TASK_TRACKER_TEMPERATURE));
+            case WYNN_NPC_DIALOGUE -> normalizeTemperature(wynn_npc_dialogue_temperature, DEFAULT_WYNN_NPC_DIALOGUE_TEMPERATURE);
+        };
+    }
+
+    private static double normalizeTemperature(Double value, double fallback) {
+        return value != null && Double.isFinite(value) ? value : fallback;
+    }
+
+    private static Double normalizeTemperatureOrNull(Double value) {
+        return value != null && Double.isFinite(value) ? value : null;
+    }
+
+    private static double legacyOrDefault(Double legacyTemperature, double fallback) {
+        return legacyTemperature == null ? fallback : legacyTemperature;
+    }
+
     private List<CustomParameterEntry> copyCustomParameters(List<CustomParameterEntry> source) {
         return CustomParameterEntry.deepCopyList(source);
     }
 
+    public enum TemperatureScene {
+        CHAT,
+        ITEM,
+        SCOREBOARD,
+        WYNNTILS_TASK_TRACKER,
+        WYNN_NPC_DIALOGUE
+    }
+
     public static class ModelSettings {
         public String model_id = "gpt-4o";
-        public double temperature = 0.7;
+        public Double temperature = null;
+        public Double chat_temperature = null;
+        public Double item_temperature = null;
+        public Double scoreboard_temperature = null;
+        public Double wynntils_task_tracker_temperature = null;
+        public Double wynn_npc_dialogue_temperature = null;
         public String keep_alive_time = "1m";
         public boolean enable_structured_output_if_available = false;
         public boolean supports_system_message = true;
@@ -245,6 +311,16 @@ public class ApiProviderProfile {
             settings.model_id = modelId;
             settings.keep_alive_time = "1m";
             return settings;
+        }
+
+        public double temperatureFor(TemperatureScene scene) {
+            return switch (scene == null ? TemperatureScene.CHAT : scene) {
+                case CHAT -> normalizeTemperature(chat_temperature, DEFAULT_CHAT_TEMPERATURE);
+                case ITEM -> normalizeTemperature(item_temperature, legacyOrDefault(normalizeTemperatureOrNull(temperature), DEFAULT_ITEM_TEMPERATURE));
+                case SCOREBOARD -> normalizeTemperature(scoreboard_temperature, legacyOrDefault(normalizeTemperatureOrNull(temperature), DEFAULT_SCOREBOARD_TEMPERATURE));
+                case WYNNTILS_TASK_TRACKER -> normalizeTemperature(wynntils_task_tracker_temperature, legacyOrDefault(normalizeTemperatureOrNull(temperature), DEFAULT_WYNNTILS_TASK_TRACKER_TEMPERATURE));
+                case WYNN_NPC_DIALOGUE -> normalizeTemperature(wynn_npc_dialogue_temperature, DEFAULT_WYNN_NPC_DIALOGUE_TEMPERATURE);
+            };
         }
     }
 }

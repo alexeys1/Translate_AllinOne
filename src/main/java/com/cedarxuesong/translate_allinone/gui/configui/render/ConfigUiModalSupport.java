@@ -15,6 +15,7 @@ public final class ConfigUiModalSupport {
             boolean addProviderModalOpen,
             boolean modelSettingsModalOpen,
             boolean customParametersModalOpen,
+            boolean modelTemperatureModalOpen,
             boolean dictionaryFilesModalOpen,
             boolean resetConfirmModalOpen,
             boolean updateNoticeModalOpen,
@@ -24,6 +25,7 @@ public final class ConfigUiModalSupport {
         return addProviderModalOpen
                 || modelSettingsModalOpen
                 || customParametersModalOpen
+                || modelTemperatureModalOpen
                 || dictionaryFilesModalOpen
                 || resetConfirmModalOpen
                 || updateNoticeModalOpen
@@ -39,6 +41,7 @@ public final class ConfigUiModalSupport {
             boolean addProviderModalOpen,
             boolean modelSettingsModalOpen,
             boolean customParametersModalOpen,
+            boolean modelTemperatureModalOpen,
             boolean dictionaryFilesModalOpen,
             boolean resetConfirmModalOpen,
             boolean updateNoticeModalOpen,
@@ -55,6 +58,9 @@ public final class ConfigUiModalSupport {
             return true;
         }
         if (customParametersModalOpen && customParametersModalRect(screenWidth, screenHeight).contains(x, y)) {
+            return true;
+        }
+        if (modelTemperatureModalOpen && modelTemperatureModalRect(screenWidth, screenHeight).contains(x, y)) {
             return true;
         }
         if (dictionaryFilesModalOpen && dictionaryFilesModalRect(screenWidth, screenHeight).contains(x, y)) {
@@ -88,6 +94,14 @@ public final class ConfigUiModalSupport {
     public static UiRect customParametersModalRect(int screenWidth, int screenHeight) {
         int width = Math.min(900, screenWidth - 80);
         int height = Math.min(520, screenHeight - 90);
+        int x = (screenWidth - width) / 2;
+        int y = (screenHeight - height) / 2;
+        return new UiRect(x, y, width, height);
+    }
+
+    public static UiRect modelTemperatureModalRect(int screenWidth, int screenHeight) {
+        int width = Math.min(560, screenWidth - 80);
+        int height = 280;
         int x = (screenWidth - width) / 2;
         int y = (screenHeight - height) / 2;
         return new UiRect(x, y, width, height);

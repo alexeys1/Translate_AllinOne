@@ -13,7 +13,11 @@ public final class ModelSettingsApplySupport {
             ApiProviderProfile profile,
             String originalModelId,
             String modelIdDraft,
-            String temperatureDraft,
+            String chatTemperatureDraft,
+            String itemTemperatureDraft,
+            String scoreboardTemperatureDraft,
+            String wynntilsTaskTrackerTemperatureDraft,
+            String wynnNpcDialogueTemperatureDraft,
             String keepAliveDraft,
             boolean supportsSystem,
             boolean injectPromptIntoUser,
@@ -27,8 +31,16 @@ public final class ModelSettingsApplySupport {
             return ApplyResult.error("error.model_id_required", null);
         }
 
-        Double parsedTemperature = ModelSettingsValueSupport.parseTemperatureInput(temperatureDraft);
-        if (parsedTemperature == null) {
+        Double parsedChatTemperature = ModelSettingsValueSupport.parseTemperatureInput(chatTemperatureDraft);
+        Double parsedItemTemperature = ModelSettingsValueSupport.parseTemperatureInput(itemTemperatureDraft);
+        Double parsedScoreboardTemperature = ModelSettingsValueSupport.parseTemperatureInput(scoreboardTemperatureDraft);
+        Double parsedWynntilsTaskTrackerTemperature = ModelSettingsValueSupport.parseTemperatureInput(wynntilsTaskTrackerTemperatureDraft);
+        Double parsedWynnNpcDialogueTemperature = ModelSettingsValueSupport.parseTemperatureInput(wynnNpcDialogueTemperatureDraft);
+        if (parsedChatTemperature == null
+                || parsedItemTemperature == null
+                || parsedScoreboardTemperature == null
+                || parsedWynntilsTaskTrackerTemperature == null
+                || parsedWynnNpcDialogueTemperature == null) {
             return ApplyResult.error("error.temperature_invalid", null);
         }
 
@@ -41,7 +53,11 @@ public final class ModelSettingsApplySupport {
                 profile,
                 originalModelId,
                 nextModelId,
-                parsedTemperature,
+                parsedChatTemperature,
+                parsedItemTemperature,
+                parsedScoreboardTemperature,
+                parsedWynntilsTaskTrackerTemperature,
+                parsedWynnNpcDialogueTemperature,
                 ModelSettingsValueSupport.normalizeKeepAliveInput(keepAliveDraft),
                 supportsSystem,
                 injectPromptIntoUser,

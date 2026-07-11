@@ -30,7 +30,11 @@ public record ProviderSettings(OpenAISettings openAISettings, OllamaSettings oll
         ApiProviderProfile.ModelSettings activeModelSettings = profile.getActiveModelSettings();
         ApiProviderType providerType = profile.type == null ? ApiProviderType.OPENAI_COMPAT : profile.type;
         String modelId = activeModelSettings == null ? profile.model_id : activeModelSettings.model_id;
-        double temperature = activeModelSettings == null ? profile.temperature : activeModelSettings.temperature;
+        double temperature = activeModelSettings == null
+                ? profile.activeTemperature()
+                : activeModelSettings.temperature == null
+                ? activeModelSettings.temperatureFor(ApiProviderProfile.TemperatureScene.CHAT)
+                : activeModelSettings.temperature;
         String keepAlive = activeModelSettings == null ? profile.keep_alive_time : activeModelSettings.keep_alive_time;
         boolean structuredOutput = activeModelSettings == null
                 ? profile.enable_structured_output_if_available

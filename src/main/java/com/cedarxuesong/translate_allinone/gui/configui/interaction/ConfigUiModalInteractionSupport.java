@@ -8,6 +8,7 @@ public final class ConfigUiModalInteractionSupport {
             boolean addProviderModalOpen,
             boolean modelSettingsModalOpen,
             boolean customParametersModalOpen,
+            boolean modelTemperatureModalOpen,
             boolean dictionaryFilesModalOpen,
             boolean resetConfirmModalOpen,
             boolean updateNoticeModalOpen,
@@ -32,6 +33,9 @@ public final class ConfigUiModalInteractionSupport {
         if (customParametersModalOpen) {
             return ModalCloseAction.CLOSE_CUSTOM_PARAMETERS;
         }
+        if (modelTemperatureModalOpen) {
+            return ModalCloseAction.CLOSE_MODEL_TEMPERATURES;
+        }
         if (addProviderModalOpen) {
             return ModalCloseAction.CLOSE_ADD_PROVIDER;
         }
@@ -45,6 +49,7 @@ public final class ConfigUiModalInteractionSupport {
             boolean addProviderModalOpen,
             boolean modelSettingsModalOpen,
             boolean customParametersModalOpen,
+            boolean modelTemperatureModalOpen,
             boolean dictionaryFilesModalOpen,
             boolean resetConfirmModalOpen,
             boolean updateNoticeModalOpen,
@@ -68,6 +73,9 @@ public final class ConfigUiModalInteractionSupport {
         }
         if (addProviderModalOpen) {
             return ModalCloseAction.CLOSE_ADD_PROVIDER;
+        }
+        if (modelTemperatureModalOpen) {
+            return ModalCloseAction.CLOSE_MODEL_TEMPERATURES;
         }
         if (customParametersModalOpen) {
             return ModalCloseAction.CLOSE_CUSTOM_PARAMETERS;
@@ -87,6 +95,7 @@ public final class ConfigUiModalInteractionSupport {
         CLOSE_ADD_PROVIDER,
         CLOSE_MODEL_SETTINGS,
         CLOSE_CUSTOM_PARAMETERS,
+        CLOSE_MODEL_TEMPERATURES,
         CLOSE_PROMPT_EDITOR_WARNING
     }
 }
