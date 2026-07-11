@@ -7,10 +7,8 @@ import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.IOException;
 import java.io.Writer;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -164,11 +162,7 @@ public abstract class AbstractTranslateCache<B> {
                 GSON.toJson(prepared, writer);
             }
 
-            try {
-                Files.move(tempPath, cacheFilePath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-            } catch (AtomicMoveNotSupportedException e) {
-                Files.move(tempPath, cacheFilePath, StandardCopyOption.REPLACE_EXISTING);
-            }
+            CacheFileSaveSupport.replaceWithRetry(tempPath, cacheFilePath);
 
             persistence.finishSave();
         } catch (Exception e) {

@@ -7,10 +7,8 @@ import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -114,11 +112,7 @@ public final class WynntilsTaskTrackerTextCache {
                 GSON.toJson(runtimeState.templateCache(), writer);
             }
 
-            try {
-                Files.move(tempPath, cacheFilePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException e) {
-                Files.move(tempPath, cacheFilePath, StandardCopyOption.REPLACE_EXISTING);
-            }
+            CacheFileSaveSupport.replaceWithRetry(tempPath, cacheFilePath);
 
             if (passiveBackupEnabled) {
                 CacheBackupManager.maybeBackup(cacheFilePath, CACHE_LABEL);

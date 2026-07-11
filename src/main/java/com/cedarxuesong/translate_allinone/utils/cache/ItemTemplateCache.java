@@ -16,10 +16,8 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -176,11 +174,7 @@ public class ItemTemplateCache {
             long writeElapsedNanos = System.nanoTime() - writeStartedAtNanos;
 
             long moveStartedAtNanos = System.nanoTime();
-            try {
-                Files.move(tempPath, cacheFilePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException e) {
-                Files.move(tempPath, cacheFilePath, StandardCopyOption.REPLACE_EXISTING);
-            }
+            CacheFileSaveSupport.replaceWithRetry(tempPath, cacheFilePath);
             long moveElapsedNanos = System.nanoTime() - moveStartedAtNanos;
 
             if (sanitizedSnapshot.modifiedEntryCount() > 0) {
