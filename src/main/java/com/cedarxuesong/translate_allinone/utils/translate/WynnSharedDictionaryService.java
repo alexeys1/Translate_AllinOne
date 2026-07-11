@@ -84,7 +84,7 @@ public final class WynnSharedDictionaryService {
     }
 
     LookupResult lookupItemLine(String sourceText) {
-        if (!isDictionaryEnabled()) {
+        if (!isDictionarySlotEnabled(DictionaryFileSelectionSupport.Slot.ITEM_SKILL)) {
             return LookupResult.miss();
         }
         if (itemSkillDictionary != null) {
@@ -106,7 +106,7 @@ public final class WynnSharedDictionaryService {
     }
 
     boolean hasItemDictionaryEntries() {
-        if (!isDictionaryEnabled()) {
+        if (!isDictionarySlotEnabled(DictionaryFileSelectionSupport.Slot.ITEM_SKILL)) {
             return false;
         }
         if (itemSkillDictionary != null) {
@@ -116,28 +116,28 @@ public final class WynnSharedDictionaryService {
     }
 
     LookupResult lookupQuestText(String sourceText) {
-        if (!isDictionaryEnabled()) {
+        if (!isDictionarySlotEnabled(DictionaryFileSelectionSupport.Slot.WYNNCRAFT_QUEST)) {
             return LookupResult.miss();
         }
         return toLookupResult(questDictionary.lookupTranslation(sourceText), "quests");
     }
 
     boolean hasQuestDictionaryEntries() {
-        if (!isDictionaryEnabled()) {
+        if (!isDictionarySlotEnabled(DictionaryFileSelectionSupport.Slot.WYNNCRAFT_QUEST)) {
             return false;
         }
         return questDictionary.hasEntries();
     }
 
     boolean hasPreparedDialogueTranslation(String preparedDialogue) {
-        if (!isDictionaryEnabled()) {
+        if (!isDictionarySlotEnabled(DictionaryFileSelectionSupport.Slot.WYNNCRAFT_DIALOGUE)) {
             return false;
         }
         return dialogueDictionary.hasDialogueTranslation(preparedDialogue);
     }
 
     LookupResult lookupPreparedDialogue(String preparedDialogue) {
-        if (!isDictionaryEnabled()) {
+        if (!isDictionarySlotEnabled(DictionaryFileSelectionSupport.Slot.WYNNCRAFT_DIALOGUE)) {
             return LookupResult.miss();
         }
         String translation = dialogueDictionary.findDialogueTranslation(preparedDialogue);
@@ -148,7 +148,7 @@ public final class WynnSharedDictionaryService {
     }
 
     LookupResult lookupPreparedDialogueByPrefix(String preparedDialogue) {
-        if (!isDictionaryEnabled()) {
+        if (!isDictionarySlotEnabled(DictionaryFileSelectionSupport.Slot.WYNNCRAFT_DIALOGUE)) {
             return LookupResult.miss();
         }
         String translation = dialogueDictionary.findDialogueByPrefix(preparedDialogue);
@@ -159,21 +159,21 @@ public final class WynnSharedDictionaryService {
     }
 
     boolean hasDialoguePrefixCandidate(String preparedDialogue) {
-        if (!isDictionaryEnabled()) {
+        if (!isDictionarySlotEnabled(DictionaryFileSelectionSupport.Slot.WYNNCRAFT_DIALOGUE)) {
             return false;
         }
         return dialogueDictionary.hasPrefixCandidate(preparedDialogue);
     }
 
     boolean hasPreparedNpcTranslation(String preparedNpcName) {
-        if (!isDictionaryEnabled()) {
+        if (!isDictionarySlotEnabled(DictionaryFileSelectionSupport.Slot.WYNNCRAFT_DIALOGUE)) {
             return false;
         }
         return dialogueDictionary.hasNpcTranslation(preparedNpcName);
     }
 
     LookupResult lookupPreparedNpc(String preparedNpcName) {
-        if (!isDictionaryEnabled()) {
+        if (!isDictionarySlotEnabled(DictionaryFileSelectionSupport.Slot.WYNNCRAFT_DIALOGUE)) {
             return LookupResult.miss();
         }
         String translation = dialogueDictionary.findNpcTranslation(preparedNpcName);
@@ -181,6 +181,10 @@ public final class WynnSharedDictionaryService {
             return LookupResult.miss();
         }
         return new LookupResult(translation, "dialogues", MatchType.EXACT);
+    }
+
+    private static boolean isDictionarySlotEnabled(DictionaryFileSelectionSupport.Slot slot) {
+        return isDictionaryEnabled() && DictionaryFileSelectionSupport.isSlotEnabled(slot);
     }
 
     private static boolean isDictionaryEnabled() {
