@@ -4,7 +4,6 @@ import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.utils.cache.WynntilsTaskTrackerTextCache;
 import com.cedarxuesong.translate_allinone.utils.config.ProviderRouteResolver;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ApiProviderProfile;
-import com.cedarxuesong.translate_allinone.utils.config.pojos.ScoreboardConfig;
 import com.cedarxuesong.translate_allinone.utils.llmapi.LLM;
 import com.cedarxuesong.translate_allinone.utils.llmapi.LlmPayloadJsonSupport;
 import com.cedarxuesong.translate_allinone.utils.llmapi.ProviderSettings;
@@ -32,6 +31,8 @@ import java.util.regex.Matcher;
 public final class WynntilsTaskTrackerTranslateManager {
     private static final WynntilsTaskTrackerTranslateManager INSTANCE = new WynntilsTaskTrackerTranslateManager();
     private static final Gson GSON = LlmPayloadJsonSupport.gson();
+    private static final int MAX_BATCH_SIZE = 4;
+    private static final int WORKER_COUNT = 1;
 
     private record RetryRequest(
             List<String> originalTexts,
@@ -44,7 +45,6 @@ public final class WynntilsTaskTrackerTranslateManager {
     private ExecutorService workerExecutor;
     private ScheduledExecutorService collectorExecutor;
     private ScheduledExecutorService retryExecutor;
-    private int currentConcurrentRequests = -1;
 
     private WynntilsTaskTrackerTranslateManager() {
     }
@@ -58,15 +58,13 @@ public final class WynntilsTaskTrackerTranslateManager {
         WynntilsTaskTrackerTranslationSupport.devLog("session_started epoch={}", newSessionEpoch);
 
         if (workerExecutor == null || workerExecutor.isShutdown()) {
-            ScoreboardConfig scoreboardConfig = Translate_AllinOne.getConfig().scoreboardTranslate;
-            currentConcurrentRequests = scoreboardConfig == null ? 1 : Math.max(1, scoreboardConfig.max_concurrent_requests);
-            workerExecutor = Executors.newFixedThreadPool(currentConcurrentRequests);
-            for (int i = 0; i < currentConcurrentRequests; i++) {
+            workerExecutor = Executors.newFixedThreadPool(WORKER_COUNT);
+            for (int i = 0; i < WORKER_COUNT; i++) {
                 workerExecutor.submit(this::processingLoop);
             }
             WynntilsTaskTrackerTranslationSupport.devLog(
                     "workers_started count={}",
-                    currentConcurrentRequests);
+                    WORKER_COUNT);
         }
 
         if (collectorExecutor == null || collectorExecutor.isShutdown()) {
@@ -151,20 +149,14 @@ public final class WynntilsTaskTrackerTranslateManager {
                 return;
             }
 
-            int batchSize = 10;
-            ScoreboardConfig scoreboardConfig = Translate_AllinOne.getConfig().scoreboardTranslate;
-            if (scoreboardConfig != null) {
-                batchSize = Math.max(1, scoreboardConfig.max_batch_size);
-            }
-
-            for (int i = 0; i < items.size(); i += batchSize) {
-                int end = Math.min(items.size(), i + batchSize);
+            for (int i = 0; i < items.size(); i += MAX_BATCH_SIZE) {
+                int end = Math.min(items.size(), i + MAX_BATCH_SIZE);
                 cache.submitBatchForTranslation(items.subList(i, end));
             }
             WynntilsTaskTrackerTranslationSupport.devLog(
                     "collector_submitted items={} batch_size={}",
                     items.size(),
-                    batchSize);
+                    MAX_BATCH_SIZE);
         } catch (Exception e) {
             Translate_AllinOne.LOGGER.error("Error in Wynntils task tracker collector thread.", e);
         }
