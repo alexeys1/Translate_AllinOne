@@ -158,7 +158,6 @@ final class WynncraftPlaceholderDictionary {
     private DictionarySnapshot loadSnapshot() {
         List<Path> dictionaryPaths = dictionaryPathsSupplier == null ? List.of() : dictionaryPathsSupplier.get();
         if (dictionaryPaths == null || dictionaryPaths.isEmpty()) {
-            Translate_AllinOne.LOGGER.warn("{} paths are unavailable.", dictionaryLabel);
             return DictionarySnapshot.empty();
         }
         LinkedHashMap<String, DictionaryEntry> exactTranslations = new LinkedHashMap<>();
