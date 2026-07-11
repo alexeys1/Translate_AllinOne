@@ -17,6 +17,7 @@ import com.cedarxuesong.translate_allinone.gui.configui.model.UiRect;
 import com.cedarxuesong.translate_allinone.gui.configui.modals.AddProviderModalSupport;
 import com.cedarxuesong.translate_allinone.gui.configui.modals.CustomParametersModalSupport;
 import com.cedarxuesong.translate_allinone.gui.configui.modals.ModelSettingsModalSupport;
+import com.cedarxuesong.translate_allinone.gui.configui.modals.ModelTemperatureModalSupport;
 import com.cedarxuesong.translate_allinone.gui.configui.render.ConfigUiControlRenderer;
 import com.cedarxuesong.translate_allinone.gui.configui.render.ConfigUiDraw;
 import com.cedarxuesong.translate_allinone.gui.configui.render.ConfigUiModalSupport;
@@ -35,6 +36,7 @@ import com.cedarxuesong.translate_allinone.gui.configui.support.CustomParameterT
 import com.cedarxuesong.translate_allinone.gui.configui.support.ModelSettingsApplySupport;
 import com.cedarxuesong.translate_allinone.gui.configui.support.ModelSettingsDraftSupport;
 import com.cedarxuesong.translate_allinone.gui.configui.support.ModelSettingsMutationSupport;
+import com.cedarxuesong.translate_allinone.gui.configui.support.ModelSettingsValueSupport;
 import com.cedarxuesong.translate_allinone.gui.configui.support.ProviderManagerMutationSupport;
 import com.cedarxuesong.translate_allinone.gui.configui.support.ProviderProfileSupport;
 import com.cedarxuesong.translate_allinone.utils.cache.CacheBackupManager;
@@ -289,6 +291,7 @@ public class ModConfigScreen extends Screen {
     private EditBox providerSearchField;
     private EditBox addProviderNameField;
     private EditBox modelSettingsField;
+    private EditBox modelTemperatureChatField;
 
     private boolean addProviderModalOpen;
     private String addProviderNameDraft = "";
@@ -299,7 +302,16 @@ public class ModConfigScreen extends Screen {
     private String modelSettingsProviderId = "";
     private String modelSettingsOriginalId = "";
     private String modelSettingsDraft = "";
-    private String modelSettingsTemperatureDraft = "";
+    private String modelSettingsChatTemperatureDraft = "";
+    private String modelSettingsItemTemperatureDraft = "";
+    private String modelSettingsScoreboardTemperatureDraft = "";
+    private String modelSettingsWynntilsTaskTrackerTemperatureDraft = "";
+    private String modelSettingsWynnNpcDialogueTemperatureDraft = "";
+    private String modelSettingsChatTemperatureBackup = "";
+    private String modelSettingsItemTemperatureBackup = "";
+    private String modelSettingsScoreboardTemperatureBackup = "";
+    private String modelSettingsWynntilsTaskTrackerTemperatureBackup = "";
+    private String modelSettingsWynnNpcDialogueTemperatureBackup = "";
     private String modelSettingsKeepAliveDraft = "";
     private boolean modelSettingsSupportsSystemDraft;
     private boolean modelSettingsInjectPromptIntoUserDraft = true;
@@ -308,6 +320,7 @@ public class ModConfigScreen extends Screen {
     private List<CustomParameterEntry> modelSettingsCustomParametersDraft = new ArrayList<>();
     private List<CustomParameterEntry> customParametersBackup = new ArrayList<>();
     private boolean customParametersModalOpen;
+    private boolean modelTemperatureModalOpen;
     private boolean dictionaryFilesModalOpen;
     private boolean resetConfirmModalOpen;
     private boolean updateNoticeModalOpen;
@@ -479,6 +492,7 @@ public class ModConfigScreen extends Screen {
                 addProviderModalOpen,
                 modelSettingsModalOpen,
                 customParametersModalOpen,
+                modelTemperatureModalOpen,
                 dictionaryFilesModalOpen,
                 resetConfirmModalOpen,
                 updateNoticeModalOpen,
@@ -496,6 +510,7 @@ public class ModConfigScreen extends Screen {
                 addProviderModalOpen,
                 modelSettingsModalOpen,
                 customParametersModalOpen,
+                modelTemperatureModalOpen,
                 dictionaryFilesModalOpen,
                 resetConfirmModalOpen,
                 updateNoticeModalOpen,
@@ -556,6 +571,7 @@ public class ModConfigScreen extends Screen {
         providerSearchField = null;
         addProviderNameField = null;
         modelSettingsField = null;
+        modelTemperatureChatField = null;
         customParameterNameField = null;
         customParameterValueField = null;
         pendingFocusTarget = focusTarget;
@@ -617,7 +633,8 @@ public class ModConfigScreen extends Screen {
                 providerSearchField,
                 addProviderNameField,
                 modelSettingsField,
-                customParameterNameField
+                customParameterNameField,
+                modelTemperatureChatField
         );
         pendingFocusTarget = FocusTarget.NONE;
     }
@@ -998,11 +1015,14 @@ public class ModConfigScreen extends Screen {
         if (addProviderModalOpen) {
             addAddProviderModal(providerManager);
         }
-        if (modelSettingsModalOpen && !customParametersModalOpen) {
+        if (modelSettingsModalOpen && !customParametersModalOpen && !modelTemperatureModalOpen) {
             addModelSettingsModal(providerManager);
         }
         if (customParametersModalOpen) {
             addCustomParametersModal();
+        }
+        if (modelTemperatureModalOpen) {
+            addModelTemperatureModal();
         }
 
         return result.contentBottomY();
@@ -1145,7 +1165,16 @@ public class ModConfigScreen extends Screen {
         modelSettingsProviderId = draft.providerId();
         modelSettingsOriginalId = draft.originalModelId();
         modelSettingsDraft = draft.modelIdDraft();
-        modelSettingsTemperatureDraft = draft.temperatureDraft();
+        modelSettingsChatTemperatureDraft = draft.chatTemperatureDraft();
+        modelSettingsItemTemperatureDraft = draft.itemTemperatureDraft();
+        modelSettingsScoreboardTemperatureDraft = draft.scoreboardTemperatureDraft();
+        modelSettingsWynntilsTaskTrackerTemperatureDraft = draft.wynntilsTaskTrackerTemperatureDraft();
+        modelSettingsWynnNpcDialogueTemperatureDraft = draft.wynnNpcDialogueTemperatureDraft();
+        modelSettingsChatTemperatureBackup = modelSettingsChatTemperatureDraft;
+        modelSettingsItemTemperatureBackup = modelSettingsItemTemperatureDraft;
+        modelSettingsScoreboardTemperatureBackup = modelSettingsScoreboardTemperatureDraft;
+        modelSettingsWynntilsTaskTrackerTemperatureBackup = modelSettingsWynntilsTaskTrackerTemperatureDraft;
+        modelSettingsWynnNpcDialogueTemperatureBackup = modelSettingsWynnNpcDialogueTemperatureDraft;
         modelSettingsKeepAliveDraft = draft.keepAliveDraft();
         modelSettingsSupportsSystemDraft = draft.supportsSystem();
         modelSettingsInjectPromptIntoUserDraft = draft.injectPromptIntoUser();
@@ -1154,6 +1183,7 @@ public class ModConfigScreen extends Screen {
         modelSettingsCustomParametersDraft = draft.customParametersDraft();
         customParametersBackup = draft.customParametersBackup();
         customParametersModalOpen = false;
+        modelTemperatureModalOpen = false;
         selectedCustomParameterPath = "";
         modelSettingsSetDefault = draft.setDefault();
     }
@@ -1162,13 +1192,25 @@ public class ModConfigScreen extends Screen {
         if (customParametersModalOpen) {
             closeCustomParametersModal(true);
         }
+        if (modelTemperatureModalOpen) {
+            closeModelTemperatureModal(true);
+        }
 
         ModelSettingsDraftSupport.Draft empty = ModelSettingsDraftSupport.empty();
         modelSettingsModalOpen = false;
         modelSettingsProviderId = empty.providerId();
         modelSettingsOriginalId = empty.originalModelId();
         modelSettingsDraft = empty.modelIdDraft();
-        modelSettingsTemperatureDraft = empty.temperatureDraft();
+        modelSettingsChatTemperatureDraft = empty.chatTemperatureDraft();
+        modelSettingsItemTemperatureDraft = empty.itemTemperatureDraft();
+        modelSettingsScoreboardTemperatureDraft = empty.scoreboardTemperatureDraft();
+        modelSettingsWynntilsTaskTrackerTemperatureDraft = empty.wynntilsTaskTrackerTemperatureDraft();
+        modelSettingsWynnNpcDialogueTemperatureDraft = empty.wynnNpcDialogueTemperatureDraft();
+        modelSettingsChatTemperatureBackup = "";
+        modelSettingsItemTemperatureBackup = "";
+        modelSettingsScoreboardTemperatureBackup = "";
+        modelSettingsWynntilsTaskTrackerTemperatureBackup = "";
+        modelSettingsWynnNpcDialogueTemperatureBackup = "";
         modelSettingsKeepAliveDraft = empty.keepAliveDraft();
         modelSettingsSupportsSystemDraft = empty.supportsSystem();
         modelSettingsInjectPromptIntoUserDraft = empty.injectPromptIntoUser();
@@ -1192,6 +1234,40 @@ public class ModConfigScreen extends Screen {
         }
         customParametersModalOpen = false;
         selectedCustomParameterPath = "";
+    }
+
+    private void openModelTemperatureModal() {
+        modelTemperatureModalOpen = true;
+        modelSettingsChatTemperatureBackup = modelSettingsChatTemperatureDraft;
+        modelSettingsItemTemperatureBackup = modelSettingsItemTemperatureDraft;
+        modelSettingsScoreboardTemperatureBackup = modelSettingsScoreboardTemperatureDraft;
+        modelSettingsWynntilsTaskTrackerTemperatureBackup = modelSettingsWynntilsTaskTrackerTemperatureDraft;
+        modelSettingsWynnNpcDialogueTemperatureBackup = modelSettingsWynnNpcDialogueTemperatureDraft;
+    }
+
+    private void closeModelTemperatureModal(boolean keepChanges) {
+        if (!keepChanges) {
+            modelSettingsChatTemperatureDraft = modelSettingsChatTemperatureBackup;
+            modelSettingsItemTemperatureDraft = modelSettingsItemTemperatureBackup;
+            modelSettingsScoreboardTemperatureDraft = modelSettingsScoreboardTemperatureBackup;
+            modelSettingsWynntilsTaskTrackerTemperatureDraft = modelSettingsWynntilsTaskTrackerTemperatureBackup;
+            modelSettingsWynnNpcDialogueTemperatureDraft = modelSettingsWynnNpcDialogueTemperatureBackup;
+        }
+        modelTemperatureModalOpen = false;
+    }
+
+    private void applyModelTemperatureModal() {
+        if (ModelSettingsValueSupport.parseTemperatureInput(modelSettingsChatTemperatureDraft) == null
+                || ModelSettingsValueSupport.parseTemperatureInput(modelSettingsItemTemperatureDraft) == null
+                || ModelSettingsValueSupport.parseTemperatureInput(modelSettingsScoreboardTemperatureDraft) == null
+                || ModelSettingsValueSupport.parseTemperatureInput(modelSettingsWynntilsTaskTrackerTemperatureDraft) == null
+                || ModelSettingsValueSupport.parseTemperatureInput(modelSettingsWynnNpcDialogueTemperatureDraft) == null) {
+            setStatus(t("error.temperature_invalid"), COLOR_STATUS_ERROR);
+            return;
+        }
+
+        closeModelTemperatureModal(true);
+        rebuildActionBlocks(FocusTarget.MODEL_NAME);
     }
 
     private void openPromptEditorWarning(ApiProviderProfile profile) {
@@ -1275,6 +1351,34 @@ public class ModConfigScreen extends Screen {
         customParameterValueField = fields.valueField();
     }
 
+    private void addModelTemperatureModal() {
+        ModelTemperatureModalSupport.Fields fields = ModelTemperatureModalSupport.render(
+                this.width,
+                this.height,
+                modelSettingsChatTemperatureDraft,
+                modelSettingsItemTemperatureDraft,
+                modelSettingsScoreboardTemperatureDraft,
+                modelSettingsWynntilsTaskTrackerTemperatureDraft,
+                modelSettingsWynnNpcDialogueTemperatureDraft,
+                ModConfigScreen::t,
+                floatingActionBlockRegistry::add,
+                (x, y, width, maxLength, initialValue, placeholder, changed, editable) ->
+                        addTextField(x, y, width, maxLength, initialValue, placeholder, changed, editable, true),
+                value -> modelSettingsChatTemperatureDraft = ProviderProfileSupport.sanitizeText(value),
+                value -> modelSettingsItemTemperatureDraft = ProviderProfileSupport.sanitizeText(value),
+                value -> modelSettingsScoreboardTemperatureDraft = ProviderProfileSupport.sanitizeText(value),
+                value -> modelSettingsWynntilsTaskTrackerTemperatureDraft = ProviderProfileSupport.sanitizeText(value),
+                value -> modelSettingsWynnNpcDialogueTemperatureDraft = ProviderProfileSupport.sanitizeText(value),
+                () -> {
+                    closeModelTemperatureModal(false);
+                    rebuildActionBlocks(FocusTarget.MODEL_NAME);
+                },
+                this::applyModelTemperatureModal,
+                MODEL_SETTINGS_MODAL_STYLE
+        );
+        modelTemperatureChatField = fields.chatField();
+    }
+
     private void addModelSettingsModal(ProviderManagerConfig providerManager) {
         ApiProviderProfile profile = providerManager.findById(modelSettingsProviderId);
         if (profile == null) {
@@ -1287,7 +1391,6 @@ public class ModConfigScreen extends Screen {
                 this.width,
                 this.height,
                 modelSettingsDraft,
-                modelSettingsTemperatureDraft,
                 modelSettingsKeepAliveDraft,
                 modelSettingsSystemPromptSuffixDraft,
                 CustomParameterTreeSupport.countEntries(modelSettingsCustomParametersDraft),
@@ -1301,9 +1404,12 @@ public class ModConfigScreen extends Screen {
                 (x, y, width, maxLength, initialValue, placeholder, changed, editable) ->
                         addTextField(x, y, width, maxLength, initialValue, placeholder, changed, editable, true),
                 value -> modelSettingsDraft = ProviderProfileSupport.sanitizeText(value),
-                value -> modelSettingsTemperatureDraft = ProviderProfileSupport.sanitizeText(value),
                 value -> modelSettingsKeepAliveDraft = ProviderProfileSupport.sanitizeText(value),
                 value -> modelSettingsSystemPromptSuffixDraft = ProviderProfileSupport.sanitizeText(value),
+                () -> {
+                    openModelTemperatureModal();
+                    rebuildActionBlocks(FocusTarget.MODEL_TEMPERATURE_CHAT);
+                },
                 () -> {
                     openCustomParametersModal();
                     rebuildActionBlocks(FocusTarget.CUSTOM_PARAMETER_NAME);
@@ -1330,7 +1436,11 @@ public class ModConfigScreen extends Screen {
                 profile,
                 modelSettingsOriginalId,
                 modelSettingsDraft,
-                modelSettingsTemperatureDraft,
+                modelSettingsChatTemperatureDraft,
+                modelSettingsItemTemperatureDraft,
+                modelSettingsScoreboardTemperatureDraft,
+                modelSettingsWynntilsTaskTrackerTemperatureDraft,
+                modelSettingsWynnNpcDialogueTemperatureDraft,
                 modelSettingsKeepAliveDraft,
                 modelSettingsSupportsSystemDraft,
                 modelSettingsInjectPromptIntoUserDraft,
@@ -2270,6 +2380,7 @@ public class ModConfigScreen extends Screen {
                 addProviderModalOpen,
                 modelSettingsModalOpen,
                 customParametersModalOpen,
+                modelTemperatureModalOpen,
                 dictionaryFilesModalOpen,
                 resetConfirmModalOpen,
                 updateNoticeModalOpen,
@@ -2310,6 +2421,11 @@ public class ModConfigScreen extends Screen {
             }
             case CLOSE_CUSTOM_PARAMETERS -> {
                 closeCustomParametersModal(true);
+                rebuildActionBlocks(FocusTarget.MODEL_NAME);
+                return;
+            }
+            case CLOSE_MODEL_TEMPERATURES -> {
+                closeModelTemperatureModal(true);
                 rebuildActionBlocks(FocusTarget.MODEL_NAME);
                 return;
             }
@@ -2357,6 +2473,7 @@ public class ModConfigScreen extends Screen {
                         addProviderModalOpen,
                         modelSettingsModalOpen,
                         customParametersModalOpen,
+                        modelTemperatureModalOpen,
                         dictionaryFilesModalOpen,
                         resetConfirmModalOpen,
                         updateNoticeModalOpen,
@@ -2391,6 +2508,11 @@ public class ModConfigScreen extends Screen {
                     }
                     case CLOSE_CUSTOM_PARAMETERS -> {
                         closeCustomParametersModal(true);
+                        rebuildActionBlocks(FocusTarget.MODEL_NAME);
+                        return true;
+                    }
+                    case CLOSE_MODEL_TEMPERATURES -> {
+                        closeModelTemperatureModal(true);
                         rebuildActionBlocks(FocusTarget.MODEL_NAME);
                         return true;
                     }
@@ -2651,6 +2773,7 @@ public class ModConfigScreen extends Screen {
                 addProviderModalOpen,
                 modelSettingsModalOpen,
                 customParametersModalOpen,
+                modelTemperatureModalOpen,
                 dictionaryFilesModalOpen,
                 resetConfirmModalOpen,
                 updateNoticeModalOpen,
@@ -2659,6 +2782,7 @@ public class ModConfigScreen extends Screen {
                 t("modal.add_provider.title"),
                 t("modal.model.title"),
                 t("custom_params.title"),
+                t("modal.model.temperature.title"),
                 t("modal.dictionary_files.title", dictionarySlotLabel(dictionaryFilesModalSlot)),
                 t("modal.reset_confirm.title"),
                 t("modal.update_notice.title"),

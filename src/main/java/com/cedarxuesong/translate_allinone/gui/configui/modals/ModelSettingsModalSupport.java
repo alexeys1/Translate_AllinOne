@@ -20,7 +20,6 @@ public final class ModelSettingsModalSupport {
             int screenWidth,
             int screenHeight,
             String modelSettingsDraft,
-            String modelSettingsTemperatureDraft,
             String modelSettingsKeepAliveDraft,
             String modelSettingsSystemPromptSuffixDraft,
             int customParameterCount,
@@ -33,9 +32,9 @@ public final class ModelSettingsModalSupport {
             FloatingCheckboxAdder floatingCheckboxAdder,
             FloatingTextFieldAdder floatingTextFieldAdder,
             Consumer<String> onModelIdChanged,
-            Consumer<String> onTemperatureChanged,
             Consumer<String> onKeepAliveChanged,
             Consumer<String> onSystemPromptSuffixChanged,
+            Runnable onEditTemperatures,
             Runnable onEditCustomParameters,
             Consumer<Boolean> onSupportsSystemChanged,
             Consumer<Boolean> onInjectPromptIntoUserChanged,
@@ -92,15 +91,18 @@ public final class ModelSettingsModalSupport {
                 false,
                 translator.t("desc.temperature")
         );
-        floatingTextFieldAdder.add(
+        floatingActionBlockAdder.add(
                 fieldX,
                 rowY,
                 fieldWidth,
-                24,
-                modelSettingsTemperatureDraft,
-                translator.t("modal.model.temperature"),
-                onTemperatureChanged,
-                true
+                20,
+                () -> translator.t("button.edit_temperature_settings"),
+                onEditTemperatures,
+                style.colorBlock(),
+                style.colorBlockHover(),
+                style.colorText(),
+                false,
+                translator.t("desc.temperature")
         );
         rowY += 24;
 

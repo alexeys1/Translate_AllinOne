@@ -60,7 +60,7 @@ public final class ProviderRouteResolver {
             return null;
         }
 
-        return snapshotForModel(provider, modelSettings);
+        return snapshotForModel(provider, modelSettings, temperatureSceneFor(route));
     }
 
     private static String resolveWynncraftRouteKey(String sharedRoute, String primaryRoute, String fallbackRoute) {
@@ -73,7 +73,11 @@ public final class ProviderRouteResolver {
         return fallbackRoute == null ? "" : fallbackRoute;
     }
 
-    private static ApiProviderProfile snapshotForModel(ApiProviderProfile source, ApiProviderProfile.ModelSettings modelSettings) {
+    private static ApiProviderProfile snapshotForModel(
+            ApiProviderProfile source,
+            ApiProviderProfile.ModelSettings modelSettings,
+            ApiProviderProfile.TemperatureScene temperatureScene
+    ) {
         ApiProviderProfile snapshot = new ApiProviderProfile();
 
         snapshot.id = source.id;
@@ -91,7 +95,13 @@ public final class ProviderRouteResolver {
 
         ApiProviderProfile.ModelSettings modelCopy = new ApiProviderProfile.ModelSettings();
         modelCopy.model_id = modelSettings.model_id;
-        modelCopy.temperature = modelSettings.temperature;
+        double selectedTemperature = modelSettings.temperatureFor(temperatureScene);
+        modelCopy.temperature = selectedTemperature;
+        modelCopy.chat_temperature = selectedTemperature;
+        modelCopy.item_temperature = modelSettings.temperatureFor(ApiProviderProfile.TemperatureScene.ITEM);
+        modelCopy.scoreboard_temperature = modelSettings.temperatureFor(ApiProviderProfile.TemperatureScene.SCOREBOARD);
+        modelCopy.wynntils_task_tracker_temperature = modelSettings.temperatureFor(ApiProviderProfile.TemperatureScene.WYNNTILS_TASK_TRACKER);
+        modelCopy.wynn_npc_dialogue_temperature = modelSettings.temperatureFor(ApiProviderProfile.TemperatureScene.WYNN_NPC_DIALOGUE);
         modelCopy.keep_alive_time = modelSettings.keep_alive_time;
         modelCopy.enable_structured_output_if_available = modelSettings.enable_structured_output_if_available;
         modelCopy.supports_system_message = modelSettings.supports_system_message;
@@ -102,6 +112,11 @@ public final class ProviderRouteResolver {
         snapshot.model_settings.add(modelCopy);
 
         snapshot.temperature = modelCopy.temperature;
+        snapshot.chat_temperature = modelCopy.chat_temperature;
+        snapshot.item_temperature = modelCopy.item_temperature;
+        snapshot.scoreboard_temperature = modelCopy.scoreboard_temperature;
+        snapshot.wynntils_task_tracker_temperature = modelCopy.wynntils_task_tracker_temperature;
+        snapshot.wynn_npc_dialogue_temperature = modelCopy.wynn_npc_dialogue_temperature;
         snapshot.keep_alive_time = modelCopy.keep_alive_time;
         snapshot.enable_structured_output_if_available = modelCopy.enable_structured_output_if_available;
         snapshot.supports_system_message = modelCopy.supports_system_message;
@@ -112,6 +127,16 @@ public final class ProviderRouteResolver {
             snapshot.system_prompt_overrides = new java.util.LinkedHashMap<>(source.system_prompt_overrides);
         }
         return snapshot;
+    }
+
+    private static ApiProviderProfile.TemperatureScene temperatureSceneFor(Route route) {
+        return switch (route) {
+            case ITEM -> ApiProviderProfile.TemperatureScene.ITEM;
+            case SCOREBOARD -> ApiProviderProfile.TemperatureScene.SCOREBOARD;
+            case WYNNCRAFT, WYNN_NPC_DIALOGUE -> ApiProviderProfile.TemperatureScene.WYNN_NPC_DIALOGUE;
+            case WYNNTILS_TASK_TRACKER -> ApiProviderProfile.TemperatureScene.WYNNTILS_TASK_TRACKER;
+            case CHAT_INPUT, CHAT_OUTPUT -> ApiProviderProfile.TemperatureScene.CHAT;
+        };
     }
 
     private static List<CustomParameterEntry> cloneCustomParameters(List<CustomParameterEntry> source) {
