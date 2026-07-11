@@ -54,7 +54,9 @@ public final class ModelSettingsMutationSupport {
         settings.inject_system_prompt_into_user_message = injectPromptIntoUser;
         settings.enable_structured_output_if_available = structuredOutput;
         settings.system_prompt_suffix = systemPromptSuffix;
-        settings.custom_parameters = CustomParameterEntry.deepCopyList(customParameters);
+        settings.custom_parameters = creating
+                ? ModelCustomParameterDefaultsSupport.applyForNewModel(profile, customParameters)
+                : CustomParameterEntry.deepCopyList(customParameters);
 
         if (creating || setAsDefault || profile.model_id == null || profile.model_id.isBlank() || profile.model_id.equals(originalModelId)) {
             profile.model_id = nextModelId;

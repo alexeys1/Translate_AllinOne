@@ -25,11 +25,15 @@ public final class ModelSettingsDraftSupport {
                     : ApiProviderProfile.ModelSettings.openAiDefault("gpt-4o");
         }
 
+        boolean creating = resolvedOriginalId.isBlank();
         List<CustomParameterEntry> customParameters = CustomParameterEntry.deepCopyList(sourceSettings.custom_parameters);
+        if (creating) {
+            customParameters = ModelCustomParameterDefaultsSupport.applyForNewModel(profile, customParameters);
+        }
         return new Draft(
                 profile.id,
                 resolvedOriginalId,
-                resolvedOriginalId.isBlank() ? "" : ProviderProfileSupport.sanitizeText(sourceSettings.model_id),
+                creating ? "" : ProviderProfileSupport.sanitizeText(sourceSettings.model_id),
                 ModelSettingsValueSupport.formatTemperature(sourceSettings.temperatureFor(ApiProviderProfile.TemperatureScene.CHAT)),
                 ModelSettingsValueSupport.formatTemperature(sourceSettings.temperatureFor(ApiProviderProfile.TemperatureScene.ITEM)),
                 ModelSettingsValueSupport.formatTemperature(sourceSettings.temperatureFor(ApiProviderProfile.TemperatureScene.SCOREBOARD)),
