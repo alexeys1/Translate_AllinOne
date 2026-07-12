@@ -8,9 +8,9 @@
 
 > **Preview Notice**
 >
-> - Current target version: **Minecraft 1.21.11**
+> - Current target version: **Minecraft 26.1.x**
 > - Platform: **Fabric (Client-side)**
-> - Java: **21+**
+> - Java: **25+**
 
 An in-game AI translation mod for Minecraft that supports chat, chat input, item tooltip, scoreboard, WynnCraft NPC dialogue, and a dedicated WynnCraft category for related integrations with multi-provider routing, editable local dictionaries, an AI chat-input assistant panel, automatic cache backup, and a fully in-game configuration workflow.
 
@@ -106,15 +106,15 @@ An in-game AI translation mod for Minecraft that supports chat, chat input, item
 
 ## Requirements
 
-- Minecraft `1.21.11`
-- Fabric Loader `>= 0.18.1`
-- Java `>= 21`
+- Minecraft `26.1.x`
+- Fabric Loader `>= 0.19.3`
+- Java `>= 25`
 - Fabric API
-- ModMenu `>= 16.0.0`
+- ModMenu `>= 18.0.0`
 
 ## Installation
 
-1. Install Fabric Loader for Minecraft `1.21.11`.
+1. Install Fabric Loader for Minecraft `26.1.x`.
 2. Put these jars into your `mods` folder:
    - `translate-all-in-one-*.jar`
    - Fabric API
