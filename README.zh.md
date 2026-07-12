@@ -8,9 +8,9 @@
 
 > **预览提示**
 >
-> - 当前目标版本：**Minecraft 1.21.11**
+> - 当前目标版本：**Minecraft 26.2**
 > - 平台：**Fabric（客户端）**
-> - Java：**21+**
+> - Java：**25+**
 
 一款 Minecraft 游戏内 AI 翻译模组，支持聊天输出、聊天输入、物品 Tooltip、计分板、WynnCraft NPC 对话翻译，以及独立的 WynnCraft 相关集成分类，提供多服务商路由、可编辑本地字典、AI 聊天输入助手面板、自动缓存备份和完整的游戏内配置流程。
 
@@ -106,15 +106,15 @@
 
 ## 运行环境要求
 
-- Minecraft `1.21.11`
-- Fabric Loader `>= 0.18.1`
-- Java `>= 21`
+- Minecraft `26.2`
+- Fabric Loader `>= 0.19.3`
+- Java `>= 25`
 - Fabric API
-- ModMenu `>= 16.0.0`
+- ModMenu `>= 20.0.0`
 
 ## 安装步骤
 
-1. 安装适用于 Minecraft `1.21.11` 的 Fabric Loader。
+1. 安装适用于 Minecraft `26.2` 的 Fabric Loader。
 2. 将以下文件放入 `mods` 文件夹：
    - `translate-all-in-one-*.jar`
    - Fabric API
