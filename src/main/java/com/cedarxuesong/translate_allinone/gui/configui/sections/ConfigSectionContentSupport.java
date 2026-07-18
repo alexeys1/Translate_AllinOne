@@ -491,6 +491,9 @@ public final class ConfigSectionContentSupport {
                 if (scoreboard.keybinding.binding == null) {
                     scoreboard.keybinding.binding = new InputBindingConfig();
                 }
+                if (scoreboard.keybinding.refreshBinding == null) {
+                    scoreboard.keybinding.refreshBinding = new InputBindingConfig();
+                }
 
                 int basicStart = y;
                 toggleAdder.add(x, y, width, translator.t("label.enabled"), () -> scoreboard.enabled, value -> scoreboard.enabled = value, translator.t("desc.scoreboard_enabled"));
@@ -525,6 +528,8 @@ public final class ConfigSectionContentSupport {
                 , translator.t("desc.scoreboard_hotkey_mode"));
                 y += ROW_STEP;
                 actionAdder.add(x, y, width, bindingLabelProvider.label(HotkeyTarget.SCOREBOARD, scoreboard.keybinding.binding), () -> hotkeyStartBinding.handle(HotkeyTarget.SCOREBOARD), tooltip(translator, "desc.scoreboard_hotkey"));
+                y += ROW_STEP;
+                actionAdder.add(x, y, width, bindingLabelProvider.label(HotkeyTarget.SCOREBOARD_REFRESH, scoreboard.keybinding.refreshBinding), () -> hotkeyStartBinding.handle(HotkeyTarget.SCOREBOARD_REFRESH), tooltip(translator, "desc.scoreboard_refresh_hotkey"));
                 y += ROW_STEP;
                 actionAdder.add(x, y, width, translator.t("button.hotkey_clear"), () -> hotkeyClearBinding.handle(HotkeyTarget.SCOREBOARD), tooltip(translator, "button.hotkey_clear"));
                 y += ROW_STEP;
@@ -1149,6 +1154,7 @@ public final class ConfigSectionContentSupport {
         ITEM,
         ITEM_REFRESH,
         SCOREBOARD,
+        SCOREBOARD_REFRESH,
         WYNNTILS_TASK_TRACKER,
         WYNNTILS_TASK_TRACKER_REFRESH
     }

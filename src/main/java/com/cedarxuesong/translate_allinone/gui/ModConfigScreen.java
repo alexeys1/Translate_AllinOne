@@ -1624,6 +1624,27 @@ public class ModConfigScreen extends Screen {
             return;
         }
 
+        if (target == ConfigSectionContentSupport.HotkeyTarget.SCOREBOARD) {
+            ScoreboardConfig.KeybindingConfig keybinding = ensureScoreboardKeybinding(Translate_AllinOne.getConfig());
+            if (keybinding.binding == null) {
+                keybinding.binding = new InputBindingConfig();
+            }
+            if (keybinding.refreshBinding == null) {
+                keybinding.refreshBinding = new InputBindingConfig();
+            }
+
+            if (hotkeyCaptureTarget == ConfigSectionContentSupport.HotkeyTarget.SCOREBOARD
+                    || hotkeyCaptureTarget == ConfigSectionContentSupport.HotkeyTarget.SCOREBOARD_REFRESH) {
+                hotkeyCaptureTarget = null;
+            }
+
+            KeybindingManager.clear(keybinding.binding);
+            KeybindingManager.clear(keybinding.refreshBinding);
+            setStatus(t("status.hotkey_cleared", sectionLabel(target)), COLOR_STATUS_OK);
+            rebuildActionBlocks();
+            return;
+        }
+
         InputBindingConfig binding = ensureBinding(target);
         if (binding == null) {
             return;
@@ -1693,6 +1714,13 @@ public class ModConfigScreen extends Screen {
                 }
                 yield keybinding.binding;
             }
+            case SCOREBOARD_REFRESH -> {
+                ScoreboardConfig.KeybindingConfig keybinding = ensureScoreboardKeybinding(config);
+                if (keybinding.refreshBinding == null) {
+                    keybinding.refreshBinding = new InputBindingConfig();
+                }
+                yield keybinding.refreshBinding;
+            }
             case WYNNTILS_TASK_TRACKER -> {
                 WynnCraftConfig.KeybindingConfig keybinding = ensureWynntilsTaskTrackerKeybinding(config);
                 if (keybinding.binding == null) {
@@ -1720,6 +1748,9 @@ public class ModConfigScreen extends Screen {
     private ScoreboardConfig.KeybindingConfig ensureScoreboardKeybinding(ModConfig config) {
         if (config.scoreboardTranslate.keybinding == null) {
             config.scoreboardTranslate.keybinding = new ScoreboardConfig.KeybindingConfig();
+        }
+        if (config.scoreboardTranslate.keybinding.refreshBinding == null) {
+            config.scoreboardTranslate.keybinding.refreshBinding = new InputBindingConfig();
         }
         return config.scoreboardTranslate.keybinding;
     }
@@ -1768,6 +1799,7 @@ public class ModConfigScreen extends Screen {
             case ITEM -> t("section.item");
             case ITEM_REFRESH -> t("section.item");
             case SCOREBOARD -> t("section.scoreboard");
+            case SCOREBOARD_REFRESH -> t("section.scoreboard");
             case WYNNTILS_TASK_TRACKER -> t("section.wynncraft");
             case WYNNTILS_TASK_TRACKER_REFRESH -> t("section.wynncraft");
         };
@@ -1776,6 +1808,7 @@ public class ModConfigScreen extends Screen {
     private Text hotkeyBindingLabelText(ConfigSectionContentSupport.HotkeyTarget target, Text bindingLabel) {
         return switch (target) {
             case ITEM_REFRESH -> t("label.item_refresh_hotkey_binding", bindingLabel);
+            case SCOREBOARD_REFRESH -> t("label.scoreboard_refresh_hotkey_binding", bindingLabel);
             case WYNNTILS_TASK_TRACKER_REFRESH -> t("label.item_refresh_hotkey_binding", bindingLabel);
             default -> t("label.hotkey_binding", bindingLabel);
         };

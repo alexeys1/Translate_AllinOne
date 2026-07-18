@@ -251,6 +251,9 @@ public class ConfigManager {
         if (configToUse.scoreboardTranslate.keybinding.binding == null) {
             configToUse.scoreboardTranslate.keybinding.binding = new InputBindingConfig();
         }
+        if (configToUse.scoreboardTranslate.keybinding.refreshBinding == null) {
+            configToUse.scoreboardTranslate.keybinding.refreshBinding = new InputBindingConfig();
+        }
         if (configToUse.scoreboardTranslate.debug == null) {
             configToUse.scoreboardTranslate.debug = new ScoreboardConfig.DebugConfig();
         }
