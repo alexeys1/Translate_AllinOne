@@ -1,6 +1,7 @@
 package com.cedarxuesong.translate_allinone.mixin.mixinAdvancement;
 
 import com.cedarxuesong.translate_allinone.utils.translate.VanillaAdvancementTranslationSupport;
+import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.advancement.AdvancementDisplay;
 import net.minecraft.advancement.AdvancementEntry;
@@ -74,12 +75,12 @@ public class AdvancementWidgetMixin {
         }
 
         AdvancementEntry holder = advancement == null ? null : advancement.getAdvancementEntry();
-        Text translatedTitle = VanillaAdvancementTranslationSupport.translateHoveredTitle(holder, display.getTitle());
-        Text translatedDescription = VanillaAdvancementTranslationSupport.translateHoveredDescription(
-                holder,
-                display,
-                display.getDescription()
-        );
+        VanillaAdvancementTranslationSupport.HoveredAdvancementText hoveredText =
+                VanillaAdvancementTranslationSupport.translateHoveredText(holder, display);
+        Text translatedTitle = hoveredText.title() == null ? display.getTitle() : hoveredText.title();
+        Text translatedDescription = hoveredText.description() == null
+                ? display.getDescription()
+                : hoveredText.description();
 
         List<OrderedText> refreshedTitleLines = client.textRenderer.wrapLines(translatedTitle, 163);
         int titleWidth = refreshedTitleLines.stream()
@@ -88,6 +89,22 @@ public class AdvancementWidgetMixin {
                 .orElse(0);
         int contentWidth = 29 + Math.max(80, titleWidth) + getProgressWidth();
         List<StringVisitable> optimalDescriptionLines = wrapDescription(translatedDescription, contentWidth);
+        if (hoveredText.statusLine() != null || hoveredText.errorStatusLine() != null || hoveredText.showRefreshNotice()) {
+            List<StringVisitable> descriptionWithNotice = new ArrayList<>();
+            if (optimalDescriptionLines != null) {
+                descriptionWithNotice.addAll(optimalDescriptionLines);
+            }
+            if (hoveredText.statusLine() != null) {
+                descriptionWithNotice.add(hoveredText.statusLine());
+            }
+            if (hoveredText.errorStatusLine() != null) {
+                descriptionWithNotice.add(hoveredText.errorStatusLine());
+            }
+            if (hoveredText.showRefreshNotice()) {
+                descriptionWithNotice.add(VanillaAdvancementTranslationSupport.createRefreshNoticeLine());
+            }
+            optimalDescriptionLines = descriptionWithNotice;
+        }
         List<OrderedText> refreshedDescription = optimalDescriptionLines == null
                 ? List.of()
                 : Language.getInstance().reorder(optimalDescriptionLines);
