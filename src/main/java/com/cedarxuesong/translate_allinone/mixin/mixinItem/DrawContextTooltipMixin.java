@@ -24,8 +24,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTextTooltip;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipPositioner;
@@ -42,6 +44,12 @@ public abstract class DrawContextTooltipMixin {
 
     @Unique
     private static final String ITEM_STATUS_ANIMATION_KEY = "item-tooltip-status-draw-context";
+
+    @Unique
+    private static final String DRAW_CONTEXT_DEV_SOURCE = "draw-context";
+
+    @Unique
+    private static final String CHAT_HOVER_DEV_SOURCE = "chat-hover";
 
     @Unique
     private static final ThreadLocal<Boolean> translate_allinone$isProcessing = ThreadLocal.withInitial(() -> false);
@@ -88,13 +96,15 @@ public abstract class DrawContextTooltipMixin {
         }
 
         boolean isWynntilsItemStatTooltip = TooltipTranslationContext.isInWynntilsItemStatTooltipRender();
+        boolean isChatHoverTooltip = TooltipTranslationContext.isInChatHoverTooltipRender();
+        String devSource = isChatHoverTooltip ? CHAT_HOVER_DEV_SOURCE : DRAW_CONTEXT_DEV_SOURCE;
 
         if (components == null || components.isEmpty()) {
             return;
         }
 
         ItemTranslateConfig config = Translate_AllinOne.getConfig().itemTranslate;
-        if (!translate_allinone$isSupportedExternalTooltip(positioner, isWynntilsItemStatTooltip)) {
+        if (!translate_allinone$isSupportedExternalTooltip(positioner, isWynntilsItemStatTooltip, isChatHoverTooltip)) {
             return;
         }
 
@@ -121,10 +131,10 @@ public abstract class DrawContextTooltipMixin {
         if (config == null || !config.enabled) {
             return;
         }
-        if (TooltipTranslationContext.consumeSkipDrawContextTranslation()) {
+        if (TooltipTranslationContext.consumeSkipDrawContextTranslation(tooltipLines)) {
             TooltipTextMatcherSupport.logTooltipGuardIfDev(
                     config,
-                    "draw-context",
+                    devSource,
                     "skip-consume-shared-guard",
                     tooltipLines,
                     "TooltipTranslationContext.consumeSkipDrawContextTranslation() returned true."
@@ -140,10 +150,10 @@ public abstract class DrawContextTooltipMixin {
         }
 
         if (!TooltipRecentRenderGuardSupport.shouldSkipDuplicateRender(tooltipLines, showRefreshNotice)) {
-            TooltipRefreshNoticeSupport.queueRemoteTranslationForCurrentTooltip(tooltipLines, config, "draw-context");
+            TooltipRefreshNoticeSupport.queueRemoteTranslationForCurrentTooltip(tooltipLines, config, devSource);
         }
 
-        boolean emitDevLog = TooltipTextMatcherSupport.beginTooltipDevPass(config, "draw-context", tooltipLines);
+        boolean emitDevLog = TooltipTextMatcherSupport.beginTooltipDevPass(config, devSource, tooltipLines);
         long tooltipStartedAtNanos = emitDevLog ? System.nanoTime() : 0L;
 
         boolean locallyStable = false;
@@ -155,6 +165,7 @@ public abstract class DrawContextTooltipMixin {
                     config,
                     showRefreshNotice,
                     parsedTooltipCacheHit,
+                    devSource,
                     emitDevLog,
                     tooltipStartedAtNanos
             );
@@ -207,6 +218,7 @@ public abstract class DrawContextTooltipMixin {
             ItemTranslateConfig config,
             boolean showRefreshNotice,
             boolean parsedTooltipCacheHit,
+            String devSource,
             boolean emitDevLog,
             long tooltipStartedAtNanos
     ) {
@@ -221,7 +233,7 @@ public abstract class DrawContextTooltipMixin {
                 config,
                 decorativeTooltipContext,
                 emitDevLog,
-                "draw-context"
+                devSource
         );
 
         if (processedTooltip.translatedLines().size() == orderedLines.size()) {
@@ -272,7 +284,7 @@ public abstract class DrawContextTooltipMixin {
         TooltipTextMatcherSupport.logTooltipPassIfDev(
                 config,
                 emitDevLog,
-                "draw-context",
+                devSource,
                 orderedLines.size(),
                 processedTooltip.translatableLines(),
                 tooltipStartedAtNanos
@@ -280,7 +292,7 @@ public abstract class DrawContextTooltipMixin {
         TooltipTextMatcherSupport.logTooltipCacheStatsIfDev(
                 config,
                 emitDevLog,
-                "draw-context",
+                devSource,
                 "parsedTooltipLast=" + (parsedTooltipCacheHit ? "hit" : "miss")
                         + " parsedTooltipHits=" + translate_allinone$parsedTooltipCacheHits.get()
                         + " parsedTooltipMisses=" + translate_allinone$parsedTooltipCacheMisses.get()
@@ -314,8 +326,13 @@ public abstract class DrawContextTooltipMixin {
     @Unique
     private boolean translate_allinone$isSupportedExternalTooltip(
             ClientTooltipPositioner positioner,
-            boolean isWynntilsItemStatTooltip
+            boolean isWynntilsItemStatTooltip,
+            boolean isChatHoverTooltip
     ) {
+        if (isChatHoverTooltip) {
+            return true;
+        }
+
         if (isWynntilsItemStatTooltip || TooltipTranslationContext.isInWynntilsQuestTooltipRender()) {
             return true;
         }
@@ -325,6 +342,50 @@ public abstract class DrawContextTooltipMixin {
         }
 
         return translate_allinone$isReiClass(positioner);
+    }
+
+    @Inject(
+            method = "componentHoverEffect(Lnet/minecraft/client/gui/Font;Lnet/minecraft/network/chat/Style;II)V",
+            at = @At("HEAD"),
+            require = 0
+    )
+    private void translate_allinone$pushChatHoverTooltipContext(
+            Font textRenderer,
+            Style style,
+            int x,
+            int y,
+            CallbackInfo ci
+    ) {
+        if (translate_allinone$isChatScreenHoverStyle(style)) {
+            TooltipTranslationContext.pushChatHoverTooltipRender();
+        }
+    }
+
+    @Inject(
+            method = "componentHoverEffect(Lnet/minecraft/client/gui/Font;Lnet/minecraft/network/chat/Style;II)V",
+            at = @At("RETURN"),
+            require = 0
+    )
+    private void translate_allinone$popChatHoverTooltipContext(
+            Font textRenderer,
+            Style style,
+            int x,
+            int y,
+            CallbackInfo ci
+    ) {
+        if (translate_allinone$isChatScreenHoverStyle(style)) {
+            TooltipTranslationContext.popChatHoverTooltipRender();
+        }
+    }
+
+    @Unique
+    private boolean translate_allinone$isChatScreenHoverStyle(Style style) {
+        if (style == null || style.getHoverEvent() == null) {
+            return false;
+        }
+
+        Minecraft client = Minecraft.getInstance();
+        return client != null && client.screen instanceof ChatScreen;
     }
 
     @Unique
