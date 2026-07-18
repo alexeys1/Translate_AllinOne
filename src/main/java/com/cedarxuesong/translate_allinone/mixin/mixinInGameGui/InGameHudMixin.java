@@ -20,9 +20,12 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -50,6 +53,9 @@ public class InGameHudMixin {
 
     @Unique
     private static final ThreadLocal<Map<String, Component>> translate_allinone$scoreboardReplacements = new ThreadLocal<>();
+
+    @Unique
+    private static final Set<String> translate_allinone$refreshedScoreboardKeysThisHold = new HashSet<>();
 
     @Unique
     private Component translate_allinone$processTextForTranslation(Component originalText) {
@@ -91,6 +97,96 @@ public class InGameHudMixin {
     }
 
     @Unique
+    private static String translate_allinone$buildLegacyTemplateKey(Component originalText) {
+        if (originalText == null || originalText.getString().trim().isEmpty()) {
+            return "";
+        }
+
+        StylePreserver.ExtractionResult styleResult = StylePreserver.extractAndMark(originalText);
+        TemplateProcessor.TemplateExtractionResult templateResult = TemplateProcessor.extract(styleResult.markedText);
+        return StylePreserver.toLegacyTemplate(templateResult.template(), styleResult.styleMap);
+    }
+
+    @Unique
+    private static Set<String> translate_allinone$collectScoreboardTranslationKeys(
+            Objective objective,
+            ScoreboardConfig config
+    ) {
+        if (objective == null || config == null || !config.enabled_translate_prefix_and_suffix_name) {
+            return Set.of();
+        }
+
+        Scoreboard scoreboard = objective.getScoreboard();
+        if (scoreboard == null) {
+            return Set.of();
+        }
+
+        Comparator<PlayerScoreEntry> comparator = InGameHudAccessor.getScoreboardEntryComparator();
+        Set<String> keys = new LinkedHashSet<>();
+        scoreboard.listPlayerScores(objective).stream()
+                .filter(score -> !score.isHidden())
+                .sorted(comparator)
+                .limit(15L)
+                .forEach(scoreboardEntry -> {
+                    PlayerTeam team = scoreboard.getPlayersTeam(scoreboardEntry.owner());
+                    if (team == null) {
+                        return;
+                    }
+
+                    String prefixKey = translate_allinone$buildLegacyTemplateKey(team.getPlayerPrefix());
+                    if (!prefixKey.isBlank()) {
+                        keys.add(prefixKey);
+                    }
+
+                    String suffixKey = translate_allinone$buildLegacyTemplateKey(team.getPlayerSuffix());
+                    if (!suffixKey.isBlank()) {
+                        keys.add(suffixKey);
+                    }
+                });
+        return keys;
+    }
+
+    @Unique
+    private static void translate_allinone$maybeForceRefreshCurrentScoreboard(
+            Objective objective,
+            ScoreboardConfig config
+    ) {
+        boolean isRefreshPressed = config != null
+                && config.keybinding != null
+                && KeybindingManager.isPressed(config.keybinding.refreshBinding);
+
+        synchronized (translate_allinone$refreshedScoreboardKeysThisHold) {
+            if (!isRefreshPressed) {
+                translate_allinone$refreshedScoreboardKeysThisHold.clear();
+                return;
+            }
+        }
+
+        Set<String> currentKeys = translate_allinone$collectScoreboardTranslationKeys(objective, config);
+        if (currentKeys.isEmpty()) {
+            return;
+        }
+
+        Set<String> keysToRefresh = new LinkedHashSet<>();
+        synchronized (translate_allinone$refreshedScoreboardKeysThisHold) {
+            for (String key : currentKeys) {
+                if (translate_allinone$refreshedScoreboardKeysThisHold.add(key)) {
+                    keysToRefresh.add(key);
+                }
+            }
+        }
+
+        if (keysToRefresh.isEmpty()) {
+            return;
+        }
+
+        int refreshedCount = ScoreboardTextCache.getInstance().forceRefresh(keysToRefresh);
+        if (refreshedCount > 0) {
+            LOGGER.info("Force-refreshed {} current scoreboard translation key(s).", refreshedCount);
+        }
+    }
+
+    @Unique
     private static boolean translate_allinone$isMissingKeyIssue(String errorMessage) {
         if (errorMessage == null || errorMessage.isEmpty()) {
             return false;
@@ -107,15 +203,23 @@ public class InGameHudMixin {
     private void onRenderScoreboardSidebarHead(GuiGraphicsExtractor drawContext, Objective objective, CallbackInfo ci) {
         try {
             ScoreboardConfig config = Translate_AllinOne.getConfig().scoreboardTranslate;
-            if (!config.enabled) {
+            if (config == null || !config.enabled) {
                 translate_allinone$scoreboardReplacements.set(null);
+                synchronized (translate_allinone$refreshedScoreboardKeysThisHold) {
+                    translate_allinone$refreshedScoreboardKeysThisHold.clear();
+                }
                 return;
             }
 
-            boolean isKeyPressed = KeybindingManager.isPressed(config.keybinding.binding);
-            boolean shouldShowOriginal = false;
+            translate_allinone$maybeForceRefreshCurrentScoreboard(objective, config);
 
-            switch (config.keybinding.mode) {
+            boolean isKeyPressed = config.keybinding != null && KeybindingManager.isPressed(config.keybinding.binding);
+            boolean shouldShowOriginal = false;
+            ScoreboardConfig.KeybindingMode keybindingMode = config.keybinding == null || config.keybinding.mode == null
+                    ? ScoreboardConfig.KeybindingMode.DISABLED
+                    : config.keybinding.mode;
+
+            switch (keybindingMode) {
                 case HOLD_TO_TRANSLATE:
                     if (!isKeyPressed) shouldShowOriginal = true;
                     break;

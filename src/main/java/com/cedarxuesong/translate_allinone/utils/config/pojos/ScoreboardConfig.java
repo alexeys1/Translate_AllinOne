@@ -23,6 +23,7 @@ public class ScoreboardConfig {
     public static class KeybindingConfig {
         public KeybindingMode mode = KeybindingMode.DISABLED;
         public InputBindingConfig binding = new InputBindingConfig();
+        public InputBindingConfig refreshBinding = new InputBindingConfig();
     }
 
     public static class DebugConfig {
