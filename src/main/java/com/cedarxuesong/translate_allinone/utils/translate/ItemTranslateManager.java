@@ -88,6 +88,10 @@ public class ItemTranslateManager {
         return INSTANCE;
     }
 
+    public static boolean isAnyItemTranslationFeatureEnabled(ItemTranslateConfig config) {
+        return config != null && (config.enabled || config.enabled_translate_vanilla_advancements);
+    }
+
     public synchronized void start() {
         long newSessionEpoch = sessionEpoch.incrementAndGet();
         ItemTranslateConfig config = Translate_AllinOne.getConfig().itemTranslate;
@@ -162,7 +166,7 @@ public class ItemTranslateManager {
             try {
                 long batchSessionEpoch = sessionEpoch.get();
                 ItemTranslateConfig config = Translate_AllinOne.getConfig().itemTranslate;
-                if (!config.enabled) {
+                if (!isAnyItemTranslationFeatureEnabled(config)) {
                     TimeUnit.SECONDS.sleep(5);
                     continue;
                 }
@@ -199,7 +203,7 @@ public class ItemTranslateManager {
     private void collectAndBatchItems() {
         try {
             ItemTranslateConfig config = Translate_AllinOne.getConfig().itemTranslate;
-            if (!config.enabled) {
+            if (!isAnyItemTranslationFeatureEnabled(config)) {
                 return;
             }
             long collectedAtNanos = System.nanoTime();
@@ -228,6 +232,10 @@ public class ItemTranslateManager {
     private void requeueErroredItems() {
         try {
             java.util.Set<String> erroredKeys = cache.getErroredKeys();
+            ItemTranslateConfig config = Translate_AllinOne.getConfig().itemTranslate;
+            if (!isAnyItemTranslationFeatureEnabled(config)) {
+                return;
+            }
             if (!erroredKeys.isEmpty()) {
                 Translate_AllinOne.LOGGER.info("Re-queueing {} errored items for another attempt.", erroredKeys.size());
                 erroredKeys.forEach(cache::requeueFromError);
@@ -665,12 +673,13 @@ public class ItemTranslateManager {
             return;
         }
         Translate_AllinOne.LOGGER.info(
-                "[ItemDev:session] phase={} epoch={} enabled={} customName={} lore={} target={} configuredConcurrent={} activeWorkers={} maxBatchSize={} requestsPerMinute={} debugEnabled={} logBatchTiming={} queue={}",
+                "[ItemDev:session] phase={} epoch={} enabled={} customName={} lore={} vanillaAdvancements={} target={} configuredConcurrent={} activeWorkers={} maxBatchSize={} requestsPerMinute={} debugEnabled={} logBatchTiming={} queue={}",
                 phase,
                 epoch,
                 config.enabled,
                 config.enabled_translate_item_custom_name,
                 config.enabled_translate_item_lore,
+                config.enabled_translate_vanilla_advancements,
                 config.target_language,
                 config.max_concurrent_requests,
                 currentConcurrentRequests > 0 ? currentConcurrentRequests : Math.max(1, config.max_concurrent_requests),
