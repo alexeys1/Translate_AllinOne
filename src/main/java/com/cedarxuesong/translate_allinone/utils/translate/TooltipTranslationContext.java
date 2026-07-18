@@ -11,6 +11,7 @@ import java.util.List;
 
 public final class TooltipTranslationContext {
     private static final long REI_CONTEXT_STALE_MILLIS = 10_000L;
+    private static final long CHAT_HOVER_TOOLTIP_CONTEXT_STALE_MILLIS = 750L;
     private static final long WYNN_ITEM_STAT_CONTEXT_STALE_MILLIS = 500L;
     private static final long WYNN_QUEST_CONTEXT_STALE_MILLIS = 10_000L;
     private static final long RECENT_TRANSLATED_TOOLTIP_STALE_MILLIS = 750L;
@@ -26,6 +27,8 @@ public final class TooltipTranslationContext {
     private static final ThreadLocal<Integer> SKIP_SCREEN_MIRROR_TOOLTIP_SIGNATURE = ThreadLocal.withInitial(() -> 0);
     private static final ThreadLocal<Long> SKIP_SCREEN_MIRROR_TOOLTIP_RECORDED_AT = ThreadLocal.withInitial(() -> 0L);
     private static final ThreadLocal<Integer> WYNNMOD_TOOLTIP_RENDER_DEPTH = ThreadLocal.withInitial(() -> 0);
+    private static final ThreadLocal<Integer> CHAT_HOVER_TOOLTIP_RENDER_DEPTH = ThreadLocal.withInitial(() -> 0);
+    private static final ThreadLocal<Long> CHAT_HOVER_TOOLTIP_RENDER_ENTERED_AT = ThreadLocal.withInitial(() -> 0L);
     private static final ThreadLocal<Integer> REI_TOOLTIP_RENDER_DEPTH = ThreadLocal.withInitial(() -> 0);
     private static final ThreadLocal<Long> REI_TOOLTIP_RENDER_ENTERED_AT = ThreadLocal.withInitial(() -> 0L);
     private static final ThreadLocal<Long> WYNN_ITEM_STAT_TOOLTIP_MARKED_AT = ThreadLocal.withInitial(() -> 0L);
@@ -167,6 +170,55 @@ public final class TooltipTranslationContext {
 
     public static boolean isInWynnmodTooltipRender() {
         return WYNNMOD_TOOLTIP_RENDER_DEPTH.get() > 0;
+    }
+
+    public static void pushChatHoverTooltipRender() {
+        int currentDepth = CHAT_HOVER_TOOLTIP_RENDER_DEPTH.get();
+        if (currentDepth <= 0) {
+            CHAT_HOVER_TOOLTIP_RENDER_ENTERED_AT.set(System.currentTimeMillis());
+            CHAT_HOVER_TOOLTIP_RENDER_DEPTH.set(1);
+            return;
+        }
+
+        int next = currentDepth + 1;
+        if (next > MAX_RENDER_DEPTH) {
+            LOGGER.error("Chat hover tooltip render depth exceeded max ({}). Resetting to 0.", MAX_RENDER_DEPTH);
+            CHAT_HOVER_TOOLTIP_RENDER_DEPTH.set(0);
+            CHAT_HOVER_TOOLTIP_RENDER_ENTERED_AT.set(0L);
+            return;
+        }
+        CHAT_HOVER_TOOLTIP_RENDER_DEPTH.set(next);
+    }
+
+    public static void popChatHoverTooltipRender() {
+        int depth = CHAT_HOVER_TOOLTIP_RENDER_DEPTH.get();
+        if (depth <= 1) {
+            CHAT_HOVER_TOOLTIP_RENDER_DEPTH.set(0);
+            CHAT_HOVER_TOOLTIP_RENDER_ENTERED_AT.set(0L);
+            return;
+        }
+        CHAT_HOVER_TOOLTIP_RENDER_DEPTH.set(depth - 1);
+    }
+
+    public static boolean isInChatHoverTooltipRender() {
+        int depth = CHAT_HOVER_TOOLTIP_RENDER_DEPTH.get();
+        if (depth <= 0) {
+            return false;
+        }
+
+        long enteredAt = CHAT_HOVER_TOOLTIP_RENDER_ENTERED_AT.get();
+        if (enteredAt <= 0L) {
+            CHAT_HOVER_TOOLTIP_RENDER_DEPTH.set(0);
+            return false;
+        }
+
+        if (System.currentTimeMillis() - enteredAt > CHAT_HOVER_TOOLTIP_CONTEXT_STALE_MILLIS) {
+            CHAT_HOVER_TOOLTIP_RENDER_DEPTH.set(0);
+            CHAT_HOVER_TOOLTIP_RENDER_ENTERED_AT.set(0L);
+            return false;
+        }
+
+        return true;
     }
 
     private static boolean matchesExpectedDrawContextTooltip(List<Text> tooltipLines) {
