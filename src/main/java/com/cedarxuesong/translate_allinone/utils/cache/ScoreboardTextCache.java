@@ -400,6 +400,27 @@ public class ScoreboardTextCache {
         scheduleSave();
     }
 
+    public synchronized int forceRefresh(Iterable<String> originalTemplates) {
+        if (originalTemplates == null) {
+            return 0;
+        }
+
+        List<String> refreshKeys = new ArrayList<>();
+        for (String originalTemplate : originalTemplates) {
+            if (originalTemplate != null && !originalTemplate.isBlank()) {
+                refreshKeys.add(originalTemplate);
+            }
+        }
+        int refreshedCount = runtimeState.forceRefresh(refreshKeys);
+
+        if (refreshedCount > 0) {
+            persistence.markDirty();
+            scheduleSave();
+        }
+
+        return refreshedCount;
+    }
+
     private synchronized void scheduleSave() {
         CachePersistenceSupport.SaveSchedulePlan schedulePlan = persistence.planSave(false);
         if (schedulePlan.action() == CachePersistenceSupport.SaveScheduleAction.SAVE_NOW) {
