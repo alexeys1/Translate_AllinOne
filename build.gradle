@@ -62,6 +62,15 @@ tasks.withType(JavaCompile).configureEach {
 	it.options.release = 21
 }
 
+def defaultTestApiFamily = project.minecraft_version.startsWith("26.") ? "mc26" : "mc12111"
+def testApiFamily = providers.gradleProperty("test_api_family").getOrElse(defaultTestApiFamily)
+
+sourceSets {
+	test {
+		java.setSrcDirs(["src/test/java", "src/test/${testApiFamily}/java"])
+	}
+}
+
 test {
 	useJUnitPlatform()
 }
