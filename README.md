@@ -12,97 +12,87 @@
 > - Platform: **Fabric (Client-side)**
 > - Java: **25+**
 
-An in-game AI translation mod for Minecraft that supports chat, chat input, item tooltip, scoreboard, WynnCraft NPC dialogue, and a dedicated WynnCraft category for related integrations with multi-provider routing, editable local dictionaries, an AI chat-input assistant panel, automatic cache backup, and a fully in-game configuration workflow.
+An in-game AI translation mod for Minecraft that supports chat output, chat input, item tooltips, scoreboard translation, a dedicated WynnCraft integration category, multi-provider routing, editable local dictionaries, an AI chat-input assistant panel, automatic cache backups, and a complete in-game configuration workflow.
 
 ---
 
 ## English
 
-## What It Can Do Right Now
+## Current Features (Complete)
 
 ### Translation modules
 
-| Module             | What it does                                                                         | Highlights                                                                                                                                                          |
-| ------------------ | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Chat Output        | Translates incoming chat lines                                                       | Auto mode or manual `[T]` click mode, optional streaming display                                                                                                  |
-| Chat Input         | Translates your text before send                                                     | Hotkey-driven translation plus AI rewrite actions (Translate/Professional/Friendly/Expand/Concise/Restore), optional streaming update                               |
-| Item Tooltip       | Translates item custom name and lore                                                 | Template/style-preserving pipeline, async cache queue, refresh-cache                                                                                                |
-| Scoreboard Sidebar | Translates prefix/suffix and player name display                                     | Real-time replacement with style-preserving reconstruction                                                                                                          |
-| Dictionary config  | Exposes a dedicated in-game dictionary section, per-slot toggles, and file selectors | Supports a master switch, independent toggles for item/skill, dialogue, and quest dictionaries, mixed multi/single file selection, and direct open-directory access |
+| Module | What it does | Highlights |
+| --- | --- | --- |
+| Chat Output Translation | Translates incoming chat messages | Supports automatic translation and manual `[T]` click translation, with streaming display |
+| Chat Input Translation | Translates the input box content before sending | Hotkey-triggered translation plus AI rewrite panel (Translate/Professional/Friendly/Expand/Concise/Restore), with optional streaming refill into the input box |
+| Item Translation | Translates item names and lore | Template/style-preserving, async cache queue, tooltip cache refresh |
+| Scoreboard Translation | Translates sidebar text | Prefix/suffix and player names are replaced in real time based on config |
+| Dictionary Config | Provides a dedicated in-game dictionary section, independent toggles, and file selectors | Master switch, independent `Item/Skill` / `Dialogue` / `Quest` toggles, mixed multi-select/single-select dictionary file selection, and direct directory access |
 
 ### WynnCraft
 
-| Feature                 | What it does                                                                                                               | Highlights                                                                                                                    |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Wynn item compatibility | Handles Wynn-specific tooltip compatibility flows                                                                          | Reuses the mod's style-preserving tooltip pipeline, local `wynncraft_skills.json` dictionary support for fixed-format lines |
-| Wynn NPC Dialogue       | Translates WynnCraft NPC dialogue and clickable options from chat and overlay into a dedicated HUD                         | Local dictionary priority, cache + AI fallback, per-row options rendering with animation, in-game HUD editor                  |
-| Tracked quest support   | Translates tracked quest title/type/description from WynnCraft-related UI integrations such as Wynntils `ContentTracker` | Shared WynnCraft target language, refresh-cache, cache + AI fallback                                                          |
+| Feature | What it does | Highlights |
+| --- | --- | --- |
+| Wynn Item Compatibility | Handles compatibility flows for Wynn-related item tooltips | Reuses the existing style-preserving tooltip translation pipeline and supports the local `wynncraft_skills.json` dictionary for fixed-format skill text |
+| Wynn NPC Dialogue Translation | Translates WynnCraft NPC dialogue and clickable options from chat and overlay into a dedicated HUD | Local dictionary priority, cache + AI fallback, line-by-line option rendering with animation, HUD editor |
+| Quest Tracking Support | Translates quest title/type/description in WynnCraft-related UI integrations such as Wynntils `ContentTracker` | Shared WynnCraft target language, forced cache refresh support, cache + AI fallback |
 
-### AI provider and routing system
+### Provider and routing capabilities
 
-- Multiple provider profiles in one config.
-- Provider types:
+- Multiple provider profiles are supported at the same time.
+- Supported provider types:
   - `OPENAI_COMPAT` (`/chat/completions`)
   - `OPENAI_RESPONSE` (`/responses`)
   - `OLLAMA` (`/api/chat`)
-- Per-route model selection for:
+- Route models can be set independently for each module:
   - Chat Output
   - Chat Input
   - Item Translation
   - Scoreboard Translation
-  - Wynn NPC Dialogue
-  - WynnCraft tracked quest translation
-- Chat Output/Input, Item, Scoreboard, and the WynnCraft  have an independent **Target Language** field.
+  - Wynn NPC Dialogue Translation
+  - WynnCraft Quest Tracking Translation
+- Chat Output/Input, Item, Scoreboard, and WynnCraft can each be assigned their own target language.
 
-### Model-level controls
+### Model-level settings
 
 - Model ID
 - Temperature
-- Ollama keep_alive (for Ollama profiles)
-- Supports system message toggle
-- Inject system prompt into user message toggle (used when system-message mode is disabled)
-- Structured output toggle with compatibility fallback
+- Ollama keep_alive (Ollama only)
+- Whether System messages are supported
+- If System messages are not supported, whether to inject the prompt into the user message
+- Structured output toggle (with compatibility fallback)
 - Prompt suffix
 - Custom parameters (JSON tree editor)
-- Set as default model
+- Per-module prompt editing
 
-### Runtime behavior and reliability
+### In-game command
 
-- Translation pipeline preserves style markers/placeholders/tokens as much as possible.
-- Item, scoreboard, Wynn NPC dialogue, and WynnCraft tracked-quest template caches persisted on disk with configurable automatic backups.
-- Bundled WynnCraft dictionaries are installed to `config/translate_allinone/dictionary/` at startup without overwriting existing edited files.
-- Supported WynnCraft flows prefer local dictionary hits first, then cache, then remote AI fallback.
-- `Dictionary Config` includes a master switch and per-slot enable toggles; when enabled with a dictionary file selected, supported flows use `dictionary -> cache -> remote AI`. When no file is selected for a slot, that slot's dictionary lookup is skipped.
-- `Item / Skill` supports multi-select dictionary files that are loaded together on the shared item/skill local-dictionary path; `Dialogue` and `Quest` keep independent single-file selection.
-- Dedicated item-tooltip refresh hotkey can invalidate and rebuild the current tooltip cache immediately.
-- WynnCraft tracked quest translation has its own refresh-cache hotkey that only invalidates the currently tracked quest keys.
-- Retry queue prioritizes requeued failed items (front-of-queue retry).
-- Batch translation with configurable batch size/thread count (item/scoreboard, plus a dedicated WynnCraft tracked-quest runtime route).
-- Session-epoch guard prevents stale async callbacks from writing outdated results after world/session switches.
-- Missing-key and key-mismatch detection triggers prioritized retries with clear in-game fallback/status behavior.
-- Version-change safety backup stores existing config/cache files before upgrade-sensitive startup flows.
+```text
+/taio opens the mod configuration screen
+```
 
-### Command and update helpers
+### Runtime behavior and stability
 
-- Startup update check against the current GitHub repository releases (latest tag detection).
-- In-game update notice in chat and config modal, with one-click open release page.
-- Client command: `translate_allinone translatechatline <messageId>` for manual chat-line retranslation (used by manual `[T]` workflows).
+- The translation pipeline preserves style markers, placeholders, and key tokens as much as possible.
+- Item, scoreboard, Wynn NPC dialogue, and WynnCraft quest tracking use persistent template caches and support configurable automatic backups.
+- Supported WynnCraft text paths prefer local dictionary hits first, then cache, then remote AI fallback.
+- `Dictionary Config` provides a master switch and per-slot enable toggles. When enabled and a dictionary file is selected, supported paths follow `dictionary -> cache -> remote AI`. If no file is selected for a slot, dictionary lookup for that slot is skipped.
+- The `Item/Skill` dictionary selector supports multi-select and loads multiple dictionary files together; the `Dialogue` and `Quest` dictionary selectors remain single-select.
+- Item tooltip translation supports an independent refresh-cache hotkey, which forces the current cache to refresh and immediately requeues translation.
+- `missing key` / `key mismatch` trigger prioritized retries and provide clearer in-game status fallback and feedback.
+- Version changes automatically back up existing config and cache files to reduce upgrade risk.
 
-### In-game config UI features
+### Configuration UI features
 
-- Full ModMenu-based custom config screen.
-- Structured sections with group boxes.
-- Scroll + clipping + scrollbar drag support for long content.
-- Provider/model operations inside game: add/remove providers, test connection, manage route models, set default model, edit custom JSON parameters.
-- Closing the config screen with unsaved changes now opens a save/discard/cancel confirmation modal.
-- Unified action flow:
-  - **Done** = save and close
-  - **Cancel** = leave the screen; if there are unsaved changes, you can save, discard, or return
-  - **Reset** (red button) = reset to defaults after confirmation
-- Built-in hotkey capture in config UI (no legacy requirement to bind in Minecraft Controls for these module bindings), including separate refresh bindings for item-tooltip translation and WynnCraft tracked-quest translation.
-- WynnCraft config includes NPC dialogue options, local-hit logging toggles, and an in-game HUD editor for dialogue scale/offset preview.
-- Cache Backup section exposes backup interval/count, current cache stats for item / scoreboard / Wynn NPC dialogue / WynnCraft tracked quest, and one-click open cache directory.
-- Config-side update notice modal supports opening the latest release page directly.
+- Full custom configuration UI based on ModMenu.
+- Group-box layout (Basic / Hotkey / Performance / Route / Providers).
+- Scroll, clipping, and scrollbar dragging support for long lists and small windows.
+- In-game provider/model management: add/remove providers, test connection, set route models, set default model, custom parameter tree, and per-module temperature editing.
+- Module hotkeys can be captured and cleared directly in the config screen, including dedicated refresh hotkeys for tooltip cache and WynnCraft quest tracking cache.
+- The WynnCraft section includes NPC dialogue toggles and an in-game preview editor for HUD position and scale.
+- The Cache Backup section supports backup strategy settings, cache statistics for item / scoreboard / Wynn NPC dialogue / WynnCraft quest tracking, and one-click opening of the cache directory.
+- The config-screen update prompt modal can open the latest release page directly.
 
 ## Requirements
 
@@ -110,47 +100,33 @@ An in-game AI translation mod for Minecraft that supports chat, chat input, item
 - Fabric Loader `>= 0.19.3`
 - Java `>= 25`
 - Fabric API
-- ModMenu `>= 20.0.0`
+- ModMenu `>= 18.0.0`
 
-## Installation
+## Quick Setup Suggestions
 
-1. Install Fabric Loader for Minecraft `26.2`.
-2. Put these jars into your `mods` folder:
-   - `translate-all-in-one-*.jar`
-   - Fabric API
-   - ModMenu
-3. Launch the game and open ModMenu.
-4. Open **Translate All in One** config and set provider/model routes.
-5. If you use WynnCraft-related mods such as Wynntils, configure the `WynnCraft` section to enable NPC dialogue translation, tracked-quest translation, and HUD-related options.
-6. In `Dictionary Config`, leave the master switch enabled if you want supported flows to check local dictionary matches before cache/AI fallback.
-7. After the first launch, optionally edit the local JSON files inside `config/translate_allinone/dictionary/` to extend dictionary matches.
+1. Add at least one provider in `Providers`.
+2. Add models for the provider and set route models for the modules you want to use.
+3. Fill in the target language for each module.
+4. If needed, enable Wynn NPC dialogue translation and/or quest tracking translation, and adjust the dialogue HUD position and scale.
+5. If you want supported paths to try the local dictionary first, keep the dictionary switch enabled in `Dictionary Config`.
+6. Configure the hotkeys and modes you need; if necessary, also set the tooltip and WynnCraft quest tracking cache refresh hotkeys.
 
-## Quick Start
-
-1. Add at least one provider profile in `Providers`.
-2. Add models under the provider and set route models for each module you want to use.
-3. Set module target language.
-4. If needed, enable Wynn NPC dialogue and/or tracked-quest translation and adjust the dialogue HUD position/scale.
-5. In `Dictionary Config`, keep the master switch on if you want supported flows to try local dictionary matches first.
-6. Configure hotkeys/modes where needed, including refresh-cache hotkeys for item tooltip and WynnCraft tracked quests if you want manual cache invalidation.
-7. Click **Done** to save and close.
-
-## Config and Runtime Files
+## Config and Cache Files
 
 - Main config:
   - `config/translate_allinone/translate_allinone.json`
-  - includes `dictionary.enabled`, per-slot enable fields, and selected dictionary file fields for item/skill, dialogue, and quest routing
-- Caches:
+  - contains `dictionary.enabled`, each slot's independent enable state, and `item_skill_dictionary_files` / `wynncraft_dialogue_dictionary_file` / `wynncraft_quest_dictionary_file`
+- Cache files:
   - `config/translate_allinone/item_translate_cache.json`
   - `config/translate_allinone/scoreboard_translate_cache.json`
   - `config/translate_allinone/wynncraft_dialogue_translate_cache.json`
   - `config/translate_allinone/wynncraft_quest_translate_cache.json`
-- WynnCraft local dictionaries:
+- WynnCraft local dictionary directory:
   - `config/translate_allinone/dictionary/`
-  - typically includes files such as `items.json` and `README.txt`
-- Automatic cache backups (timestamped snapshot directories):
+  - usually includes `items.json` and `README.txt`
+- Automatic cache backup directory (timestamped snapshot directories):
   - `config/translate_allinone/translate_cache_backup/`
-- Version-change safety backups:
+- Version-change safety backup directory:
   - `config/translate_allinone/translate_update_backup/`
 
 ## Build From Source
@@ -159,7 +135,7 @@ An in-game AI translation mod for Minecraft that supports chat, chat input, item
 ./gradlew build
 ```
 
-Useful commands:
+Common commands:
 
 ```bash
 ./gradlew check
@@ -168,4 +144,4 @@ Useful commands:
 
 ## License
 
-MIT. See [LICENSE](./LICENSE).
+This project is licensed under the [MIT License](./LICENSE).
