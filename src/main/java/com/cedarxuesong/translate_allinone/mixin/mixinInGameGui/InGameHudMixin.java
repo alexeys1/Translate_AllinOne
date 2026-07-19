@@ -7,8 +7,7 @@ import com.cedarxuesong.translate_allinone.utils.cache.ScoreboardTextCache;
 import com.cedarxuesong.translate_allinone.utils.cache.TranslationStatus;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ScoreboardConfig;
 import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
-import com.cedarxuesong.translate_allinone.utils.text.StylePreserver;
-import com.cedarxuesong.translate_allinone.utils.text.TemplateProcessor;
+import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardEntryTemplate;
 import com.cedarxuesong.translate_allinone.utils.translate.TranslationErrorTextSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,33 +57,41 @@ public class InGameHudMixin {
     private static final Set<String> translate_allinone$refreshedScoreboardKeysThisHold = new HashSet<>();
 
     @Unique
-    private Component translate_allinone$processTextForTranslation(Component originalText) {
-        if (originalText == null || originalText.getString().trim().isEmpty()) {
-            return originalText;
+    private Component translate_allinone$processEntryForTranslation(
+            Component prefix,
+            String playerName,
+            boolean includePlayerName,
+            Component suffix
+    ) {
+        ScoreboardEntryTemplate.Prepared prepared = ScoreboardEntryTemplate.prepare(
+                prefix,
+                playerName,
+                includePlayerName,
+                suffix
+        );
+        if (prepared == null) {
+            MutableComponent original = Component.empty().append(prefix == null ? Component.empty() : prefix);
+            if (includePlayerName) {
+                original.append(Component.literal(playerName));
+            }
+            return original.append(suffix == null ? Component.empty() : suffix);
         }
 
-        StylePreserver.ExtractionResult styleResult = StylePreserver.extractAndMark(originalText);
-        TemplateProcessor.TemplateExtractionResult templateResult = TemplateProcessor.extract(styleResult.markedText);
-        String unicodeTemplate = templateResult.template();
-        String legacyTemplateKey = StylePreserver.toLegacyTemplate(unicodeTemplate, styleResult.styleMap);
-
         ScoreboardTextCache cache = ScoreboardTextCache.getInstance();
-        LookupResult lookupResult = cache.lookupOrQueue(legacyTemplateKey);
+        LookupResult lookupResult = cache.lookupOrQueue(prepared.translationTemplateKey());
         TranslationStatus status = lookupResult.status();
         String translatedTemplate = lookupResult.translation();
 
         if (status == TranslationStatus.TRANSLATED) {
-            String reassembledTranslated = TemplateProcessor.reassemble(translatedTemplate, templateResult.values());
-            return StylePreserver.fromLegacyText(reassembledTranslated);
+            return prepared.renderTranslated(translatedTemplate);
         }
 
-        String reassembledOriginal = TemplateProcessor.reassemble(unicodeTemplate, templateResult.values());
-        Component originalTextObject = StylePreserver.reapplyStyles(reassembledOriginal, styleResult.styleMap);
+        Component originalTextObject = prepared.renderOriginal();
 
         if (status == TranslationStatus.ERROR) {
             String errorMessage = lookupResult.errorMessage();
             if (translate_allinone$isMissingKeyIssue(errorMessage)) {
-                return AnimationManager.getAnimatedStyledText(originalTextObject, legacyTemplateKey, true);
+                return AnimationManager.getAnimatedStyledText(originalTextObject, prepared.translationTemplateKey(), true);
             }
             MutableComponent errorText = Component.translatable(
                     SCOREBOARD_TRANSLATION_ERROR_KEY,
@@ -93,18 +100,7 @@ public class InGameHudMixin {
             return errorText;
         }
 
-        return AnimationManager.getAnimatedStyledText(originalTextObject, legacyTemplateKey, false);
-    }
-
-    @Unique
-    private static String translate_allinone$buildLegacyTemplateKey(Component originalText) {
-        if (originalText == null || originalText.getString().trim().isEmpty()) {
-            return "";
-        }
-
-        StylePreserver.ExtractionResult styleResult = StylePreserver.extractAndMark(originalText);
-        TemplateProcessor.TemplateExtractionResult templateResult = TemplateProcessor.extract(styleResult.markedText);
-        return StylePreserver.toLegacyTemplate(templateResult.template(), styleResult.styleMap);
+        return AnimationManager.getAnimatedStyledText(originalTextObject, prepared.translationTemplateKey(), false);
     }
 
     @Unique
@@ -133,14 +129,14 @@ public class InGameHudMixin {
                         return;
                     }
 
-                    String prefixKey = translate_allinone$buildLegacyTemplateKey(team.getPlayerPrefix());
-                    if (!prefixKey.isBlank()) {
-                        keys.add(prefixKey);
-                    }
-
-                    String suffixKey = translate_allinone$buildLegacyTemplateKey(team.getPlayerSuffix());
-                    if (!suffixKey.isBlank()) {
-                        keys.add(suffixKey);
+                    ScoreboardEntryTemplate.Prepared prepared = ScoreboardEntryTemplate.prepare(
+                            team.getPlayerPrefix(),
+                            scoreboardEntry.owner(),
+                            config.enabled_translate_player_name,
+                            team.getPlayerSuffix()
+                    );
+                    if (prepared != null && !prepared.translationTemplateKey().isBlank()) {
+                        keys.add(prepared.translationTemplateKey());
                     }
                 });
         return keys;
@@ -248,22 +244,24 @@ public class InGameHudMixin {
                         Component plainOwnerName = Component.literal(scoreboardEntry.owner());
                         String originalDecoratedNameKey = PlayerTeam.formatNameForTeam(team, plainOwnerName).getString();
 
-                        MutableComponent newName = Component.empty();
+                        Component newName;
                         if (team != null) {
-                            Component prefix = config.enabled_translate_prefix_and_suffix_name ? translate_allinone$processTextForTranslation(team.getPlayerPrefix()) : team.getPlayerPrefix();
-                            newName.append(prefix);
-
-                            if (config.enabled_translate_player_name) {
-                                newName.append(plainOwnerName);
+                            if (config.enabled_translate_prefix_and_suffix_name) {
+                                newName = translate_allinone$processEntryForTranslation(
+                                        team.getPlayerPrefix(),
+                                        scoreboardEntry.owner(),
+                                        config.enabled_translate_player_name,
+                                        team.getPlayerSuffix()
+                                );
+                            } else {
+                                MutableComponent originalName = Component.empty().append(team.getPlayerPrefix());
+                                if (config.enabled_translate_player_name) {
+                                    originalName.append(plainOwnerName);
+                                }
+                                newName = originalName.append(team.getPlayerSuffix());
                             }
-                            
-                            Component suffix = config.enabled_translate_prefix_and_suffix_name ? translate_allinone$processTextForTranslation(team.getPlayerSuffix()) : team.getPlayerSuffix();
-                            newName.append(suffix);
-
                         } else {
-                            if (config.enabled_translate_player_name) {
-                                newName.append(plainOwnerName);
-                            }
+                            newName = config.enabled_translate_player_name ? plainOwnerName : Component.empty();
                         }
                         replacements.put(originalDecoratedNameKey, newName);
                     });

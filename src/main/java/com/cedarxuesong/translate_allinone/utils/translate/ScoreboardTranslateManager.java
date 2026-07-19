@@ -273,6 +273,7 @@ public class ScoreboardTranslateManager {
                     Map<String, String> finalTranslatedMap = new java.util.HashMap<>();
                     java.util.Set<String> itemsToRequeueForColor = new java.util.HashSet<>();
                     java.util.Set<String> itemsToRequeueForEmpty = new java.util.HashSet<>();
+                    java.util.Set<String> itemsToRequeueForPlayerNamePlaceholder = new java.util.HashSet<>();
 
                     for (Map.Entry<String, String> entry : translatedMapFromAI.entrySet()) {
                         try {
@@ -283,6 +284,11 @@ public class ScoreboardTranslateManager {
 
                                 if (translatedTemplate == null || translatedTemplate.trim().isEmpty()) {
                                     itemsToRequeueForEmpty.add(originalTemplate);
+                                    continue;
+                                }
+
+                                if (!ScoreboardEntryTemplate.preservesPlayerNameToken(originalTemplate, translatedTemplate)) {
+                                    itemsToRequeueForPlayerNamePlaceholder.add(originalTemplate);
                                     continue;
                                 }
 
@@ -313,10 +319,19 @@ public class ScoreboardTranslateManager {
                         cache.requeueFailed(itemsToRequeueForEmpty, "Empty translation response");
                     }
 
+                    if (!itemsToRequeueForPlayerNamePlaceholder.isEmpty()) {
+                        Translate_AllinOne.LOGGER.warn(
+                                "Re-queueing {} scoreboard translations that changed the player-name placeholder.",
+                                itemsToRequeueForPlayerNamePlaceholder.size()
+                        );
+                        cache.requeueFailed(itemsToRequeueForPlayerNamePlaceholder, "Player name placeholder changed");
+                    }
+
                     java.util.Set<String> allOriginalTexts = new java.util.HashSet<>(originalTexts);
                     allOriginalTexts.removeAll(finalTranslatedMap.keySet());
                     allOriginalTexts.removeAll(itemsToRequeueForColor); // remove items already handled
                     allOriginalTexts.removeAll(itemsToRequeueForEmpty);
+                    allOriginalTexts.removeAll(itemsToRequeueForPlayerNamePlaceholder);
                     if (!allOriginalTexts.isEmpty()) {
                         Translate_AllinOne.LOGGER.warn("Scoreboard LLM response did not contain all original keys. Re-queueing {} missing translations.", allOriginalTexts.size());
                         cache.requeueFailed(allOriginalTexts, "LLM response missing keys");
@@ -376,9 +391,11 @@ public class ScoreboardTranslateManager {
                 + "1) Keep all keys unchanged.\n"
                 + "2) Keep key count unchanged.\n"
                 + "3) Translate values only.\n"
-                + "4) Preserve tokens exactly: §a §l §r %s %d %f {d1} URLs numbers <...> {...} \\n \\t.\n"
-                + "5) If unsure for a value, keep that value unchanged.\n"
-                + "6) No extra text outside JSON.";
+                + "4) Use natural " + targetLanguage + " game UI phrasing.\n"
+                + "5) Preserve tokens exactly: §a §l §r %s %d %f {d1} URLs numbers <...> {...} \\n \\t.\n"
+                + "6) <taio-player-name> is a player-name placeholder: preserve it exactly once, but move it when needed for natural grammar.\n"
+                + "7) If unsure for a value, keep that value unchanged.\n"
+                + "8) No extra text outside JSON.";
         String resolved = PromptMessageBuilder.applyPromptOverride("scoreboard", basePrompt, overrides, targetLanguage);
         return PromptMessageBuilder.appendSystemPromptSuffix(resolved, suffix);
     }
