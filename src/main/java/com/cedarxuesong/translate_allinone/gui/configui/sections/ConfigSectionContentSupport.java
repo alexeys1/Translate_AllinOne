@@ -13,6 +13,7 @@ import com.cedarxuesong.translate_allinone.utils.config.pojos.DebugConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.DictionaryConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.InputBindingConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
+import com.cedarxuesong.translate_allinone.utils.config.pojos.OtherTranslationsConfig;
 import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ProviderManagerConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ScoreboardConfig;
@@ -170,8 +171,6 @@ public final class ConfigSectionContentSupport {
                 toggleAdder.add(x, y, width, translator.t("label.translate_item_name"), () -> item.enabled_translate_item_custom_name, value -> item.enabled_translate_item_custom_name = value, tooltip(translator, "label.translate_item_name"));
                 y += ROW_STEP;
                 toggleAdder.add(x, y, width, translator.t("label.translate_item_lore"), () -> item.enabled_translate_item_lore, value -> item.enabled_translate_item_lore = value, tooltip(translator, "label.translate_item_lore"));
-                y += ROW_STEP;
-                toggleAdder.add(x, y, width, translator.t("label.translate_vanilla_advancements"), () -> item.enabled_translate_vanilla_advancements, value -> item.enabled_translate_vanilla_advancements = value, tooltip(translator, "label.translate_vanilla_advancements"));
                 y += ROW_STEP;
                 textFieldRowAdder.add(
                         x,
@@ -539,6 +538,58 @@ public final class ConfigSectionContentSupport {
                 routeSelectorAdder.add(config.providerManager, RouteSlot.SCOREBOARD, x, y, width);
                 addGroupBox(groupBoxAdder, translator.t("group.route"), x, width, routeStart, routeStart + ROW_STEP);
                 return routeStart + ROW_STEP;
+            }
+            case OTHER_TRANSLATIONS -> {
+                if (config.otherTranslations == null) {
+                    config.otherTranslations = new OtherTranslationsConfig();
+                }
+                OtherTranslationsConfig otherTranslations = config.otherTranslations;
+                if (otherTranslations.target_language == null || otherTranslations.target_language.isBlank()) {
+                    otherTranslations.target_language = OtherTranslationsConfig.DEFAULT_TARGET_LANGUAGE;
+                }
+
+                int basicStart = y;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.other_translations_enabled"),
+                        () -> otherTranslations.enabled,
+                        value -> otherTranslations.enabled = value,
+                        translator.t("desc.other_translations_enabled")
+                );
+                y += ROW_STEP;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.translate_vanilla_advancements"),
+                        () -> otherTranslations.enabled_translate_vanilla_advancements,
+                        value -> otherTranslations.enabled_translate_vanilla_advancements = value,
+                        tooltip(translator, "label.translate_vanilla_advancements")
+                );
+                y += ROW_STEP;
+                addGroupBox(groupBoxAdder, translator.t("group.basic"), x, width, basicStart, y);
+
+                y += GROUP_GAP;
+                int routeStart = y;
+                textFieldRowAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.target_language"),
+                        48,
+                        otherTranslations.target_language,
+                        translator.t("placeholder.target_language"),
+                        value -> otherTranslations.target_language = sanitizeLanguage(value),
+                        value -> true,
+                        true
+                );
+                y += ROW_STEP;
+                routeSelectorAdder.add(config.providerManager, RouteSlot.OTHER_TRANSLATIONS, x, y, width);
+                y += ROW_STEP;
+                addGroupBox(groupBoxAdder, translator.t("group.route"), x, width, routeStart, y);
+                return y;
             }
             case WYNNCRAFT -> {
                 WynnCraftConfig resolvedWynnCraft = config.wynnCraft;
