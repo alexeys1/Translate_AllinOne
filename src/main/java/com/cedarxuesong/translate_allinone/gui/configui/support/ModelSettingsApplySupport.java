@@ -16,6 +16,7 @@ public final class ModelSettingsApplySupport {
             String chatTemperatureDraft,
             String itemTemperatureDraft,
             String scoreboardTemperatureDraft,
+            String otherTranslationsTemperatureDraft,
             String wynntilsTaskTrackerTemperatureDraft,
             String wynnNpcDialogueTemperatureDraft,
             String keepAliveDraft,
@@ -34,11 +35,13 @@ public final class ModelSettingsApplySupport {
         Double parsedChatTemperature = ModelSettingsValueSupport.parseTemperatureInput(chatTemperatureDraft);
         Double parsedItemTemperature = ModelSettingsValueSupport.parseTemperatureInput(itemTemperatureDraft);
         Double parsedScoreboardTemperature = ModelSettingsValueSupport.parseTemperatureInput(scoreboardTemperatureDraft);
+        Double parsedOtherTranslationsTemperature = ModelSettingsValueSupport.parseTemperatureInput(otherTranslationsTemperatureDraft);
         Double parsedWynntilsTaskTrackerTemperature = ModelSettingsValueSupport.parseTemperatureInput(wynntilsTaskTrackerTemperatureDraft);
         Double parsedWynnNpcDialogueTemperature = ModelSettingsValueSupport.parseTemperatureInput(wynnNpcDialogueTemperatureDraft);
         if (parsedChatTemperature == null
                 || parsedItemTemperature == null
                 || parsedScoreboardTemperature == null
+                || parsedOtherTranslationsTemperature == null
                 || parsedWynntilsTaskTrackerTemperature == null
                 || parsedWynnNpcDialogueTemperature == null) {
             return ApplyResult.error("error.temperature_invalid", null);
@@ -56,6 +59,7 @@ public final class ModelSettingsApplySupport {
                 parsedChatTemperature,
                 parsedItemTemperature,
                 parsedScoreboardTemperature,
+                parsedOtherTranslationsTemperature,
                 parsedWynntilsTaskTrackerTemperature,
                 parsedWynnNpcDialogueTemperature,
                 ModelSettingsValueSupport.normalizeKeepAliveInput(keepAliveDraft),

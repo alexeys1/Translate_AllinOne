@@ -537,6 +537,7 @@
   "text.translate_allinone.configscreen.desc.other_translations_refresh_hotkey": "点击设置刷新其他翻译缓存的快捷键",
   "text.translate_allinone.configscreen.label.other_translations_refresh_hotkey_binding": "刷新其他翻译缓存快捷键：%s",
   "text.translate_allinone.configscreen.route.other_translations": "其他翻译",
+  "text.translate_allinone.configscreen.modal.model.temperature.other_translations": "其他翻译",
   "text.translate_allinone.configscreen.desc.other_translations_enabled": "启用此分区中的所有翻译功能",
   "text.translate_allinone.configscreen.label.other_translations_enabled": "启用其他翻译"
 }

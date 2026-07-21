@@ -306,11 +306,13 @@ public class ModConfigScreen extends Screen {
     private String modelSettingsChatTemperatureDraft = "";
     private String modelSettingsItemTemperatureDraft = "";
     private String modelSettingsScoreboardTemperatureDraft = "";
+    private String modelSettingsOtherTranslationsTemperatureDraft = "";
     private String modelSettingsWynntilsTaskTrackerTemperatureDraft = "";
     private String modelSettingsWynnNpcDialogueTemperatureDraft = "";
     private String modelSettingsChatTemperatureBackup = "";
     private String modelSettingsItemTemperatureBackup = "";
     private String modelSettingsScoreboardTemperatureBackup = "";
+    private String modelSettingsOtherTranslationsTemperatureBackup = "";
     private String modelSettingsWynntilsTaskTrackerTemperatureBackup = "";
     private String modelSettingsWynnNpcDialogueTemperatureBackup = "";
     private String modelSettingsKeepAliveDraft = "";
@@ -1169,11 +1171,13 @@ public class ModConfigScreen extends Screen {
         modelSettingsChatTemperatureDraft = draft.chatTemperatureDraft();
         modelSettingsItemTemperatureDraft = draft.itemTemperatureDraft();
         modelSettingsScoreboardTemperatureDraft = draft.scoreboardTemperatureDraft();
+        modelSettingsOtherTranslationsTemperatureDraft = draft.otherTranslationsTemperatureDraft();
         modelSettingsWynntilsTaskTrackerTemperatureDraft = draft.wynntilsTaskTrackerTemperatureDraft();
         modelSettingsWynnNpcDialogueTemperatureDraft = draft.wynnNpcDialogueTemperatureDraft();
         modelSettingsChatTemperatureBackup = modelSettingsChatTemperatureDraft;
         modelSettingsItemTemperatureBackup = modelSettingsItemTemperatureDraft;
         modelSettingsScoreboardTemperatureBackup = modelSettingsScoreboardTemperatureDraft;
+        modelSettingsOtherTranslationsTemperatureBackup = modelSettingsOtherTranslationsTemperatureDraft;
         modelSettingsWynntilsTaskTrackerTemperatureBackup = modelSettingsWynntilsTaskTrackerTemperatureDraft;
         modelSettingsWynnNpcDialogueTemperatureBackup = modelSettingsWynnNpcDialogueTemperatureDraft;
         modelSettingsKeepAliveDraft = draft.keepAliveDraft();
@@ -1205,11 +1209,13 @@ public class ModConfigScreen extends Screen {
         modelSettingsChatTemperatureDraft = empty.chatTemperatureDraft();
         modelSettingsItemTemperatureDraft = empty.itemTemperatureDraft();
         modelSettingsScoreboardTemperatureDraft = empty.scoreboardTemperatureDraft();
+        modelSettingsOtherTranslationsTemperatureDraft = empty.otherTranslationsTemperatureDraft();
         modelSettingsWynntilsTaskTrackerTemperatureDraft = empty.wynntilsTaskTrackerTemperatureDraft();
         modelSettingsWynnNpcDialogueTemperatureDraft = empty.wynnNpcDialogueTemperatureDraft();
         modelSettingsChatTemperatureBackup = "";
         modelSettingsItemTemperatureBackup = "";
         modelSettingsScoreboardTemperatureBackup = "";
+        modelSettingsOtherTranslationsTemperatureBackup = "";
         modelSettingsWynntilsTaskTrackerTemperatureBackup = "";
         modelSettingsWynnNpcDialogueTemperatureBackup = "";
         modelSettingsKeepAliveDraft = empty.keepAliveDraft();
@@ -1242,6 +1248,7 @@ public class ModConfigScreen extends Screen {
         modelSettingsChatTemperatureBackup = modelSettingsChatTemperatureDraft;
         modelSettingsItemTemperatureBackup = modelSettingsItemTemperatureDraft;
         modelSettingsScoreboardTemperatureBackup = modelSettingsScoreboardTemperatureDraft;
+        modelSettingsOtherTranslationsTemperatureBackup = modelSettingsOtherTranslationsTemperatureDraft;
         modelSettingsWynntilsTaskTrackerTemperatureBackup = modelSettingsWynntilsTaskTrackerTemperatureDraft;
         modelSettingsWynnNpcDialogueTemperatureBackup = modelSettingsWynnNpcDialogueTemperatureDraft;
     }
@@ -1251,6 +1258,7 @@ public class ModConfigScreen extends Screen {
             modelSettingsChatTemperatureDraft = modelSettingsChatTemperatureBackup;
             modelSettingsItemTemperatureDraft = modelSettingsItemTemperatureBackup;
             modelSettingsScoreboardTemperatureDraft = modelSettingsScoreboardTemperatureBackup;
+            modelSettingsOtherTranslationsTemperatureDraft = modelSettingsOtherTranslationsTemperatureBackup;
             modelSettingsWynntilsTaskTrackerTemperatureDraft = modelSettingsWynntilsTaskTrackerTemperatureBackup;
             modelSettingsWynnNpcDialogueTemperatureDraft = modelSettingsWynnNpcDialogueTemperatureBackup;
         }
@@ -1261,6 +1269,7 @@ public class ModConfigScreen extends Screen {
         if (ModelSettingsValueSupport.parseTemperatureInput(modelSettingsChatTemperatureDraft) == null
                 || ModelSettingsValueSupport.parseTemperatureInput(modelSettingsItemTemperatureDraft) == null
                 || ModelSettingsValueSupport.parseTemperatureInput(modelSettingsScoreboardTemperatureDraft) == null
+                || ModelSettingsValueSupport.parseTemperatureInput(modelSettingsOtherTranslationsTemperatureDraft) == null
                 || ModelSettingsValueSupport.parseTemperatureInput(modelSettingsWynntilsTaskTrackerTemperatureDraft) == null
                 || ModelSettingsValueSupport.parseTemperatureInput(modelSettingsWynnNpcDialogueTemperatureDraft) == null) {
             setStatus(t("error.temperature_invalid"), COLOR_STATUS_ERROR);
@@ -1359,6 +1368,7 @@ public class ModConfigScreen extends Screen {
                 modelSettingsChatTemperatureDraft,
                 modelSettingsItemTemperatureDraft,
                 modelSettingsScoreboardTemperatureDraft,
+                modelSettingsOtherTranslationsTemperatureDraft,
                 modelSettingsWynntilsTaskTrackerTemperatureDraft,
                 modelSettingsWynnNpcDialogueTemperatureDraft,
                 ModConfigScreen::t,
@@ -1368,6 +1378,7 @@ public class ModConfigScreen extends Screen {
                 value -> modelSettingsChatTemperatureDraft = ProviderProfileSupport.sanitizeText(value),
                 value -> modelSettingsItemTemperatureDraft = ProviderProfileSupport.sanitizeText(value),
                 value -> modelSettingsScoreboardTemperatureDraft = ProviderProfileSupport.sanitizeText(value),
+                value -> modelSettingsOtherTranslationsTemperatureDraft = ProviderProfileSupport.sanitizeText(value),
                 value -> modelSettingsWynntilsTaskTrackerTemperatureDraft = ProviderProfileSupport.sanitizeText(value),
                 value -> modelSettingsWynnNpcDialogueTemperatureDraft = ProviderProfileSupport.sanitizeText(value),
                 () -> {
@@ -1440,6 +1451,7 @@ public class ModConfigScreen extends Screen {
                 modelSettingsChatTemperatureDraft,
                 modelSettingsItemTemperatureDraft,
                 modelSettingsScoreboardTemperatureDraft,
+                modelSettingsOtherTranslationsTemperatureDraft,
                 modelSettingsWynntilsTaskTrackerTemperatureDraft,
                 modelSettingsWynnNpcDialogueTemperatureDraft,
                 modelSettingsKeepAliveDraft,

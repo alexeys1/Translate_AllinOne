@@ -16,6 +16,7 @@ public final class ModelTemperatureModalSupport {
             String chatTemperatureDraft,
             String itemTemperatureDraft,
             String scoreboardTemperatureDraft,
+            String otherTranslationsTemperatureDraft,
             String wynntilsTaskTrackerTemperatureDraft,
             String wynnNpcDialogueTemperatureDraft,
             ModelSettingsModalSupport.Translator translator,
@@ -24,6 +25,7 @@ public final class ModelTemperatureModalSupport {
             Consumer<String> onChatTemperatureChanged,
             Consumer<String> onItemTemperatureChanged,
             Consumer<String> onScoreboardTemperatureChanged,
+            Consumer<String> onOtherTranslationsTemperatureChanged,
             Consumer<String> onWynntilsTaskTrackerTemperatureChanged,
             Consumer<String> onWynnNpcDialogueTemperatureChanged,
             Runnable onCancel,
@@ -45,6 +47,22 @@ public final class ModelTemperatureModalSupport {
                 translator.t("modal.model.temperature.chat"),
                 chatTemperatureDraft,
                 onChatTemperatureChanged,
+                translator,
+                floatingActionBlockAdder,
+                floatingTextFieldAdder,
+                style
+        );
+        rowY += 28;
+
+        addTemperatureRow(
+                rowY,
+                rect.x + 24,
+                labelWidth,
+                fieldX,
+                fieldWidth,
+                translator.t("modal.model.temperature.other_translations"),
+                otherTranslationsTemperatureDraft,
+                onOtherTranslationsTemperatureChanged,
                 translator,
                 floatingActionBlockAdder,
                 floatingTextFieldAdder,

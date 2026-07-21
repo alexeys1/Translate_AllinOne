@@ -37,6 +37,7 @@ public final class ModelSettingsDraftSupport {
                 ModelSettingsValueSupport.formatTemperature(sourceSettings.temperatureFor(ApiProviderProfile.TemperatureScene.CHAT)),
                 ModelSettingsValueSupport.formatTemperature(sourceSettings.temperatureFor(ApiProviderProfile.TemperatureScene.ITEM)),
                 ModelSettingsValueSupport.formatTemperature(sourceSettings.temperatureFor(ApiProviderProfile.TemperatureScene.SCOREBOARD)),
+                ModelSettingsValueSupport.formatTemperature(sourceSettings.temperatureFor(ApiProviderProfile.TemperatureScene.OTHER_TRANSLATIONS)),
                 ModelSettingsValueSupport.formatTemperature(sourceSettings.temperatureFor(ApiProviderProfile.TemperatureScene.WYNNTILS_TASK_TRACKER)),
                 ModelSettingsValueSupport.formatTemperature(sourceSettings.temperatureFor(ApiProviderProfile.TemperatureScene.WYNN_NPC_DIALOGUE)),
                 ProviderProfileSupport.sanitizeText(sourceSettings.keep_alive_time),
@@ -52,6 +53,7 @@ public final class ModelSettingsDraftSupport {
 
     public static Draft empty() {
         return new Draft(
+                "",
                 "",
                 "",
                 "",
@@ -78,6 +80,7 @@ public final class ModelSettingsDraftSupport {
             String chatTemperatureDraft,
             String itemTemperatureDraft,
             String scoreboardTemperatureDraft,
+            String otherTranslationsTemperatureDraft,
             String wynntilsTaskTrackerTemperatureDraft,
             String wynnNpcDialogueTemperatureDraft,
             String keepAliveDraft,

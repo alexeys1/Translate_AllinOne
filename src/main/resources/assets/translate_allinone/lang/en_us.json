@@ -444,6 +444,7 @@
   "text.translate_allinone.configscreen.modal.model.temperature.chat": "Chat Input / Output",
   "text.translate_allinone.configscreen.modal.model.temperature.item": "Item",
   "text.translate_allinone.configscreen.modal.model.temperature.scoreboard": "Scoreboard",
+  "text.translate_allinone.configscreen.modal.model.temperature.other_translations": "Other Translations",
   "text.translate_allinone.configscreen.modal.model.temperature.wynntils_task_tracker": "Wynntils Task Tracker",
   "text.translate_allinone.configscreen.modal.model.temperature.wynn_npc_dialogue": "Wynn NPC Dialogue",
   "text.translate_allinone.configscreen.modal.model.temperature.title": "Scene Temperatures",
