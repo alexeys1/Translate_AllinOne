@@ -8,6 +8,7 @@ import com.cedarxuesong.translate_allinone.utils.config.pojos.DebugConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.DictionaryConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.InputBindingConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
+import com.cedarxuesong.translate_allinone.utils.config.pojos.OtherTranslationsConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ProviderManagerConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ScoreboardConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.WynnCraftConfig;
@@ -92,6 +93,7 @@ public class ConfigManager {
             boolean migratedLegacyItemDebugConfig = migrateLegacyItemDebugConfig(rawConfig, loadedConfig);
             boolean migratedLegacyItemWynnCompatibilityConfig = ConfigMigrationSupport.hasDeprecatedWynnItemCompatibilityConfig(rawConfig);
             boolean migratedLegacyWynnTargetLanguageConfig = migrateLegacyWynnTargetLanguageConfig(rawConfig, loadedConfig);
+            boolean migratedLegacyVanillaAdvancementConfig = migrateLegacyVanillaAdvancementConfig(rawConfig, loadedConfig);
             loadedConfig = normalizeConfig(loadedConfig);
 
             if (shouldRewriteConfig) {
@@ -101,7 +103,8 @@ public class ConfigManager {
             if (shouldRewriteConfig
                     || migratedLegacyItemDebugConfig
                     || migratedLegacyItemWynnCompatibilityConfig
-                    || migratedLegacyWynnTargetLanguageConfig) {
+                    || migratedLegacyWynnTargetLanguageConfig
+                    || migratedLegacyVanillaAdvancementConfig) {
                 writeConfigBestEffort(
                         configPath,
                         loadedConfig,
@@ -149,6 +152,9 @@ public class ConfigManager {
         }
         if (configToUse.scoreboardTranslate == null) {
             configToUse.scoreboardTranslate = new ScoreboardConfig();
+        }
+        if (configToUse.otherTranslations == null) {
+            configToUse.otherTranslations = new OtherTranslationsConfig();
         }
         if (configToUse.wynnCraft == null) {
             configToUse.wynnCraft = new WynnCraftConfig();
@@ -236,6 +242,22 @@ public class ConfigManager {
         if (configToUse.itemTranslate.keybinding.refreshBinding == null) {
             configToUse.itemTranslate.keybinding.refreshBinding = new InputBindingConfig();
         }
+        if (configToUse.otherTranslations.target_language == null || configToUse.otherTranslations.target_language.isBlank()) {
+            configToUse.otherTranslations.target_language = OtherTranslationsConfig.DEFAULT_TARGET_LANGUAGE;
+        } else {
+            configToUse.otherTranslations.target_language = configToUse.otherTranslations.target_language.trim();
+        }
+        if (configToUse.otherTranslations.keybinding == null) {
+            configToUse.otherTranslations.keybinding = new OtherTranslationsConfig.KeybindingConfig();
+        }
+        if (configToUse.otherTranslations.keybinding.binding == null) {
+            configToUse.otherTranslations.keybinding.binding = new InputBindingConfig();
+        }
+        if (configToUse.otherTranslations.keybinding.refreshBinding == null) {
+            configToUse.otherTranslations.keybinding.refreshBinding = new InputBindingConfig();
+        }
+        configToUse.otherTranslations.max_concurrent_requests = Math.max(1, configToUse.otherTranslations.max_concurrent_requests);
+        configToUse.otherTranslations.max_batch_size = Math.max(1, configToUse.otherTranslations.max_batch_size);
         if (configToUse.itemTranslate.debug == null) {
             configToUse.itemTranslate.debug = new ItemTranslateConfig.DebugConfig();
         }
@@ -379,6 +401,100 @@ public class ConfigManager {
                 legacyTrackerTargetLanguage
         );
         return legacyDialogueTargetLanguage != null || legacyTrackerTargetLanguage != null;
+    }
+
+    private static boolean migrateLegacyVanillaAdvancementConfig(JsonElement rawConfig, ModConfig loadedConfig) {
+        if (loadedConfig == null) {
+            return false;
+        }
+
+        JsonObject explicitOtherTranslationsConfig = getOtherTranslationsObject(rawConfig);
+        if (explicitOtherTranslationsConfig != null) {
+            if (!hasBooleanField(explicitOtherTranslationsConfig, "enabled")
+                    && hasBooleanField(explicitOtherTranslationsConfig, "enabled_translate_vanilla_advancements")) {
+                loadedConfig.otherTranslations.enabled = getBooleanField(
+                        explicitOtherTranslationsConfig,
+                        "enabled_translate_vanilla_advancements"
+                );
+                return true;
+            }
+            return false;
+        }
+
+        JsonObject legacyItemConfig = getItemTranslateObject(rawConfig);
+        if (!hasBooleanField(legacyItemConfig, "enabled_translate_vanilla_advancements")) {
+            return false;
+        }
+
+        if (loadedConfig.otherTranslations == null) {
+            loadedConfig.otherTranslations = new OtherTranslationsConfig();
+        }
+        boolean legacyAdvancementEnabled = getBooleanField(
+                legacyItemConfig,
+                "enabled_translate_vanilla_advancements"
+        );
+        loadedConfig.otherTranslations.enabled = legacyAdvancementEnabled;
+        loadedConfig.otherTranslations.enabled_translate_vanilla_advancements = legacyAdvancementEnabled;
+
+        String legacyTargetLanguage = getOptionalString(legacyItemConfig, "target_language");
+        if (legacyTargetLanguage != null) {
+            loadedConfig.otherTranslations.target_language = legacyTargetLanguage;
+        }
+        if (loadedConfig.itemTranslate != null) {
+            loadedConfig.otherTranslations.max_concurrent_requests = Math.max(
+                    1,
+                    loadedConfig.itemTranslate.max_concurrent_requests
+            );
+            loadedConfig.otherTranslations.max_batch_size = Math.max(1, loadedConfig.itemTranslate.max_batch_size);
+        }
+        copyLegacyItemKeybinding(loadedConfig.itemTranslate, loadedConfig.otherTranslations);
+
+        if (loadedConfig.providerManager != null
+                && loadedConfig.providerManager.routes != null
+                && (loadedConfig.providerManager.routes.other_translations == null
+                || loadedConfig.providerManager.routes.other_translations.isBlank())) {
+            loadedConfig.providerManager.routes.other_translations = loadedConfig.providerManager.routes.item;
+        }
+        return true;
+    }
+
+    private static JsonObject getOtherTranslationsObject(JsonElement rawConfig) {
+        if (rawConfig == null || !rawConfig.isJsonObject()) {
+            return null;
+        }
+        JsonElement otherTranslations = rawConfig.getAsJsonObject().get("otherTranslations");
+        return otherTranslations != null && otherTranslations.isJsonObject()
+                ? otherTranslations.getAsJsonObject()
+                : null;
+    }
+
+    private static void copyLegacyItemKeybinding(
+            ItemTranslateConfig legacyItemConfig,
+            OtherTranslationsConfig targetConfig
+    ) {
+        if (legacyItemConfig == null || legacyItemConfig.keybinding == null || targetConfig == null) {
+            return;
+        }
+
+        if (targetConfig.keybinding == null) {
+            targetConfig.keybinding = new OtherTranslationsConfig.KeybindingConfig();
+        }
+        ItemTranslateConfig.KeybindingMode legacyMode = legacyItemConfig.keybinding.mode;
+        targetConfig.keybinding.mode = legacyMode == null
+                ? OtherTranslationsConfig.KeybindingMode.DISABLED
+                : OtherTranslationsConfig.KeybindingMode.valueOf(legacyMode.name());
+        targetConfig.keybinding.binding = copyBinding(legacyItemConfig.keybinding.binding);
+        targetConfig.keybinding.refreshBinding = copyBinding(legacyItemConfig.keybinding.refreshBinding);
+    }
+
+    private static InputBindingConfig copyBinding(InputBindingConfig source) {
+        InputBindingConfig copy = new InputBindingConfig();
+        if (source == null) {
+            return copy;
+        }
+        copy.type = source.type == null ? InputBindingConfig.InputType.KEYSYM : source.type;
+        copy.code = source.code;
+        return copy;
     }
 
     private static boolean hasExplicitItemDebugEnabled(JsonElement rawConfig) {
