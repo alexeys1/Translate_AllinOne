@@ -14,6 +14,7 @@ public final class ProviderRouteResolver {
     public enum Route {
         ITEM,
         SCOREBOARD,
+        OTHER_TRANSLATIONS,
         WYNNCRAFT,
         WYNN_NPC_DIALOGUE,
         WYNNTILS_TASK_TRACKER,
@@ -32,6 +33,7 @@ public final class ProviderRouteResolver {
         String routeKey = switch (route) {
             case ITEM -> manager.routes.item;
             case SCOREBOARD -> manager.routes.scoreboard;
+            case OTHER_TRANSLATIONS -> manager.routes.other_translations;
             case WYNNCRAFT -> resolveWynncraftRouteKey(manager.routes.wynncraft, "", "");
             case WYNN_NPC_DIALOGUE -> resolveWynncraftRouteKey(manager.routes.wynncraft, manager.routes.wynn_npc_dialogue, "");
             case WYNNTILS_TASK_TRACKER -> resolveWynncraftRouteKey(manager.routes.wynncraft, manager.routes.wynntils_task_tracker, "");
@@ -100,6 +102,7 @@ public final class ProviderRouteResolver {
         modelCopy.chat_temperature = selectedTemperature;
         modelCopy.item_temperature = modelSettings.temperatureFor(ApiProviderProfile.TemperatureScene.ITEM);
         modelCopy.scoreboard_temperature = modelSettings.temperatureFor(ApiProviderProfile.TemperatureScene.SCOREBOARD);
+        modelCopy.other_translations_temperature = modelSettings.temperatureFor(ApiProviderProfile.TemperatureScene.OTHER_TRANSLATIONS);
         modelCopy.wynntils_task_tracker_temperature = modelSettings.temperatureFor(ApiProviderProfile.TemperatureScene.WYNNTILS_TASK_TRACKER);
         modelCopy.wynn_npc_dialogue_temperature = modelSettings.temperatureFor(ApiProviderProfile.TemperatureScene.WYNN_NPC_DIALOGUE);
         modelCopy.keep_alive_time = modelSettings.keep_alive_time;
@@ -115,6 +118,7 @@ public final class ProviderRouteResolver {
         snapshot.chat_temperature = modelCopy.chat_temperature;
         snapshot.item_temperature = modelCopy.item_temperature;
         snapshot.scoreboard_temperature = modelCopy.scoreboard_temperature;
+        snapshot.other_translations_temperature = modelCopy.other_translations_temperature;
         snapshot.wynntils_task_tracker_temperature = modelCopy.wynntils_task_tracker_temperature;
         snapshot.wynn_npc_dialogue_temperature = modelCopy.wynn_npc_dialogue_temperature;
         snapshot.keep_alive_time = modelCopy.keep_alive_time;
@@ -133,6 +137,7 @@ public final class ProviderRouteResolver {
         return switch (route) {
             case ITEM -> ApiProviderProfile.TemperatureScene.ITEM;
             case SCOREBOARD -> ApiProviderProfile.TemperatureScene.SCOREBOARD;
+            case OTHER_TRANSLATIONS -> ApiProviderProfile.TemperatureScene.OTHER_TRANSLATIONS;
             case WYNNCRAFT, WYNN_NPC_DIALOGUE -> ApiProviderProfile.TemperatureScene.WYNN_NPC_DIALOGUE;
             case WYNNTILS_TASK_TRACKER -> ApiProviderProfile.TemperatureScene.WYNNTILS_TASK_TRACKER;
             case CHAT_INPUT, CHAT_OUTPUT -> ApiProviderProfile.TemperatureScene.CHAT;
