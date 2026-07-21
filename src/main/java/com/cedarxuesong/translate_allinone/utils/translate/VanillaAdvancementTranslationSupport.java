@@ -3,11 +3,11 @@ package com.cedarxuesong.translate_allinone.utils.translate;
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.utils.AnimationManager;
 import com.cedarxuesong.translate_allinone.utils.cache.CacheStats;
-import com.cedarxuesong.translate_allinone.utils.cache.ItemTemplateCache;
+import com.cedarxuesong.translate_allinone.utils.cache.OtherTranslationsTextCache;
 import com.cedarxuesong.translate_allinone.utils.cache.LookupResult;
 import com.cedarxuesong.translate_allinone.utils.cache.TranslationStatus;
 import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
-import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
+import com.cedarxuesong.translate_allinone.utils.config.pojos.OtherTranslationsConfig;
 import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
 import com.cedarxuesong.translate_allinone.utils.text.StylePreserver;
 import com.cedarxuesong.translate_allinone.utils.text.TemplateProcessor;
@@ -77,11 +77,11 @@ public final class VanillaAdvancementTranslationSupport {
         hoveredTexts.add(styledDescription);
         Set<String> translationTemplateKeys = collectTranslationTemplateKeys(holder, hoveredTexts);
 
-        maybeForceRefreshAdvancementKeys(currentItemConfig(), translationTemplateKeys);
+        maybeForceRefreshAdvancementKeys(currentOtherTranslationsConfig(), translationTemplateKeys);
         boolean showRefreshNotice = shouldShowRefreshNotice(translationTemplateKeys);
         Component translatedTitle = translateComponent(holder, originalTitle, "title", true, false);
         Component translatedDescription = translateComponent(holder, styledDescription, "description", true, false);
-        HoveredAdvancementStatus status = buildHoveredAdvancementStatus(currentItemConfig(), translationTemplateKeys);
+        HoveredAdvancementStatus status = buildHoveredAdvancementStatus(currentOtherTranslationsConfig(), translationTemplateKeys);
         return new HoveredAdvancementText(
                 translatedTitle,
                 translatedDescription,
@@ -136,7 +136,7 @@ public final class VanillaAdvancementTranslationSupport {
             return originalText;
         }
 
-        ItemTranslateConfig config = currentItemConfig();
+        OtherTranslationsConfig config = currentOtherTranslationsConfig();
         if (!isAdvancementTranslationFeatureEnabled(config)) {
             return originalText;
         }
@@ -158,8 +158,8 @@ public final class VanillaAdvancementTranslationSupport {
             }
 
             LookupResult lookupResult = queueIfMissing
-                    ? ItemTemplateCache.getInstance().lookupOrQueue(translationTemplateKey)
-                    : ItemTemplateCache.getInstance().peek(translationTemplateKey);
+                    ? OtherTranslationsTextCache.getInstance().lookupOrQueue(translationTemplateKey)
+                    : OtherTranslationsTextCache.getInstance().peek(translationTemplateKey);
             TranslationStatus status = lookupResult.status();
             if (status == TranslationStatus.TRANSLATED) {
                 String translatedTemplate = lookupResult.translation();
@@ -186,7 +186,7 @@ public final class VanillaAdvancementTranslationSupport {
         return originalText;
     }
 
-    private static void maybeForceRefreshAdvancementKeys(ItemTranslateConfig config, Set<String> translationTemplateKeys) {
+    private static void maybeForceRefreshAdvancementKeys(OtherTranslationsConfig config, Set<String> translationTemplateKeys) {
         if (!isAdvancementTranslationFeatureEnabled(config)
                 || translationTemplateKeys == null
                 || translationTemplateKeys.isEmpty()) {
@@ -217,7 +217,7 @@ public final class VanillaAdvancementTranslationSupport {
             return;
         }
 
-        int refreshedCount = ItemTemplateCache.getInstance().forceRefresh(keysToRefresh);
+        int refreshedCount = OtherTranslationsTextCache.getInstance().forceRefresh(keysToRefresh);
         if (refreshedCount > 0) {
             TooltipTemplateRuntime.registerForceRefreshCompatBypass(keysToRefresh);
             refreshNoticeAdvancementSignature = computeTranslationTemplateKeysSignature(translationTemplateKeys);
@@ -278,7 +278,7 @@ public final class VanillaAdvancementTranslationSupport {
     }
 
     private static HoveredAdvancementStatus buildHoveredAdvancementStatus(
-            ItemTranslateConfig config,
+            OtherTranslationsConfig config,
             Set<String> translationTemplateKeys
     ) {
         if (!shouldRenderTranslatedAdvancement(config)
@@ -287,7 +287,7 @@ public final class VanillaAdvancementTranslationSupport {
             return new HoveredAdvancementStatus(null, null);
         }
 
-        ItemTemplateCache cache = ItemTemplateCache.getInstance();
+        OtherTranslationsTextCache cache = OtherTranslationsTextCache.getInstance();
         boolean pending = false;
         boolean missingKeyIssue = false;
         String errorMessage = "";
@@ -340,7 +340,7 @@ public final class VanillaAdvancementTranslationSupport {
             return Set.of();
         }
 
-        ItemTranslateConfig config = currentItemConfig();
+        OtherTranslationsConfig config = currentOtherTranslationsConfig();
         if (!isAdvancementTranslationFeatureEnabled(config)) {
             return Set.of();
         }
@@ -382,25 +382,29 @@ public final class VanillaAdvancementTranslationSupport {
         return originalDescription;
     }
 
-    private static boolean isAdvancementTranslationFeatureEnabled(ItemTranslateConfig config) {
-        return config != null && config.enabled_translate_vanilla_advancements;
+    private static boolean isAdvancementTranslationFeatureEnabled(OtherTranslationsConfig config) {
+        return config != null && config.enabled && config.enabled_translate_vanilla_advancements;
     }
 
-    private static ItemTranslateConfig currentItemConfig() {
+    private static OtherTranslationsConfig currentOtherTranslationsConfig() {
         ModConfig config = Translate_AllinOne.getConfig();
-        return config == null ? null : config.itemTranslate;
+        return config == null ? null : config.otherTranslations;
     }
 
-    private static boolean shouldRenderTranslatedAdvancement(ItemTranslateConfig config) {
-        if (config == null || !config.enabled_translate_vanilla_advancements) {
+    private static boolean shouldRenderTranslatedAdvancement(OtherTranslationsConfig config) {
+        if (!isAdvancementTranslationFeatureEnabled(config)) {
             return false;
         }
 
-        ItemTranslateConfig.KeybindingMode mode = config.keybinding == null || config.keybinding.mode == null
-                ? ItemTranslateConfig.KeybindingMode.DISABLED
+        OtherTranslationsConfig.KeybindingMode mode = config.keybinding == null || config.keybinding.mode == null
+                ? OtherTranslationsConfig.KeybindingMode.DISABLED
                 : config.keybinding.mode;
         boolean keyPressed = config.keybinding != null
                 && KeybindingManager.isPressed(config.keybinding.binding);
-        return !TooltipTranslationSupport.shouldShowOriginal(mode, keyPressed);
+        return switch (mode) {
+            case HOLD_TO_TRANSLATE -> keyPressed;
+            case HOLD_TO_SEE_ORIGINAL -> !keyPressed;
+            case DISABLED -> true;
+        };
     }
 }

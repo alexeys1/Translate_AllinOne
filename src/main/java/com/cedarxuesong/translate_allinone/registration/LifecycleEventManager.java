@@ -4,8 +4,10 @@ import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.utils.cache.ScoreboardTextCache;
 import com.cedarxuesong.translate_allinone.utils.cache.WynnDialogueTextCache;
 import com.cedarxuesong.translate_allinone.utils.cache.ItemTemplateCache;
+import com.cedarxuesong.translate_allinone.utils.cache.OtherTranslationsTextCache;
 import com.cedarxuesong.translate_allinone.utils.cache.WynntilsTaskTrackerTextCache;
 import com.cedarxuesong.translate_allinone.utils.translate.ItemTranslateManager;
+import com.cedarxuesong.translate_allinone.utils.translate.AdvancementTranslateManager;
 import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardTranslateManager;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTextDebugCopySupport;
 import com.cedarxuesong.translate_allinone.utils.translate.WynnDialogueTranslateManager;
@@ -86,6 +88,7 @@ public class LifecycleEventManager {
 
     private static void stopTranslationManagers() {
         ItemTranslateManager.getInstance().stop();
+        AdvancementTranslateManager.getInstance().stop();
         ScoreboardTranslateManager.getInstance().stop();
         WynnDialogueTranslateManager.getInstance().stop();
         WynntilsTaskTrackerTranslateManager.getInstance().stop();
@@ -95,6 +98,8 @@ public class LifecycleEventManager {
     private static void loadCachesAndStartTranslationManagers() {
         ItemTemplateCache.getInstance().load();
         ItemTranslateManager.getInstance().start();
+        OtherTranslationsTextCache.getInstance().load();
+        AdvancementTranslateManager.getInstance().start();
         ScoreboardTextCache.getInstance().load();
         ScoreboardTranslateManager.getInstance().start();
         WynnDialogueTextCache.getInstance().load();
@@ -105,6 +110,7 @@ public class LifecycleEventManager {
 
     private static void saveCaches() {
         ItemTemplateCache.getInstance().save();
+        OtherTranslationsTextCache.getInstance().save();
         ScoreboardTextCache.getInstance().save();
         WynnDialogueTextCache.getInstance().save();
         WynntilsTaskTrackerTextCache.getInstance().save();
