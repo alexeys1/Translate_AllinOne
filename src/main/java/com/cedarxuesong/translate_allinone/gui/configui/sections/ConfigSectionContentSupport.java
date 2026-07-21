@@ -544,6 +544,18 @@ public final class ConfigSectionContentSupport {
                     config.otherTranslations = new OtherTranslationsConfig();
                 }
                 OtherTranslationsConfig otherTranslations = config.otherTranslations;
+                if (otherTranslations.keybinding == null) {
+                    otherTranslations.keybinding = new OtherTranslationsConfig.KeybindingConfig();
+                }
+                if (otherTranslations.keybinding.binding == null) {
+                    otherTranslations.keybinding.binding = new InputBindingConfig();
+                }
+                if (otherTranslations.keybinding.refreshBinding == null) {
+                    otherTranslations.keybinding.refreshBinding = new InputBindingConfig();
+                }
+                if (otherTranslations.keybinding.mode == null) {
+                    otherTranslations.keybinding.mode = OtherTranslationsConfig.KeybindingMode.DISABLED;
+                }
                 if (otherTranslations.target_language == null || otherTranslations.target_language.isBlank()) {
                     otherTranslations.target_language = OtherTranslationsConfig.DEFAULT_TARGET_LANGUAGE;
                 }
@@ -570,6 +582,46 @@ public final class ConfigSectionContentSupport {
                 );
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.basic"), x, width, basicStart, y);
+
+                y += GROUP_GAP;
+                int hotkeyStart = y;
+                actionAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.hotkey_mode", modeText(translator, otherTranslations.keybinding.mode.name())),
+                        () -> hotkeyCycleMode.handle(HotkeyTarget.OTHER_TRANSLATIONS),
+                        translator.t("desc.other_translations_hotkey_mode")
+                );
+                y += ROW_STEP;
+                actionAdder.add(
+                        x,
+                        y,
+                        width,
+                        bindingLabelProvider.label(HotkeyTarget.OTHER_TRANSLATIONS, otherTranslations.keybinding.binding),
+                        () -> hotkeyStartBinding.handle(HotkeyTarget.OTHER_TRANSLATIONS),
+                        translator.t("desc.other_translations_hotkey")
+                );
+                y += ROW_STEP;
+                actionAdder.add(
+                        x,
+                        y,
+                        width,
+                        bindingLabelProvider.label(HotkeyTarget.OTHER_TRANSLATIONS_REFRESH, otherTranslations.keybinding.refreshBinding),
+                        () -> hotkeyStartBinding.handle(HotkeyTarget.OTHER_TRANSLATIONS_REFRESH),
+                        translator.t("desc.other_translations_refresh_hotkey")
+                );
+                y += ROW_STEP;
+                actionAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("button.hotkey_clear"),
+                        () -> hotkeyClearBinding.handle(HotkeyTarget.OTHER_TRANSLATIONS),
+                        tooltip(translator, "button.hotkey_clear")
+                );
+                y += ROW_STEP;
+                addGroupBox(groupBoxAdder, translator.t("group.hotkey"), x, width, hotkeyStart, y);
 
                 y += GROUP_GAP;
                 int routeStart = y;
@@ -1205,6 +1257,8 @@ public final class ConfigSectionContentSupport {
         ITEM_REFRESH,
         SCOREBOARD,
         SCOREBOARD_REFRESH,
+        OTHER_TRANSLATIONS,
+        OTHER_TRANSLATIONS_REFRESH,
         WYNNTILS_TASK_TRACKER,
         WYNNTILS_TASK_TRACKER_REFRESH
     }
