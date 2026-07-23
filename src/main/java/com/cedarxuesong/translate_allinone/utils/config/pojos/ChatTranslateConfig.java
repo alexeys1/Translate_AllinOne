@@ -20,6 +20,8 @@ public class ChatTranslateConfig {
             public boolean log_intercepted_message = false;
             public boolean log_llm_submission = false;
             public boolean log_reflow_mapping = false;
+            public boolean log_component_v1_flow = false;
+            public boolean log_session_lifecycle = false;
         }
     }
 
