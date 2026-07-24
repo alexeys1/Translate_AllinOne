@@ -8,6 +8,7 @@ import com.cedarxuesong.translate_allinone.utils.cache.OtherTranslationsTextCach
 import com.cedarxuesong.translate_allinone.utils.cache.WynntilsTaskTrackerTextCache;
 import com.cedarxuesong.translate_allinone.utils.translate.ItemTranslateManager;
 import com.cedarxuesong.translate_allinone.utils.translate.AdvancementTranslateManager;
+import com.cedarxuesong.translate_allinone.utils.translate.ChatOutputTranslateManager;
 import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardTranslateManager;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTextDebugCopySupport;
 import com.cedarxuesong.translate_allinone.utils.translate.WynnDialogueTranslateManager;
@@ -45,6 +46,7 @@ public class LifecycleEventManager {
     private static void registerJoinHandler() {
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             resetReadinessState();
+            ChatOutputTranslateManager.resetSession();
             awaitingReadinessCheck = true;
             LOGGER.info("Player joining world, awaiting client readiness for translation...");
 
@@ -80,6 +82,7 @@ public class LifecycleEventManager {
     private static void registerDisconnectHandler() {
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             resetReadinessState();
+            ChatOutputTranslateManager.resetSession();
             LOGGER.info("Player has disconnected. Translation readiness reset.");
             stopTranslationManagers();
             saveCaches();

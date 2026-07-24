@@ -69,6 +69,11 @@ public class MessageUtils {
         }
     }
 
+    public static void clearTrackedMessages() {
+        MESSAGES_BY_UUID.clear();
+        INSERTION_ORDER.clear();
+    }
+
     private static void trimIfNeeded() {
         while (MESSAGES_BY_UUID.size() > MAX_TRACKED_MESSAGES) {
             UUID oldestId = INSERTION_ORDER.poll();
