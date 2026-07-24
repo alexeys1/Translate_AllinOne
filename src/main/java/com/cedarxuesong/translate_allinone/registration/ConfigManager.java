@@ -227,6 +227,16 @@ public class ConfigManager {
         if (configToUse.chatTranslate.output.debug == null) {
             configToUse.chatTranslate.output.debug = new ChatTranslateConfig.ChatOutputTranslateConfig.DebugConfig();
         }
+        if (configToUse.chatTranslate.output.target_language == null
+                || configToUse.chatTranslate.output.target_language.isBlank()) {
+            configToUse.chatTranslate.output.target_language = "Chinese";
+        } else {
+            configToUse.chatTranslate.output.target_language = configToUse.chatTranslate.output.target_language.trim();
+        }
+        configToUse.chatTranslate.output.max_concurrent_requests = Math.max(
+                1,
+                configToUse.chatTranslate.output.max_concurrent_requests
+        );
         if (configToUse.chatTranslate.input.keybinding == null) {
             configToUse.chatTranslate.input.keybinding = new InputBindingConfig();
         }

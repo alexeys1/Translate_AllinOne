@@ -9,6 +9,7 @@ public class ChatTranslateConfig {
     public static class ChatOutputTranslateConfig {
         public boolean enabled = false;
         public boolean auto_translate = false;
+        public boolean component_json_v1 = false;
         public String target_language = "Chinese";
         public boolean streaming_response = false;
         public int max_concurrent_requests = 1;

@@ -76,6 +76,16 @@ public final class ConfigSectionContentSupport {
                 y += ROW_STEP;
                 toggleAdder.add(x, y, width, translator.t("label.auto_translate"), () -> output.auto_translate, value -> output.auto_translate = value, tooltip(translator, "label.auto_translate"));
                 y += ROW_STEP;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.chat_output_component_json_v1"),
+                        () -> output.component_json_v1,
+                        value -> output.component_json_v1 = value,
+                        translator.t("desc.chat_output_component_json_v1")
+                );
+                y += ROW_STEP;
                 toggleAdder.add(x, y, width, translator.t("label.streaming"), () -> output.streaming_response, value -> output.streaming_response = value, translator.t("desc.chat_output_streaming"));
                 y += ROW_STEP;
                 textFieldRowAdder.add(

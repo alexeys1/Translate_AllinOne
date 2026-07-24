@@ -194,6 +194,8 @@
   "text.translate_allinone.configscreen.label.chat_output_dev_log_session_lifecycle": "记录聊天会话生命周期",
   "text.translate_allinone.configscreen.desc.chat_output_dev_log_session_lifecycle": "记录聊天翻译 generation、活动行和过期回调丢弃",
   "text.translate_allinone.configscreen.desc.chat_output_enabled": "启用接收聊天消息的翻译功能",
+  "text.translate_allinone.configscreen.label.chat_output_component_json_v1": "[WIP]组件 JSON V1",
+  "text.translate_allinone.configscreen.desc.chat_output_component_json_v1": "使用默认关闭且保留组件结构的翻译协议",
   "text.translate_allinone.configscreen.desc.chat_output_streaming": "以流式方式接收翻译后的聊天消息",
   "text.translate_allinone.configscreen.button.clear_selection": "清空选择",
   "text.translate_allinone.configscreen.button.close_without_saving": "不保存关闭",

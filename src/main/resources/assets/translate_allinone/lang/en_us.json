@@ -194,6 +194,8 @@
   "text.translate_allinone.configscreen.label.chat_output_dev_log_session_lifecycle": "Log Chat Session Lifecycle",
   "text.translate_allinone.configscreen.desc.chat_output_dev_log_session_lifecycle": "Log chat translation generations, active lines, and stale callback rejection",
   "text.translate_allinone.configscreen.desc.chat_output_enabled": "Enable translation of incoming chat messages",
+  "text.translate_allinone.configscreen.label.chat_output_component_json_v1": "[WIP]Component JSON V1",
+  "text.translate_allinone.configscreen.desc.chat_output_component_json_v1": "Use the opt-in structure-preserving component translation protocol",
   "text.translate_allinone.configscreen.desc.chat_output_streaming": "Receive translated chat messages in a streaming fashion",
   "text.translate_allinone.configscreen.button.clear_selection": "CLEAR SELECTION",
   "text.translate_allinone.configscreen.button.close_without_saving": "DISCARD & CLOSE",
