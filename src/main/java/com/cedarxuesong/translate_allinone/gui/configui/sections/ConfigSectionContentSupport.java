@@ -7,6 +7,7 @@ import com.cedarxuesong.translate_allinone.utils.cache.ItemTemplateCache;
 import com.cedarxuesong.translate_allinone.utils.cache.ScoreboardTextCache;
 import com.cedarxuesong.translate_allinone.utils.cache.WynnDialogueTextCache;
 import com.cedarxuesong.translate_allinone.utils.cache.WynntilsTaskTrackerTextCache;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationDebugLogger;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ChatTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.CacheBackupConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.DebugConfig;
@@ -245,6 +246,7 @@ public final class ConfigSectionContentSupport {
                     config.debug = new DebugConfig();
                 }
                 DebugConfig debug = config.debug;
+                ComponentTranslationDebugLogger.refresh(config);
                 ChatTranslateConfig.ChatOutputTranslateConfig output = config.chatTranslate.output;
                 if (output.debug == null) {
                     output.debug = new ChatTranslateConfig.ChatOutputTranslateConfig.DebugConfig();
@@ -325,11 +327,47 @@ public final class ConfigSectionContentSupport {
                         value -> output.debug.log_reflow_mapping = value
                 , tooltip(translator, "label.chat_output_dev_log_reflow_mapping"));
                 y += ROW_STEP;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.chat_output_dev_log_component_v1_flow"),
+                        () -> output.debug.log_component_v1_flow,
+                        value -> output.debug.log_component_v1_flow = value
+                , tooltip(translator, "label.chat_output_dev_log_component_v1_flow"));
+                y += ROW_STEP;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.chat_output_dev_log_session_lifecycle"),
+                        () -> output.debug.log_session_lifecycle,
+                        value -> output.debug.log_session_lifecycle = value
+                , tooltip(translator, "label.chat_output_dev_log_session_lifecycle"));
+                y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.chat_output_debug"), x, width, chatOutputDebugStart, y);
 
                 y += GROUP_GAP;
                 int itemDebugStart = y;
                 toggleAdder.add(x, y, width, translator.t("label.item_dev_enabled"), () -> item.debug.enabled, value -> item.debug.enabled = value, tooltip(translator, "label.item_dev_enabled"));
+                y += ROW_STEP;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.item_dev_log_component_v1_flow"),
+                        () -> item.debug.log_component_v1_flow,
+                        value -> item.debug.log_component_v1_flow = value
+                , tooltip(translator, "label.item_dev_log_component_v1_flow"));
+                y += ROW_STEP;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.item_dev_log_component_v1_timing"),
+                        () -> item.debug.log_component_v1_timing,
+                        value -> item.debug.log_component_v1_timing = value
+                , tooltip(translator, "label.item_dev_log_component_v1_timing"));
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
