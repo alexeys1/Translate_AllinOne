@@ -76,16 +76,6 @@ public final class ConfigSectionContentSupport {
                 y += ROW_STEP;
                 toggleAdder.add(x, y, width, translator.t("label.auto_translate"), () -> output.auto_translate, value -> output.auto_translate = value, tooltip(translator, "label.auto_translate"));
                 y += ROW_STEP;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.chat_output_component_json_v1"),
-                        () -> output.component_json_v1,
-                        value -> output.component_json_v1 = value,
-                        translator.t("desc.chat_output_component_json_v1")
-                );
-                y += ROW_STEP;
                 toggleAdder.add(x, y, width, translator.t("label.streaming"), () -> output.streaming_response, value -> output.streaming_response = value, translator.t("desc.chat_output_streaming"));
                 y += ROW_STEP;
                 textFieldRowAdder.add(
@@ -336,24 +326,6 @@ public final class ConfigSectionContentSupport {
                         () -> output.debug.log_reflow_mapping,
                         value -> output.debug.log_reflow_mapping = value
                 , tooltip(translator, "label.chat_output_dev_log_reflow_mapping"));
-                y += ROW_STEP;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.chat_output_dev_log_component_v1_flow"),
-                        () -> output.debug.log_component_v1_flow,
-                        value -> output.debug.log_component_v1_flow = value
-                , tooltip(translator, "label.chat_output_dev_log_component_v1_flow"));
-                y += ROW_STEP;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.chat_output_dev_log_session_lifecycle"),
-                        () -> output.debug.log_session_lifecycle,
-                        value -> output.debug.log_session_lifecycle = value
-                , tooltip(translator, "label.chat_output_dev_log_session_lifecycle"));
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.chat_output_debug"), x, width, chatOutputDebugStart, y);
 

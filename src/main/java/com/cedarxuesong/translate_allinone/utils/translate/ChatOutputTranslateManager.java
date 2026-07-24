@@ -5,14 +5,6 @@ import com.cedarxuesong.translate_allinone.mixin.mixinChatHud.ChatHudAccessor;
 import com.cedarxuesong.translate_allinone.utils.TranslateStringUtils;
 import com.cedarxuesong.translate_allinone.utils.AnimationManager;
 import com.cedarxuesong.translate_allinone.utils.MessageUtils;
-import com.cedarxuesong.translate_allinone.utils.TranslateExceptionUtils;
-import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentDocumentBuilder;
-import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentJsonException;
-import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationClient;
-import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationDebugLogger;
-import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationDocument;
-import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationMetrics;
-import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRoute;
 import com.cedarxuesong.translate_allinone.utils.config.ProviderRouteResolver;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ChatTranslateConfig;
@@ -36,7 +28,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -54,9 +45,8 @@ public class ChatOutputTranslateManager {
     private static final Logger LOGGER = LoggerFactory.getLogger(ChatOutputTranslateManager.class);
     private static final String CHAT_TRANSLATE_ACTION = "translate";
     private static final String CHAT_RESTORE_ACTION = "restore";
-    private static final Map<UUID, ActiveTranslationLine> activeTranslationLines = new ConcurrentHashMap<>();
+    private static final Map<UUID, GuiMessage> activeTranslationLines = new ConcurrentHashMap<>();
     private static final Map<UUID, Integer> lineLocateRetryCounts = new ConcurrentHashMap<>();
-    private static final AtomicLong sessionGeneration = new AtomicLong();
     private static ExecutorService translationExecutor;
     private static int currentConcurrentRequests = -1;
     private static final int MAX_LINE_LOCATE_RETRIES = 4;
@@ -81,8 +71,7 @@ public class ChatOutputTranslateManager {
             return;
         }
 
-        ComponentTranslationDebugLogger.throttled(
-                "chat-intercept",
+        LOGGER.info(
                 "[ChatOutputDev:intercept] messageId={} autoTranslate={} rawText=\"{}\" plainText=\"{}\" segments={}",
                 messageId,
                 autoTranslate,
@@ -109,39 +98,10 @@ public class ChatOutputTranslateManager {
         }
     }
 
-    public static void resetSession() {
-        long generation = sessionGeneration.incrementAndGet();
-        int clearedActiveLines = activeTranslationLines.size();
-        int clearedLocateRetries = lineLocateRetryCounts.size();
-        activeTranslationLines.clear();
-        lineLocateRetryCounts.clear();
-        MessageUtils.clearTrackedMessages();
-        logSessionLifecycle(
-                "reset",
-                null,
-                generation,
-                "clearedActiveLines=" + clearedActiveLines + ",clearedLocateRetries=" + clearedLocateRetries
-        );
-    }
-
     public static void translate(UUID messageId, Component originalMessage) {
-        translate(messageId, originalMessage, sessionGeneration.get());
-    }
-
-    private static void translate(UUID messageId, Component originalMessage, long expectedGeneration) {
-        if (expectedGeneration != sessionGeneration.get() || messageId == null || originalMessage == null) {
-            logSessionLifecycle(
-                    "translate_rejected",
-                    messageId,
-                    expectedGeneration,
-                    "reason=stale_generation_or_invalid_input"
-            );
-            return;
-        }
         if (activeTranslationLines.containsKey(messageId)) {
             lineLocateRetryCounts.remove(messageId);
-            logSessionLifecycle("translate_deduplicated", messageId, expectedGeneration, "reason=active_line_exists");
-            return;
+            return; // Already being translated
         }
 
         Minecraft client = Minecraft.getInstance();
@@ -151,7 +111,7 @@ public class ChatOutputTranslateManager {
         LineSearchResult searchResult = findTargetLine(messages, originalMessage);
 
         if (searchResult == null) {
-            if (scheduleLineLocateRetry(messageId, originalMessage, expectedGeneration)) {
+            if (scheduleLineLocateRetry(messageId, originalMessage)) {
                 return;
             }
             LOGGER.error("Could not find chat line to update for messageId: {} after {} retries", messageId, MAX_LINE_LOCATE_RETRIES);
@@ -173,23 +133,13 @@ public class ChatOutputTranslateManager {
         );
         if (providerProfile == null) {
             LOGGER.warn("No routed model selected for chat output translation; showing temporary error for messageId={}", messageId);
-            showTemporaryRouteError(messageId, chatHudAccessor, messages, lineIndex, targetLine, expectedGeneration);
+            showTemporaryRouteError(messageId, chatHudAccessor, messages, lineIndex, targetLine);
             lineLocateRetryCounts.remove(messageId);
             return;
         }
 
         boolean isAutoTranslate = chatOutputConfig.auto_translate;
         boolean isStreaming = chatOutputConfig.streaming_response;
-        if (chatOutputConfig.component_json_v1) {
-            logComponentV1Flow(
-                    messageId,
-                    "selected",
-                    expectedGeneration,
-                    providerProfile,
-                    -1,
-                    "auto=" + isAutoTranslate + ",streamingRequested=" + isStreaming
-            );
-        }
         Component placeholderText;
 
         if (isStreaming) {
@@ -219,190 +169,97 @@ public class ChatOutputTranslateManager {
         GuiMessage newLine = new GuiMessage(targetLine.addedTime(), placeholderText, targetLine.signature(), targetLine.source(), targetLine.tag());
         int scrolledLines = chatHudAccessor.getScrolledLines();
         messages.set(lineIndex, newLine);
-        activeTranslationLines.put(messageId, new ActiveTranslationLine(newLine, expectedGeneration));
-        logSessionLifecycle("active_line_registered", messageId, expectedGeneration, "lineIndex=" + lineIndex);
+        activeTranslationLines.put(messageId, newLine);
         chatHudAccessor.invokeRefresh();
         chatHudAccessor.setScrolledLines(scrolledLines);
 
+        final int finalLineIndex = lineIndex;
         translationExecutor.submit(() -> {
-            if (expectedGeneration != sessionGeneration.get()) {
-                ComponentTranslationMetrics.record(ComponentTranslationRoute.CHAT_OUTPUT, ComponentTranslationMetrics.Outcome.STALE_SESSION);
-                logSessionLifecycle("worker_discarded", messageId, expectedGeneration, "reason=stale_generation");
-                return;
-            }
-            if (!chatOutputConfig.component_json_v1) {
-                translateLegacy(messageId, originalMessage, providerProfile, chatOutputConfig, expectedGeneration);
-                return;
-            }
-
-            ComponentTranslationDocument document;
+            String requestContext = "route=chat_output,messageId=" + messageId;
             try {
-                document = new ComponentDocumentBuilder().build(originalMessage, ComponentTranslationRoute.CHAT_OUTPUT);
-            } catch (RuntimeException localFailure) {
-                ComponentTranslationMetrics.record(ComponentTranslationRoute.CHAT_OUTPUT, ComponentTranslationMetrics.Outcome.LOCAL_FALLBACK);
-                logComponentV1Flow(
-                        messageId,
-                        "local_fallback",
-                        expectedGeneration,
-                        providerProfile,
-                        -1,
-                        "error=" + localFailure.getClass().getSimpleName()
-                );
-                LOGGER.debug("Component V1 local preparation failed for messageId={}, using legacy chat translation.", messageId, localFailure);
-                translateLegacy(messageId, originalMessage, providerProfile, chatOutputConfig, expectedGeneration);
-                return;
-            }
+                ProviderSettings settings = ProviderSettings.fromProviderProfile(providerProfile);
+                LLM llm = new LLM(settings);
 
-            if (document.units().isEmpty()) {
-                ComponentTranslationMetrics.record(ComponentTranslationRoute.CHAT_OUTPUT, ComponentTranslationMetrics.Outcome.NO_TEXT);
-                logComponentV1Flow(messageId, "no_text", expectedGeneration, providerProfile, 0, "result=original");
-                replaceActiveLineWithOriginal(messageId, originalMessage, expectedGeneration, false);
-                return;
-            }
+                PreparedChatTranslation preparedTranslation = prepareTranslationPayload(originalMessage);
+                String textToTranslate = preparedTranslation.textToTranslate();
+                Map<Integer, Style> styleMap = preparedTranslation.styleMap();
 
-            logComponentV1Flow(
-                    messageId,
-                    "prepared",
-                    expectedGeneration,
-                    providerProfile,
-                    document.units().size(),
-                    "target=" + chatOutputConfig.target_language
-            );
+                List<OpenAIRequest.Message> apiMessages = getMessages(providerProfile, chatOutputConfig.target_language, textToTranslate);
+                requestContext = buildRequestContext(providerProfile, chatOutputConfig.target_language, textToTranslate, apiMessages, chatOutputConfig.streaming_response, messageId);
+                logLlmSubmission(messageId, providerProfile, chatOutputConfig, originalMessage, textToTranslate, styleMap, apiMessages, requestContext);
 
-            String requestContext = buildComponentRequestContext(
-                    providerProfile,
-                    chatOutputConfig.target_language,
-                    document.units().size(),
-                    messageId
-            );
-            try {
-                logComponentV1Flow(
-                        messageId,
-                        "provider_start",
-                        expectedGeneration,
-                        providerProfile,
-                        document.units().size(),
-                        "streaming=false"
-                );
-                Component translated = new ComponentTranslationClient()
-                        .translate(document, chatOutputConfig.target_language, providerProfile, requestContext)
-                        .join();
-                logComponentV1Flow(
-                        messageId,
-                        "provider_success",
-                        expectedGeneration,
-                        providerProfile,
-                        document.units().size(),
-                        "result=validated"
-                );
-                updateChatLineWithFinalText(messageId, translated, expectedGeneration);
-            } catch (RuntimeException failure) {
-                Throwable rootCause = TranslateExceptionUtils.unwrapThrowable(failure);
-                ComponentTranslationMetrics.Outcome outcome = rootCause instanceof ComponentJsonException
-                        ? ComponentTranslationMetrics.Outcome.RESPONSE_REJECTED
-                        : ComponentTranslationMetrics.Outcome.PROVIDER_FAILURE;
-                ComponentTranslationMetrics.record(ComponentTranslationRoute.CHAT_OUTPUT, outcome);
-                logComponentV1Flow(
-                        messageId,
-                        "provider_failure",
-                        expectedGeneration,
-                        providerProfile,
-                        document.units().size(),
-                        "category=" + outcome + ",error=" + rootCause.getClass().getSimpleName()
-                );
-                ComponentTranslationDebugLogger.error(
-                        ComponentTranslationRoute.CHAT_OUTPUT,
-                        "chat translation failed: messageId={} model={} category={} reason={}",
-                        messageId,
-                        providerProfile.model_id,
-                        outcome,
-                        rootCause.getMessage(),
-                        rootCause
-                );
-                replaceActiveLineWithOriginal(messageId, originalMessage, expectedGeneration, true);
+                LOGGER.info("Starting translation for message ID: {}. Marked text: {}", messageId, textToTranslate);
+
+                if (chatOutputConfig.streaming_response) {
+                    final StringBuilder rawResponseBuffer = new StringBuilder();
+                    final StringBuilder fullResponseBuffer = new StringBuilder();
+                    final StringBuilder visibleContentBuffer = new StringBuilder();
+                    final AtomicBoolean inThinkTag = new AtomicBoolean(false);
+
+                    llm.getStreamingCompletion(apiMessages, requestContext).forEach(chunk -> {
+                        fullResponseBuffer.append(chunk);
+                        rawResponseBuffer.append(chunk);
+
+                        while (true) {
+                            if (inThinkTag.get()) {
+                                int endTagIndex = rawResponseBuffer.indexOf("</think>");
+                                if (endTagIndex != -1) {
+                                    inThinkTag.set(false);
+                                    rawResponseBuffer.delete(0, endTagIndex + "</think>".length());
+                                    updateInProgressChatLine(messageId, Component.literal(visibleContentBuffer.toString().replaceAll("</?s\\d+>", "")));
+                                    continue;
+                                } else {
+                                    int startTagIndex = rawResponseBuffer.indexOf("<think>");
+                                    if (startTagIndex != -1) {
+                                        String thinkContent = rawResponseBuffer.substring(startTagIndex + "<think>".length());
+                                        updateInProgressChatLine(messageId, Component.literal("Thinking: ").append(thinkContent).withStyle(ChatFormatting.GRAY));
+                                    }
+                                    break;
+                                }
+                            } else {
+                                int startTagIndex = rawResponseBuffer.indexOf("<think>");
+                                if (startTagIndex != -1) {
+                                    String translationPart = rawResponseBuffer.substring(0, startTagIndex);
+                                    visibleContentBuffer.append(translationPart);
+                                    updateInProgressChatLine(messageId, Component.literal(visibleContentBuffer.toString().replaceAll("</?s\\d+>", "")));
+
+                                    rawResponseBuffer.delete(0, startTagIndex);
+                                    inThinkTag.set(true);
+                                    continue;
+                                } else {
+                                    visibleContentBuffer.append(rawResponseBuffer.toString());
+                                    rawResponseBuffer.setLength(0);
+                                    updateInProgressChatLine(messageId, Component.literal(visibleContentBuffer.toString().replaceAll("</?s\\d+>", "")));
+                                    break;
+                                }
+                            }
+                        }
+                    });
+
+                    Component finalStyledText = rebuildTranslatedText(visibleContentBuffer.toString().stripLeading(), preparedTranslation);
+                    logReflowResult(
+                            messageId,
+                            true,
+                            fullResponseBuffer.toString(),
+                            visibleContentBuffer.toString().stripLeading(),
+                            finalStyledText,
+                            styleMap
+                    );
+                    updateChatLineWithFinalText(messageId, finalStyledText);
+                } else {
+                    String result = llm.getCompletion(apiMessages, requestContext).join();
+                    LOGGER.info("Finished translation for message ID: {}. Result: {}", messageId, result);
+                    final String finalTranslation = result.stripLeading();
+                    Component finalStyledText = rebuildTranslatedText(finalTranslation, preparedTranslation);
+                    logReflowResult(messageId, false, result, finalTranslation, finalStyledText, styleMap);
+                    updateChatLineWithFinalText(messageId, finalStyledText);
+                }
+            } catch (Exception e) {
+                LOGGER.error("[Translate-Thread] Exception for message ID: {}. context={}", messageId, requestContext, e);
+                Component errorText = Component.translatable(TRANSLATION_ERROR_KEY, TranslationErrorTextSupport.localizeReason(e.getMessage())).withStyle(ChatFormatting.RED);
+                updateChatLineWithFinalText(messageId, errorText);
             }
         });
-    }
-
-    private static void translateLegacy(
-            UUID messageId,
-            Component originalMessage,
-            ApiProviderProfile providerProfile,
-            ChatTranslateConfig.ChatOutputTranslateConfig chatOutputConfig,
-            long expectedGeneration
-    ) {
-        String requestContext = "route=chat_output,messageId=" + messageId;
-        try {
-            ProviderSettings settings = ProviderSettings.fromProviderProfile(providerProfile);
-            LLM llm = new LLM(settings);
-            PreparedChatTranslation preparedTranslation = prepareTranslationPayload(originalMessage);
-            String textToTranslate = preparedTranslation.textToTranslate();
-            Map<Integer, Style> styleMap = preparedTranslation.styleMap();
-            List<OpenAIRequest.Message> apiMessages = getMessages(providerProfile, chatOutputConfig.target_language, textToTranslate);
-            requestContext = buildRequestContext(providerProfile, chatOutputConfig.target_language, textToTranslate, apiMessages, chatOutputConfig.streaming_response, messageId);
-            logLlmSubmission(messageId, providerProfile, chatOutputConfig, originalMessage, textToTranslate, styleMap, apiMessages, requestContext);
-            LOGGER.info("Starting translation for message ID: {}. Marked text: {}", messageId, textToTranslate);
-
-            if (chatOutputConfig.streaming_response) {
-                StringBuilder rawResponseBuffer = new StringBuilder();
-                StringBuilder fullResponseBuffer = new StringBuilder();
-                StringBuilder visibleContentBuffer = new StringBuilder();
-                AtomicBoolean inThinkTag = new AtomicBoolean(false);
-
-                llm.getStreamingCompletion(apiMessages, requestContext).forEach(chunk -> {
-                    if (expectedGeneration != sessionGeneration.get()) {
-                        return;
-                    }
-                    fullResponseBuffer.append(chunk);
-                    rawResponseBuffer.append(chunk);
-                    while (true) {
-                        if (inThinkTag.get()) {
-                            int endTagIndex = rawResponseBuffer.indexOf("</think>");
-                            if (endTagIndex != -1) {
-                                inThinkTag.set(false);
-                                rawResponseBuffer.delete(0, endTagIndex + "</think>".length());
-                                updateInProgressChatLine(messageId, Component.literal(visibleContentBuffer.toString().replaceAll("</?s\\d+>", "")), expectedGeneration);
-                                continue;
-                            }
-                            int startTagIndex = rawResponseBuffer.indexOf("<think>");
-                            if (startTagIndex != -1) {
-                                String thinkContent = rawResponseBuffer.substring(startTagIndex + "<think>".length());
-                                updateInProgressChatLine(messageId, Component.literal("Thinking: ").append(thinkContent).withStyle(ChatFormatting.GRAY), expectedGeneration);
-                            }
-                            break;
-                        }
-
-                        int startTagIndex = rawResponseBuffer.indexOf("<think>");
-                        if (startTagIndex != -1) {
-                            visibleContentBuffer.append(rawResponseBuffer, 0, startTagIndex);
-                            updateInProgressChatLine(messageId, Component.literal(visibleContentBuffer.toString().replaceAll("</?s\\d+>", "")), expectedGeneration);
-                            rawResponseBuffer.delete(0, startTagIndex);
-                            inThinkTag.set(true);
-                            continue;
-                        }
-                        visibleContentBuffer.append(rawResponseBuffer);
-                        rawResponseBuffer.setLength(0);
-                        updateInProgressChatLine(messageId, Component.literal(visibleContentBuffer.toString().replaceAll("</?s\\d+>", "")), expectedGeneration);
-                        break;
-                    }
-                });
-
-                Component finalStyledText = rebuildTranslatedText(visibleContentBuffer.toString().stripLeading(), preparedTranslation);
-                logReflowResult(messageId, true, fullResponseBuffer.toString(), visibleContentBuffer.toString().stripLeading(), finalStyledText, styleMap);
-                updateChatLineWithFinalText(messageId, finalStyledText, expectedGeneration);
-            } else {
-                String result = llm.getCompletion(apiMessages, requestContext).join();
-                LOGGER.info("Finished translation for message ID: {}. Result: {}", messageId, result);
-                String finalTranslation = result.stripLeading();
-                Component finalStyledText = rebuildTranslatedText(finalTranslation, preparedTranslation);
-                logReflowResult(messageId, false, result, finalTranslation, finalStyledText, styleMap);
-                updateChatLineWithFinalText(messageId, finalStyledText, expectedGeneration);
-            }
-        } catch (Exception e) {
-            LOGGER.error("[Translate-Thread] Exception for message ID: {}. context={}", messageId, requestContext, e);
-            Component errorText = Component.translatable(TRANSLATION_ERROR_KEY, TranslationErrorTextSupport.localizeReason(e.getMessage())).withStyle(ChatFormatting.RED);
-            updateChatLineWithFinalText(messageId, errorText, expectedGeneration);
-        }
     }
 
     public static void restoreOriginal(UUID messageId) {
@@ -450,148 +307,59 @@ public class ChatOutputTranslateManager {
         });
     }
 
-    private static void updateInProgressChatLine(UUID messageId, Component newContent, long expectedGeneration) {
-        Minecraft client = Minecraft.getInstance();
-        if (client == null) {
-            return;
-        }
-        client.execute(() -> {
-            if (expectedGeneration != sessionGeneration.get() || client.gui == null) {
-                return;
-            }
-            ActiveTranslationLine activeLine = activeTranslationLines.get(messageId);
-            if (activeLine == null || activeLine.generation() != expectedGeneration) {
-                return;
-            }
-            ChatComponent chatHud = client.gui.getChat();
-            if (chatHud == null) {
-                return;
-            }
+    private static void updateInProgressChatLine(UUID messageId, Component newContent) {
+        GuiMessage lineToUpdate = activeTranslationLines.get(messageId);
+        if (lineToUpdate == null) return;
+
+        Minecraft.getInstance().execute(() -> {
+            ChatComponent chatHud = Minecraft.getInstance().gui.getChat();
+            if (chatHud == null) return;
 
             ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
             List<GuiMessage> messages = chatHudAccessor.getMessages();
             int scrolledLines = chatHudAccessor.getScrolledLines();
 
-            int lineIndex = messages.indexOf(activeLine.line());
+            int lineIndex = messages.indexOf(lineToUpdate);
 
             if (lineIndex != -1) {
-                GuiMessage lineToUpdate = activeLine.line();
                 GuiMessage newLine = new GuiMessage(lineToUpdate.addedTime(), newContent, lineToUpdate.signature(), lineToUpdate.source(), lineToUpdate.tag());
                 messages.set(lineIndex, newLine);
-                activeTranslationLines.replace(messageId, activeLine, new ActiveTranslationLine(newLine, expectedGeneration));
+                activeTranslationLines.put(messageId, newLine);
                 chatHudAccessor.invokeRefresh();
                 chatHudAccessor.setScrolledLines(scrolledLines);
             }
         });
     }
 
-    private static void updateChatLineWithFinalText(UUID messageId, Component finalContent, long expectedGeneration) {
+    private static void updateChatLineWithFinalText(UUID messageId, Component finalContent) {
         lineLocateRetryCounts.remove(messageId);
-        Minecraft client = Minecraft.getInstance();
-        if (client == null) {
+        GuiMessage lineToUpdate = activeTranslationLines.remove(messageId);
+        if (lineToUpdate == null) {
+            logChatLineMapping(messageId, "final_update_missing_active_line", -1, finalContent);
             return;
         }
-        client.execute(() -> {
-            if (expectedGeneration != sessionGeneration.get() || client.gui == null) {
-                ComponentTranslationMetrics.record(ComponentTranslationRoute.CHAT_OUTPUT, ComponentTranslationMetrics.Outcome.STALE_SESSION);
-                logSessionLifecycle("final_update_discarded", messageId, expectedGeneration, "reason=stale_generation_or_missing_gui");
-                return;
-            }
-            ActiveTranslationLine activeLine = activeTranslationLines.get(messageId);
-            if (activeLine == null || activeLine.generation() != expectedGeneration) {
-                logChatLineMapping(messageId, "final_update_missing_active_line", -1, finalContent);
-                logSessionLifecycle("final_update_discarded", messageId, expectedGeneration, "reason=active_line_missing_or_replaced");
-                return;
-            }
-            ChatComponent chatHud = client.gui.getChat();
-            if (chatHud == null) {
-                return;
-            }
+
+        Minecraft.getInstance().execute(() -> {
+            ChatComponent chatHud = Minecraft.getInstance().gui.getChat();
+            if (chatHud == null) return;
 
             ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
             List<GuiMessage> messages = chatHudAccessor.getMessages();
             int scrolledLines = chatHudAccessor.getScrolledLines();
 
-            GuiMessage lineToUpdate = activeLine.line();
             int lineIndex = messages.indexOf(lineToUpdate);
 
             if (lineIndex != -1) {
                 Component finalLineContent = buildTranslatedMessageWithToggle(messageId, finalContent);
                 GuiMessage newLine = new GuiMessage(lineToUpdate.addedTime(), finalLineContent, lineToUpdate.signature(), lineToUpdate.source(), lineToUpdate.tag());
                 messages.set(lineIndex, newLine);
-                activeTranslationLines.remove(messageId, activeLine);
                 chatHudAccessor.invokeRefresh();
                 chatHudAccessor.setScrolledLines(scrolledLines);
                 MessageUtils.setTranslatedMessage(messageId, finalLineContent);
                 logChatLineMapping(messageId, "final_update", lineIndex, finalLineContent);
-                logSessionLifecycle("final_update_applied", messageId, expectedGeneration, "lineIndex=" + lineIndex);
             } else {
-                activeTranslationLines.remove(messageId, activeLine);
                 logChatLineMapping(messageId, "final_update_line_missing", -1, finalContent);
-                logSessionLifecycle("final_update_discarded", messageId, expectedGeneration, "reason=line_missing");
             }
-        });
-    }
-
-    private static void replaceActiveLineWithOriginal(
-            UUID messageId,
-            Component originalMessage,
-            long expectedGeneration,
-            boolean allowRetry
-    ) {
-        lineLocateRetryCounts.remove(messageId);
-        Minecraft client = Minecraft.getInstance();
-        if (client == null) {
-            return;
-        }
-        client.execute(() -> {
-            if (expectedGeneration != sessionGeneration.get() || client.gui == null) {
-                ComponentTranslationMetrics.record(ComponentTranslationRoute.CHAT_OUTPUT, ComponentTranslationMetrics.Outcome.STALE_SESSION);
-                logSessionLifecycle("restore_discarded", messageId, expectedGeneration, "reason=stale_generation_or_missing_gui");
-                return;
-            }
-            ActiveTranslationLine activeLine = activeTranslationLines.get(messageId);
-            if (activeLine == null || activeLine.generation() != expectedGeneration) {
-                logSessionLifecycle("restore_discarded", messageId, expectedGeneration, "reason=active_line_missing_or_replaced");
-                return;
-            }
-            ChatComponent chatHud = client.gui.getChat();
-            if (chatHud == null) {
-                return;
-            }
-            ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
-            List<GuiMessage> messages = chatHudAccessor.getMessages();
-            GuiMessage lineToUpdate = activeLine.line();
-            int lineIndex = messages.indexOf(lineToUpdate);
-            if (lineIndex == -1) {
-                activeTranslationLines.remove(messageId, activeLine);
-                return;
-            }
-
-            int scrolledLines = chatHudAccessor.getScrolledLines();
-            Component restoredContent = allowRetry
-                    ? buildOriginalMessageWithToggle(messageId, originalMessage)
-                    : originalMessage;
-            GuiMessage restoredLine = new GuiMessage(
-                    lineToUpdate.addedTime(),
-                    restoredContent,
-                    lineToUpdate.signature(),
-                    lineToUpdate.source(),
-                    lineToUpdate.tag()
-            );
-            messages.set(lineIndex, restoredLine);
-            activeTranslationLines.remove(messageId, activeLine);
-            chatHudAccessor.invokeRefresh();
-            chatHudAccessor.setScrolledLines(scrolledLines);
-            if (allowRetry) {
-                MessageUtils.markShowingOriginal(messageId);
-            }
-            logSessionLifecycle(
-                    "original_restored",
-                    messageId,
-                    expectedGeneration,
-                    "lineIndex=" + lineIndex + ",retry=" + allowRetry
-            );
         });
     }
 
@@ -600,8 +368,7 @@ public class ChatOutputTranslateManager {
             ChatHudAccessor chatHudAccessor,
             List<GuiMessage> messages,
             int lineIndex,
-            GuiMessage originalLine,
-            long expectedGeneration
+            GuiMessage originalLine
     ) {
         int scrolledLines = chatHudAccessor.getScrolledLines();
         Component errorText = Component.translatable(NO_ROUTED_MODEL_ERROR_KEY).withStyle(ChatFormatting.RED);
@@ -615,22 +382,13 @@ public class ChatOutputTranslateManager {
             if (client == null) {
                 return;
             }
-            client.execute(() -> restoreLineAfterTemporaryError(messageId, errorLine, originalLine, expectedGeneration));
+            client.execute(() -> restoreLineAfterTemporaryError(messageId, errorLine, originalLine));
         });
 
         MessageUtils.removeTrackedMessage(messageId);
     }
 
-    private static void restoreLineAfterTemporaryError(
-            UUID messageId,
-            GuiMessage errorLine,
-            GuiMessage originalLine,
-            long expectedGeneration
-    ) {
-        if (expectedGeneration != sessionGeneration.get()) {
-            logSessionLifecycle("route_error_restore_discarded", messageId, expectedGeneration, "reason=stale_generation");
-            return;
-        }
+    private static void restoreLineAfterTemporaryError(UUID messageId, GuiMessage errorLine, GuiMessage originalLine) {
         Minecraft client = Minecraft.getInstance();
         if (client == null || client.gui == null) {
             return;
@@ -686,7 +444,7 @@ public class ChatOutputTranslateManager {
         return !lineContent.getSiblings().isEmpty() && lineContent.getSiblings().get(0).getString().equals(original);
     }
 
-    private static boolean scheduleLineLocateRetry(UUID messageId, Component originalMessage, long expectedGeneration) {
+    private static boolean scheduleLineLocateRetry(UUID messageId, Component originalMessage) {
         int attempt = lineLocateRetryCounts.merge(messageId, 1, Integer::sum);
         if (attempt > MAX_LINE_LOCATE_RETRIES) {
             return false;
@@ -698,15 +456,12 @@ public class ChatOutputTranslateManager {
             if (client == null) {
                 return;
             }
-            client.execute(() -> translate(messageId, originalMessage, expectedGeneration));
+            client.execute(() -> translate(messageId, originalMessage));
         });
         return true;
     }
 
     private record LineSearchResult(int lineIndex, GuiMessage line) {
-    }
-
-    private record ActiveTranslationLine(GuiMessage line, long generation) {
     }
 
     static PreparedChatTranslation prepareTranslationPayload(Component originalMessage) {
@@ -912,22 +667,6 @@ public class ChatOutputTranslateManager {
                 + ", sample=\"" + sample + "\"";
     }
 
-    private static String buildComponentRequestContext(
-            ApiProviderProfile profile,
-            String targetLanguage,
-            int unitCount,
-            UUID messageId
-    ) {
-        return "route=chat_output"
-                + ", protocol=" + ComponentTranslationDocument.PROTOCOL
-                + ", messageId=" + messageId
-                + ", provider=" + (profile == null ? "" : profile.id)
-                + ", model=" + (profile == null ? "" : profile.model_id)
-                + ", target=" + (targetLanguage == null ? "" : targetLanguage)
-                + ", streaming=false"
-                + ", units=" + unitCount;
-    }
-
     private static void logLlmSubmission(
             UUID messageId,
             ApiProviderProfile providerProfile,
@@ -942,8 +681,7 @@ public class ChatOutputTranslateManager {
             return;
         }
 
-        ComponentTranslationDebugLogger.throttled(
-                "chat-llm-submit",
+        LOGGER.info(
                 "[ChatOutputDev:llm_submit] messageId={} provider={} model={} target={} streaming={} originalText=\"{}\" markedText=\"{}\" styleMap={} apiMessages={} context={}",
                 messageId,
                 providerProfile == null ? "" : providerProfile.id,
@@ -970,8 +708,7 @@ public class ChatOutputTranslateManager {
             return;
         }
 
-        ComponentTranslationDebugLogger.throttled(
-                "chat-reflow",
+        LOGGER.info(
                 "[ChatOutputDev:reflow] messageId={} streaming={} rawModelOutput=\"{}\" visibleTranslation=\"{}\" finalText=\"{}\" styleMap={} finalSegments={}",
                 messageId,
                 streaming,
@@ -988,8 +725,7 @@ public class ChatOutputTranslateManager {
             return;
         }
 
-        ComponentTranslationDebugLogger.throttled(
-                "chat-reflow",
+        LOGGER.info(
                 "[ChatOutputDev:chat_map] messageId={} action={} lineIndex={} text=\"{}\" segments={}",
                 messageId,
                 action,
@@ -1004,62 +740,12 @@ public class ChatOutputTranslateManager {
             return;
         }
 
-        ComponentTranslationDebugLogger.throttled(
-                "chat-reflow",
+        LOGGER.info(
                 "[ChatOutputDev:chat_map] messageId={} action=retry_locate attempt={} maxRetries={} originalText=\"{}\"",
                 messageId,
                 attempt,
                 MAX_LINE_LOCATE_RETRIES,
                 escapeForLog(originalMessage == null ? "" : originalMessage.getString())
-        );
-    }
-
-    private static void logComponentV1Flow(
-            UUID messageId,
-            String action,
-            long expectedGeneration,
-            ApiProviderProfile providerProfile,
-            int unitCount,
-            String detail
-    ) {
-        if (!shouldLogComponentV1Flow()) {
-            return;
-        }
-
-        ComponentTranslationDebugLogger.throttled(
-                "chat-component-v1",
-                "[ChatOutputDev:component_v1] messageId={} action={} expectedGeneration={} activeGeneration={} provider={} model={} units={} detail={}",
-                messageId,
-                action == null ? "" : action,
-                expectedGeneration,
-                sessionGeneration.get(),
-                providerProfile == null ? "" : providerProfile.id,
-                providerProfile == null ? "" : providerProfile.model_id,
-                unitCount,
-                detail == null ? "" : detail
-        );
-    }
-
-    private static void logSessionLifecycle(
-            String action,
-            UUID messageId,
-            long expectedGeneration,
-            String detail
-    ) {
-        if (!shouldLogSessionLifecycle()) {
-            return;
-        }
-
-        ComponentTranslationDebugLogger.throttled(
-                "chat-session",
-                "[ChatOutputDev:session] action={} messageId={} expectedGeneration={} activeGeneration={} activeLines={} locateRetries={} detail={}",
-                action == null ? "" : action,
-                messageId,
-                expectedGeneration,
-                sessionGeneration.get(),
-                activeTranslationLines.size(),
-                lineLocateRetryCounts.size(),
-                detail == null ? "" : detail
         );
     }
 
@@ -1076,16 +762,6 @@ public class ChatOutputTranslateManager {
     private static boolean shouldLogReflowMapping() {
         ChatTranslateConfig.ChatOutputTranslateConfig.DebugConfig debugConfig = getDebugConfig();
         return debugConfig != null && debugConfig.enabled && debugConfig.log_reflow_mapping;
-    }
-
-    private static boolean shouldLogComponentV1Flow() {
-        ChatTranslateConfig.ChatOutputTranslateConfig.DebugConfig debugConfig = getDebugConfig();
-        return debugConfig != null && debugConfig.enabled && debugConfig.log_component_v1_flow;
-    }
-
-    private static boolean shouldLogSessionLifecycle() {
-        ChatTranslateConfig.ChatOutputTranslateConfig.DebugConfig debugConfig = getDebugConfig();
-        return debugConfig != null && debugConfig.enabled && debugConfig.log_session_lifecycle;
     }
 
     private static ChatTranslateConfig.ChatOutputTranslateConfig.DebugConfig getDebugConfig() {

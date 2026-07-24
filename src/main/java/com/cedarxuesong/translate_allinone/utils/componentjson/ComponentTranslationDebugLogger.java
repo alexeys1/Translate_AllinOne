@@ -15,7 +15,6 @@ public final class ComponentTranslationDebugLogger {
 
     private static volatile boolean itemFlowEnabled;
     private static volatile boolean itemTimingEnabled;
-    private static volatile boolean chatFlowEnabled;
 
     private ComponentTranslationDebugLogger() {
     }
@@ -26,12 +25,6 @@ public final class ComponentTranslationDebugLogger {
         itemFlowEnabled = itemDebug != null && itemDebug.enabled && itemDebug.log_component_v1_flow;
         itemTimingEnabled = itemDebug != null && itemDebug.enabled && itemDebug.log_component_v1_timing;
 
-        var chatDebug = config == null
-                || config.chatTranslate == null
-                || config.chatTranslate.output == null
-                ? null
-                : config.chatTranslate.output.debug;
-        chatFlowEnabled = chatDebug != null && chatDebug.enabled && chatDebug.log_component_v1_flow;
     }
 
     public static void flow(ComponentTranslationRoute route, String message, Object... arguments) {
@@ -116,7 +109,7 @@ public final class ComponentTranslationDebugLogger {
         }
         return switch (route) {
             case TOOLTIP_LINE, TOOLTIP_STRUCTURED, TOOLTIP_PARAGRAPH -> itemFlowEnabled;
-            case CHAT_OUTPUT -> chatFlowEnabled;
+            case CHAT_OUTPUT -> false;
             case ADVANCEMENT, SCOREBOARD -> false;
         };
     }

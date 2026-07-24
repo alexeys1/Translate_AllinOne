@@ -9,7 +9,6 @@ public class ChatTranslateConfig {
     public static class ChatOutputTranslateConfig {
         public boolean enabled = false;
         public boolean auto_translate = false;
-        public boolean component_json_v1 = false;
         public String target_language = "Chinese";
         public boolean streaming_response = false;
         public int max_concurrent_requests = 1;
@@ -21,8 +20,6 @@ public class ChatTranslateConfig {
             public boolean log_intercepted_message = false;
             public boolean log_llm_submission = false;
             public boolean log_reflow_mapping = false;
-            public boolean log_component_v1_flow = false;
-            public boolean log_session_lifecycle = false;
         }
     }
 
