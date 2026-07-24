@@ -8,14 +8,14 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Objects;
 
-final class CacheFileSaveSupport {
+public final class CacheFileSaveSupport {
     static final int MOVE_ATTEMPT_LIMIT = 5;
     static final long RETRY_DELAY_BASE_MILLIS = 50L;
 
     private CacheFileSaveSupport() {
     }
 
-    static void replaceWithRetry(Path tempPath, Path targetPath) throws IOException {
+    public static void replaceWithRetry(Path tempPath, Path targetPath) throws IOException {
         Objects.requireNonNull(tempPath, "tempPath");
         Objects.requireNonNull(targetPath, "targetPath");
 

@@ -64,7 +64,7 @@ public final class CacheBackupManager {
         }
     }
 
-    static void maybeBackup(Path cacheFilePath, String cacheTypeLabel) {
+    public static void maybeBackup(Path cacheFilePath, String cacheTypeLabel) {
         if (!isBackupEnabled() || cacheFilePath == null || !Files.isRegularFile(cacheFilePath)) {
             return;
         }
