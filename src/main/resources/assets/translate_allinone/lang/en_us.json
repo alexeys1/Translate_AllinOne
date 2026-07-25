@@ -278,7 +278,7 @@
   "text.translate_allinone.configscreen.desc.llm_provider": "Large Language Model Suppliers (Click to Switch)",
   "text.translate_allinone.configscreen.label.max_backup_count": "Max Backup Count",
   "text.translate_allinone.configscreen.placeholder.max_backup_count": "Range: %s - %s",
-  "text.translate_allinone.configscreen.desc.max_batch_size": "The maximum number of item lore lines to translate in a single API request",
+  "text.translate_allinone.configscreen.desc.max_batch_size": "The maximum number of item translation documents submitted in one API request",
   "text.translate_allinone.configscreen.desc.max_concurrent_requests": "Maximum number of concurrent translation tasks. Be careful with high values, as it may trigger API rate limits.",
   "text.translate_allinone.configscreen.label.model_id": "Model ID",
   "text.translate_allinone.configscreen.placeholder.model_id": "e.g. gpt-4o-mini",

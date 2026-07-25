@@ -272,7 +272,7 @@
   "text.translate_allinone.configscreen.desc.llm_provider": "大语言模型提供商（点击切换）",
   "text.translate_allinone.configscreen.label.max_backup_count": "最大备份数量",
   "text.translate_allinone.configscreen.placeholder.max_backup_count": "范围：%s - %s",
-  "text.translate_allinone.configscreen.desc.max_batch_size": "单个API请求中翻译的物品lore最大行数",
+  "text.translate_allinone.configscreen.desc.max_batch_size": "单个API请求中提交的物品翻译文档最大数量",
   "text.translate_allinone.configscreen.desc.max_concurrent_requests": "最大并发翻译任务数。 请谨慎设置高数值，可能会触发API速率限制。",
   "text.translate_allinone.configscreen.label.model_id": "模型 ID",
   "text.translate_allinone.configscreen.placeholder.model_id": "例如 gpt-4o-mini",
