@@ -6,6 +6,7 @@ import com.cedarxuesong.translate_allinone.utils.cache.WynnDialogueTextCache;
 import com.cedarxuesong.translate_allinone.utils.cache.ItemTemplateCache;
 import com.cedarxuesong.translate_allinone.utils.cache.OtherTranslationsTextCache;
 import com.cedarxuesong.translate_allinone.utils.cache.WynntilsTaskTrackerTextCache;
+import com.cedarxuesong.translate_allinone.utils.cache.component.ComponentTranslationCache;
 import com.cedarxuesong.translate_allinone.utils.translate.ItemTranslateManager;
 import com.cedarxuesong.translate_allinone.utils.translate.AdvancementTranslateManager;
 import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardTranslateManager;
@@ -45,6 +46,7 @@ public class LifecycleEventManager {
     private static void registerJoinHandler() {
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             resetReadinessState();
+            ComponentTranslationCache.getInstance().beginSession();
             awaitingReadinessCheck = true;
             LOGGER.info("Player joining world, awaiting client readiness for translation...");
 
@@ -80,6 +82,7 @@ public class LifecycleEventManager {
     private static void registerDisconnectHandler() {
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             resetReadinessState();
+            ComponentTranslationCache.getInstance().endSession();
             LOGGER.info("Player has disconnected. Translation readiness reset.");
             stopTranslationManagers();
             saveCaches();
@@ -96,6 +99,7 @@ public class LifecycleEventManager {
     }
 
     private static void loadCachesAndStartTranslationManagers() {
+        ComponentTranslationCache.getInstance().load();
         ItemTemplateCache.getInstance().load();
         ItemTranslateManager.getInstance().start();
         OtherTranslationsTextCache.getInstance().load();
@@ -109,6 +113,7 @@ public class LifecycleEventManager {
     }
 
     private static void saveCaches() {
+        ComponentTranslationCache.getInstance().save();
         ItemTemplateCache.getInstance().save();
         OtherTranslationsTextCache.getInstance().save();
         ScoreboardTextCache.getInstance().save();
