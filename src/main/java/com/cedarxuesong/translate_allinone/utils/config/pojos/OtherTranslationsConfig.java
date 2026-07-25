@@ -5,6 +5,7 @@ public class OtherTranslationsConfig {
 
     public boolean enabled = false;
     public boolean enabled_translate_vanilla_advancements = false;
+    public boolean component_json_v1_advancements = false;
     public int max_concurrent_requests = 2;
     public int max_batch_size = 10;
     public String target_language = DEFAULT_TARGET_LANGUAGE;

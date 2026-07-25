@@ -337,6 +337,8 @@
   "text.translate_allinone.configscreen.label.translate_item_name": "翻译物品名称",
   "text.translate_allinone.configscreen.desc.translate_item_name": "翻译物品的名称",
   "text.translate_allinone.configscreen.label.translate_vanilla_advancements": "翻译原版成就",
+  "text.translate_allinone.configscreen.label.advancement_component_json_v1": "进度组件 JSON V1",
+  "text.translate_allinone.configscreen.desc.advancement_component_json_v1": "使用保留结构的协议翻译原版进度标题和描述",
   "text.translate_allinone.configscreen.desc.translate_vanilla_advancements": "翻译 Minecraft 原版成就标题和描述",
   "text.translate_allinone.configscreen.label.translate_player_name": "翻译玩家名",
   "text.translate_allinone.configscreen.desc.translate_player_name": "翻译计分板上显示的玩家名称",

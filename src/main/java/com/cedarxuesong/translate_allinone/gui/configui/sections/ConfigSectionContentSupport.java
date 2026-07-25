@@ -601,6 +601,16 @@ public final class ConfigSectionContentSupport {
                         tooltip(translator, "label.translate_vanilla_advancements")
                 );
                 y += ROW_STEP;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.advancement_component_json_v1"),
+                        () -> otherTranslations.component_json_v1_advancements,
+                        value -> otherTranslations.component_json_v1_advancements = value,
+                        translator.t("desc.advancement_component_json_v1")
+                );
+                y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.basic"), x, width, basicStart, y);
 
                 y += GROUP_GAP;
