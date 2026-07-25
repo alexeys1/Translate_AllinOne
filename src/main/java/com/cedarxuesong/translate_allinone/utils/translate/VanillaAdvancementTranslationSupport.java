@@ -6,6 +6,11 @@ import com.cedarxuesong.translate_allinone.utils.cache.CacheStats;
 import com.cedarxuesong.translate_allinone.utils.cache.OtherTranslationsTextCache;
 import com.cedarxuesong.translate_allinone.utils.cache.LookupResult;
 import com.cedarxuesong.translate_allinone.utils.cache.TranslationStatus;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationApplier;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationDocument;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationMetrics;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRoute;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRuntime;
 import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.OtherTranslationsConfig;
 import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
@@ -76,12 +81,21 @@ public final class VanillaAdvancementTranslationSupport {
         hoveredTexts.add(originalTitle);
         hoveredTexts.add(styledDescription);
         Set<String> translationTemplateKeys = collectTranslationTemplateKeys(holder, hoveredTexts);
-
-        maybeForceRefreshAdvancementKeys(currentOtherTranslationsConfig(), translationTemplateKeys);
-        boolean showRefreshNotice = shouldShowRefreshNotice(translationTemplateKeys);
-        Component translatedTitle = translateComponent(holder, originalTitle, "title", true, false);
-        Component translatedDescription = translateComponent(holder, styledDescription, "description", true, false);
-        HoveredAdvancementStatus status = buildHoveredAdvancementStatus(currentOtherTranslationsConfig(), translationTemplateKeys);
+        OtherTranslationsConfig config = currentOtherTranslationsConfig();
+        boolean componentV1Enabled = config != null && config.component_json_v1_advancements;
+        if (!componentV1Enabled) {
+            maybeForceRefreshAdvancementKeys(config, translationTemplateKeys);
+        }
+        Component translatedTitle = translateComponent(holder, originalTitle, "title", true, componentV1Enabled);
+        Component translatedDescription = translateComponent(
+                holder,
+                styledDescription,
+                "description",
+                true,
+                componentV1Enabled
+        );
+        boolean showRefreshNotice = !componentV1Enabled && shouldShowRefreshNotice(translationTemplateKeys);
+        HoveredAdvancementStatus status = buildHoveredAdvancementStatus(config, translationTemplateKeys);
         return new HoveredAdvancementText(
                 translatedTitle,
                 translatedDescription,
@@ -141,6 +155,10 @@ public final class VanillaAdvancementTranslationSupport {
             return originalText;
         }
 
+        if (config.component_json_v1_advancements) {
+            return translateComponentV1(holder, originalText, fieldName, queueIfMissing, allowForceRefresh, config);
+        }
+
         try {
             StylePreserver.ExtractionResult styleResult = StylePreserver.extractAndMarkWithTags(originalText);
             TemplateProcessor.TemplateExtractionResult templateResult = TemplateProcessor.extract(styleResult.markedText);
@@ -184,6 +202,111 @@ public final class VanillaAdvancementTranslationSupport {
         }
 
         return originalText;
+    }
+
+    private static Component translateComponentV1(
+            AdvancementHolder holder,
+            Component originalText,
+            String fieldName,
+            boolean queueIfMissing,
+            boolean allowForceRefresh,
+            OtherTranslationsConfig config
+    ) {
+        try {
+            StylePreserver.ExtractionResult styleResult = StylePreserver.extractAndMarkWithTags(originalText);
+            TemplateProcessor.TemplateExtractionResult templateResult = TemplateProcessor.extract(styleResult.markedText);
+            String legacyKey = templateResult.template();
+            ComponentTranslationDocument document = ComponentTranslationRuntime.prepare(
+                    originalText,
+                    ComponentTranslationRoute.ADVANCEMENT,
+                    "advancement:" + fieldName,
+                    "advancement-v1"
+            );
+            if (document.units().isEmpty()) {
+                return originalText;
+            }
+
+            if (queueIfMissing && allowForceRefresh) {
+                maybeForceRefreshAdvancementDocument(config, document);
+            }
+
+            ComponentTranslationApplier applier = new ComponentTranslationApplier();
+            ComponentTranslationRuntime.Resolution<Component> resolution = ComponentTranslationRuntime.resolve(
+                    document,
+                    config.target_language,
+                    legacyKey,
+                    () -> peekLegacyTranslation(styleResult, templateResult, legacyKey),
+                    response -> {
+                        long startedAt = System.nanoTime();
+                        Component translated = applier.apply(document, response);
+                        ComponentTranslationMetrics.recordNanos(
+                                ComponentTranslationRoute.ADVANCEMENT,
+                                ComponentTranslationMetrics.Timing.APPLY,
+                                System.nanoTime() - startedAt
+                        );
+                        return translated;
+                    },
+                    "advancement:" + holder.id() + ":" + fieldName,
+                    queueIfMissing
+            );
+            if (resolution.state() == ComponentTranslationRuntime.State.V1_HIT
+                    || resolution.state() == ComponentTranslationRuntime.State.LEGACY_HIT) {
+                return resolution.value() == null ? originalText : resolution.value();
+            }
+            String animationKey = "advancement:" + holder.id() + ":" + fieldName;
+            if (resolution.state() == ComponentTranslationRuntime.State.PENDING) {
+                return AnimationManager.getAnimatedStyledText(originalText, animationKey, false);
+            }
+            if (resolution.state() == ComponentTranslationRuntime.State.FAILED) {
+                return AnimationManager.getAnimatedStyledText(originalText, animationKey, true);
+            }
+        } catch (RuntimeException e) {
+            if (UNEXPECTED_FAILURE_LOGGED.compareAndSet(false, true)) {
+                Translate_AllinOne.LOGGER.error("Failed to prepare vanilla advancement Component V1 text.", e);
+            }
+            return originalText;
+        }
+        return originalText;
+    }
+
+    private static Component peekLegacyTranslation(
+            StylePreserver.ExtractionResult styleResult,
+            TemplateProcessor.TemplateExtractionResult templateResult,
+            String legacyKey
+    ) {
+        if (legacyKey == null || legacyKey.isBlank()) {
+            return null;
+        }
+        LookupResult lookup = OtherTranslationsTextCache.getInstance().peek(legacyKey);
+        if (lookup.status() != TranslationStatus.TRANSLATED
+                || lookup.translation() == null
+                || lookup.translation().isBlank()) {
+            return null;
+        }
+        String reassembled = TemplateProcessor.reassemble(lookup.translation(), templateResult.values());
+        return StylePreserver.reapplyStylesFromTags(reassembled, styleResult.styleMap, true);
+    }
+
+    private static void maybeForceRefreshAdvancementDocument(
+            OtherTranslationsConfig config,
+            ComponentTranslationDocument document
+    ) {
+        if (config == null || config.keybinding == null || config.keybinding.refreshBinding == null) {
+            return;
+        }
+        boolean pressed = KeybindingManager.isPressed(config.keybinding.refreshBinding);
+        long now = System.currentTimeMillis();
+        if (!updateRefreshHoldState(pressed, now)) {
+            return;
+        }
+
+        String v1Key = ComponentTranslationRuntime.cacheKey(document, config.target_language);
+        synchronized (refreshedKeysThisHold) {
+            if (!refreshedKeysThisHold.add("v1:" + v1Key)) {
+                return;
+            }
+        }
+        ComponentTranslationRuntime.forceRefresh(document, config.target_language);
     }
 
     private static void maybeForceRefreshAdvancementKeys(OtherTranslationsConfig config, Set<String> translationTemplateKeys) {
@@ -282,6 +405,7 @@ public final class VanillaAdvancementTranslationSupport {
             Set<String> translationTemplateKeys
     ) {
         if (!shouldRenderTranslatedAdvancement(config)
+                || config.component_json_v1_advancements
                 || translationTemplateKeys == null
                 || translationTemplateKeys.isEmpty()) {
             return new HoveredAdvancementStatus(null, null);
