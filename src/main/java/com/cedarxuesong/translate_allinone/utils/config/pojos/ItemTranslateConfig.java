@@ -8,6 +8,7 @@ public class ItemTranslateConfig {
     public boolean enabled_translate_item_lore = false;
     public boolean component_json_v1_tooltip_lines = false;
     public boolean component_json_v1_tooltip_structured = false;
+    public boolean component_json_v1_tooltip_paragraph = false;
     public int max_concurrent_requests = 2;
     public int requests_per_minute = 60;
     public int max_batch_size = 10;
