@@ -203,6 +203,16 @@ public final class ConfigSectionContentSupport {
                         translator.t("desc.tooltip_component_json_v1_paragraph")
                 );
                 y += ROW_STEP;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.tooltip_component_json_v1_custom_fonts"),
+                        () -> item.component_json_v1_tooltip_custom_fonts,
+                        value -> item.component_json_v1_tooltip_custom_fonts = value,
+                        translator.t("desc.tooltip_component_json_v1_custom_fonts")
+                );
+                y += ROW_STEP;
                 textFieldRowAdder.add(
                         x,
                         y,

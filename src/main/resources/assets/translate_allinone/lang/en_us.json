@@ -346,6 +346,8 @@
   "text.translate_allinone.configscreen.desc.tooltip_component_json_v1_structured": "Translate only natural-language captures in structured tooltip lines",
   "text.translate_allinone.configscreen.label.tooltip_component_json_v1_paragraph": "[WIP]Tooltip Component V1 Paragraphs",
   "text.translate_allinone.configscreen.desc.tooltip_component_json_v1_paragraph": "Translate paragraph lines as one validated multi-component bundle",
+  "text.translate_allinone.configscreen.label.tooltip_component_json_v1_custom_fonts": "[WIP]Tooltip Component V1 Custom Fonts",
+  "text.translate_allinone.configscreen.desc.tooltip_component_json_v1_custom_fonts": "Allow eligible custom-font and decorative tooltip structures while preserving glyph nodes",
   "text.translate_allinone.configscreen.label.translate_item_name": "Translate Item Name",
   "text.translate_allinone.configscreen.desc.translate_item_name": "Translate Item display names",
   "text.translate_allinone.configscreen.label.translate_vanilla_advancements": "Translate Vanilla Advancements",

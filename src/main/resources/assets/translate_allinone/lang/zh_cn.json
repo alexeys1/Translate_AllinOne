@@ -340,6 +340,8 @@
   "text.translate_allinone.configscreen.desc.tooltip_component_json_v1_structured": "仅翻译结构化提示框行中识别出的自然语言部分",
   "text.translate_allinone.configscreen.label.tooltip_component_json_v1_paragraph": "[WIP]提示框组件 V1 段落",
   "text.translate_allinone.configscreen.desc.tooltip_component_json_v1_paragraph": "将段落行作为一个经过校验的多组件组合进行翻译",
+  "text.translate_allinone.configscreen.label.tooltip_component_json_v1_custom_fonts": "[WIP]提示框组件 V1 自定义字体",
+  "text.translate_allinone.configscreen.desc.tooltip_component_json_v1_custom_fonts": "允许符合条件的自定义字体和装饰结构，同时保留字形节点",
   "text.translate_allinone.configscreen.label.translate_item_name": "翻译物品名称",
   "text.translate_allinone.configscreen.desc.translate_item_name": "翻译物品的名称",
   "text.translate_allinone.configscreen.label.translate_vanilla_advancements": "翻译原版成就",
