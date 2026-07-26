@@ -173,6 +173,16 @@ public final class ConfigSectionContentSupport {
                 y += ROW_STEP;
                 toggleAdder.add(x, y, width, translator.t("label.translate_item_lore"), () -> item.enabled_translate_item_lore, value -> item.enabled_translate_item_lore = value, tooltip(translator, "label.translate_item_lore"));
                 y += ROW_STEP;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.tooltip_component_json_v1_lines"),
+                        () -> item.component_json_v1_tooltip_lines,
+                        value -> item.component_json_v1_tooltip_lines = value,
+                        translator.t("desc.tooltip_component_json_v1_lines")
+                );
+                y += ROW_STEP;
                 textFieldRowAdder.add(
                         x,
                         y,
