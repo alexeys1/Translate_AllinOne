@@ -11,6 +11,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import com.cedarxuesong.translate_allinone.utils.translate.TooltipRoutePlanner.TooltipPlan;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 
@@ -20,6 +21,7 @@ public final class TooltipRefreshNoticeSupport {
     private static final long REFRESH_HOLD_RELEASE_GRACE_MILLIS = 250L;
     private static final Logger LOGGER = LoggerFactory.getLogger("Translate_AllinOne/TooltipRefreshNoticeSupport");
     private static final Set<Integer> refreshedTooltipSignaturesThisHold = new HashSet<>();
+    private static final Set<String> refreshedV1KeysThisHold = new HashSet<>();
     private static volatile boolean refreshHoldActive = false;
     private static volatile long refreshHoldGraceExpiresAtMillis = 0L;
     private static volatile int refreshNoticeTooltipSignature = 0;
@@ -29,11 +31,31 @@ public final class TooltipRefreshNoticeSupport {
     }
 
     public static void maybeForceRefreshCurrentTooltip(List<Component> tooltip, ItemTranslateConfig config) {
-        Set<String> keysToRefresh = TooltipTranslationSupport.collectRemoteTranslationTemplateKeys(tooltip, config);
-        maybeForceRefreshCurrentTooltip(keysToRefresh, config);
+        if (tooltip == null || tooltip.isEmpty() || config == null || !config.enabled) {
+            return;
+        }
+        List<Component> sanitizedTooltip = TooltipInternalLineSupport.stripInternalGeneratedLines(tooltip);
+        if (sanitizedTooltip == null || sanitizedTooltip.isEmpty()) {
+            return;
+        }
+        boolean preserveStyles = TooltipDecorativeContextSupport.isDecorativeTooltipContext(sanitizedTooltip);
+        TooltipRoutePlanner.TooltipPlan plan = TooltipRoutePlanner.planTooltip(
+                sanitizedTooltip,
+                config,
+                preserveStyles
+        );
+        maybeForceRefreshCurrentTooltip(plan, plan.translationTemplateKeys(), config);
     }
 
     public static void maybeForceRefreshCurrentTooltip(Set<String> keysToRefresh, ItemTranslateConfig config) {
+        maybeForceRefreshCurrentTooltip(null, keysToRefresh, config);
+    }
+
+    static void maybeForceRefreshCurrentTooltip(
+            TooltipPlan tooltipPlan,
+            Set<String> keysToRefresh,
+            ItemTranslateConfig config
+    ) {
         boolean hasKeysToRefresh = keysToRefresh != null && !keysToRefresh.isEmpty();
 
         boolean isRefreshPressed = config != null
@@ -55,12 +77,19 @@ public final class TooltipRefreshNoticeSupport {
             }
         }
 
-        int refreshedCount = ItemTemplateCache.getInstance().forceRefresh(keysToRefresh);
-        if (refreshedCount > 0) {
+        int legacyRefreshedCount = ItemTemplateCache.getInstance().forceRefresh(keysToRefresh);
+        int v1RefreshedCount = TooltipTranslationSupport.forceRefreshV1Caches(tooltipPlan, config);
+        if (legacyRefreshedCount > 0) {
             TooltipTemplateRuntime.registerForceRefreshCompatBypass(keysToRefresh);
+        }
+        if (legacyRefreshedCount > 0 || v1RefreshedCount > 0) {
             refreshNoticeTooltipSignature = tooltipSignature;
             refreshNoticeExpiresAtMillis = now + REFRESH_NOTICE_DURATION_MILLIS;
-            LOGGER.info("Forced refresh of {} current item tooltip translation key(s).", refreshedCount);
+            LOGGER.info(
+                    "Forced refresh of current item tooltip translation keys: legacy={}, v1={}.",
+                    legacyRefreshedCount,
+                    v1RefreshedCount
+            );
         }
     }
 
@@ -83,7 +112,7 @@ public final class TooltipRefreshNoticeSupport {
     }
 
     public static boolean shouldShowRefreshNotice(List<Component> tooltip, ItemTranslateConfig config) {
-        Set<String> keys = TooltipTranslationSupport.collectRemoteTranslationTemplateKeys(tooltip, config);
+        Set<String> keys = TooltipTranslationSupport.collectTranslationTemplateKeys(tooltip, config);
         return shouldShowRefreshNotice(keys);
     }
 
@@ -166,11 +195,36 @@ public final class TooltipRefreshNoticeSupport {
         return false;
     }
 
+    static boolean consumeV1Refresh(String cacheKey, ItemTranslateConfig config) {
+        if (cacheKey == null || cacheKey.isBlank() || config == null || config.keybinding == null) {
+            return false;
+        }
+        boolean pressed = KeybindingManager.isPressed(config.keybinding.refreshBinding);
+        if (!updateRefreshHoldState(pressed, System.currentTimeMillis())) {
+            return false;
+        }
+        synchronized (refreshedV1KeysThisHold) {
+            return refreshedV1KeysThisHold.add(cacheKey);
+        }
+    }
+
+    static void markV1RefreshHandled(String cacheKey) {
+        if (cacheKey == null || cacheKey.isBlank()) {
+            return;
+        }
+        synchronized (refreshedV1KeysThisHold) {
+            refreshedV1KeysThisHold.add(cacheKey);
+        }
+    }
+
     static void clearRefreshHoldState() {
         refreshHoldActive = false;
         refreshHoldGraceExpiresAtMillis = 0L;
         synchronized (refreshedTooltipSignaturesThisHold) {
             refreshedTooltipSignaturesThisHold.clear();
+        }
+        synchronized (refreshedV1KeysThisHold) {
+            refreshedV1KeysThisHold.clear();
         }
     }
 }

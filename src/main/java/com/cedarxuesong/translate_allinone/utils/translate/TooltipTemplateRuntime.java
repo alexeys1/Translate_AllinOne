@@ -311,6 +311,49 @@ final class TooltipTemplateRuntime {
 
         return new TooltipTranslationSupport.TooltipLineResult(finalTooltipLine, pending, missingKeyIssue, errorMessage);
     }
+    static Component peekTranslatedPreparedTemplate(PreparedTooltipTemplate preparedTemplate) {
+        if (preparedTemplate == null) {
+            return null;
+        }
+        LocalDictionaryEvaluation localEvaluation = evaluateLocalDictionaryLookup(preparedTemplate.sourceLine().getString());
+        if (localEvaluation.accepted()) {
+            return renderLocalDictionaryTranslation(preparedTemplate, localEvaluation.lookupResult().translation());
+        }
+        CachedTranslationFormat currentFormat = preparedTemplate.useTagStylePreservation()
+                ? CachedTranslationFormat.TAGGED
+                : CachedTranslationFormat.LEGACY;
+        ItemTemplateCache cache = ItemTemplateCache.getInstance();
+        LookupResult currentLookup = cache.peek(preparedTemplate.translationTemplateKey());
+        Component current = renderPeekedTranslation(preparedTemplate, currentLookup, currentFormat);
+        if (current != null || shouldBypassCompatibilityFallback(preparedTemplate.translationTemplateKey())) {
+            return current;
+        }
+        for (CompatibilityTemplateKey compatibilityKey : collectCompatibilityKeys(preparedTemplate)) {
+            Component translated = renderPeekedTranslation(
+                    preparedTemplate,
+                    cache.peek(compatibilityKey.key()),
+                    compatibilityKey.format()
+            );
+            if (translated != null) {
+                return translated;
+            }
+        }
+        return null;
+    }
+    private static Component renderPeekedTranslation(
+            PreparedTooltipTemplate preparedTemplate,
+            LookupResult lookup,
+            CachedTranslationFormat defaultFormat
+    ) {
+        if (lookup == null || lookup.status() != TranslationStatus.TRANSLATED) {
+            return null;
+        }
+        DecodedStoredTranslation decoded = decodeStoredTranslation(lookup.translation(), defaultFormat);
+        if (!isUsableCachedTranslation(preparedTemplate, decoded.translation(), decoded.format())) {
+            return null;
+        }
+        return renderCompatibilityText(preparedTemplate, decoded.translation(), decoded.format());
+    }
 
     static String extractTemplateKeyForLine(Component line, boolean useTagStylePreservation) {
         return prepareTemplate(line, useTagStylePreservation).translationTemplateKey();
@@ -348,6 +391,12 @@ final class TooltipTemplateRuntime {
                 normalizedTemplate,
                 translationTemplateKey
         );
+    }
+    static PreparedTooltipTemplate prepareComponentV1Template(PreparedTooltipTemplate preparedTemplate) {
+        if (preparedTemplate == null || preparedTemplate.sourceLine() == null) {
+            return null;
+        }
+        return prepareTemplate(preparedTemplate.sourceLine(), true);
     }
 
     static PreparedParagraphTemplate prepareParagraphTemplate(List<PreparedTooltipTemplate> preparedLines) {
@@ -418,6 +467,12 @@ final class TooltipTemplateRuntime {
         return preparedTemplate.useTagStylePreservation()
                 ? StylePreserver.reapplyStylesFromTags(reassembledOriginal, preparedTemplate.styleResult().styleMap)
                 : StylePreserver.reapplyStyles(reassembledOriginal, preparedTemplate.styleResult().styleMap);
+    }
+    static Component renderComponentV1TemplateTranslation(
+            PreparedTooltipTemplate preparedTemplate,
+            String translatedTemplate
+    ) {
+        return renderCompatibilityText(preparedTemplate, translatedTemplate, CachedTranslationFormat.TAGGED);
     }
 
     static Component normalizeDecorativePassthroughText(Component text) {
@@ -606,32 +661,26 @@ final class TooltipTemplateRuntime {
                     && adaptedTranslation.translation() != null
                     && !adaptedTranslation.translation().isBlank()
                     && isSafeAdaptedTranslation(preparedTemplate, adaptedTranslation, compatibilityRenderedText)) {
-                long promoteStartedAtNanos = System.nanoTime();
-                cache.promoteTranslation(
-                        preparedTemplate.translationTemplateKey(),
-                        encodeStoredTranslation(adaptedTranslation.translation(), adaptedTranslation.format())
-                );
-                long promoteElapsedNanos = System.nanoTime() - promoteStartedAtNanos;
                 logCacheMigrationIfDev(
                         config,
-                        "promote",
+                        "compatibility-read",
                         preparedTemplate.translationTemplateKey(),
                         compatibilityKey.key(),
                         decodedCompatibilityTranslation.format(),
-                        true,
+                        false,
                         adaptedTranslation.format() == decodedCompatibilityTranslation.format()
-                                ? "Reused compatibility cache entry and wrote it into newKey."
-                                : "Reused compatibility cache entry, adapted it, and wrote it into newKey."
+                                ? "Read compatibility cache entry without writing the current key."
+                                : "Read and adapted compatibility cache entry without writing the current key."
                 );
                 logCacheMigrationTimingIfDev(
                         config,
-                        "promote",
+                        "compatibility-read",
                         preparedTemplate.translationTemplateKey(),
                         compatibilityKey.key(),
                         decodedCompatibilityTranslation.format(),
                         collectCompatibilityKeysElapsedNanos,
                         System.nanoTime() - compatibilityScanStartedAtNanos,
-                        promoteElapsedNanos,
+                        0L,
                         System.nanoTime() - resolveStartedAtNanos,
                         "compatibilityKeyCount=" + compatibilityKeys.size()
                 );
@@ -642,39 +691,24 @@ final class TooltipTemplateRuntime {
                 );
             }
 
-            long promoteStartedAtNanos = System.nanoTime();
-            cache.promoteTranslation(
-                    preparedTemplate.translationTemplateKey(),
-                    encodeStoredTranslation(
-                            decodedCompatibilityTranslation.translation(),
-                            decodedCompatibilityTranslation.format()
-                    )
-            );
-            long promoteElapsedNanos = System.nanoTime() - promoteStartedAtNanos;
             logCacheMigrationIfDev(
                     config,
-                    decodedCompatibilityTranslation.format() == CachedTranslationFormat.LEGACY
-                            ? "promote-legacy"
-                            : "promote-compatible-format",
+                    "compatibility-read",
                     preparedTemplate.translationTemplateKey(),
                     compatibilityKey.key(),
                     decodedCompatibilityTranslation.format(),
-                    true,
-                    decodedCompatibilityTranslation.format() == CachedTranslationFormat.LEGACY
-                            ? "Reused compatibility cache entry and wrote legacy-compatible content into newKey."
-                            : "Reused compatibility cache entry and wrote compatible content into newKey."
+                    false,
+                    "Read compatibility cache entry without writing the current key."
             );
             logCacheMigrationTimingIfDev(
                     config,
-                    decodedCompatibilityTranslation.format() == CachedTranslationFormat.LEGACY
-                            ? "promote-legacy"
-                            : "promote-compatible-format",
+                    "compatibility-read",
                     preparedTemplate.translationTemplateKey(),
                     compatibilityKey.key(),
                     decodedCompatibilityTranslation.format(),
                     collectCompatibilityKeysElapsedNanos,
                     System.nanoTime() - compatibilityScanStartedAtNanos,
-                    promoteElapsedNanos,
+                    0L,
                     System.nanoTime() - resolveStartedAtNanos,
                     "compatibilityKeyCount=" + compatibilityKeys.size()
             );
