@@ -181,13 +181,29 @@ public final class TooltipTranslationSupport {
     }
     static int forceRefreshV1Caches(TooltipPlan tooltipPlan, ItemTranslateConfig config) {
         if (tooltipPlan == null || tooltipPlan.segments() == null || tooltipPlan.segments().isEmpty()
-                || config == null || !config.component_json_v1_tooltip_lines) {
+                || config == null
+                || (!config.component_json_v1_tooltip_lines && !config.component_json_v1_tooltip_structured)) {
             return 0;
         }
         int refreshed = 0;
         for (TooltipRouteSegment segment : tooltipPlan.segments()) {
-            if (segment == null || segment.kind() != TooltipRouteKind.LINE_TEMPLATE
-                    || segment.candidate() == null
+            if (segment == null || segment.kind() == null || segment.candidate() == null) {
+                continue;
+            }
+            if (segment.kind() == TooltipRouteKind.STRUCTURED_LINE) {
+                if (config.component_json_v1_tooltip_structured) {
+                    boolean preserveStyles = segment.preparedTemplate() != null
+                            && segment.preparedTemplate().useTagStylePreservation();
+                    refreshed += TooltipStructuredCaptureSupport.forceRefreshStructuredLineV1(
+                            segment.candidate().line(),
+                            preserveStyles,
+                            config
+                    );
+                }
+                continue;
+            }
+            if (!config.component_json_v1_tooltip_lines
+                    || segment.kind() != TooltipRouteKind.LINE_TEMPLATE
                     || TooltipTemplateRuntime.hasLocalDictionaryTranslation(segment.candidate().line())) {
                 continue;
             }
@@ -446,7 +462,8 @@ public final class TooltipTranslationSupport {
             if (segment.kind() == TooltipRouteKind.STRUCTURED_LINE) {
                 structuredLineResult = TooltipStructuredCaptureSupport.tryTranslateStructuredLine(
                         segment.candidate().line(),
-                        useTagStylePreservation
+                        useTagStylePreservation,
+                        config
                 );
             }
 
@@ -527,6 +544,7 @@ public final class TooltipTranslationSupport {
         hash = 31 * hash + Boolean.hashCode(config.enabled_translate_item_custom_name);
         hash = 31 * hash + Boolean.hashCode(config.enabled_translate_item_lore);
         hash = 31 * hash + Boolean.hashCode(config.component_json_v1_tooltip_lines);
+        hash = 31 * hash + Boolean.hashCode(config.component_json_v1_tooltip_structured);
         hash = 31 * hash + (config.target_language == null ? 0 : config.target_language.hashCode());
         hash = 31 * hash + Long.hashCode(WynnSharedDictionaryService.getInstance().getItemSkillVersion());
         for (Component line : tooltip) {
@@ -583,7 +601,8 @@ public final class TooltipTranslationSupport {
                     }
                 }
                 case STRUCTURED_LINE -> {
-                    if (segment.candidate() != null) {
+                    if ((config == null || !config.component_json_v1_tooltip_structured)
+                            && segment.candidate() != null) {
                         remoteKeys.addAll(TooltipStructuredCaptureSupport.collectRemoteStructuredTemplateKeys(
                                 segment.candidate().line(),
                                 useTagStylePreservation
