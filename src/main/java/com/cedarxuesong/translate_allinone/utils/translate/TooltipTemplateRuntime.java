@@ -1500,6 +1500,26 @@ final class TooltipTemplateRuntime {
         return false;
     }
 
+    static boolean hasCustomFontOrDecorativeGlyph(Component line) {
+        return requiresRichStylePreservation(line);
+    }
+
+    static boolean hasUnsafeMixedDecorativeLiteral(Component line) {
+        if (line == null) {
+            return false;
+        }
+        for (FlatNode node : FlatNode.flatten(line)) {
+            String text = node.extractString();
+            if (text == null || text.isEmpty() || !containsDecorativeGlyph(text)) {
+                continue;
+            }
+            if (text.codePoints().anyMatch(Character::isLetter)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static boolean isDecorativeGlyphCodePoint(int codePoint) {
         int unicodeType = Character.getType(codePoint);
         return unicodeType == Character.PRIVATE_USE

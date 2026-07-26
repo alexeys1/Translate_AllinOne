@@ -25,10 +25,10 @@ final class TooltipComponentTranslationSupport {
             String policyVersion,
             ItemTranslateConfig config
     ) {
-        if (prepared == null || config == null || !isEligibleLine(prepared)) {
+        if (prepared == null || config == null || !isEligibleLine(prepared.sourceLine(), config)) {
             return null;
         }
-        PreparedLineDocument preparedDocument = prepareLineDocument(prepared, route, context, policyVersion);
+        PreparedLineDocument preparedDocument = prepareLineDocument(prepared, route, context, policyVersion, config);
         if (preparedDocument == null) {
             return null;
         }
@@ -75,10 +75,7 @@ final class TooltipComponentTranslationSupport {
             String policyVersion,
             ItemTranslateConfig config
     ) {
-        if (config == null) {
-            return 0;
-        }
-        PreparedLineDocument preparedDocument = prepareLineDocument(prepared, route, context, policyVersion);
+        PreparedLineDocument preparedDocument = prepareLineDocument(prepared, route, context, policyVersion, config);
         if (preparedDocument == null) {
             return 0;
         }
@@ -175,13 +172,15 @@ final class TooltipComponentTranslationSupport {
             PreparedTooltipTemplate prepared,
             ComponentTranslationRoute route,
             String context,
-            String policyVersion
+            String policyVersion,
+            ItemTranslateConfig config
     ) {
-        if (!isEligibleLine(prepared)) {
+        if (prepared == null || config == null || !isEligibleLine(prepared.sourceLine(), config)) {
             return null;
         }
         try {
-            PreparedTooltipTemplate renderTemplate = TooltipTemplateRuntime.prepareComponentV1Template(prepared);
+            PreparedTooltipTemplate renderTemplate =
+                    TooltipTemplateRuntime.prepareComponentV1Template(prepared);
             ComponentTranslationDocument document = ComponentTranslationRuntime.prepare(
                     Component.literal(renderTemplate.normalizedTemplate()),
                     route,
@@ -207,7 +206,7 @@ final class TooltipComponentTranslationSupport {
         }
         List<Component> lines = new ArrayList<>(block.preparedLines().size());
         for (PreparedTooltipTemplate prepared : block.preparedLines()) {
-            if (prepared == null || prepared.sourceLine() == null) {
+            if (prepared == null || !isEligibleLine(prepared.sourceLine(), config)) {
                 return null;
             }
             lines.add(prepared.sourceLine());
@@ -253,14 +252,15 @@ final class TooltipComponentTranslationSupport {
         return new TooltipTranslationSupport.TooltipLineResult(original, false, false);
     }
 
-    private static boolean isEligibleLine(PreparedTooltipTemplate prepared) {
-        if (prepared == null || prepared.sourceLine() == null || prepared.sourceLine().getString().isBlank()) {
+    static boolean isEligibleLine(Component line, ItemTranslateConfig config) {
+        if (line == null || line.getString().isBlank() || line.getString().indexOf('§') >= 0) {
             return false;
         }
-        if (prepared.sourceLine().getString().indexOf('§') >= 0) {
+        if (!config.component_json_v1_tooltip_custom_fonts
+                && TooltipTemplateRuntime.hasCustomFontOrDecorativeGlyph(line)) {
             return false;
         }
-        return !prepared.useTagStylePreservation();
+        return !TooltipTemplateRuntime.hasUnsafeMixedDecorativeLiteral(line);
     }
 
     private record PreparedLineDocument(

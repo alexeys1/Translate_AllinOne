@@ -76,7 +76,9 @@ final class TooltipStructuredCaptureSupport {
             boolean useTagStylePreservation,
             ItemTranslateConfig config
     ) {
-        if (config != null && config.component_json_v1_tooltip_structured) {
+        if (config != null
+                && config.component_json_v1_tooltip_structured
+                && TooltipComponentTranslationSupport.isEligibleLine(line, config)) {
             StructuredTooltipLineResult v1 = tryTranslateStructuredLineV1(line, useTagStylePreservation, config);
             if (v1 != null) {
                 return v1;

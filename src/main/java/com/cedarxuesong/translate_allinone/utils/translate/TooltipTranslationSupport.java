@@ -583,6 +583,7 @@ public final class TooltipTranslationSupport {
         hash = 31 * hash + Boolean.hashCode(config.component_json_v1_tooltip_lines);
         hash = 31 * hash + Boolean.hashCode(config.component_json_v1_tooltip_structured);
         hash = 31 * hash + Boolean.hashCode(config.component_json_v1_tooltip_paragraph);
+        hash = 31 * hash + Boolean.hashCode(config.component_json_v1_tooltip_custom_fonts);
         hash = 31 * hash + (config.target_language == null ? 0 : config.target_language.hashCode());
         hash = 31 * hash + Long.hashCode(WynnSharedDictionaryService.getInstance().getItemSkillVersion());
         for (Component line : tooltip) {
