@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -107,6 +108,7 @@ final class TooltipTemplateRuntime {
 
     record PreparedParagraphTemplate(
             String translationTemplateKey,
+            String componentV1TranslationTemplateKey,
             Map<Integer, Style> styleMap,
             List<String> templateValues,
             List<String> glyphValues,
@@ -311,6 +313,7 @@ final class TooltipTemplateRuntime {
 
         return new TooltipTranslationSupport.TooltipLineResult(finalTooltipLine, pending, missingKeyIssue, errorMessage);
     }
+
     static Component peekTranslatedPreparedTemplate(PreparedTooltipTemplate preparedTemplate) {
         if (preparedTemplate == null) {
             return null;
@@ -319,6 +322,7 @@ final class TooltipTemplateRuntime {
         if (localEvaluation.accepted()) {
             return renderLocalDictionaryTranslation(preparedTemplate, localEvaluation.lookupResult().translation());
         }
+
         CachedTranslationFormat currentFormat = preparedTemplate.useTagStylePreservation()
                 ? CachedTranslationFormat.TAGGED
                 : CachedTranslationFormat.LEGACY;
@@ -328,6 +332,7 @@ final class TooltipTemplateRuntime {
         if (current != null || shouldBypassCompatibilityFallback(preparedTemplate.translationTemplateKey())) {
             return current;
         }
+
         for (CompatibilityTemplateKey compatibilityKey : collectCompatibilityKeys(preparedTemplate)) {
             Component translated = renderPeekedTranslation(
                     preparedTemplate,
@@ -340,6 +345,7 @@ final class TooltipTemplateRuntime {
         }
         return null;
     }
+
     private static Component renderPeekedTranslation(
             PreparedTooltipTemplate preparedTemplate,
             LookupResult lookup,
@@ -392,6 +398,7 @@ final class TooltipTemplateRuntime {
                 translationTemplateKey
         );
     }
+
     static PreparedTooltipTemplate prepareComponentV1Template(PreparedTooltipTemplate preparedTemplate) {
         if (preparedTemplate == null || preparedTemplate.sourceLine() == null) {
             return null;
@@ -448,12 +455,15 @@ final class TooltipTemplateRuntime {
             return null;
         }
 
+        String legacyTemplateKey = combinedTemplateKey.toString();
+        String componentV1TemplateKey = canonicalizeParagraphStyleIds(legacyTemplateKey, combinedStyleMap);
         return new PreparedParagraphTemplate(
-                combinedTemplateKey.toString(),
+                legacyTemplateKey,
+                componentV1TemplateKey,
                 combinedStyleMap,
                 combinedTemplateValues,
                 combinedGlyphValues,
-                TooltipParagraphSupport.findDominantParagraphBodyStyleId(combinedTemplateKey.toString(), combinedStyleMap),
+                TooltipParagraphSupport.findDominantParagraphBodyStyleId(componentV1TemplateKey, combinedStyleMap),
                 computeParagraphWrapWidth(preparedLines),
                 lineEndStyleIds
         );
@@ -468,6 +478,7 @@ final class TooltipTemplateRuntime {
                 ? StylePreserver.reapplyStylesFromTags(reassembledOriginal, preparedTemplate.styleResult().styleMap)
                 : StylePreserver.reapplyStyles(reassembledOriginal, preparedTemplate.styleResult().styleMap);
     }
+
     static Component renderComponentV1TemplateTranslation(
             PreparedTooltipTemplate preparedTemplate,
             String translatedTemplate
@@ -1507,6 +1518,40 @@ final class TooltipTemplateRuntime {
         String remapped = remapPatternIds(template, STYLE_TAG_ID_PATTERN, "s", styleOffset, true);
         remapped = remapPatternIds(remapped, NUMERIC_PLACEHOLDER_ID_PATTERN, "d", numericOffset, false);
         return remapPatternIds(remapped, GLYPH_PLACEHOLDER_ID_PATTERN, "g", glyphOffset, false);
+    }
+
+    private static String canonicalizeParagraphStyleIds(String template, Map<Integer, Style> styleMap) {
+        if (template == null || template.isBlank() || styleMap == null || styleMap.isEmpty()) {
+            return template;
+        }
+
+        Map<Style, Integer> canonicalIdByStyle = new LinkedHashMap<>();
+        Map<Integer, Integer> canonicalIdByOriginalId = new HashMap<>();
+        Matcher matcher = STYLE_TAG_ID_PATTERN.matcher(template);
+        while (matcher.find()) {
+            int originalId = Integer.parseInt(matcher.group(1));
+            Style style = styleMap.get(originalId);
+            if (style == null) {
+                canonicalIdByOriginalId.putIfAbsent(originalId, originalId);
+                continue;
+            }
+            int canonicalId = canonicalIdByStyle.computeIfAbsent(style, ignored -> originalId);
+            canonicalIdByOriginalId.putIfAbsent(originalId, canonicalId);
+        }
+
+        matcher.reset();
+        StringBuilder canonical = new StringBuilder(template.length());
+        while (matcher.find()) {
+            int originalId = Integer.parseInt(matcher.group(1));
+            int canonicalId = canonicalIdByOriginalId.getOrDefault(originalId, originalId);
+            boolean closingTag = template.charAt(matcher.start() + 1) == '/';
+            String replacement = closingTag
+                    ? "</s" + canonicalId + ">"
+                    : "<s" + canonicalId + ">";
+            matcher.appendReplacement(canonical, Matcher.quoteReplacement(replacement));
+        }
+        matcher.appendTail(canonical);
+        return canonical.toString();
     }
 
     private static String remapPatternIds(
