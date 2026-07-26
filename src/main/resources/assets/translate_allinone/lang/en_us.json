@@ -342,6 +342,8 @@
   "text.translate_allinone.configscreen.desc.translate_item_lore": "Translate the lore text of items",
   "text.translate_allinone.configscreen.label.tooltip_component_json_v1_lines": "[WIP]Tooltip Component V1 Lines",
   "text.translate_allinone.configscreen.desc.tooltip_component_json_v1_lines": "Use structure-preserving translation for eligible ordinary tooltip lines",
+  "text.translate_allinone.configscreen.label.tooltip_component_json_v1_structured": "[WIP]Tooltip Component V1 Structured",
+  "text.translate_allinone.configscreen.desc.tooltip_component_json_v1_structured": "Translate only natural-language captures in structured tooltip lines",
   "text.translate_allinone.configscreen.label.translate_item_name": "Translate Item Name",
   "text.translate_allinone.configscreen.desc.translate_item_name": "Translate Item display names",
   "text.translate_allinone.configscreen.label.translate_vanilla_advancements": "Translate Vanilla Advancements",

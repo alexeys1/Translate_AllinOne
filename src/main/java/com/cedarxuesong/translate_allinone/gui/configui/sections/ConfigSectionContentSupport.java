@@ -183,6 +183,16 @@ public final class ConfigSectionContentSupport {
                         translator.t("desc.tooltip_component_json_v1_lines")
                 );
                 y += ROW_STEP;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.tooltip_component_json_v1_structured"),
+                        () -> item.component_json_v1_tooltip_structured,
+                        value -> item.component_json_v1_tooltip_structured = value,
+                        translator.t("desc.tooltip_component_json_v1_structured")
+                );
+                y += ROW_STEP;
                 textFieldRowAdder.add(
                         x,
                         y,
