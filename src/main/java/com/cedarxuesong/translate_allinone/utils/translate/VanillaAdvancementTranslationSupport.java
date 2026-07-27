@@ -21,12 +21,14 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.advancements.DisplayInfo;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.ComponentUtils;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 
 public final class VanillaAdvancementTranslationSupport {
@@ -217,7 +219,7 @@ public final class VanillaAdvancementTranslationSupport {
             TemplateProcessor.TemplateExtractionResult templateResult = TemplateProcessor.extract(styleResult.markedText);
             String legacyKey = templateResult.template();
             ComponentTranslationDocument document = ComponentTranslationRuntime.prepare(
-                    originalText,
+                    materializeComponentText(originalText),
                     ComponentTranslationRoute.ADVANCEMENT,
                     "advancement:" + fieldName,
                     "advancement-v1"
@@ -267,6 +269,17 @@ public final class VanillaAdvancementTranslationSupport {
             return originalText;
         }
         return originalText;
+    }
+
+    static Component materializeComponentText(Component originalText) {
+        MutableComponent materialized = Component.empty();
+        originalText.visit((style, text) -> {
+            if (text != null && !text.isEmpty()) {
+                materialized.append(Component.literal(text).setStyle(style == null ? Style.EMPTY : style));
+            }
+            return Optional.empty();
+        }, Style.EMPTY);
+        return materialized;
     }
 
     private static Component peekLegacyTranslation(
