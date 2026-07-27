@@ -5,6 +5,9 @@ import com.cedarxuesong.translate_allinone.utils.AnimationManager;
 import com.cedarxuesong.translate_allinone.utils.cache.ItemTemplateCache;
 import com.cedarxuesong.translate_allinone.utils.cache.LookupResult;
 import com.cedarxuesong.translate_allinone.utils.cache.TranslationStatus;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationMetrics;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationPolicy;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRoute;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.text.StylePreserver;
 import com.cedarxuesong.translate_allinone.utils.text.TemplateProcessor;
@@ -250,6 +253,11 @@ final class TooltipTemplateRuntime {
             return;
         }
 
+        ComponentTranslationMetrics.record(
+                ComponentTranslationRoute.TOOLTIP_PARAGRAPH,
+                ComponentTranslationPolicy.CURRENT_VERSION,
+                ComponentTranslationMetrics.Outcome.LOCAL_DICTIONARY_HIT
+        );
         throttledItemLocalLookupLog(
                 config,
                 localLookup.dictionaryId(),
@@ -585,6 +593,11 @@ final class TooltipTemplateRuntime {
         );
         if (localEvaluation.accepted()) {
             WynnSharedDictionaryService.LookupResult localLookup = localEvaluation.lookupResult();
+            ComponentTranslationMetrics.record(
+                    ComponentTranslationRoute.TOOLTIP_LINE,
+                    ComponentTranslationPolicy.CURRENT_VERSION,
+                    ComponentTranslationMetrics.Outcome.LOCAL_DICTIONARY_HIT
+            );
             return new ResolvedTemplateLookup(
                     translatedLookup(localLookup.translation()),
                     CachedTranslationFormat.LEGACY,

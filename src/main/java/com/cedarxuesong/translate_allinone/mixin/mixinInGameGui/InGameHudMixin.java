@@ -5,6 +5,9 @@ import com.cedarxuesong.translate_allinone.utils.AnimationManager;
 import com.cedarxuesong.translate_allinone.utils.cache.LookupResult;
 import com.cedarxuesong.translate_allinone.utils.cache.ScoreboardTextCache;
 import com.cedarxuesong.translate_allinone.utils.cache.TranslationStatus;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationMetrics;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationPolicy;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRoute;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ScoreboardConfig;
 import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
 import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardComponentTranslationSupport;
@@ -341,6 +344,7 @@ public class InGameHudMixin {
             Scoreboard scoreboard = objective.getScoreboard();
             Comparator<PlayerScoreEntry> comparator = InGameHudAccessor.getScoreboardEntryComparator();
             Map<Team, Map<String, Component>> replacements = new IdentityHashMap<>();
+            long framePreparationStartedAt = System.nanoTime();
 
             scoreboard.listPlayerScores(objective).stream()
                     .filter(score -> !score.isHidden())
@@ -380,6 +384,20 @@ public class InGameHudMixin {
                                 .put(scoreboardEntry.owner(), newName);
                     });
 
+            if (config.component_json_v1_scoreboard) {
+                ComponentTranslationMetrics.recordValue(
+                        ComponentTranslationRoute.SCOREBOARD,
+                        ComponentTranslationPolicy.CURRENT_VERSION,
+                        ComponentTranslationMetrics.Measurement.SCOREBOARD_FRAME_ENTRIES,
+                        replacements.values().stream().mapToInt(Map::size).sum()
+                );
+                ComponentTranslationMetrics.recordNanos(
+                        ComponentTranslationRoute.SCOREBOARD,
+                        ComponentTranslationPolicy.CURRENT_VERSION,
+                        ComponentTranslationMetrics.Timing.SCOREBOARD_FRAME_PREPARE,
+                        System.nanoTime() - framePreparationStartedAt
+                );
+            }
             translate_allinone$scoreboardReplacements.set(replacements);
         } catch (Exception e) {
             LOGGER.error("Failed to prepare scoreboard sidebar replacements", e);

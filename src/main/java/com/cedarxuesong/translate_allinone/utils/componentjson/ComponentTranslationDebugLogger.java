@@ -15,6 +15,8 @@ public final class ComponentTranslationDebugLogger {
 
     private static volatile boolean itemFlowEnabled;
     private static volatile boolean itemTimingEnabled;
+    private static volatile boolean scoreboardFlowEnabled;
+    private static volatile boolean scoreboardTimingEnabled;
 
     private ComponentTranslationDebugLogger() {
     }
@@ -24,7 +26,17 @@ public final class ComponentTranslationDebugLogger {
         var itemDebug = config == null || config.itemTranslate == null ? null : config.itemTranslate.debug;
         itemFlowEnabled = itemDebug != null && itemDebug.enabled && itemDebug.log_component_v1_flow;
         itemTimingEnabled = itemDebug != null && itemDebug.enabled && itemDebug.log_component_v1_timing;
-
+        var scoreboardDebug = config == null || config.scoreboardTranslate == null
+                ? null
+                : config.scoreboardTranslate.debug;
+        scoreboardFlowEnabled = scoreboardDebug != null
+                && scoreboardDebug.enabled
+                && (scoreboardDebug.log_batch_lifecycle
+                || scoreboardDebug.log_response_validation
+                || scoreboardDebug.log_retry_flow);
+        scoreboardTimingEnabled = scoreboardDebug != null
+                && scoreboardDebug.enabled
+                && scoreboardDebug.log_batch_timing;
     }
 
     public static void flow(ComponentTranslationRoute route, String message, Object... arguments) {
@@ -110,7 +122,8 @@ public final class ComponentTranslationDebugLogger {
         return switch (route) {
             case TOOLTIP_LINE, TOOLTIP_STRUCTURED, TOOLTIP_PARAGRAPH -> itemFlowEnabled;
             case CHAT_OUTPUT -> false;
-            case ADVANCEMENT, SCOREBOARD -> false;
+            case SCOREBOARD -> scoreboardFlowEnabled;
+            case ADVANCEMENT -> false;
         };
     }
 
@@ -120,7 +133,8 @@ public final class ComponentTranslationDebugLogger {
         }
         return switch (route) {
             case TOOLTIP_LINE, TOOLTIP_STRUCTURED, TOOLTIP_PARAGRAPH -> itemTimingEnabled;
-            case CHAT_OUTPUT, ADVANCEMENT, SCOREBOARD -> false;
+            case SCOREBOARD -> scoreboardTimingEnabled;
+            case CHAT_OUTPUT, ADVANCEMENT -> false;
         };
     }
 }

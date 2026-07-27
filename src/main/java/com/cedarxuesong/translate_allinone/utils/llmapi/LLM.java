@@ -47,6 +47,14 @@ public class LLM {
     }
 
     public CompletableFuture<String> getCompletion(List<OpenAIRequest.Message> messages, String requestContext) {
+        return getCompletion(messages, requestContext, null);
+    }
+
+    public CompletableFuture<String> getCompletion(
+            List<OpenAIRequest.Message> messages,
+            String requestContext,
+            CompletionObserver observer
+    ) {
         if (openAIClient != null) {
             boolean structuredOutputEnabled = settings.openAISettings().enableStructuredOutputIfAvailable();
 
@@ -75,7 +83,13 @@ public class LLM {
                 );
                 CompletionSupplier primary = () -> withInternalPostprocessRetry(primaryCall, "OpenAI Responses");
                 CompletionSupplier fallback = () -> withInternalPostprocessRetry(fallbackCall, "OpenAI Responses");
-                return withStructuredOutputFallback(structuredOutputEnabled, primary, fallback, "OpenAI Responses");
+                return withStructuredOutputFallback(
+                        structuredOutputEnabled,
+                        primary,
+                        fallback,
+                        "OpenAI Responses",
+                        observer
+                );
             }
 
             CompletionSupplier primaryCall = instrumentCompletionSupplier(
@@ -102,7 +116,13 @@ public class LLM {
             );
             CompletionSupplier primary = () -> withInternalPostprocessRetry(primaryCall, "OpenAI");
             CompletionSupplier fallback = () -> withInternalPostprocessRetry(fallbackCall, "OpenAI");
-            return withStructuredOutputFallback(structuredOutputEnabled, primary, fallback, "OpenAI");
+            return withStructuredOutputFallback(
+                    structuredOutputEnabled,
+                    primary,
+                    fallback,
+                    "OpenAI",
+                    observer
+            );
         }
 
         if (ollamaClient != null) {
@@ -131,7 +151,13 @@ public class LLM {
             );
             CompletionSupplier primary = () -> withInternalPostprocessRetry(primaryCall, "Ollama");
             CompletionSupplier fallback = () -> withInternalPostprocessRetry(fallbackCall, "Ollama");
-            return withStructuredOutputFallback(structuredOutputEnabled, primary, fallback, "Ollama");
+            return withStructuredOutputFallback(
+                    structuredOutputEnabled,
+                    primary,
+                    fallback,
+                    "Ollama",
+                    observer
+            );
         }
 
         return CompletableFuture.failedFuture(new IllegalStateException("当前供应商不支持聊天消息补全接口。"));
@@ -306,8 +332,10 @@ public class LLM {
             boolean structuredOutputEnabled,
             CompletionSupplier primary,
             CompletionSupplier fallback,
-            String providerName
+            String providerName,
+            CompletionObserver observer
     ) {
+        notifyDispatch(observer, structuredOutputEnabled, false);
         CompletableFuture<String> primaryFuture = primary.get();
         if (!structuredOutputEnabled) {
             return primaryFuture;
@@ -328,6 +356,7 @@ public class LLM {
 
             Translate_AllinOne.LOGGER.warn("{} structured output unsupported, retrying without it: {}", providerName, rootCause.getMessage());
             try {
+                notifyDispatch(observer, false, true);
                 fallback.get().whenComplete((fallbackResult, fallbackThrowable) -> {
                     if (fallbackThrowable == null) {
                         resultFuture.complete(fallbackResult);
@@ -340,6 +369,16 @@ public class LLM {
             }
         });
         return resultFuture;
+    }
+
+    private static void notifyDispatch(
+            CompletionObserver observer,
+            boolean structuredOutput,
+            boolean fallback
+    ) {
+        if (observer != null) {
+            observer.onDispatch(structuredOutput, fallback);
+        }
     }
 
     private boolean isStructuredOutputUnsupported(Throwable throwable) {
@@ -456,6 +495,11 @@ public class LLM {
     @FunctionalInterface
     private interface CompletionSupplier {
         CompletableFuture<String> get();
+    }
+
+    @FunctionalInterface
+    public interface CompletionObserver {
+        void onDispatch(boolean structuredOutput, boolean fallback);
     }
 
     @FunctionalInterface

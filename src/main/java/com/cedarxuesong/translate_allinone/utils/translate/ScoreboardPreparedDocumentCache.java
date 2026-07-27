@@ -1,5 +1,8 @@
 package com.cedarxuesong.translate_allinone.utils.translate;
 
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentJsonException;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationMetrics;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRoute;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import net.minecraft.network.chat.Component;
@@ -49,15 +52,55 @@ public final class ScoreboardPreparedDocumentCache {
         if (prepared != null) {
             return prepared;
         }
-        ScoreboardEntryTemplate.Prepared created = ScoreboardEntryTemplate.prepare(
-                key.prefix(),
-                key.owner(),
-                key.translateOwner(),
-                key.protectOwner(),
-                key.suffix()
-        );
-        entries.put(key, created);
-        return created;
+        long startedAt = System.nanoTime();
+        try {
+            ScoreboardEntryTemplate.Prepared created = ScoreboardEntryTemplate.prepare(
+                    key.prefix(),
+                    key.owner(),
+                    key.translateOwner(),
+                    key.protectOwner(),
+                    key.suffix()
+            );
+            ComponentTranslationMetrics.record(
+                    created.v1Document(),
+                    ComponentTranslationMetrics.Outcome.DOCUMENT_BUILT
+            );
+            ComponentTranslationMetrics.recordValue(
+                    created.v1Document(),
+                    ComponentTranslationMetrics.Measurement.TEXT_UNITS,
+                    created.v1Document().units().size()
+            );
+            if (created.v1Document().units().isEmpty()) {
+                ComponentTranslationMetrics.record(
+                        created.v1Document(),
+                        ComponentTranslationMetrics.Outcome.NO_TEXT
+                );
+            }
+            entries.put(key, created);
+            return created;
+        } catch (RuntimeException e) {
+            ComponentTranslationMetrics.record(
+                    ComponentTranslationRoute.SCOREBOARD,
+                    com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationPolicy.CURRENT_VERSION,
+                    ComponentTranslationMetrics.Outcome.DOCUMENT_FAILED
+            );
+            if (e instanceof ComponentJsonException componentError
+                    && componentError.kind() == ComponentJsonException.Kind.CODEC) {
+                ComponentTranslationMetrics.record(
+                        ComponentTranslationRoute.SCOREBOARD,
+                        com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationPolicy.CURRENT_VERSION,
+                        ComponentTranslationMetrics.Outcome.CODEC_ENCODE_FAILURE
+                );
+            }
+            throw e;
+        } finally {
+            ComponentTranslationMetrics.recordNanos(
+                    ComponentTranslationRoute.SCOREBOARD,
+                    com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationPolicy.CURRENT_VERSION,
+                    ComponentTranslationMetrics.Timing.DOCUMENT_BUILD,
+                    System.nanoTime() - startedAt
+            );
+        }
     }
 
     public synchronized void beginObjective(Object objective) {

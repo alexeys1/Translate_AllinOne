@@ -69,17 +69,39 @@ public final class ComponentTranslationRuntime {
         }
 
         long startedAt = System.nanoTime();
-        ComponentTranslationPolicy policy = ComponentTranslationPolicy.forRoute(route)
-                .withContext(resolvedContext)
-                .withSemanticSetting("route_policy", resolvedPolicyVersion);
-        ComponentTranslationDocument document = new ComponentDocumentBuilder().build(component, policy);
-        ComponentTranslationMetrics.recordNanos(
-                route,
-                ComponentTranslationMetrics.Timing.DOCUMENT_BUILD,
-                System.nanoTime() - startedAt
-        );
-        DOCUMENTS.put(key, new MemoizedDocument(component.copy(), document));
-        return document;
+        try {
+            ComponentTranslationPolicy policy = ComponentTranslationPolicy.forRoute(route)
+                    .withContext(resolvedContext)
+                    .withSemanticSetting("route_policy", resolvedPolicyVersion);
+            ComponentTranslationDocument document = new ComponentDocumentBuilder().build(component, policy);
+            ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.DOCUMENT_BUILT);
+            ComponentTranslationMetrics.recordValue(
+                    document,
+                    ComponentTranslationMetrics.Measurement.TEXT_UNITS,
+                    document.units().size()
+            );
+            if (document.units().isEmpty()) {
+                ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.NO_TEXT);
+            }
+            DOCUMENTS.put(key, new MemoizedDocument(component.copy(), document));
+            return document;
+        } catch (RuntimeException e) {
+            ComponentTranslationMetrics.record(route, ComponentTranslationMetrics.Outcome.DOCUMENT_FAILED);
+            if (e instanceof ComponentJsonException componentError
+                    && componentError.kind() == ComponentJsonException.Kind.CODEC) {
+                ComponentTranslationMetrics.record(
+                        route,
+                        ComponentTranslationMetrics.Outcome.CODEC_ENCODE_FAILURE
+                );
+            }
+            throw e;
+        } finally {
+            ComponentTranslationMetrics.recordNanos(
+                    route,
+                    ComponentTranslationMetrics.Timing.DOCUMENT_BUILD,
+                    System.nanoTime() - startedAt
+            );
+        }
     }
 
     public static <T> Resolution<T> resolve(
@@ -114,6 +136,7 @@ public final class ComponentTranslationRuntime {
             return new Resolution<>(State.INELIGIBLE, null, "", "Incomplete Component V1 request");
         }
         if (document.units().isEmpty()) {
+            ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.NO_TEXT);
             return new Resolution<>(State.NO_TEXT, null, "", "");
         }
 
@@ -122,6 +145,10 @@ public final class ComponentTranslationRuntime {
         try {
             lookup = CACHE.lookupWithLegacy(document, targetLanguage, renderer, legacyLookup);
         } catch (RuntimeException e) {
+            ComponentTranslationMetrics.record(
+                    document,
+                    ComponentTranslationMetrics.Outcome.FALLBACK_ORIGINAL
+            );
             return new Resolution<>(State.INELIGIBLE, null, "", e.getMessage());
         } finally {
             ComponentTranslationMetrics.recordNanos(
@@ -153,6 +180,10 @@ public final class ComponentTranslationRuntime {
 
         FailureState failure = activeFailure(lookup.cacheKey());
         if (failure != null) {
+            ComponentTranslationMetrics.record(
+                    document,
+                    ComponentTranslationMetrics.Outcome.FALLBACK_ORIGINAL
+            );
             ComponentTranslationDebugLogger.flow(
                     document.route(),
                     "resolve route={} state=FAILED cooldown=true key={}",
@@ -480,7 +511,7 @@ public final class ComponentTranslationRuntime {
                     new FailureState(resolvedMessage, System.currentTimeMillis() + FAILURE_COOLDOWN_MILLIS)
             );
             ComponentTranslationMetrics.record(
-                    request.document().route(),
+                    request.document(),
                     error instanceof ComponentJsonException
                             ? ComponentTranslationMetrics.Outcome.RESPONSE_REJECTED
                             : ComponentTranslationMetrics.Outcome.PROVIDER_FAILURE

@@ -1,6 +1,7 @@
 package com.cedarxuesong.translate_allinone.utils.componentjson;
 
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ApiProviderProfile;
+import com.cedarxuesong.translate_allinone.utils.TranslateExceptionUtils;
 import com.cedarxuesong.translate_allinone.utils.llmapi.LLM;
 import com.cedarxuesong.translate_allinone.utils.llmapi.ProviderSettings;
 import com.cedarxuesong.translate_allinone.utils.llmapi.openai.OpenAIRequest;
@@ -94,13 +95,45 @@ public final class ComponentTranslationClient {
         List<OpenAIRequest.Message> messages = buildMessages(document.route(), request, providerProfile);
         ProviderSettings settings = ProviderSettings.fromProviderProfile(providerProfile).withStructuredOutputEnabled();
         LLM llm = new LLM(settings);
+        ComponentTranslationMetrics.recordValue(
+                document,
+                ComponentTranslationMetrics.Measurement.REQUEST_BYTES,
+                request.toJson().getBytes(StandardCharsets.UTF_8).length
+        );
+        ComponentTranslationMetrics.recordValue(
+                document,
+                ComponentTranslationMetrics.Measurement.TEXT_UNITS,
+                document.units().size()
+        );
         long startedAt = System.nanoTime();
 
-        return llm.getCompletion(messages, requestContext).thenApply(rawResponse -> {
+        CompletableFuture<ComponentTranslationResponse> future = llm.getCompletion(
+                messages,
+                requestContext,
+                (structuredOutput, fallback) -> {
+                    if (structuredOutput) {
+                        ComponentTranslationMetrics.record(
+                                document,
+                                ComponentTranslationMetrics.Outcome.PROVIDER_STRUCTURED_OUTPUT
+                        );
+                    }
+                    if (fallback) {
+                        ComponentTranslationMetrics.record(
+                                document,
+                                ComponentTranslationMetrics.Outcome.PROVIDER_FALLBACK_OUTPUT
+                        );
+                    }
+                }
+        ).thenApply(rawResponse -> {
             ComponentTranslationResponse response = parser.parse(rawResponse);
             validator.validate(document, response);
             long elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000L;
             int responseBytes = rawResponse.getBytes(StandardCharsets.UTF_8).length;
+            ComponentTranslationMetrics.recordValue(
+                    document,
+                    ComponentTranslationMetrics.Measurement.RESPONSE_BYTES,
+                    responseBytes
+            );
             ComponentTranslationDebugLogger.flow(
                     document.route(),
                     "provider route={} result=completed model={} units={} responseBytes={} elapsedMs={}",
@@ -110,8 +143,18 @@ public final class ComponentTranslationClient {
                     responseBytes,
                     elapsedMillis
             );
-            ComponentTranslationMetrics.record(document.route(), ComponentTranslationMetrics.Outcome.SUCCESS);
+            ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.SUCCESS);
             return response;
+        });
+        return future.whenComplete((ignored, error) -> {
+            ComponentTranslationMetrics.recordNanos(
+                    document,
+                    ComponentTranslationMetrics.Timing.PROVIDER,
+                    System.nanoTime() - startedAt
+            );
+            if (error != null) {
+                recordResponseFailure(document, error);
+            }
         });
     }
 
@@ -150,5 +193,53 @@ public final class ComponentTranslationClient {
             Component component,
             ComponentTranslationResponse response
     ) {
+    }
+
+    private static void recordResponseFailure(
+            ComponentTranslationDocument document,
+            Throwable error
+    ) {
+        Throwable cause = TranslateExceptionUtils.unwrapThrowable(error);
+        if (!(cause instanceof ComponentJsonException componentError)) {
+            return;
+        }
+        String message = componentError.getMessage() == null
+                ? ""
+                : componentError.getMessage().toLowerCase(java.util.Locale.ROOT);
+        switch (componentError.kind()) {
+            case RESPONSE -> ComponentTranslationMetrics.record(
+                    document,
+                    ComponentTranslationMetrics.Outcome.RESPONSE_PARSE_FAILURE
+            );
+            case LIMIT -> ComponentTranslationMetrics.record(
+                    document,
+                    ComponentTranslationMetrics.Outcome.VALIDATION_LENGTH_FAILURE
+            );
+            case VALIDATION -> {
+                ComponentTranslationMetrics.Outcome outcome;
+                if (message.contains("translation ids") || message.contains("missing translation")) {
+                    outcome = ComponentTranslationMetrics.Outcome.VALIDATION_ID_FAILURE;
+                } else if (message.contains("protected token")) {
+                    outcome = ComponentTranslationMetrics.Outcome.VALIDATION_TOKEN_FAILURE;
+                } else if (message.contains("length") || message.contains("chars")) {
+                    outcome = ComponentTranslationMetrics.Outcome.VALIDATION_LENGTH_FAILURE;
+                } else {
+                    outcome = ComponentTranslationMetrics.Outcome.VALIDATION_STRUCTURE_FAILURE;
+                }
+                ComponentTranslationMetrics.record(document, outcome);
+            }
+            case APPLY -> ComponentTranslationMetrics.record(
+                    document,
+                    ComponentTranslationMetrics.Outcome.VALIDATION_STRUCTURE_FAILURE
+            );
+            case CODEC -> ComponentTranslationMetrics.record(
+                    document,
+                    ComponentTranslationMetrics.Outcome.CODEC_DECODE_FAILURE
+            );
+            case DOCUMENT -> ComponentTranslationMetrics.record(
+                    document,
+                    ComponentTranslationMetrics.Outcome.DOCUMENT_FAILED
+            );
+        }
     }
 }

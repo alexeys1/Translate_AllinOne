@@ -4,6 +4,9 @@ import com.cedarxuesong.translate_allinone.utils.AnimationManager;
 import com.cedarxuesong.translate_allinone.utils.cache.LookupResult;
 import com.cedarxuesong.translate_allinone.utils.cache.ScoreboardTextCache;
 import com.cedarxuesong.translate_allinone.utils.cache.TranslationStatus;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentJsonException;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationMetrics;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRoute;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRuntime;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ScoreboardConfig;
 import java.util.LinkedHashSet;
@@ -49,7 +52,29 @@ public final class ScoreboardComponentTranslationSupport {
                 config.target_language,
                 prepared.translationTemplateKey(),
                 () -> lookupLegacy(prepared),
-                prepared::renderV1Translated,
+                response -> {
+                    long startedAt = System.nanoTime();
+                    try {
+                        return prepared.renderV1Translated(response);
+                    } catch (RuntimeException e) {
+                        ComponentTranslationMetrics.Outcome outcome =
+                                e instanceof ComponentJsonException componentError
+                                        && componentError.kind() == ComponentJsonException.Kind.CODEC
+                                        ? ComponentTranslationMetrics.Outcome.CODEC_DECODE_FAILURE
+                                        : ComponentTranslationMetrics.Outcome.VALIDATION_STRUCTURE_FAILURE;
+                        ComponentTranslationMetrics.record(
+                                prepared.v1Document(),
+                                outcome
+                        );
+                        throw e;
+                    } finally {
+                        ComponentTranslationMetrics.recordNanos(
+                                prepared.v1Document(),
+                                ComponentTranslationMetrics.Timing.APPLY,
+                                System.nanoTime() - startedAt
+                        );
+                    }
+                },
                 "scoreboard_entry"
         );
         if (resolution.state() == ComponentTranslationRuntime.State.V1_HIT
@@ -63,6 +88,16 @@ public final class ScoreboardComponentTranslationSupport {
                     ? prepared.translationTemplateKey()
                     : resolution.cacheKey();
             return AnimationManager.getAnimatedStyledText(original, animationKey, false);
+        }
+        if (resolution.state() == ComponentTranslationRuntime.State.FAILED) {
+            ComponentTranslationMetrics.record(
+                    prepared.v1Document(),
+                    ComponentTranslationMetrics.Outcome.LOCAL_FALLBACK
+            );
+            ComponentTranslationMetrics.record(
+                    prepared.v1Document(),
+                    ComponentTranslationMetrics.Outcome.FALLBACK_ORIGINAL
+            );
         }
         return original;
     }

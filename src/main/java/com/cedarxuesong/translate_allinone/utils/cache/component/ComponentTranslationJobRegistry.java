@@ -65,6 +65,11 @@ public final class ComponentTranslationJobRegistry {
         return jobs.containsKey(cacheKey);
     }
 
+    public Optional<ComponentTranslationJob> find(String cacheKey) {
+        RegisteredJob registered = jobs.get(cacheKey);
+        return registered == null ? Optional.empty() : Optional.of(registered.job());
+    }
+
     public int size() {
         return jobs.size();
     }

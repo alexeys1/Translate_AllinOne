@@ -102,22 +102,22 @@ public final class ComponentTranslationCache {
 
         ComponentTranslationCacheEntry entry = file.get(metadata.key());
         if (entry == null) {
-            ComponentTranslationMetrics.record(document.route(), ComponentTranslationMetrics.Outcome.CACHE_MISS);
+            ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.CACHE_MISS);
             return new Lookup(Status.MISS, metadata.key(), null);
         }
         if (!entry.matches(document, targetLanguage, metadata)) {
             file.remove(metadata.key());
-            ComponentTranslationMetrics.record(document.route(), ComponentTranslationMetrics.Outcome.CACHE_MISS);
+            ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.CACHE_MISS);
             return new Lookup(Status.INVALID, metadata.key(), null);
         }
 
         try {
             ComponentTranslationResponse response = validator.validate(document, entry.toResponse());
-            ComponentTranslationMetrics.record(document.route(), ComponentTranslationMetrics.Outcome.CACHE_HIT);
+            ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.CACHE_HIT);
             return new Lookup(Status.HIT, metadata.key(), response);
         } catch (ComponentJsonException e) {
             file.remove(metadata.key());
-            ComponentTranslationMetrics.record(document.route(), ComponentTranslationMetrics.Outcome.CACHE_MISS);
+            ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.CACHE_MISS);
             ComponentTranslationDebugLogger.error(
                     document.route(),
                     "cache entry rejected: route={} key={} reason={}",
@@ -137,7 +137,8 @@ public final class ComponentTranslationCache {
             long callbackSessionEpoch
     ) {
         if (callbackSessionEpoch != sessionEpoch.get()) {
-            ComponentTranslationMetrics.record(document.route(), ComponentTranslationMetrics.Outcome.STALE_SESSION);
+            ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.STALE_SESSION);
+            ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.JOB_EXPIRED);
             return false;
         }
         ComponentTranslationCacheFile file = fileFor(document.route());
@@ -163,26 +164,64 @@ public final class ComponentTranslationCache {
             return false;
         }
         String key = cacheKey(document, targetLanguage);
-        return jobs.registerQueued(
+        boolean queued = jobs.registerQueued(
                 key,
                 new ComponentTranslationJob(document, document.route(), legacyKey, callbackSessionEpoch)
         );
+        if (queued) {
+            ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.JOB_QUEUED);
+        }
+        return queued;
     }
 
     public boolean markJobInFlight(String cacheKey, long callbackSessionEpoch) {
-        return callbackSessionEpoch == sessionEpoch.get() && jobs.markInFlight(cacheKey, callbackSessionEpoch);
+        if (callbackSessionEpoch != sessionEpoch.get()) {
+            return false;
+        }
+        Optional<ComponentTranslationJob> job = jobs.find(cacheKey);
+        boolean marked = jobs.markInFlight(cacheKey, callbackSessionEpoch);
+        if (marked) {
+            job.ifPresent(value -> ComponentTranslationMetrics.record(
+                    value.document(),
+                    ComponentTranslationMetrics.Outcome.JOB_IN_FLIGHT
+            ));
+        }
+        return marked;
     }
 
     public Optional<ComponentTranslationJob> completeJob(String cacheKey, long callbackSessionEpoch) {
+        Optional<ComponentTranslationJob> job = jobs.find(cacheKey);
         if (callbackSessionEpoch != sessionEpoch.get()) {
             jobs.fail(cacheKey, callbackSessionEpoch);
+            job.ifPresent(value -> {
+                ComponentTranslationMetrics.record(
+                        value.document(),
+                        ComponentTranslationMetrics.Outcome.STALE_SESSION
+                );
+                ComponentTranslationMetrics.record(
+                        value.document(),
+                        ComponentTranslationMetrics.Outcome.JOB_EXPIRED
+                );
+            });
             return Optional.empty();
         }
-        return jobs.complete(cacheKey, callbackSessionEpoch);
+        Optional<ComponentTranslationJob> refresh = jobs.complete(cacheKey, callbackSessionEpoch);
+        job.ifPresent(value -> ComponentTranslationMetrics.record(
+                value.document(),
+                ComponentTranslationMetrics.Outcome.JOB_SUCCESS
+        ));
+        return refresh;
     }
 
     public void failJob(String cacheKey, long callbackSessionEpoch) {
+        Optional<ComponentTranslationJob> job = jobs.find(cacheKey);
         jobs.fail(cacheKey, callbackSessionEpoch);
+        job.ifPresent(value -> ComponentTranslationMetrics.record(
+                value.document(),
+                callbackSessionEpoch == sessionEpoch.get()
+                        ? ComponentTranslationMetrics.Outcome.JOB_FAILURE
+                        : ComponentTranslationMetrics.Outcome.JOB_EXPIRED
+        ));
     }
 
     public boolean forceRefresh(ComponentTranslationDocument document, String targetLanguage) {
@@ -208,6 +247,10 @@ public final class ComponentTranslationCache {
                 if (file != null) {
                     file.remove(lookup.cacheKey());
                 }
+                ComponentTranslationMetrics.record(
+                        document,
+                        ComponentTranslationMetrics.Outcome.RESPONSE_REJECTED
+                );
                 ComponentTranslationDebugLogger.error(
                         document.route(),
                         "cached response apply failed: route={} key={} reason={}",
@@ -220,7 +263,8 @@ public final class ComponentTranslationCache {
         }
         T legacyValue = legacyLookup == null ? null : legacyLookup.get();
         if (legacyValue != null) {
-            ComponentTranslationMetrics.record(document.route(), ComponentTranslationMetrics.Outcome.LEGACY_HIT);
+            ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.LEGACY_HIT);
+            ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.FALLBACK_LEGACY);
             return new DualReadResult<>(Source.LEGACY, legacyValue, lookup.cacheKey());
         }
         return new DualReadResult<>(Source.MISS, null, lookup.cacheKey());
@@ -261,10 +305,17 @@ public final class ComponentTranslationCache {
         if (metadata != null) {
             return metadata;
         }
-        ComponentTranslationCacheKey.Metadata created = ComponentTranslationCacheKey.metadata(
-                document,
-                targetLanguage
-        );
+        long startedAt = System.nanoTime();
+        ComponentTranslationCacheKey.Metadata created;
+        try {
+            created = ComponentTranslationCacheKey.metadata(document, targetLanguage);
+        } finally {
+            ComponentTranslationMetrics.recordNanos(
+                    document,
+                    ComponentTranslationMetrics.Timing.HASH,
+                    System.nanoTime() - startedAt
+            );
+        }
         metadataCache.put(key, created);
         return created;
     }
