@@ -352,6 +352,8 @@
   "text.translate_allinone.configscreen.desc.translate_player_name": "翻译计分板上显示的玩家名称",
   "text.translate_allinone.configscreen.label.translate_prefix_suffix": "翻译前后缀",
   "text.translate_allinone.configscreen.desc.translate_prefix_suffix": "启用计分板前缀和后缀名称翻译功能",
+  "text.translate_allinone.configscreen.label.scoreboard_component_json_v1": "[WIP]计分板组件 JSON V1",
+  "text.translate_allinone.configscreen.desc.scoreboard_component_json_v1": "对符合条件的计分板条目使用保留结构的翻译",
   "text.translate_allinone.configscreen.label.translate_wynn_npc_dialogue_npc_name": "翻译 NPC 名称",
   "text.translate_allinone.configscreen.desc.translate_wynn_npc_dialogue_npc_name": "翻译Wynncraft对话中的NPC名称",
   "text.translate_allinone.configscreen.label.translate_wynn_npc_dialogue_options": "翻译 NPC 选项",

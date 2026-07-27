@@ -358,6 +358,8 @@
   "text.translate_allinone.configscreen.desc.translate_player_name": "Enable scoreboard player name translation features",
   "text.translate_allinone.configscreen.label.translate_prefix_suffix": "Translate Prefix/Suffix",
   "text.translate_allinone.configscreen.desc.translate_prefix_suffix": "Enable scoreboard prefix and suffix name translation features",
+  "text.translate_allinone.configscreen.label.scoreboard_component_json_v1": "[WIP] Scoreboard Component JSON V1",
+  "text.translate_allinone.configscreen.desc.scoreboard_component_json_v1": "Use structure-preserving translation for eligible scoreboard entries",
   "text.translate_allinone.configscreen.label.translate_wynn_npc_dialogue_npc_name": "Translate NPC Name",
   "text.translate_allinone.configscreen.desc.translate_wynn_npc_dialogue_npc_name": "Translate NPC names in Wynncraft dialogues",
   "text.translate_allinone.configscreen.label.translate_wynn_npc_dialogue_options": "Translate NPC Options",

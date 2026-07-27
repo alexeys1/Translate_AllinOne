@@ -560,6 +560,16 @@ public final class ConfigSectionContentSupport {
                 y += ROW_STEP;
                 toggleAdder.add(x, y, width, translator.t("label.translate_player_name"), () -> scoreboard.enabled_translate_player_name, value -> scoreboard.enabled_translate_player_name = value, tooltip(translator, "label.translate_player_name"));
                 y += ROW_STEP;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.scoreboard_component_json_v1"),
+                        () -> scoreboard.component_json_v1_scoreboard,
+                        value -> scoreboard.component_json_v1_scoreboard = value,
+                        translator.t("desc.scoreboard_component_json_v1")
+                );
+                y += ROW_STEP;
                 textFieldRowAdder.add(
                         x,
                         y,
