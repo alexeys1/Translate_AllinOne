@@ -7,6 +7,7 @@ import com.cedarxuesong.translate_allinone.utils.cache.ScoreboardTextCache;
 import com.cedarxuesong.translate_allinone.utils.cache.TranslationStatus;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ScoreboardConfig;
 import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
+import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardComponentTranslationSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardEntryTemplate;
 import com.cedarxuesong.translate_allinone.utils.translate.TranslationErrorTextSupport;
 import org.slf4j.Logger;
@@ -18,10 +19,13 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -51,7 +55,12 @@ public class InGameHudMixin {
     private static final String SCOREBOARD_TRANSLATION_ERROR_KEY = "text.translate_allinone.scoreboard.translation_error";
 
     @Unique
-    private static final ThreadLocal<Map<String, Component>> translate_allinone$scoreboardReplacements = new ThreadLocal<>();
+    /**
+     * Replacements are keyed by the exact team instance and raw scoreboard owner.
+     * Using the flattened decorated component as the key would let differently
+     * styled prefix/owner/suffix Components overwrite one another.
+     */
+    private static final ThreadLocal<Map<Team, Map<String, Component>>> translate_allinone$scoreboardReplacements = new ThreadLocal<>();
 
     @Unique
     private static final Set<String> translate_allinone$refreshedScoreboardKeysThisHold = new HashSet<>();
@@ -104,21 +113,54 @@ public class InGameHudMixin {
     }
 
     @Unique
-    private static Set<String> translate_allinone$collectScoreboardTranslationKeys(
+    private Component translate_allinone$processEntryForComponentV1(
+            Objective objective,
+            PlayerTeam team,
+            String playerName,
+            ScoreboardConfig config
+    ) {
+        Component owner = Component.literal(playerName).withStyle(team.getColor());
+        try {
+            ScoreboardEntryTemplate.Prepared prepared = ScoreboardComponentTranslationSupport.prepare(
+                    objective,
+                    team.getPlayerPrefix(),
+                    owner,
+                    config.enabled_translate_player_name,
+                    translate_allinone$isProtectedPlayerName(playerName),
+                    team.getPlayerSuffix()
+            );
+            return ScoreboardComponentTranslationSupport.resolve(prepared, config);
+        } catch (RuntimeException e) {
+            LOGGER.warn(
+                    "Failed to prepare scoreboard Component V1 entry; using the legacy route. ownerLength={}",
+                    playerName == null ? 0 : playerName.length(),
+                    e
+            );
+            return translate_allinone$processEntryForTranslation(
+                    team.getPlayerPrefix(),
+                    playerName,
+                    config.enabled_translate_player_name,
+                    team.getPlayerSuffix()
+            );
+        }
+    }
+
+    @Unique
+    private static List<ScoreboardEntryTemplate.Prepared> translate_allinone$collectScoreboardPreparedEntries(
             Objective objective,
             ScoreboardConfig config
     ) {
         if (objective == null || config == null || !config.enabled_translate_prefix_and_suffix_name) {
-            return Set.of();
+            return List.of();
         }
 
         Scoreboard scoreboard = objective.getScoreboard();
         if (scoreboard == null) {
-            return Set.of();
+            return List.of();
         }
 
         Comparator<PlayerScoreEntry> comparator = InGameHudAccessor.getScoreboardEntryComparator();
-        Set<String> keys = new LinkedHashSet<>();
+        List<ScoreboardEntryTemplate.Prepared> entries = new ArrayList<>();
         scoreboard.listPlayerScores(objective).stream()
                 .filter(score -> !score.isHidden())
                 .sorted(comparator)
@@ -129,17 +171,30 @@ public class InGameHudMixin {
                         return;
                     }
 
-                    ScoreboardEntryTemplate.Prepared prepared = ScoreboardEntryTemplate.prepare(
-                            team.getPlayerPrefix(),
-                            scoreboardEntry.owner(),
-                            config.enabled_translate_player_name,
-                            team.getPlayerSuffix()
-                    );
-                    if (prepared != null && !prepared.translationTemplateKey().isBlank()) {
-                        keys.add(prepared.translationTemplateKey());
+                    ScoreboardEntryTemplate.Prepared prepared;
+                    if (config.component_json_v1_scoreboard) {
+                        Component owner = Component.literal(scoreboardEntry.owner()).withStyle(team.getColor());
+                        prepared = ScoreboardComponentTranslationSupport.prepare(
+                                objective,
+                                team.getPlayerPrefix(),
+                                owner,
+                                config.enabled_translate_player_name,
+                                translate_allinone$isProtectedPlayerName(scoreboardEntry.owner()),
+                                team.getPlayerSuffix()
+                        );
+                    } else {
+                        prepared = ScoreboardEntryTemplate.prepare(
+                                team.getPlayerPrefix(),
+                                scoreboardEntry.owner(),
+                                config.enabled_translate_player_name,
+                                team.getPlayerSuffix()
+                        );
+                    }
+                    if (prepared != null) {
+                        entries.add(prepared);
                     }
                 });
-        return keys;
+        return List.copyOf(entries);
     }
 
     @Unique
@@ -158,25 +213,57 @@ public class InGameHudMixin {
             }
         }
 
-        Set<String> currentKeys = translate_allinone$collectScoreboardTranslationKeys(objective, config);
-        if (currentKeys.isEmpty()) {
+        List<ScoreboardEntryTemplate.Prepared> currentEntries;
+        try {
+            currentEntries = translate_allinone$collectScoreboardPreparedEntries(objective, config);
+        } catch (RuntimeException e) {
+            LOGGER.warn("Failed to prepare current scoreboard entries for refresh.", e);
+            return;
+        }
+        if (currentEntries.isEmpty()) {
             return;
         }
 
-        Set<String> keysToRefresh = new LinkedHashSet<>();
+        List<ScoreboardEntryTemplate.Prepared> entriesToRefresh = new ArrayList<>();
         synchronized (translate_allinone$refreshedScoreboardKeysThisHold) {
-            for (String key : currentKeys) {
-                if (translate_allinone$refreshedScoreboardKeysThisHold.add(key)) {
-                    keysToRefresh.add(key);
+            for (ScoreboardEntryTemplate.Prepared prepared : currentEntries) {
+                Set<String> identities = config.component_json_v1_scoreboard
+                        ? ScoreboardComponentTranslationSupport.refreshIdentities(
+                                prepared,
+                                config.target_language
+                        )
+                        : prepared.translationTemplateKey().isBlank()
+                                ? Set.of()
+                                : Set.of("legacy:" + prepared.translationTemplateKey());
+                boolean unseen = false;
+                for (String identity : identities) {
+                    unseen |= translate_allinone$refreshedScoreboardKeysThisHold.add(identity);
+                }
+                if (unseen) {
+                    entriesToRefresh.add(prepared);
                 }
             }
         }
 
-        if (keysToRefresh.isEmpty()) {
+        if (entriesToRefresh.isEmpty()) {
             return;
         }
 
-        int refreshedCount = ScoreboardTextCache.getInstance().forceRefresh(keysToRefresh);
+        int refreshedCount;
+        if (config.component_json_v1_scoreboard) {
+            refreshedCount = ScoreboardComponentTranslationSupport.forceRefresh(
+                    entriesToRefresh,
+                    config.target_language
+            );
+        } else {
+            Set<String> legacyKeys = new LinkedHashSet<>();
+            for (ScoreboardEntryTemplate.Prepared prepared : entriesToRefresh) {
+                if (!prepared.translationTemplateKey().isBlank()) {
+                    legacyKeys.add(prepared.translationTemplateKey());
+                }
+            }
+            refreshedCount = ScoreboardTextCache.getInstance().forceRefresh(legacyKeys);
+        }
         if (refreshedCount > 0) {
             LOGGER.info("Force-refreshed {} current scoreboard translation key(s).", refreshedCount);
         }
@@ -191,6 +278,24 @@ public class InGameHudMixin {
         return lower.contains(MISSING_KEY_HINT) || lower.contains(KEY_MISMATCH_HINT);
     }
 
+    @Unique
+    private static boolean translate_allinone$isProtectedPlayerName(String owner) {
+        if (owner == null || owner.isEmpty() || owner.length() > 16) {
+            return false;
+        }
+        for (int index = 0; index < owner.length(); index++) {
+            char character = owner.charAt(index);
+            boolean allowed = character == '_'
+                    || (character >= 'a' && character <= 'z')
+                    || (character >= 'A' && character <= 'Z')
+                    || (character >= '0' && character <= '9');
+            if (!allowed) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     @Inject(
             method = "displayScoreboardSidebar(Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/world/scores/Objective;)V",
             at = @At("HEAD"),
@@ -201,12 +306,14 @@ public class InGameHudMixin {
             ScoreboardConfig config = Translate_AllinOne.getConfig().scoreboardTranslate;
             if (config == null || !config.enabled) {
                 translate_allinone$scoreboardReplacements.set(null);
+                ScoreboardComponentTranslationSupport.reset();
                 synchronized (translate_allinone$refreshedScoreboardKeysThisHold) {
                     translate_allinone$refreshedScoreboardKeysThisHold.clear();
                 }
                 return;
             }
 
+            ScoreboardComponentTranslationSupport.beginObjective(objective);
             translate_allinone$maybeForceRefreshCurrentScoreboard(objective, config);
 
             boolean isKeyPressed = config.keybinding != null && KeybindingManager.isPressed(config.keybinding.binding);
@@ -233,7 +340,7 @@ public class InGameHudMixin {
 
             Scoreboard scoreboard = objective.getScoreboard();
             Comparator<PlayerScoreEntry> comparator = InGameHudAccessor.getScoreboardEntryComparator();
-            Map<String, Component> replacements = new HashMap<>();
+            Map<Team, Map<String, Component>> replacements = new IdentityHashMap<>();
 
             scoreboard.listPlayerScores(objective).stream()
                     .filter(score -> !score.isHidden())
@@ -242,17 +349,22 @@ public class InGameHudMixin {
                     .forEach(scoreboardEntry -> {
                         PlayerTeam team = scoreboard.getPlayersTeam(scoreboardEntry.owner());
                         Component plainOwnerName = Component.literal(scoreboardEntry.owner());
-                        String originalDecoratedNameKey = PlayerTeam.formatNameForTeam(team, plainOwnerName).getString();
-
                         Component newName;
                         if (team != null) {
                             if (config.enabled_translate_prefix_and_suffix_name) {
-                                newName = translate_allinone$processEntryForTranslation(
-                                        team.getPlayerPrefix(),
-                                        scoreboardEntry.owner(),
-                                        config.enabled_translate_player_name,
-                                        team.getPlayerSuffix()
-                                );
+                                newName = config.component_json_v1_scoreboard
+                                        ? translate_allinone$processEntryForComponentV1(
+                                                objective,
+                                                team,
+                                                scoreboardEntry.owner(),
+                                                config
+                                        )
+                                        : translate_allinone$processEntryForTranslation(
+                                                team.getPlayerPrefix(),
+                                                scoreboardEntry.owner(),
+                                                config.enabled_translate_player_name,
+                                                team.getPlayerSuffix()
+                                        );
                             } else {
                                 MutableComponent originalName = Component.empty().append(team.getPlayerPrefix());
                                 if (config.enabled_translate_player_name) {
@@ -263,7 +375,9 @@ public class InGameHudMixin {
                         } else {
                             newName = config.enabled_translate_player_name ? plainOwnerName : Component.empty();
                         }
-                        replacements.put(originalDecoratedNameKey, newName);
+                        replacements
+                                .computeIfAbsent(team, ignored -> new HashMap<>())
+                                .put(scoreboardEntry.owner(), newName);
                     });
 
             translate_allinone$scoreboardReplacements.set(replacements);
@@ -283,12 +397,13 @@ public class InGameHudMixin {
     )
     private MutableComponent redirectDecoratedSidebarName(Team team, Component name) {
         MutableComponent decoratedName = PlayerTeam.formatNameForTeam(team, name);
-        Map<String, Component> replacements = translate_allinone$scoreboardReplacements.get();
+        Map<Team, Map<String, Component>> replacements = translate_allinone$scoreboardReplacements.get();
         if (replacements == null) {
             return decoratedName;
         }
 
-        Component replacement = replacements.get(decoratedName.getString());
+        Map<String, Component> teamReplacements = replacements.get(team);
+        Component replacement = teamReplacements == null ? null : teamReplacements.get(name.getString());
         return replacement == null ? decoratedName : replacement.copy();
     }
 

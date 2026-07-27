@@ -338,9 +338,11 @@ public final class ComponentTranslationRuntime {
         PendingRequest first = batch.requests().getFirst();
         ApiProviderProfile provider = ProviderRouteResolver.resolve(
                 Translate_AllinOne.getConfig(),
-                route == DispatchRoute.ITEM
-                        ? ProviderRouteResolver.Route.ITEM
-                        : ProviderRouteResolver.Route.OTHER_TRANSLATIONS
+                switch (route) {
+                    case ITEM -> ProviderRouteResolver.Route.ITEM;
+                    case OTHER_TRANSLATIONS -> ProviderRouteResolver.Route.OTHER_TRANSLATIONS;
+                    case SCOREBOARD -> ProviderRouteResolver.Route.SCOREBOARD;
+                }
         );
         if (provider == null) {
             ComponentTranslationDebugLogger.flow(
@@ -530,9 +532,14 @@ public final class ComponentTranslationRuntime {
         if (route == DispatchRoute.ITEM) {
             return config.itemTranslate == null ? 1 : Math.max(1, config.itemTranslate.max_concurrent_requests);
         }
-        return config.otherTranslations == null
+        if (route == DispatchRoute.OTHER_TRANSLATIONS) {
+            return config.otherTranslations == null
+                    ? 1
+                    : Math.max(1, config.otherTranslations.max_concurrent_requests);
+        }
+        return config.scoreboardTranslate == null
                 ? 1
-                : Math.max(1, config.otherTranslations.max_concurrent_requests);
+                : Math.max(1, config.scoreboardTranslate.max_concurrent_requests);
     }
 
     private static int maxBatchSize(DispatchRoute route) {
@@ -543,15 +550,22 @@ public final class ComponentTranslationRuntime {
         if (route == DispatchRoute.ITEM) {
             return config.itemTranslate == null ? 1 : Math.max(1, config.itemTranslate.max_batch_size);
         }
-        return config.otherTranslations == null
+        if (route == DispatchRoute.OTHER_TRANSLATIONS) {
+            return config.otherTranslations == null
+                    ? 1
+                    : Math.max(1, config.otherTranslations.max_batch_size);
+        }
+        return config.scoreboardTranslate == null
                 ? 1
-                : Math.max(1, config.otherTranslations.max_batch_size);
+                : Math.max(1, config.scoreboardTranslate.max_batch_size);
     }
 
     private static DispatchRoute dispatchRoute(ComponentTranslationRoute route) {
-        return route == ComponentTranslationRoute.ADVANCEMENT
-                ? DispatchRoute.OTHER_TRANSLATIONS
-                : DispatchRoute.ITEM;
+        return switch (route) {
+            case ADVANCEMENT -> DispatchRoute.OTHER_TRANSLATIONS;
+            case SCOREBOARD -> DispatchRoute.SCOREBOARD;
+            case TOOLTIP_LINE, TOOLTIP_STRUCTURED, TOOLTIP_PARAGRAPH, CHAT_OUTPUT -> DispatchRoute.ITEM;
+        };
     }
 
     private static Map<DispatchRoute, DispatchState> createDispatchStates() {
@@ -581,7 +595,8 @@ public final class ComponentTranslationRuntime {
 
     private enum DispatchRoute {
         ITEM,
-        OTHER_TRANSLATIONS
+        OTHER_TRANSLATIONS,
+        SCOREBOARD
     }
 
     private static final class DispatchState {

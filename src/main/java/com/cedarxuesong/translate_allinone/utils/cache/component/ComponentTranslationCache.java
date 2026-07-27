@@ -201,7 +201,22 @@ public final class ComponentTranslationCache {
     ) {
         Lookup lookup = lookup(document, targetLanguage);
         if (lookup.status() == Status.HIT) {
-            return new DualReadResult<>(Source.V1, v1Renderer.apply(lookup.response()), lookup.cacheKey());
+            try {
+                return new DualReadResult<>(Source.V1, v1Renderer.apply(lookup.response()), lookup.cacheKey());
+            } catch (RuntimeException e) {
+                ComponentTranslationCacheFile file = fileFor(document.route());
+                if (file != null) {
+                    file.remove(lookup.cacheKey());
+                }
+                ComponentTranslationDebugLogger.error(
+                        document.route(),
+                        "cached response apply failed: route={} key={} reason={}",
+                        document.route().wireName(),
+                        lookup.cacheKey(),
+                        e.getMessage(),
+                        e
+                );
+            }
         }
         T legacyValue = legacyLookup == null ? null : legacyLookup.get();
         if (legacyValue != null) {
