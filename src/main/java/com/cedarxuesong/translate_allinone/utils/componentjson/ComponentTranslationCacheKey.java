@@ -15,6 +15,7 @@ import java.util.Map;
 
 public final class ComponentTranslationCacheKey {
     public static final int CANONICAL_FORMAT_VERSION = 1;
+    private static final String V2_BINDING_DOMAIN = "translate_allinone:component-cache-v2:binding\n";
 
     private ComponentTranslationCacheKey() {
     }
@@ -66,6 +67,7 @@ public final class ComponentTranslationCacheKey {
         String canonicalMaterial = canonicalize(material);
         return new Metadata(
                 "sha256:" + sha256(canonicalMaterial),
+                "sha256:" + sha256(V2_BINDING_DOMAIN + canonicalMaterial),
                 "sha256:" + sha256(canonicalize(structure)),
                 "sha256:" + sha256(canonicalize(sources)),
                 "sha256:" + sha256(canonicalize(tokenMetadata))
@@ -118,6 +120,7 @@ public final class ComponentTranslationCacheKey {
 
     public record Metadata(
             String key,
+            String binding,
             String structureFingerprint,
             String sourceFingerprint,
             String tokenFingerprint

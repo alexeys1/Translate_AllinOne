@@ -6,7 +6,7 @@ import com.cedarxuesong.translate_allinone.utils.cache.WynnDialogueTextCache;
 import com.cedarxuesong.translate_allinone.utils.cache.ItemTemplateCache;
 import com.cedarxuesong.translate_allinone.utils.cache.OtherTranslationsTextCache;
 import com.cedarxuesong.translate_allinone.utils.cache.WynntilsTaskTrackerTextCache;
-import com.cedarxuesong.translate_allinone.utils.cache.component.ComponentTranslationCache;
+import com.cedarxuesong.translate_allinone.utils.cache.component.ComponentTranslationStore;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRuntime;
 import com.cedarxuesong.translate_allinone.utils.translate.ItemTranslateManager;
 import com.cedarxuesong.translate_allinone.utils.translate.AdvancementTranslateManager;
@@ -49,8 +49,7 @@ public class LifecycleEventManager {
     private static void registerJoinHandler() {
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             resetReadinessState();
-            ComponentTranslationCache.getInstance().beginSession();
-            ComponentTranslationRuntime.resetSession();
+            ComponentTranslationRuntime.beginSession();
             ScoreboardTranslationInputSupport.reset();
             ExternalScoreboardTranslationSupport.resetSession();
             awaitingReadinessCheck = true;
@@ -93,8 +92,7 @@ public class LifecycleEventManager {
     private static void registerDisconnectHandler() {
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             resetReadinessState();
-            ComponentTranslationCache.getInstance().endSession();
-            ComponentTranslationRuntime.resetSession();
+            ComponentTranslationRuntime.endSession();
             ScoreboardTranslationInputSupport.reset();
             ExternalScoreboardTranslationSupport.resetSession();
             LOGGER.info("Player has disconnected. Translation readiness reset.");
@@ -113,7 +111,7 @@ public class LifecycleEventManager {
     }
 
     private static void loadCachesAndStartTranslationManagers() {
-        ComponentTranslationCache.getInstance().load();
+        ComponentTranslationStore.getInstance().load();
         ItemTemplateCache.getInstance().load();
         ItemTranslateManager.getInstance().start();
         OtherTranslationsTextCache.getInstance().load();
@@ -127,7 +125,7 @@ public class LifecycleEventManager {
     }
 
     private static void saveCaches() {
-        ComponentTranslationCache.getInstance().save();
+        ComponentTranslationStore.getInstance().save();
         ItemTemplateCache.getInstance().save();
         OtherTranslationsTextCache.getInstance().save();
         ScoreboardTextCache.getInstance().save();

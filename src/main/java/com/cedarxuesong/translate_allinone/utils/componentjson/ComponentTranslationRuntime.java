@@ -2,8 +2,7 @@ package com.cedarxuesong.translate_allinone.utils.componentjson;
 
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.registration.LifecycleEventManager;
-import com.cedarxuesong.translate_allinone.utils.cache.component.ComponentTranslationCache;
-import com.cedarxuesong.translate_allinone.utils.cache.component.ComponentTranslationJob;
+import com.cedarxuesong.translate_allinone.utils.cache.component.ComponentTranslationStore;
 import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
 import com.cedarxuesong.translate_allinone.utils.config.ProviderRouteResolver;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ApiProviderProfile;
@@ -18,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Queue;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -32,6 +32,9 @@ public final class ComponentTranslationRuntime {
     private static final ComponentTranslationClient CLIENT = new ComponentTranslationClient();
     private static final Map<DispatchRoute, DispatchState> DISPATCH = createDispatchStates();
     private static final Map<String, FailureState> FAILURES = new ConcurrentHashMap<>();
+    private static final AtomicLong SESSION_EPOCH = new AtomicLong();
+    private static final Object WORK_LOCK = new Object();
+    private static final Map<String, TranslationWork> WORKS = new LinkedHashMap<>();
     private static final Map<DocumentMemoKey, MemoizedDocument> DOCUMENTS = Collections.synchronizedMap(
             new LinkedHashMap<>(64, 0.75f, true) {
                 @Override
@@ -40,6 +43,15 @@ public final class ComponentTranslationRuntime {
                 }
             }
     );
+    private static final Map<PreparedRequestMemoKey, ComponentTranslationPreparedRequest> PREPARED_REQUESTS =
+            Collections.synchronizedMap(new LinkedHashMap<>(64, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(
+                        Map.Entry<PreparedRequestMemoKey, ComponentTranslationPreparedRequest> eldest
+                ) {
+                    return size() > DOCUMENT_CACHE_LIMIT;
+                }
+            });
 
     private ComponentTranslationRuntime() {
     }
@@ -149,16 +161,59 @@ public final class ComponentTranslationRuntime {
             return new Resolution<>(State.NO_TEXT, null, "", "");
         }
 
+        ComponentTranslationPreparedRequest request;
         long lookupStartedAt = System.nanoTime();
-        ComponentTranslationCache.DualReadResult<T> lookup;
         try {
-            lookup = cache().lookupWithLegacy(document, targetLanguage, renderer, legacyLookup);
+            request = preparedRequest(document, targetLanguage);
         } catch (RuntimeException e) {
             ComponentTranslationMetrics.record(
                     document,
                     ComponentTranslationMetrics.Outcome.FALLBACK_ORIGINAL
             );
             return new Resolution<>(State.INELIGIBLE, null, "", e.getMessage());
+        }
+        ComponentTranslationDebugLogger.textContent(document, request.identity().key());
+
+        ComponentTranslationStore.Lookup lookup;
+        try {
+            lookup = store().lookup(request);
+            if (lookup.status() == ComponentTranslationStore.Status.HIT) {
+                try {
+                    T rendered = renderer.apply(lookup.response());
+                    FAILURES.remove(lookup.cacheKey());
+                    ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.CACHE_HIT);
+                    ComponentTranslationDebugLogger.flow(
+                            document.route(),
+                            "resolve route={} state=V2_HIT key={}",
+                            document.route().wireName(),
+                            lookup.cacheKey()
+                    );
+
+
+                    return new Resolution<>(State.V1_HIT, rendered, lookup.cacheKey(), "");
+                } catch (RuntimeException error) {
+                    store().remove(request);
+                    ComponentTranslationMetrics.record(
+                            document,
+                            ComponentTranslationMetrics.Outcome.RESPONSE_REJECTED
+                    );
+                    ComponentTranslationDebugLogger.error(
+                            document.route(),
+                            "V2 cached response apply failed: route={} key={} reason={}",
+                            document.route().wireName(),
+                            lookup.cacheKey(),
+                            error.getMessage(),
+                            error
+                    );
+                }
+            }
+            ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.CACHE_MISS);
+        } catch (RuntimeException e) {
+            ComponentTranslationMetrics.record(
+                    document,
+                    ComponentTranslationMetrics.Outcome.FALLBACK_ORIGINAL
+            );
+            return new Resolution<>(State.INELIGIBLE, null, request.identity().key(), e.getMessage());
         } finally {
             ComponentTranslationMetrics.recordNanos(
                     document.route(),
@@ -167,27 +222,32 @@ public final class ComponentTranslationRuntime {
             );
         }
 
-        if (lookup.source() == ComponentTranslationCache.Source.V1) {
-            FAILURES.remove(lookup.cacheKey());
-            ComponentTranslationDebugLogger.flow(
-                    document.route(),
-                    "resolve route={} state=V1_HIT key={}",
-                    document.route().wireName(),
-                    lookup.cacheKey()
-            );
-            return new Resolution<>(State.V1_HIT, lookup.value(), lookup.cacheKey(), "");
-        }
-        if (lookup.source() == ComponentTranslationCache.Source.LEGACY) {
+
+
+        T legacyValue = legacyLookup == null ? null : legacyLookup.get();
+        if (legacyValue != null) {
+            ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.LEGACY_HIT);
+            ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.FALLBACK_LEGACY);
             ComponentTranslationDebugLogger.flow(
                     document.route(),
                     "resolve route={} state=LEGACY_HIT key={}",
                     document.route().wireName(),
-                    lookup.cacheKey()
+                    request.identity().key()
             );
-            return new Resolution<>(State.LEGACY_HIT, lookup.value(), lookup.cacheKey(), "");
+            return new Resolution<>(State.LEGACY_HIT, legacyValue, request.identity().key(), "");
         }
 
-        FailureState failure = activeFailure(lookup.cacheKey());
+        if (store().isWriteProtected()) {
+            ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.FALLBACK_ORIGINAL);
+            return new Resolution<>(
+                    State.FAILED,
+                    null,
+                    request.identity().key(),
+                    "Component V2 cache is write-protected for this session."
+            );
+        }
+
+        FailureState failure = activeFailure(request.identity().key());
         if (failure != null) {
             ComponentTranslationMetrics.record(
                     document,
@@ -197,51 +257,74 @@ public final class ComponentTranslationRuntime {
                     document.route(),
                     "resolve route={} state=FAILED cooldown=true key={}",
                     document.route().wireName(),
-                    lookup.cacheKey()
+                    request.identity().key()
             );
-            return new Resolution<>(State.FAILED, null, lookup.cacheKey(), failure.message());
+            return new Resolution<>(State.FAILED, null, request.identity().key(), failure.message());
         }
         if (!queueIfMissing) {
             ComponentTranslationDebugLogger.flow(
                     document.route(),
                     "resolve route={} state=MISS queue=false key={}",
                     document.route().wireName(),
-                    lookup.cacheKey()
+                    request.identity().key()
             );
-            return new Resolution<>(State.MISS, null, lookup.cacheKey(), "");
+            return new Resolution<>(State.MISS, null, request.identity().key(), "");
         }
         if (!LifecycleEventManager.isReadyForTranslation) {
             ComponentTranslationDebugLogger.flow(
                     document.route(),
                     "resolve route={} state=PENDING reason=client_not_ready key={}",
                     document.route().wireName(),
-                    lookup.cacheKey()
+                    request.identity().key()
             );
-            return new Resolution<>(State.PENDING, null, lookup.cacheKey(), "");
+            return new Resolution<>(State.PENDING, null, request.identity().key(), "");
         }
-        boolean queued = queue(document, targetLanguage, legacyKey, requestContext);
+        boolean queued = queue(request, requestContext);
         ComponentTranslationDebugLogger.flow(
                 document.route(),
                 "resolve route={} state=PENDING queued={} key={}",
                 document.route().wireName(),
                 queued,
-                lookup.cacheKey()
+                request.identity().key()
         );
-        return new Resolution<>(State.PENDING, null, lookup.cacheKey(), queued ? "" : "");
+        return new Resolution<>(State.PENDING, null, request.identity().key(), queued ? "" : "");
     }
 
     public static boolean forceRefresh(ComponentTranslationDocument document, String targetLanguage) {
         if (document == null || targetLanguage == null || targetLanguage.isBlank()) {
             return false;
         }
-        String key = cache().cacheKey(document, targetLanguage);
+        ComponentTranslationPreparedRequest request = preparedRequest(document, targetLanguage);
+        String key = request.identity().key();
         FAILURES.remove(key);
-        return cache().forceRefresh(document, targetLanguage);
+        boolean refreshRequested = requestRefresh(key);
+        boolean removed = store().remove(request);
+        return removed || refreshRequested;
+    }
+
+    public static long beginSession() {
+        long epoch = SESSION_EPOCH.incrementAndGet();
+        clearRuntimeState();
+        return epoch;
+    }
+
+    public static long endSession() {
+        long epoch = SESSION_EPOCH.incrementAndGet();
+        clearRuntimeState();
+        return epoch;
     }
 
     public static void resetSession() {
+        clearRuntimeState();
+    }
+
+    private static void clearRuntimeState() {
         FAILURES.clear();
         DOCUMENTS.clear();
+        PREPARED_REQUESTS.clear();
+        synchronized (WORK_LOCK) {
+            WORKS.clear();
+        }
         for (DispatchState state : DISPATCH.values()) {
             synchronized (state) {
                 state.queue.clear();
@@ -252,51 +335,41 @@ public final class ComponentTranslationRuntime {
     }
 
     public static String cacheKey(ComponentTranslationDocument document, String targetLanguage) {
-        return cache().cacheKey(document, targetLanguage);
+        return preparedRequest(document, targetLanguage).identity().key();
     }
 
     private static boolean queue(
-            ComponentTranslationDocument document,
-            String targetLanguage,
-            String legacyKey,
+            ComponentTranslationPreparedRequest request,
             String requestContext
     ) {
-        long epoch = cache().currentSessionEpoch();
-        long keyStartedAt = System.nanoTime();
-        String cacheKey = cache().cacheKey(document, targetLanguage);
-        ComponentTranslationMetrics.recordNanos(
-                document.route(),
-                ComponentTranslationMetrics.Timing.CACHE_KEY,
-                System.nanoTime() - keyStartedAt
-        );
-        if (!cache().queueJob(document, targetLanguage, legacyKey, epoch)) {
+        long epoch = SESSION_EPOCH.get();
+        String cacheKey = request.identity().key();
+        if (!registerQueued(request, requestContext, epoch)) {
             ComponentTranslationDebugLogger.flow(
-                    document.route(),
+                    request.document().route(),
                     "queue route={} accepted=false key={} epoch={}",
-                    document.route().wireName(),
+                    request.document().route().wireName(),
                     cacheKey,
                     epoch
             );
             return false;
         }
         ComponentTranslationDebugLogger.flow(
-                document.route(),
+                request.document().route(),
                 "queue route={} accepted=true key={} epoch={}",
-                document.route().wireName(),
+                request.document().route().wireName(),
                 cacheKey,
                 epoch
         );
 
-        DispatchRoute route = dispatchRoute(document.route());
+        ComponentTranslationMetrics.record(request.document(), ComponentTranslationMetrics.Outcome.JOB_QUEUED);
+        DispatchRoute route = dispatchRoute(request.document().route());
         DispatchState state = DISPATCH.get(route);
         synchronized (state) {
             state.queue.add(new PendingRequest(
-                    document,
-                    targetLanguage.trim(),
-                    cacheKey,
-                    legacyKey,
+                    request,
                     epoch,
-                    requestContext == null ? document.route().wireName() : requestContext
+                    requestContext == null ? request.document().route().wireName() : requestContext
             ));
         }
         scheduleDrain(route);
@@ -340,7 +413,8 @@ public final class ComponentTranslationRuntime {
     private static PendingBatch pollBatch(DispatchState state, int maxBatchSize) {
         PendingRequest first = null;
         while ((first = state.queue.poll()) != null) {
-            if (cache().markJobInFlight(first.cacheKey(), first.epoch())) {
+            if (markWorkInFlight(first.cacheKey(), first.epoch())) {
+                ComponentTranslationMetrics.record(first.document(), ComponentTranslationMetrics.Outcome.JOB_IN_FLIGHT);
                 break;
             }
         }
@@ -367,7 +441,8 @@ public final class ComponentTranslationRuntime {
                 continue;
             }
             iterator.remove();
-            if (cache().markJobInFlight(candidate.cacheKey(), candidate.epoch())) {
+            if (markWorkInFlight(candidate.cacheKey(), candidate.epoch())) {
+                ComponentTranslationMetrics.record(candidate.document(), ComponentTranslationMetrics.Outcome.JOB_IN_FLIGHT);
                 requests.add(candidate);
             }
         }
@@ -475,33 +550,37 @@ public final class ComponentTranslationRuntime {
             ComponentTranslationResponse response,
             int batchSize
     ) {
-        boolean stored = cache().put(
-                request.document(),
-                request.targetLanguage(),
-                response,
-                request.epoch()
-        );
-        Optional<ComponentTranslationJob> refresh = cache().completeJob(
-                request.cacheKey(),
-                request.epoch()
-        );
-        if (stored) {
+        WorkCompletion completion = completeAndStore(request, response);
+        if (!completion.current()) {
+            ComponentTranslationMetrics.record(request.document(), ComponentTranslationMetrics.Outcome.STALE_SESSION);
+            ComponentTranslationMetrics.record(request.document(), ComponentTranslationMetrics.Outcome.JOB_EXPIRED);
+            return;
+        }
+        if (completion.refreshAfterCompletion()) {
+            ComponentTranslationMetrics.record(request.document(), ComponentTranslationMetrics.Outcome.JOB_SUCCESS);
+            ComponentTranslationDebugLogger.flow(
+                    request.document().route(),
+                    "provider route={} result=discarded_after_refresh batchSize={} key={} epoch={}",
+                    request.document().route().wireName(),
+                    batchSize,
+                    request.cacheKey(),
+                    request.epoch()
+            );
+            return;
+        }
+        if (completion.stored()) {
             FAILURES.remove(request.cacheKey());
         }
+        ComponentTranslationMetrics.record(request.document(), ComponentTranslationMetrics.Outcome.JOB_SUCCESS);
         ComponentTranslationDebugLogger.flow(
                 request.document().route(),
                 "provider route={} result=stored={} batchSize={} key={} epoch={}",
                 request.document().route().wireName(),
-                stored,
+                completion.stored(),
                 batchSize,
                 request.cacheKey(),
                 request.epoch()
         );
-        if (refresh.isPresent()) {
-            // A forced refresh invalidates this in-flight result. The next normal
-            // render decides whether a new request is allowed and queues it.
-            cache().forceRefresh(request.document(), request.targetLanguage());
-        }
     }
 
     private static void failBatch(DispatchRoute route, PendingBatch batch, String message, Throwable error) {
@@ -512,9 +591,9 @@ public final class ComponentTranslationRuntime {
     }
 
     private static void recordRequestFailure(PendingRequest request, String message, Throwable error) {
-        cache().failJob(request.cacheKey(), request.epoch());
-        if (request.epoch() == cache().currentSessionEpoch()) {
-            String resolvedMessage = message == null || message.isBlank() ? "Component V1 translation failed" : message;
+        failWork(request.cacheKey(), request.epoch());
+        if (request.epoch() == SESSION_EPOCH.get()) {
+            String resolvedMessage = message == null || message.isBlank() ? "Component V2 translation failed" : message;
             FAILURES.put(
                     request.cacheKey(),
                     new FailureState(resolvedMessage, System.currentTimeMillis() + FAILURE_COOLDOWN_MILLIS)
@@ -541,6 +620,9 @@ public final class ComponentTranslationRuntime {
                     resolvedMessage,
                     error
             );
+        } else {
+            ComponentTranslationMetrics.record(request.document(), ComponentTranslationMetrics.Outcome.STALE_SESSION);
+            ComponentTranslationMetrics.record(request.document(), ComponentTranslationMetrics.Outcome.JOB_EXPIRED);
         }
     }
 
@@ -602,7 +684,8 @@ public final class ComponentTranslationRuntime {
 
     private static DispatchRoute dispatchRoute(ComponentTranslationRoute route) {
         return switch (route) {
-            case ADVANCEMENT -> DispatchRoute.OTHER_TRANSLATIONS;
+            case ADVANCEMENT, SIGN_FACE, SIGN_CONTINUOUS, ENTITY_NAME, TEXT_DISPLAY, BOOK_PAGE ->
+                    DispatchRoute.OTHER_TRANSLATIONS;
             case SCOREBOARD -> DispatchRoute.SCOREBOARD;
             case TOOLTIP_LINE, TOOLTIP_STRUCTURED, TOOLTIP_PARAGRAPH, CHAT_OUTPUT -> DispatchRoute.ITEM;
         };
@@ -616,12 +699,110 @@ public final class ComponentTranslationRuntime {
         return result;
     }
 
-    private static ComponentTranslationCache cache() {
-        return CacheHolder.INSTANCE;
+    private static ComponentTranslationPreparedRequest preparedRequest(
+            ComponentTranslationDocument document,
+            String targetLanguage
+    ) {
+        if (document == null || targetLanguage == null || targetLanguage.isBlank()) {
+            throw new IllegalArgumentException("Component translation document and target language are required.");
+        }
+        String normalizedLanguage = targetLanguage.trim();
+        PreparedRequestMemoKey key = new PreparedRequestMemoKey(document, normalizedLanguage);
+        ComponentTranslationPreparedRequest memoized = PREPARED_REQUESTS.get(key);
+        if (memoized != null) {
+            return memoized;
+        }
+        long startedAt = System.nanoTime();
+        try {
+            ComponentTranslationPreparedRequest prepared = ComponentTranslationPreparedRequest.create(document, normalizedLanguage);
+            PREPARED_REQUESTS.put(key, prepared);
+            return prepared;
+        } finally {
+            ComponentTranslationMetrics.recordNanos(
+                    document.route(),
+                    ComponentTranslationMetrics.Timing.HASH,
+                    System.nanoTime() - startedAt
+            );
+        }
     }
 
-    private static final class CacheHolder {
-        private static final ComponentTranslationCache INSTANCE = ComponentTranslationCache.getInstance();
+    private static ComponentTranslationStore store() {
+        return StoreHolder.INSTANCE;
+    }
+
+    private static boolean registerQueued(
+            ComponentTranslationPreparedRequest request,
+            String requestContext,
+            long epoch
+    ) {
+        synchronized (WORK_LOCK) {
+            if (epoch != SESSION_EPOCH.get() || WORKS.containsKey(request.identity().key())) {
+                return false;
+            }
+            WORKS.put(
+                    request.identity().key(),
+                    new TranslationWork(request, epoch, requestContext, WorkState.QUEUED, false)
+            );
+            return true;
+        }
+    }
+
+    private static boolean markWorkInFlight(String cacheKey, long epoch) {
+        synchronized (WORK_LOCK) {
+            TranslationWork work = WORKS.get(cacheKey);
+            if (work == null || work.epoch() != epoch || work.state() != WorkState.QUEUED) {
+                return false;
+            }
+            WORKS.put(cacheKey, work.withState(WorkState.IN_FLIGHT));
+            return true;
+        }
+    }
+
+    private static WorkCompletion completeAndStore(
+            PendingRequest request,
+            ComponentTranslationResponse response
+    ) {
+        synchronized (WORK_LOCK) {
+            TranslationWork work = WORKS.get(request.cacheKey());
+            if (work == null || work.epoch() != request.epoch() || request.epoch() != SESSION_EPOCH.get()) {
+                return WorkCompletion.STALE;
+            }
+            if (work.refreshAfterCompletion()) {
+                WORKS.remove(request.cacheKey());
+                return new WorkCompletion(true, true, false);
+            }
+            boolean stored = store().put(request.prepared(), response);
+            WORKS.remove(request.cacheKey());
+            return new WorkCompletion(true, false, stored);
+        }
+    }
+
+    private static void failWork(String cacheKey, long epoch) {
+        synchronized (WORK_LOCK) {
+            TranslationWork work = WORKS.get(cacheKey);
+            if (work != null && work.epoch() == epoch) {
+                WORKS.remove(cacheKey);
+            }
+        }
+    }
+
+    private static boolean requestRefresh(String cacheKey) {
+        synchronized (WORK_LOCK) {
+            TranslationWork work = WORKS.get(cacheKey);
+            if (work == null) {
+                return false;
+            }
+            if (work.state() == WorkState.QUEUED) {
+                WORKS.remove(cacheKey);
+                return true;
+            }
+            WORKS.put(cacheKey, work.withRefreshAfterCompletion());
+            return true;
+        }
+    }
+
+    private static final class StoreHolder {
+        private static final ComponentTranslationStore INSTANCE = ComponentTranslationStore.getInstance();
     }
 
     public record Resolution<T>(State state, T value, String cacheKey, String errorMessage) {
@@ -663,13 +844,46 @@ public final class ComponentTranslationRuntime {
     }
 
     private record PendingRequest(
-            ComponentTranslationDocument document,
-            String targetLanguage,
-            String cacheKey,
-            String legacyKey,
+            ComponentTranslationPreparedRequest prepared,
             long epoch,
             String requestContext
     ) {
+        private ComponentTranslationDocument document() {
+            return prepared.document();
+        }
+
+        private String targetLanguage() {
+            return prepared.targetLanguage();
+        }
+
+        private String cacheKey() {
+            return prepared.identity().key();
+        }
+    }
+
+    private record TranslationWork(
+            ComponentTranslationPreparedRequest request,
+            long epoch,
+            String requestContext,
+            WorkState state,
+            boolean refreshAfterCompletion
+    ) {
+        private TranslationWork withState(WorkState updatedState) {
+            return new TranslationWork(request, epoch, requestContext, updatedState, refreshAfterCompletion);
+        }
+
+        private TranslationWork withRefreshAfterCompletion() {
+            return new TranslationWork(request, epoch, requestContext, state, true);
+        }
+    }
+
+    private record WorkCompletion(boolean current, boolean refreshAfterCompletion, boolean stored) {
+        private static final WorkCompletion STALE = new WorkCompletion(false, false, false);
+    }
+
+    private enum WorkState {
+        QUEUED,
+        IN_FLIGHT
     }
 
     private record DocumentMemoKey(
@@ -682,6 +896,30 @@ public final class ComponentTranslationRuntime {
     }
 
     private record MemoizedDocument(Component source, ComponentTranslationDocument document) {
+    }
+
+    private static final class PreparedRequestMemoKey {
+        private final ComponentTranslationDocument document;
+        private final String targetLanguage;
+        private final int hashCode;
+
+        private PreparedRequestMemoKey(ComponentTranslationDocument document, String targetLanguage) {
+            this.document = document;
+            this.targetLanguage = targetLanguage;
+            this.hashCode = 31 * System.identityHashCode(document) + targetLanguage.hashCode();
+        }
+
+        @Override
+        public boolean equals(Object value) {
+            return value instanceof PreparedRequestMemoKey other
+                    && document == other.document
+                    && targetLanguage.equals(other.targetLanguage);
+        }
+
+        @Override
+        public int hashCode() {
+            return hashCode;
+        }
     }
 
     private record FailureState(String message, long expiresAtMillis) {
