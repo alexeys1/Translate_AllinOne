@@ -229,7 +229,8 @@ public final class ExternalScoreboardTranslationSupport {
 
     public enum Source {
         SKYHANNI("skyhanni"),
-        CUSTOM_SCOREBOARD("customscoreboard");
+        CUSTOM_SCOREBOARD("customscoreboard"),
+        SCOREBOARD_OVERHAUL("scoreboard_overhaul");
 
         private final String wireName;
 

@@ -27,6 +27,7 @@
     "mixinInGameGui.InGameHudMixin",
     "mixinInGameGui.CustomScoreboardRendererMixin",
     "mixinInGameGui.InGameHudAccessor",
+    "mixinInGameGui.ScoreboardOverhaulAccessorMixin",
     "mixinInGameGui.SkyHanniCustomScoreboardMixin",
     "mixinChatScreen.ChatScreenMixin"
   ],
