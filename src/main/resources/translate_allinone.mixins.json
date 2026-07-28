@@ -25,6 +25,7 @@
     "mixinWynntils.ContentTrackerOverlayMixin",
     "mixinWynnDialogue.ClientPlayNetworkHandlerMixin",
     "mixinInGameGui.InGameHudMixin",
+    "mixinInGameGui.CustomScoreboardRendererMixin",
     "mixinInGameGui.InGameHudAccessor",
     "mixinInGameGui.SkyHanniCustomScoreboardMixin",
     "mixinChatScreen.ChatScreenMixin"
