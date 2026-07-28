@@ -30,7 +30,6 @@ public final class ComponentTranslationRuntime {
     private static final long FAILURE_COOLDOWN_MILLIS = 30_000L;
     private static final long ITEM_BATCH_COLLECT_DELAY_MILLIS = 10L;
     private static final ComponentTranslationClient CLIENT = new ComponentTranslationClient();
-    private static final ComponentTranslationCache CACHE = ComponentTranslationCache.getInstance();
     private static final Map<DispatchRoute, DispatchState> DISPATCH = createDispatchStates();
     private static final Map<String, FailureState> FAILURES = new ConcurrentHashMap<>();
     private static final Map<DocumentMemoKey, MemoizedDocument> DOCUMENTS = Collections.synchronizedMap(
@@ -51,15 +50,28 @@ public final class ComponentTranslationRuntime {
             String context,
             String policyVersion
     ) {
-        if (component == null || route == null) {
+        if (route == null) {
             throw new IllegalArgumentException("Component translation document input is incomplete.");
         }
         String resolvedContext = context == null || context.isBlank() ? route.wireName() : context.trim();
         String resolvedPolicyVersion = policyVersion == null || policyVersion.isBlank() ? "1" : policyVersion.trim();
+        ComponentTranslationPolicy policy = ComponentTranslationPolicy.forRoute(route)
+                .withContext(resolvedContext)
+                .withSemanticSetting("route_policy", resolvedPolicyVersion);
+        return prepare(component, policy);
+    }
+
+    public static ComponentTranslationDocument prepare(
+            Component component,
+            ComponentTranslationPolicy policy
+    ) {
+        if (component == null || policy == null) {
+            throw new IllegalArgumentException("Component translation document input is incomplete.");
+        }
         DocumentMemoKey key = new DocumentMemoKey(
-                route,
-                resolvedContext,
-                resolvedPolicyVersion,
+                policy.route(),
+                policy.version(),
+                policy.semanticSettings(),
                 component.hashCode(),
                 component.getString()
         );
@@ -70,9 +82,6 @@ public final class ComponentTranslationRuntime {
 
         long startedAt = System.nanoTime();
         try {
-            ComponentTranslationPolicy policy = ComponentTranslationPolicy.forRoute(route)
-                    .withContext(resolvedContext)
-                    .withSemanticSetting("route_policy", resolvedPolicyVersion);
             ComponentTranslationDocument document = new ComponentDocumentBuilder().build(component, policy);
             ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.DOCUMENT_BUILT);
             ComponentTranslationMetrics.recordValue(
@@ -86,18 +95,18 @@ public final class ComponentTranslationRuntime {
             DOCUMENTS.put(key, new MemoizedDocument(component.copy(), document));
             return document;
         } catch (RuntimeException e) {
-            ComponentTranslationMetrics.record(route, ComponentTranslationMetrics.Outcome.DOCUMENT_FAILED);
+            ComponentTranslationMetrics.record(policy.route(), ComponentTranslationMetrics.Outcome.DOCUMENT_FAILED);
             if (e instanceof ComponentJsonException componentError
                     && componentError.kind() == ComponentJsonException.Kind.CODEC) {
                 ComponentTranslationMetrics.record(
-                        route,
+                        policy.route(),
                         ComponentTranslationMetrics.Outcome.CODEC_ENCODE_FAILURE
                 );
             }
             throw e;
         } finally {
             ComponentTranslationMetrics.recordNanos(
-                    route,
+                    policy.route(),
                     ComponentTranslationMetrics.Timing.DOCUMENT_BUILD,
                     System.nanoTime() - startedAt
             );
@@ -143,7 +152,7 @@ public final class ComponentTranslationRuntime {
         long lookupStartedAt = System.nanoTime();
         ComponentTranslationCache.DualReadResult<T> lookup;
         try {
-            lookup = CACHE.lookupWithLegacy(document, targetLanguage, renderer, legacyLookup);
+            lookup = cache().lookupWithLegacy(document, targetLanguage, renderer, legacyLookup);
         } catch (RuntimeException e) {
             ComponentTranslationMetrics.record(
                     document,
@@ -225,9 +234,9 @@ public final class ComponentTranslationRuntime {
         if (document == null || targetLanguage == null || targetLanguage.isBlank()) {
             return false;
         }
-        String key = CACHE.cacheKey(document, targetLanguage);
+        String key = cache().cacheKey(document, targetLanguage);
         FAILURES.remove(key);
-        return CACHE.forceRefresh(document, targetLanguage);
+        return cache().forceRefresh(document, targetLanguage);
     }
 
     public static void resetSession() {
@@ -243,7 +252,7 @@ public final class ComponentTranslationRuntime {
     }
 
     public static String cacheKey(ComponentTranslationDocument document, String targetLanguage) {
-        return CACHE.cacheKey(document, targetLanguage);
+        return cache().cacheKey(document, targetLanguage);
     }
 
     private static boolean queue(
@@ -252,15 +261,15 @@ public final class ComponentTranslationRuntime {
             String legacyKey,
             String requestContext
     ) {
-        long epoch = CACHE.currentSessionEpoch();
+        long epoch = cache().currentSessionEpoch();
         long keyStartedAt = System.nanoTime();
-        String cacheKey = CACHE.cacheKey(document, targetLanguage);
+        String cacheKey = cache().cacheKey(document, targetLanguage);
         ComponentTranslationMetrics.recordNanos(
                 document.route(),
                 ComponentTranslationMetrics.Timing.CACHE_KEY,
                 System.nanoTime() - keyStartedAt
         );
-        if (!CACHE.queueJob(document, targetLanguage, legacyKey, epoch)) {
+        if (!cache().queueJob(document, targetLanguage, legacyKey, epoch)) {
             ComponentTranslationDebugLogger.flow(
                     document.route(),
                     "queue route={} accepted=false key={} epoch={}",
@@ -331,7 +340,7 @@ public final class ComponentTranslationRuntime {
     private static PendingBatch pollBatch(DispatchState state, int maxBatchSize) {
         PendingRequest first = null;
         while ((first = state.queue.poll()) != null) {
-            if (CACHE.markJobInFlight(first.cacheKey(), first.epoch())) {
+            if (cache().markJobInFlight(first.cacheKey(), first.epoch())) {
                 break;
             }
         }
@@ -358,7 +367,7 @@ public final class ComponentTranslationRuntime {
                 continue;
             }
             iterator.remove();
-            if (CACHE.markJobInFlight(candidate.cacheKey(), candidate.epoch())) {
+            if (cache().markJobInFlight(candidate.cacheKey(), candidate.epoch())) {
                 requests.add(candidate);
             }
         }
@@ -466,13 +475,13 @@ public final class ComponentTranslationRuntime {
             ComponentTranslationResponse response,
             int batchSize
     ) {
-        boolean stored = CACHE.put(
+        boolean stored = cache().put(
                 request.document(),
                 request.targetLanguage(),
                 response,
                 request.epoch()
         );
-        Optional<ComponentTranslationJob> refresh = CACHE.completeJob(
+        Optional<ComponentTranslationJob> refresh = cache().completeJob(
                 request.cacheKey(),
                 request.epoch()
         );
@@ -491,7 +500,7 @@ public final class ComponentTranslationRuntime {
         if (refresh.isPresent()) {
             // A forced refresh invalidates this in-flight result. The next normal
             // render decides whether a new request is allowed and queues it.
-            CACHE.forceRefresh(request.document(), request.targetLanguage());
+            cache().forceRefresh(request.document(), request.targetLanguage());
         }
     }
 
@@ -503,8 +512,8 @@ public final class ComponentTranslationRuntime {
     }
 
     private static void recordRequestFailure(PendingRequest request, String message, Throwable error) {
-        CACHE.failJob(request.cacheKey(), request.epoch());
-        if (request.epoch() == CACHE.currentSessionEpoch()) {
+        cache().failJob(request.cacheKey(), request.epoch());
+        if (request.epoch() == cache().currentSessionEpoch()) {
             String resolvedMessage = message == null || message.isBlank() ? "Component V1 translation failed" : message;
             FAILURES.put(
                     request.cacheKey(),
@@ -607,6 +616,14 @@ public final class ComponentTranslationRuntime {
         return result;
     }
 
+    private static ComponentTranslationCache cache() {
+        return CacheHolder.INSTANCE;
+    }
+
+    private static final class CacheHolder {
+        private static final ComponentTranslationCache INSTANCE = ComponentTranslationCache.getInstance();
+    }
+
     public record Resolution<T>(State state, T value, String cacheKey, String errorMessage) {
         public Resolution {
             cacheKey = cacheKey == null ? "" : cacheKey;
@@ -657,8 +674,8 @@ public final class ComponentTranslationRuntime {
 
     private record DocumentMemoKey(
             ComponentTranslationRoute route,
-            String context,
-            String policyVersion,
+            int policyVersion,
+            Map<String, String> semanticSettings,
             int componentHash,
             String plainText
     ) {
