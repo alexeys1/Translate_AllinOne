@@ -12,6 +12,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
+import net.minecraft.network.chat.TextColor;
 
 public class StylePreserver {
 
@@ -537,43 +538,68 @@ public class StylePreserver {
         }
 
         MutableComponent result = Component.empty();
-        MutableComponent currentComponent = Component.literal("");
+        StringBuilder currentText = new StringBuilder();
         Style currentStyle = Style.EMPTY;
 
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
             if (c == '§') {
                 if (i + 1 >= text.length()) {
-                    currentComponent.append("§");
+                    currentText.append('§');
                     break;
                 }
-                
-                if (!currentComponent.getString().isEmpty()) {
-                    result.append(currentComponent.setStyle(currentStyle));
+
+                if (text.charAt(i + 1) == '#' && i + 10 <= text.length()) {
+                    String rgba = text.substring(i + 2, i + 10);
+                    if (isHexColor(rgba)) {
+                        appendLegacyRun(result, currentText, currentStyle);
+                        int rgb = Integer.parseInt(rgba.substring(0, 6), 16);
+                        currentStyle = Style.EMPTY.withColor(TextColor.fromRgb(rgb));
+                        i += 9;
+                        continue;
+                    }
                 }
-                currentComponent = Component.literal("");
 
                 char formatChar = Character.toLowerCase(text.charAt(i + 1));
                 ChatFormatting formatting = ChatFormatting.getByCode(formatChar);
-
                 if (formatting != null) {
+                    appendLegacyRun(result, currentText, currentStyle);
                     if (formatting.isColor() || formatting == ChatFormatting.RESET) {
                         currentStyle = Style.EMPTY.applyFormat(formatting);
                     } else {
                         currentStyle = currentStyle.applyFormat(formatting);
                     }
+                    i++;
+                } else {
+                    currentText.append(c);
                 }
-                i++; 
             } else {
-                currentComponent.append(String.valueOf(c));
+                currentText.append(c);
             }
         }
 
-        if (!currentComponent.getString().isEmpty()) {
-            result.append(currentComponent.setStyle(currentStyle));
-        }
-
+        appendLegacyRun(result, currentText, currentStyle);
         return result;
+    }
+
+    private static void appendLegacyRun(MutableComponent result, StringBuilder text, Style style) {
+        if (text.isEmpty()) {
+            return;
+        }
+        result.append(Component.literal(text.toString()).setStyle(style));
+        text.setLength(0);
+    }
+
+    private static boolean isHexColor(String value) {
+        if (value == null || value.length() != 8) {
+            return false;
+        }
+        for (int index = 0; index < value.length(); index++) {
+            if (Character.digit(value.charAt(index), 16) < 0) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public static String convertLegacyTranslationToTaggedTemplate(String legacyTranslation, Map<Integer, Style> targetStyleMap) {
