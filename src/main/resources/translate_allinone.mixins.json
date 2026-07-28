@@ -26,6 +26,7 @@
     "mixinWynnDialogue.ClientPlayNetworkHandlerMixin",
     "mixinInGameGui.InGameHudMixin",
     "mixinInGameGui.InGameHudAccessor",
+    "mixinInGameGui.SkyHanniCustomScoreboardMixin",
     "mixinChatScreen.ChatScreenMixin"
   ],
   "injectors": {
