@@ -9,9 +9,9 @@ import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslat
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationPolicy;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRoute;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ScoreboardConfig;
-import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
 import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardComponentTranslationSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardEntryTemplate;
+import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardTranslationInputSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TranslationErrorTextSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,7 +24,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
@@ -58,15 +57,7 @@ public class InGameHudMixin {
     private static final String SCOREBOARD_TRANSLATION_ERROR_KEY = "text.translate_allinone.scoreboard.translation_error";
 
     @Unique
-    /**
-     * Replacements are keyed by the exact team instance and raw scoreboard owner.
-     * Using the flattened decorated component as the key would let differently
-     * styled prefix/owner/suffix Components overwrite one another.
-     */
     private static final ThreadLocal<Map<Team, Map<String, Component>>> translate_allinone$scoreboardReplacements = new ThreadLocal<>();
-
-    @Unique
-    private static final Set<String> translate_allinone$refreshedScoreboardKeysThisHold = new HashSet<>();
 
     @Unique
     private Component translate_allinone$processEntryForTranslation(
@@ -205,15 +196,8 @@ public class InGameHudMixin {
             Objective objective,
             ScoreboardConfig config
     ) {
-        boolean isRefreshPressed = config != null
-                && config.keybinding != null
-                && KeybindingManager.isPressed(config.keybinding.refreshBinding);
-
-        synchronized (translate_allinone$refreshedScoreboardKeysThisHold) {
-            if (!isRefreshPressed) {
-                translate_allinone$refreshedScoreboardKeysThisHold.clear();
-                return;
-            }
+        if (!ScoreboardTranslationInputSupport.isRefreshPressed(config)) {
+            return;
         }
 
         List<ScoreboardEntryTemplate.Prepared> currentEntries;
@@ -228,23 +212,21 @@ public class InGameHudMixin {
         }
 
         List<ScoreboardEntryTemplate.Prepared> entriesToRefresh = new ArrayList<>();
-        synchronized (translate_allinone$refreshedScoreboardKeysThisHold) {
-            for (ScoreboardEntryTemplate.Prepared prepared : currentEntries) {
-                Set<String> identities = config.component_json_v1_scoreboard
-                        ? ScoreboardComponentTranslationSupport.refreshIdentities(
-                                prepared,
-                                config.target_language
-                        )
-                        : prepared.translationTemplateKey().isBlank()
-                                ? Set.of()
-                                : Set.of("legacy:" + prepared.translationTemplateKey());
-                boolean unseen = false;
-                for (String identity : identities) {
-                    unseen |= translate_allinone$refreshedScoreboardKeysThisHold.add(identity);
-                }
-                if (unseen) {
-                    entriesToRefresh.add(prepared);
-                }
+        for (ScoreboardEntryTemplate.Prepared prepared : currentEntries) {
+            Set<String> identities = config.component_json_v1_scoreboard
+                    ? ScoreboardComponentTranslationSupport.refreshIdentities(
+                            prepared,
+                            config.target_language
+                    )
+                    : prepared.translationTemplateKey().isBlank()
+                            ? Set.of()
+                            : Set.of("legacy:" + prepared.translationTemplateKey());
+            boolean unseen = false;
+            for (String identity : identities) {
+                unseen |= ScoreboardTranslationInputSupport.claimRefreshIdentity(identity);
+            }
+            if (unseen) {
+                entriesToRefresh.add(prepared);
             }
         }
 
@@ -310,33 +292,13 @@ public class InGameHudMixin {
             if (config == null || !config.enabled) {
                 translate_allinone$scoreboardReplacements.set(null);
                 ScoreboardComponentTranslationSupport.reset();
-                synchronized (translate_allinone$refreshedScoreboardKeysThisHold) {
-                    translate_allinone$refreshedScoreboardKeysThisHold.clear();
-                }
+                ScoreboardTranslationInputSupport.reset();
                 return;
             }
 
             ScoreboardComponentTranslationSupport.beginObjective(objective);
             translate_allinone$maybeForceRefreshCurrentScoreboard(objective, config);
-
-            boolean isKeyPressed = config.keybinding != null && KeybindingManager.isPressed(config.keybinding.binding);
-            boolean shouldShowOriginal = false;
-            ScoreboardConfig.KeybindingMode keybindingMode = config.keybinding == null || config.keybinding.mode == null
-                    ? ScoreboardConfig.KeybindingMode.DISABLED
-                    : config.keybinding.mode;
-
-            switch (keybindingMode) {
-                case HOLD_TO_TRANSLATE:
-                    if (!isKeyPressed) shouldShowOriginal = true;
-                    break;
-                case HOLD_TO_SEE_ORIGINAL:
-                    if (isKeyPressed) shouldShowOriginal = true;
-                    break;
-                case DISABLED:
-                    break;
-            }
-
-            if (shouldShowOriginal) {
+            if (ScoreboardTranslationInputSupport.shouldShowOriginal(config)) {
                 translate_allinone$scoreboardReplacements.set(null);
                 return;
             }

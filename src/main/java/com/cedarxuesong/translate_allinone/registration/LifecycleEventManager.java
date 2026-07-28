@@ -11,6 +11,7 @@ import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslat
 import com.cedarxuesong.translate_allinone.utils.translate.ItemTranslateManager;
 import com.cedarxuesong.translate_allinone.utils.translate.AdvancementTranslateManager;
 import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardTranslateManager;
+import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardTranslationInputSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTextDebugCopySupport;
 import com.cedarxuesong.translate_allinone.utils.translate.WynnDialogueTranslateManager;
 import com.cedarxuesong.translate_allinone.utils.translate.WynnDialogueTranslationSupport;
@@ -49,6 +50,7 @@ public class LifecycleEventManager {
             resetReadinessState();
             ComponentTranslationCache.getInstance().beginSession();
             ComponentTranslationRuntime.resetSession();
+            ScoreboardTranslationInputSupport.reset();
             awaitingReadinessCheck = true;
             LOGGER.info("Player joining world, awaiting client readiness for translation...");
 
@@ -77,6 +79,11 @@ public class LifecycleEventManager {
                 UpdateCheckManager.tryNotifyInChat(client);
                 WynnDialogueTranslationSupport.tick();
             }
+            ScoreboardTranslationInputSupport.tick(
+                    Translate_AllinOne.getConfig() == null
+                            ? null
+                            : Translate_AllinOne.getConfig().scoreboardTranslate
+            );
             TooltipTextDebugCopySupport.tick(client);
         });
     }
@@ -86,6 +93,7 @@ public class LifecycleEventManager {
             resetReadinessState();
             ComponentTranslationCache.getInstance().endSession();
             ComponentTranslationRuntime.resetSession();
+            ScoreboardTranslationInputSupport.reset();
             LOGGER.info("Player has disconnected. Translation readiness reset.");
             stopTranslationManagers();
             saveCaches();
