@@ -57,6 +57,7 @@ public final class ConfigSectionContentSupport {
             HotkeyAction hotkeyStartBinding,
             HotkeyAction hotkeyClearBinding,
             HotkeyAction hotkeyCycleMode,
+            Runnable scoreboardExternalModeCycle,
             DictionaryFilePickerAction dictionaryFilePickerAction,
             Runnable openDictionaryDirectoryAction,
             Runnable openCacheDirectoryAction,
@@ -553,6 +554,11 @@ public final class ConfigSectionContentSupport {
                     scoreboard.keybinding.refreshBinding = new InputBindingConfig();
                 }
 
+                if (scoreboard.external_custom_scoreboard_mode == null) {
+                    scoreboard.external_custom_scoreboard_mode =
+                            ScoreboardConfig.ExternalCustomScoreboardMode.DISABLED;
+                }
+
                 int basicStart = y;
                 toggleAdder.add(x, y, width, translator.t("label.enabled"), () -> scoreboard.enabled, value -> scoreboard.enabled = value, translator.t("desc.scoreboard_enabled"));
                 y += ROW_STEP;
@@ -568,6 +574,21 @@ public final class ConfigSectionContentSupport {
                         () -> scoreboard.component_json_v1_scoreboard,
                         value -> scoreboard.component_json_v1_scoreboard = value,
                         translator.t("desc.scoreboard_component_json_v1")
+                );
+                y += ROW_STEP;
+                actionAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t(
+                                "label.external_custom_scoreboard_mode",
+                                externalScoreboardModeText(
+                                        translator,
+                                        scoreboard.external_custom_scoreboard_mode
+                                )
+                        ),
+                        scoreboardExternalModeCycle,
+                        translator.t("desc.external_custom_scoreboard_mode")
                 );
                 y += ROW_STEP;
                 textFieldRowAdder.add(
@@ -1165,6 +1186,20 @@ public final class ConfigSectionContentSupport {
             case "HOLD_TO_TRANSLATE" -> translator.t("state.hold_to_translate");
             case "HOLD_TO_SEE_ORIGINAL" -> translator.t("state.hold_to_see_original");
             default -> translator.t("state.disabled");
+        };
+    }
+
+    private static Component externalScoreboardModeText(
+            Translator translator,
+            ScoreboardConfig.ExternalCustomScoreboardMode mode
+    ) {
+        if (mode == null) {
+            return translator.t("state.external_scoreboard_disabled");
+        }
+        return switch (mode) {
+            case DISABLED -> translator.t("state.external_scoreboard_disabled");
+            case AUTO -> translator.t("state.external_scoreboard_auto");
+            case FORCE -> translator.t("state.external_scoreboard_force");
         };
     }
 

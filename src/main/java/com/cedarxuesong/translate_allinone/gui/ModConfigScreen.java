@@ -709,6 +709,7 @@ public class ModConfigScreen extends Screen {
                 this::startHotkeyCapture,
                 this::clearHotkeyBinding,
                 this::cycleHotkeyMode,
+                this::cycleExternalScoreboardMode,
                 this::openDictionaryFilesModal,
                 this::openDictionaryDirectory,
                 this::openCacheDirectory,
@@ -1715,6 +1716,34 @@ public class ModConfigScreen extends Screen {
             }
         }
         rebuildActionBlocks();
+    }
+
+    private void cycleExternalScoreboardMode() {
+        ScoreboardConfig scoreboard = Translate_AllinOne.getConfig().scoreboardTranslate;
+        if (scoreboard.external_custom_scoreboard_mode == null) {
+            scoreboard.external_custom_scoreboard_mode =
+                    ScoreboardConfig.ExternalCustomScoreboardMode.DISABLED;
+        }
+        ScoreboardConfig.ExternalCustomScoreboardMode[] modes =
+                ScoreboardConfig.ExternalCustomScoreboardMode.values();
+        scoreboard.external_custom_scoreboard_mode =
+                modes[(scoreboard.external_custom_scoreboard_mode.ordinal() + 1) % modes.length];
+        setStatus(
+                t(
+                        "status.external_scoreboard_mode_changed",
+                        externalScoreboardModeLabel(scoreboard.external_custom_scoreboard_mode)
+                ),
+                COLOR_STATUS_OK
+        );
+        rebuildActionBlocks();
+    }
+
+    private Component externalScoreboardModeLabel(ScoreboardConfig.ExternalCustomScoreboardMode mode) {
+        return switch (mode) {
+            case DISABLED -> t("state.external_scoreboard_disabled");
+            case AUTO -> t("state.external_scoreboard_auto");
+            case FORCE -> t("state.external_scoreboard_force");
+        };
     }
 
     private InputBindingConfig ensureBinding(ConfigSectionContentSupport.HotkeyTarget target) {
