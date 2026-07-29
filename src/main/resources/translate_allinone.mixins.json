@@ -22,6 +22,7 @@
     "mixinSign.AbstractSignRendererMixin",
     "mixinSign.SignTextMixin",
     "mixinEntity.EntityRendererMixin",
+    "mixinEntity.TextDisplayRendererMixin",
     "mixinWynntils.ActivityNameFunctionMixin",
     "mixinWynntils.ActivityTaskFunctionMixin",
     "mixinWynntils.ActivityTypeFunctionMixin",

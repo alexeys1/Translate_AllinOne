@@ -14,6 +14,7 @@ import com.cedarxuesong.translate_allinone.utils.translate.ContinuousSignTransla
 import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardTranslateManager;
 import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardTranslationInputSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.ExternalScoreboardTranslationSupport;
+import com.cedarxuesong.translate_allinone.utils.translate.TextDisplayTranslationSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTextDebugCopySupport;
 import com.cedarxuesong.translate_allinone.utils.translate.WynnDialogueTranslateManager;
 import com.cedarxuesong.translate_allinone.utils.translate.WynnDialogueTranslationSupport;
@@ -51,6 +52,7 @@ public class LifecycleEventManager {
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             resetReadinessState();
             ComponentTranslationRuntime.beginSession();
+            TextDisplayTranslationSupport.resetSession();
             ContinuousSignTranslationCoordinator.reset();
             ScoreboardTranslationInputSupport.reset();
             ExternalScoreboardTranslationSupport.resetSession();
@@ -96,6 +98,7 @@ public class LifecycleEventManager {
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             resetReadinessState();
             ComponentTranslationRuntime.endSession();
+            TextDisplayTranslationSupport.resetSession();
             ContinuousSignTranslationCoordinator.reset();
             ScoreboardTranslationInputSupport.reset();
             ExternalScoreboardTranslationSupport.resetSession();
