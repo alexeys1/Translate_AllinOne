@@ -226,6 +226,10 @@ public final class ComponentTranslationRuntime {
                         store().put(request, templateLookup.response());
                         FAILURES.remove(request.identity().key());
                         ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.TEMPLATE_HIT);
+                        ComponentTranslationDebugLogger.entityTemplateReuse(
+                                request.identity().key(),
+                                templateLookup.cacheKey()
+                        );
                         return new Resolution<>(State.V1_HIT, rendered, request.identity().key(), "");
                     } catch (RuntimeException error) {
                         store().removeEntityTemplate(request);
@@ -245,6 +249,12 @@ public final class ComponentTranslationRuntime {
                 }
             }
             ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.CACHE_MISS);
+            ComponentTranslationDebugLogger.entityIdentityMiss(
+                    document,
+                    request.targetLanguage(),
+                    request.identity(),
+                    lookup.status().name()
+            );
         } catch (RuntimeException e) {
             ComponentTranslationMetrics.record(
                     document,

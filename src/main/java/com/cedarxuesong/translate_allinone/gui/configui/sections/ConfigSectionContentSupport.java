@@ -296,6 +296,15 @@ public final class ConfigSectionContentSupport {
                 if (item.debug == null) {
                     item.debug = new ItemTranslateConfig.DebugConfig();
                 }
+                OtherTranslationsConfig otherTranslations = config.otherTranslations;
+                if (otherTranslations == null) {
+                    otherTranslations = new OtherTranslationsConfig();
+                    config.otherTranslations = otherTranslations;
+                }
+                if (otherTranslations.debug == null) {
+                    otherTranslations.debug = new OtherTranslationsConfig.DebugConfig();
+                }
+                OtherTranslationsConfig resolvedOtherTranslations = otherTranslations;
                 WynnCraftConfig wynnCraft = config.wynnCraft;
                 if (wynnCraft == null) {
                     wynnCraft = new WynnCraftConfig();
@@ -372,7 +381,18 @@ public final class ConfigSectionContentSupport {
 
                 y += GROUP_GAP;
                 int itemDebugStart = y;
-                toggleAdder.add(x, y, width, translator.t("label.item_dev_enabled"), () -> item.debug.enabled, value -> item.debug.enabled = value, tooltip(translator, "label.item_dev_enabled"));
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.item_dev_enabled"),
+                        () -> item.debug.enabled,
+                        value -> {
+                            item.debug.enabled = value;
+                            ComponentTranslationDebugLogger.refresh(config);
+                        },
+                        tooltip(translator, "label.item_dev_enabled")
+                );
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -380,8 +400,23 @@ public final class ConfigSectionContentSupport {
                         width,
                         translator.t("label.item_dev_log_component_v1_flow"),
                         () -> item.debug.log_component_v1_flow,
-                        value -> item.debug.log_component_v1_flow = value
+                        value -> {
+                            item.debug.log_component_v1_flow = value;
+                            ComponentTranslationDebugLogger.refresh(config);
+                        }
                 , tooltip(translator, "label.item_dev_log_component_v1_flow"));
+                y += ROW_STEP;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.item_dev_log_component_v1_text_content"),
+                        () -> item.debug.log_component_v1_text_content,
+                        value -> {
+                            item.debug.log_component_v1_text_content = value;
+                            ComponentTranslationDebugLogger.refresh(config);
+                        }
+                , tooltip(translator, "label.item_dev_log_component_v1_text_content"));
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -389,7 +424,10 @@ public final class ConfigSectionContentSupport {
                         width,
                         translator.t("label.item_dev_log_component_v1_timing"),
                         () -> item.debug.log_component_v1_timing,
-                        value -> item.debug.log_component_v1_timing = value
+                        value -> {
+                            item.debug.log_component_v1_timing = value;
+                            ComponentTranslationDebugLogger.refresh(config);
+                        }
                 , tooltip(translator, "label.item_dev_log_component_v1_timing"));
                 y += ROW_STEP;
                 toggleAdder.add(
@@ -456,6 +494,43 @@ public final class ConfigSectionContentSupport {
                 , tooltip(translator, "label.item_dev_log_cache_migration"));
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.item_debug"), x, width, itemDebugStart, y);
+
+                y += GROUP_GAP;
+                int otherTranslationsDebugStart = y;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.other_translations_dev_enabled"),
+                        () -> resolvedOtherTranslations.debug.enabled,
+                        value -> {
+                            resolvedOtherTranslations.debug.enabled = value;
+                            ComponentTranslationDebugLogger.refresh(config);
+                        },
+                        tooltip(translator, "label.other_translations_dev_enabled")
+                );
+                y += ROW_STEP;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.other_translations_dev_log_component_v1_entity_identity"),
+                        () -> resolvedOtherTranslations.debug.log_component_v1_entity_identity,
+                        value -> {
+                            resolvedOtherTranslations.debug.log_component_v1_entity_identity = value;
+                            ComponentTranslationDebugLogger.refresh(config);
+                        },
+                        tooltip(translator, "label.other_translations_dev_log_component_v1_entity_identity")
+                );
+                y += ROW_STEP;
+                addGroupBox(
+                        groupBoxAdder,
+                        translator.t("group.other_translations_debug"),
+                        x,
+                        width,
+                        otherTranslationsDebugStart,
+                        y
+                );
 
                 y += GROUP_GAP;
                 int dialogueDebugStart = y;

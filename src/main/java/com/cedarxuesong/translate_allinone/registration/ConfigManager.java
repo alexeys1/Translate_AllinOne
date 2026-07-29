@@ -52,6 +52,7 @@ public class ConfigManager {
 
     public static synchronized void save() {
         ensureRegistered();
+        ComponentTranslationDebugLogger.refresh(config);
         writeConfig(resolveConfigPath(), config);
     }
 
@@ -269,6 +270,9 @@ public class ConfigManager {
         }
         if (configToUse.otherTranslations.keybinding.refreshBinding == null) {
             configToUse.otherTranslations.keybinding.refreshBinding = new InputBindingConfig();
+        }
+        if (configToUse.otherTranslations.debug == null) {
+            configToUse.otherTranslations.debug = new OtherTranslationsConfig.DebugConfig();
         }
         configToUse.otherTranslations.max_concurrent_requests = Math.max(1, configToUse.otherTranslations.max_concurrent_requests);
         configToUse.otherTranslations.max_batch_size = Math.max(1, configToUse.otherTranslations.max_batch_size);

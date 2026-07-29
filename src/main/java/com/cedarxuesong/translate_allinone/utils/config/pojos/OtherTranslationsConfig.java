@@ -24,6 +24,7 @@ public class OtherTranslationsConfig {
     public int max_batch_size = 10;
     public String target_language = DEFAULT_TARGET_LANGUAGE;
     public KeybindingConfig keybinding = new KeybindingConfig();
+    public DebugConfig debug = new DebugConfig();
 
     public enum KeybindingMode {
         HOLD_TO_TRANSLATE,
@@ -35,5 +36,10 @@ public class OtherTranslationsConfig {
         public KeybindingMode mode = KeybindingMode.DISABLED;
         public InputBindingConfig binding = new InputBindingConfig();
         public InputBindingConfig refreshBinding = new InputBindingConfig();
+    }
+
+    public static class DebugConfig {
+        public boolean enabled = false;
+        public boolean log_component_v1_entity_identity = false;
     }
 }

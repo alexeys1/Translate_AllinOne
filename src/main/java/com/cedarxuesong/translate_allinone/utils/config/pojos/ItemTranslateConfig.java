@@ -14,6 +14,7 @@ public class ItemTranslateConfig {
     public int requests_per_minute = 60;
     public int max_batch_size = 10;
     public String target_language = "Chinese";
+
     // Legacy compatibility only. Local-hit logging now uses debug.log_items_local_hits / debug.log_skills_local_hits.
     public boolean log_skills_local_hits = false;
     public KeybindingConfig keybinding = new KeybindingConfig();
@@ -42,6 +43,7 @@ public class ItemTranslateConfig {
         public boolean log_tooltip_style_map = false;
         public boolean log_tooltip_timing = false;
         public boolean log_component_v1_flow = false;
+        public boolean log_component_v1_text_content = false;
         public boolean log_component_v1_timing = false;
         public boolean log_item_batch_timing = false;
         public boolean log_cache_migration = false;
