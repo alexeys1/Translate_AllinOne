@@ -16,6 +16,8 @@ import java.util.Map;
 public final class ComponentTranslationCacheKey {
     public static final int CANONICAL_FORMAT_VERSION = 1;
     private static final String V2_BINDING_DOMAIN = "translate_allinone:component-cache-v2:binding\n";
+    private static final String ENTITY_TEMPLATE_KEY_DOMAIN = "translate_allinone:component-entity-template-v1:key\n";
+    private static final String ENTITY_TEMPLATE_BINDING_DOMAIN = "translate_allinone:component-entity-template-v1:binding\n";
 
     private ComponentTranslationCacheKey() {
     }
@@ -30,24 +32,8 @@ public final class ComponentTranslationCacheKey {
         }
 
         JsonElement structure = ComponentTranslationApplier.maskedCopy(document.sourceJson(), document.units());
-        JsonArray sources = new JsonArray();
-        JsonArray tokenMetadata = new JsonArray();
-        for (ComponentTextUnit unit : document.units()) {
-            JsonObject source = new JsonObject();
-            source.addProperty("id", unit.id());
-            source.addProperty("pointer", unit.jsonPointer());
-            source.addProperty("text", unit.sourceText());
-            sources.add(source);
-
-            JsonObject unitTokens = new JsonObject();
-            unitTokens.addProperty("id", unit.id());
-            JsonObject tokens = new JsonObject();
-            for (Map.Entry<String, Integer> token : unit.protectedTokens().entrySet()) {
-                tokens.addProperty(token.getKey(), token.getValue());
-            }
-            unitTokens.add("tokens", tokens);
-            tokenMetadata.add(unitTokens);
-        }
+        JsonArray sources = sourceUnits(document);
+        JsonArray tokenMetadata = protectedTokens(document);
 
         JsonObject material = new JsonObject();
         material.addProperty("canonical_format", CANONICAL_FORMAT_VERSION);
@@ -72,6 +58,65 @@ public final class ComponentTranslationCacheKey {
                 "sha256:" + sha256(canonicalize(sources)),
                 "sha256:" + sha256(canonicalize(tokenMetadata))
         );
+    }
+
+    public static TemplateMetadata entityTemplateMetadata(
+            ComponentTranslationDocument document,
+            String targetLanguage
+    ) {
+        if (document == null || targetLanguage == null || targetLanguage.isBlank()) {
+            throw new IllegalArgumentException("Document and target language are required for an entity template key.");
+        }
+        if (document.route() != ComponentTranslationRoute.ENTITY_NAME) {
+            throw new IllegalArgumentException("Entity template keys are only valid for entity-name documents.");
+        }
+
+        JsonObject material = new JsonObject();
+        material.addProperty("template_format", CANONICAL_FORMAT_VERSION);
+        material.addProperty("protocol", document.protocol());
+        material.addProperty("policy_version", document.policyVersion());
+        material.addProperty("route", document.route().wireName());
+        material.addProperty("target_language", targetLanguage.trim());
+        JsonObject semanticSettings = new JsonObject();
+        for (Map.Entry<String, String> setting : document.semanticSettings().entrySet()) {
+            semanticSettings.addProperty(setting.getKey(), setting.getValue());
+        }
+        material.add("route_semantic_settings", semanticSettings);
+        material.add("source_units", sourceUnits(document));
+        material.add("protected_tokens", protectedTokens(document));
+
+        String canonicalMaterial = canonicalize(material);
+        return new TemplateMetadata(
+                "sha256:" + sha256(ENTITY_TEMPLATE_KEY_DOMAIN + canonicalMaterial),
+                "sha256:" + sha256(ENTITY_TEMPLATE_BINDING_DOMAIN + canonicalMaterial)
+        );
+    }
+
+    private static JsonArray sourceUnits(ComponentTranslationDocument document) {
+        JsonArray sources = new JsonArray();
+        for (ComponentTextUnit unit : document.units()) {
+            JsonObject source = new JsonObject();
+            source.addProperty("id", unit.id());
+            source.addProperty("pointer", unit.jsonPointer());
+            source.addProperty("text", unit.sourceText());
+            sources.add(source);
+        }
+        return sources;
+    }
+
+    private static JsonArray protectedTokens(ComponentTranslationDocument document) {
+        JsonArray tokenMetadata = new JsonArray();
+        for (ComponentTextUnit unit : document.units()) {
+            JsonObject unitTokens = new JsonObject();
+            unitTokens.addProperty("id", unit.id());
+            JsonObject tokens = new JsonObject();
+            for (Map.Entry<String, Integer> token : unit.protectedTokens().entrySet()) {
+                tokens.addProperty(token.getKey(), token.getValue());
+            }
+            unitTokens.add("tokens", tokens);
+            tokenMetadata.add(unitTokens);
+        }
+        return tokenMetadata;
     }
 
     static String canonicalize(JsonElement element) {
@@ -125,5 +170,8 @@ public final class ComponentTranslationCacheKey {
             String sourceFingerprint,
             String tokenFingerprint
     ) {
+    }
+
+    public record TemplateMetadata(String key, String binding) {
     }
 }

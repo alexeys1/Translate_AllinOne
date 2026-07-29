@@ -52,6 +52,13 @@ public final class ComponentTranslationRuntime {
                     return size() > DOCUMENT_CACHE_LIMIT;
                 }
             });
+    private static final Map<String, Boolean> ENTITY_TEMPLATE_SEEDS = Collections.synchronizedMap(
+            new LinkedHashMap<>(64, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, Boolean> eldest) {
+                    return size() > DOCUMENT_CACHE_LIMIT;
+                }
+            });
 
     private ComponentTranslationRuntime() {
     }
@@ -180,6 +187,10 @@ public final class ComponentTranslationRuntime {
             if (lookup.status() == ComponentTranslationStore.Status.HIT) {
                 try {
                     T rendered = renderer.apply(lookup.response());
+                    if (document.route() == ComponentTranslationRoute.ENTITY_NAME
+                            && markEntityTemplateSeeded(request.identity().key())) {
+                        store().put(request, lookup.response());
+                    }
                     FAILURES.remove(lookup.cacheKey());
                     ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.CACHE_HIT);
                     ComponentTranslationDebugLogger.flow(
@@ -205,6 +216,32 @@ public final class ComponentTranslationRuntime {
                             error.getMessage(),
                             error
                     );
+                }
+            }
+            if (document.route() == ComponentTranslationRoute.ENTITY_NAME) {
+                ComponentTranslationStore.Lookup templateLookup = store().lookupEntityTemplate(request);
+                if (templateLookup.status() == ComponentTranslationStore.Status.HIT) {
+                    try {
+                        T rendered = renderer.apply(templateLookup.response());
+                        store().put(request, templateLookup.response());
+                        FAILURES.remove(request.identity().key());
+                        ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.CACHE_HIT);
+                        return new Resolution<>(State.V1_HIT, rendered, request.identity().key(), "");
+                    } catch (RuntimeException error) {
+                        store().removeEntityTemplate(request);
+                        ComponentTranslationMetrics.record(
+                                document,
+                                ComponentTranslationMetrics.Outcome.RESPONSE_REJECTED
+                        );
+                        ComponentTranslationDebugLogger.error(
+                                document.route(),
+                                "Entity template response apply failed: fullKey={} templateKey={} reason={}",
+                                request.identity().key(),
+                                templateLookup.cacheKey(),
+                                error.getMessage(),
+                                error
+                        );
+                    }
                 }
             }
             ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.CACHE_MISS);
@@ -297,9 +334,11 @@ public final class ComponentTranslationRuntime {
         ComponentTranslationPreparedRequest request = preparedRequest(document, targetLanguage);
         String key = request.identity().key();
         FAILURES.remove(key);
+        ENTITY_TEMPLATE_SEEDS.remove(key);
         boolean refreshRequested = requestRefresh(key);
         boolean removed = store().remove(request);
-        return removed || refreshRequested;
+        boolean templateRemoved = store().removeEntityTemplate(request);
+        return removed || templateRemoved || refreshRequested;
     }
 
     public static long beginSession() {
@@ -322,6 +361,7 @@ public final class ComponentTranslationRuntime {
         FAILURES.clear();
         DOCUMENTS.clear();
         PREPARED_REQUESTS.clear();
+        ENTITY_TEMPLATE_SEEDS.clear();
         synchronized (WORK_LOCK) {
             WORKS.clear();
         }
@@ -744,6 +784,12 @@ public final class ComponentTranslationRuntime {
                     new TranslationWork(request, epoch, requestContext, WorkState.QUEUED, false)
             );
             return true;
+        }
+    }
+
+    private static boolean markEntityTemplateSeeded(String fullCacheKey) {
+        synchronized (ENTITY_TEMPLATE_SEEDS) {
+            return ENTITY_TEMPLATE_SEEDS.put(fullCacheKey, Boolean.TRUE) == null;
         }
     }
 

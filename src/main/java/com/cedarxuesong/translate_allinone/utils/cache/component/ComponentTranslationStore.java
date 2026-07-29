@@ -8,6 +8,8 @@ import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentJsonLimi
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationDebugLogger;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationPreparedRequest;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationResponse;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRoute;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationTemplateIdentity;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationValidator;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -20,19 +22,20 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.Collections;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 public final class ComponentTranslationStore {
     public static final String CACHE_FILE = "component_v1_translate_cache_v2.json";
-    public static final int SCHEMA_VERSION = 2;
+    public static final int SCHEMA_VERSION = 3;
+    private static final int LEGACY_SCHEMA_VERSION = 2;
     private static final long MAX_FILE_BYTES = 16L * 1024L * 1024L;
     private static final int MAX_ENTRIES = 4_096;
     private static final int MAX_TRANSLATIONS_PER_ENTRY = ComponentJsonLimits.DEFAULT.maxTextUnits();
@@ -44,6 +47,7 @@ public final class ComponentTranslationStore {
     private final Path path;
     private final boolean passiveBackupEnabled;
     private final Map<String, Entry> entries = new LinkedHashMap<>();
+    private final Map<String, Entry> entityTemplates = new LinkedHashMap<>();
     private final ComponentTranslationValidator validator = new ComponentTranslationValidator();
     private final ScheduledExecutorService saveExecutor;
     private final AtomicBoolean saveScheduled = new AtomicBoolean();
@@ -77,6 +81,7 @@ public final class ComponentTranslationStore {
 
     public synchronized void load() {
         entries.clear();
+        entityTemplates.clear();
         dirty = false;
         writeProtected = false;
         saveScheduled.set(false);
@@ -89,11 +94,16 @@ public final class ComponentTranslationStore {
             if (Files.size(path) > MAX_FILE_BYTES) {
                 throw new IOException("Component V2 cache file exceeds the size limit.");
             }
-            entries.putAll(readFile());
+            LoadedFile loaded = readFile();
+            entries.putAll(loaded.entries());
+            entityTemplates.putAll(loaded.entityTemplates());
+            dirty = loaded.requiresMigration();
             ComponentTranslationDebugLogger.flowForNamespace(
                     "v2",
-                    "cache_load schema=v2 entries={} path={}",
+                    "cache_load schema={} entries={} entityTemplates={} path={}",
+                    loaded.schemaVersion(),
                     entries.size(),
+                    entityTemplates.size(),
                     path
             );
         } catch (IOException | RuntimeException error) {
@@ -140,6 +150,42 @@ public final class ComponentTranslationStore {
         }
     }
 
+    public synchronized Lookup lookupEntityTemplate(ComponentTranslationPreparedRequest request) {
+        if (request == null || request.document().route() != ComponentTranslationRoute.ENTITY_NAME) {
+            return new Lookup(Status.MISS, "", null);
+        }
+        ComponentTranslationTemplateIdentity identity = ComponentTranslationTemplateIdentity.createEntityName(
+                request.document(),
+                request.targetLanguage()
+        );
+        String key = identity.key();
+        Entry entry = entityTemplates.get(key);
+        if (entry == null) {
+            return new Lookup(Status.MISS, key, null);
+        }
+        if (!identity.binding().equals(entry.binding())) {
+            removeEntityTemplateInternal(key);
+            return new Lookup(Status.INVALID, key, null);
+        }
+        try {
+            ComponentTranslationResponse response = validator.validate(
+                    request.document(),
+                    new ComponentTranslationResponse(request.document().protocol(), entry.translations())
+            );
+            return new Lookup(Status.HIT, key, response);
+        } catch (ComponentJsonException | IllegalArgumentException error) {
+            removeEntityTemplateInternal(key);
+            ComponentTranslationDebugLogger.error(
+                    request.document().route(),
+                    "Entity template cache entry rejected: templateKey={} reason={}",
+                    key,
+                    error.getMessage(),
+                    error
+            );
+            return new Lookup(Status.INVALID, key, null);
+        }
+    }
+
     public synchronized boolean put(
             ComponentTranslationPreparedRequest request,
             ComponentTranslationResponse response
@@ -149,8 +195,16 @@ public final class ComponentTranslationStore {
         }
         ComponentTranslationResponse validated = validator.validate(request.document(), response);
         Entry entry = new Entry(request.identity().binding(), validated.translations());
-        Entry previous = entries.put(request.identity().key(), entry);
-        if (!entry.equals(previous)) {
+        boolean changed = !entry.equals(entries.put(request.identity().key(), entry));
+        if (request.document().route() == ComponentTranslationRoute.ENTITY_NAME) {
+            ComponentTranslationTemplateIdentity templateIdentity = ComponentTranslationTemplateIdentity.createEntityName(
+                    request.document(),
+                    request.targetLanguage()
+            );
+            Entry templateEntry = new Entry(templateIdentity.binding(), validated.translations());
+            changed |= !templateEntry.equals(entityTemplates.put(templateIdentity.key(), templateEntry));
+        }
+        if (changed) {
             dirty = true;
             scheduleSave();
         }
@@ -159,6 +213,17 @@ public final class ComponentTranslationStore {
 
     public synchronized boolean remove(ComponentTranslationPreparedRequest request) {
         return request != null && removeInternal(request.identity().key());
+    }
+
+    public synchronized boolean removeEntityTemplate(ComponentTranslationPreparedRequest request) {
+        if (request == null
+                || request.document().route() != ComponentTranslationRoute.ENTITY_NAME) {
+            return false;
+        }
+        return removeEntityTemplateInternal(ComponentTranslationTemplateIdentity.createEntityName(
+                request.document(),
+                request.targetLanguage()
+        ).key());
     }
 
     public synchronized void save() {
@@ -172,18 +237,8 @@ public final class ComponentTranslationStore {
             Path tempPath = path.resolveSibling(path.getFileName() + ".tmp");
             JsonObject root = new JsonObject();
             root.addProperty("schema_version", SCHEMA_VERSION);
-            JsonObject serializedEntries = new JsonObject();
-            for (Map.Entry<String, Entry> entry : new TreeMap<>(entries).entrySet()) {
-                JsonObject serialized = new JsonObject();
-                serialized.addProperty("binding", entry.getValue().binding());
-                JsonObject translations = new JsonObject();
-                for (Map.Entry<String, String> translation : entry.getValue().translations().entrySet()) {
-                    translations.addProperty(translation.getKey(), translation.getValue());
-                }
-                serialized.add("translations", translations);
-                serializedEntries.add(entry.getKey(), serialized);
-            }
-            root.add("entries", serializedEntries);
+            root.add("entries", serializeEntries(entries));
+            root.add("entity_templates", serializeEntries(entityTemplates));
             try (var writer = Files.newBufferedWriter(tempPath, StandardCharsets.UTF_8)) {
                 GSON.toJson(root, writer);
             }
@@ -194,8 +249,10 @@ public final class ComponentTranslationStore {
             }
             ComponentTranslationDebugLogger.flowForNamespace(
                     "v2",
-                    "cache_save schema=v2 entries={} path={}",
+                    "cache_save schema={} entries={} entityTemplates={} path={}",
+                    SCHEMA_VERSION,
                     entries.size(),
+                    entityTemplates.size(),
                     path
             );
         } catch (IOException error) {
@@ -207,16 +264,21 @@ public final class ComponentTranslationStore {
         return entries.size();
     }
 
+    synchronized int entityTemplateCount() {
+        return entityTemplates.size();
+    }
+
     public synchronized boolean isWriteProtected() {
         return writeProtected;
     }
 
-    private Map<String, Entry> readFile() throws IOException {
+    private LoadedFile readFile() throws IOException {
         try (JsonReader reader = new JsonReader(Files.newBufferedReader(path, StandardCharsets.UTF_8))) {
             reader.setStrictness(Strictness.STRICT);
             requireToken(reader, JsonToken.BEGIN_OBJECT, "Component V2 cache root");
             Integer schemaVersion = null;
             Map<String, Entry> loadedEntries = null;
+            Map<String, Entry> loadedEntityTemplates = null;
             Set<String> fields = new HashSet<>();
             reader.beginObject();
             while (reader.hasNext()) {
@@ -227,6 +289,7 @@ public final class ComponentTranslationStore {
                 switch (field) {
                     case "schema_version" -> schemaVersion = readInt(reader, field);
                     case "entries" -> loadedEntries = readEntries(reader);
+                    case "entity_templates" -> loadedEntityTemplates = readEntries(reader);
                     default -> throw new IOException("Unknown Component V2 cache field: " + field);
                 }
             }
@@ -234,14 +297,41 @@ public final class ComponentTranslationStore {
             if (reader.peek() != JsonToken.END_DOCUMENT) {
                 throw new IOException("Trailing content after Component V2 cache document.");
             }
-            if (schemaVersion == null || schemaVersion != SCHEMA_VERSION) {
+            if (schemaVersion == null
+                    || (schemaVersion != LEGACY_SCHEMA_VERSION && schemaVersion != SCHEMA_VERSION)) {
                 throw new IOException("Unsupported Component V2 cache schema version: " + schemaVersion);
             }
             if (loadedEntries == null) {
                 throw new IOException("Component V2 cache entries field is missing.");
             }
-            return loadedEntries;
+            if (schemaVersion == SCHEMA_VERSION && loadedEntityTemplates == null) {
+                throw new IOException("Component V2 cache entity_templates field is missing.");
+            }
+            if (schemaVersion == LEGACY_SCHEMA_VERSION && loadedEntityTemplates != null) {
+                throw new IOException("Component V2 cache schema 2 cannot contain entity_templates.");
+            }
+            return new LoadedFile(
+                    schemaVersion,
+                    loadedEntries,
+                    loadedEntityTemplates == null ? Map.of() : loadedEntityTemplates,
+                    schemaVersion == LEGACY_SCHEMA_VERSION
+            );
         }
+    }
+
+    private static JsonObject serializeEntries(Map<String, Entry> values) {
+        JsonObject serializedEntries = new JsonObject();
+        for (Map.Entry<String, Entry> entry : new TreeMap<>(values).entrySet()) {
+            JsonObject serialized = new JsonObject();
+            serialized.addProperty("binding", entry.getValue().binding());
+            JsonObject translations = new JsonObject();
+            for (Map.Entry<String, String> translation : entry.getValue().translations().entrySet()) {
+                translations.addProperty(translation.getKey(), translation.getValue());
+            }
+            serialized.add("translations", translations);
+            serializedEntries.add(entry.getKey(), serialized);
+        }
+        return serializedEntries;
     }
 
     private Map<String, Entry> readEntries(JsonReader reader) throws IOException {
@@ -316,6 +406,15 @@ public final class ComponentTranslationStore {
 
     private boolean removeInternal(String key) {
         if (writeProtected || entries.remove(key) == null) {
+            return false;
+        }
+        dirty = true;
+        scheduleSave();
+        return true;
+    }
+
+    private boolean removeEntityTemplateInternal(String key) {
+        if (writeProtected || entityTemplates.remove(key) == null) {
             return false;
         }
         dirty = true;
@@ -401,6 +500,14 @@ public final class ComponentTranslationStore {
             }
             translations = Collections.unmodifiableMap(new LinkedHashMap<>(translations));
         }
+    }
+
+    private record LoadedFile(
+            int schemaVersion,
+            Map<String, Entry> entries,
+            Map<String, Entry> entityTemplates,
+            boolean requiresMigration
+    ) {
     }
 
     private static final class Holder {

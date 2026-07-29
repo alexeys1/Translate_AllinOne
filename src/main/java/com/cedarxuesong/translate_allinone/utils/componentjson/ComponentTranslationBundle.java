@@ -33,6 +33,16 @@ public record ComponentTranslationBundle(
             String context,
             String policyVersion
     ) {
+        return create(components, route, context, policyVersion, false);
+    }
+
+    public static ComponentTranslationBundle create(
+            List<Component> components,
+            ComponentTranslationRoute route,
+            String context,
+            String policyVersion,
+            boolean isolateBatchContext
+    ) {
         if (components == null || components.isEmpty() || route == null) {
             throw new IllegalArgumentException("Component translation bundle input is incomplete.");
         }
@@ -86,6 +96,9 @@ public record ComponentTranslationBundle(
         Map<String, String> settings = new LinkedHashMap<>();
         settings.put("bundle", "ordered-components");
         settings.put("bundle_policy", policyVersion == null ? "1" : policyVersion);
+        if (isolateBatchContext) {
+            settings.put("batch_context", "isolated");
+        }
         settings.put("line_count", Integer.toString(lineCount));
         settings.put("line_boundaries", buildLineBoundaries(documents));
         ComponentTranslationDocument cacheDocument = new ComponentTranslationDocument(

@@ -33,6 +33,7 @@ public record ComponentTranslationBatch(
         if (documents.size() > 1 && first.route() == ComponentTranslationRoute.TOOLTIP_PARAGRAPH) {
             throw new IllegalArgumentException("Tooltip paragraphs must be translated as individual documents.");
         }
+        boolean isolateBatchContext = documents.stream().anyMatch(ComponentTranslationBatch::requiresIsolatedBatchContext);
 
         JsonArray sources = new JsonArray();
         List<ComponentTextUnit> units = new ArrayList<>();
@@ -51,7 +52,7 @@ public record ComponentTranslationBatch(
                         "/" + documentIndex + unit.jsonPointer(),
                         unit.sourceText(),
                         unit.protectedTokens(),
-                        buildUnitContext(documents, documentIndex, unit)
+                        buildUnitContext(documents, documentIndex, unit, isolateBatchContext)
                 ));
             }
         }
@@ -72,7 +73,7 @@ public record ComponentTranslationBatch(
         }
 
         Map<String, String> settings = new LinkedHashMap<>(first.semanticSettings());
-        settings.put("batch", "same-route-tooltip-context");
+        settings.put("batch", isolateBatchContext ? "same-route-independent-items" : "same-route-tooltip-context");
         settings.put("batch_size", Integer.toString(documents.size()));
         settings.put("batch_boundaries", buildBoundaries(documents));
         ComponentTranslationDocument requestDocument = new ComponentTranslationDocument(
@@ -148,9 +149,13 @@ public record ComponentTranslationBatch(
     private static String buildUnitContext(
             List<ComponentTranslationDocument> documents,
             int documentIndex,
-            ComponentTextUnit unit
+            ComponentTextUnit unit,
+            boolean isolateBatchContext
     ) {
         StringBuilder context = new StringBuilder(unit.context());
+        if (documents.size() == 1 || isolateBatchContext) {
+            return context.toString();
+        }
         context.append("; batch_item=").append(documentIndex + 1).append('/').append(documents.size());
         if (documentIndex > 0) {
             context.append("; previous_item=")
@@ -161,6 +166,11 @@ public record ComponentTranslationBatch(
                     .append(firstVisibleText(documents.get(documentIndex + 1)));
         }
         return context.toString();
+    }
+
+    private static boolean requiresIsolatedBatchContext(ComponentTranslationDocument document) {
+        return document != null
+                && "isolated".equals(document.semanticSettings().get("batch_context"));
     }
 
     private static String firstVisibleText(ComponentTranslationDocument document) {
