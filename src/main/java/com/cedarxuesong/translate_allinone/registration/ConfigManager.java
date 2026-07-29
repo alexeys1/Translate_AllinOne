@@ -272,6 +272,21 @@ public class ConfigManager {
         }
         configToUse.otherTranslations.max_concurrent_requests = Math.max(1, configToUse.otherTranslations.max_concurrent_requests);
         configToUse.otherTranslations.max_batch_size = Math.max(1, configToUse.otherTranslations.max_batch_size);
+        configToUse.otherTranslations.sign_translation_radius = clamp(
+                configToUse.otherTranslations.sign_translation_radius,
+                1,
+                16
+        );
+        configToUse.otherTranslations.entity_translation_radius = clamp(
+                configToUse.otherTranslations.entity_translation_radius,
+                1,
+                16
+        );
+        configToUse.otherTranslations.book_max_page_characters = clamp(
+                configToUse.otherTranslations.book_max_page_characters,
+                256,
+                16_384
+        );
         if (configToUse.itemTranslate.debug == null) {
             configToUse.itemTranslate.debug = new ItemTranslateConfig.DebugConfig();
         }

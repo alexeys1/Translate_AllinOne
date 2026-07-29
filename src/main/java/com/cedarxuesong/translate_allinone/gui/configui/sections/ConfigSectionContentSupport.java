@@ -685,6 +685,46 @@ public final class ConfigSectionContentSupport {
                 addGroupBox(groupBoxAdder, translator.t("group.basic"), x, width, basicStart, y);
 
                 y += GROUP_GAP;
+                int signStart = y;
+                toggleAdder.add(x, y, width, translator.t("label.translate_signs"), () -> otherTranslations.enabled_translate_signs, value -> otherTranslations.enabled_translate_signs = value, translator.t("desc.translate_signs"));
+                y += ROW_STEP;
+                toggleAdder.add(x, y, width, translator.t("label.sign_component_json_v1"), () -> otherTranslations.component_json_v1_signs, value -> otherTranslations.component_json_v1_signs = value, translator.t("desc.sign_component_json_v1"));
+                y += ROW_STEP;
+                toggleAdder.add(x, y, width, translator.t("label.continuous_sign_translation"), () -> otherTranslations.continuous_sign_translation, value -> otherTranslations.continuous_sign_translation = value, translator.t("desc.continuous_sign_translation"));
+                y += ROW_STEP;
+                sliderAdder.add(x, y, width, translator.t("label.sign_translation_radius"), 1, 16, () -> otherTranslations.sign_translation_radius, value -> otherTranslations.sign_translation_radius = value, translator.t("desc.sign_translation_radius"));
+                y += ROW_STEP;
+                addGroupBox(groupBoxAdder, translator.t("group.sign_translation"), x, width, signStart, y);
+
+                y += GROUP_GAP;
+                int entityStart = y;
+                toggleAdder.add(x, y, width, translator.t("label.translate_entity_text"), () -> otherTranslations.enabled_translate_entity_text, value -> otherTranslations.enabled_translate_entity_text = value, translator.t("desc.translate_entity_text"));
+                y += ROW_STEP;
+                toggleAdder.add(x, y, width, translator.t("label.entity_component_json_v1"), () -> otherTranslations.component_json_v1_entity_text, value -> otherTranslations.component_json_v1_entity_text = value, translator.t("desc.entity_component_json_v1"));
+                y += ROW_STEP;
+                toggleAdder.add(x, y, width, translator.t("label.translate_entity_name_tags"), () -> otherTranslations.translate_entity_name_tags, value -> otherTranslations.translate_entity_name_tags = value, translator.t("desc.translate_entity_name_tags"));
+                y += ROW_STEP;
+                toggleAdder.add(x, y, width, translator.t("label.translate_text_display_entities"), () -> otherTranslations.translate_text_display_entities, value -> otherTranslations.translate_text_display_entities = value, translator.t("desc.translate_text_display_entities"));
+                y += ROW_STEP;
+                toggleAdder.add(x, y, width, translator.t("label.translate_item_entity_hover_labels"), () -> otherTranslations.translate_item_entity_hover_labels, value -> otherTranslations.translate_item_entity_hover_labels = value, translator.t("desc.translate_item_entity_hover_labels"));
+                y += ROW_STEP;
+                sliderAdder.add(x, y, width, translator.t("label.entity_translation_radius"), 1, 16, () -> otherTranslations.entity_translation_radius, value -> otherTranslations.entity_translation_radius = value, translator.t("desc.entity_translation_radius"));
+                y += ROW_STEP;
+                addGroupBox(groupBoxAdder, translator.t("group.entity_text"), x, width, entityStart, y);
+
+                y += GROUP_GAP;
+                int bookStart = y;
+                toggleAdder.add(x, y, width, translator.t("label.translate_written_books"), () -> otherTranslations.enabled_translate_written_books, value -> otherTranslations.enabled_translate_written_books = value, translator.t("desc.translate_written_books"));
+                y += ROW_STEP;
+                toggleAdder.add(x, y, width, translator.t("label.book_component_json_v1"), () -> otherTranslations.component_json_v1_written_books, value -> otherTranslations.component_json_v1_written_books = value, translator.t("desc.book_component_json_v1"));
+                y += ROW_STEP;
+                toggleAdder.add(x, y, width, translator.t("label.book_prefetch_adjacent_pages"), () -> otherTranslations.book_prefetch_adjacent_pages, value -> otherTranslations.book_prefetch_adjacent_pages = value, translator.t("desc.book_prefetch_adjacent_pages"));
+                y += ROW_STEP;
+                sliderAdder.add(x, y, width, translator.t("label.book_max_page_characters"), 256, 16_384, () -> otherTranslations.book_max_page_characters, value -> otherTranslations.book_max_page_characters = value, translator.t("desc.book_max_page_characters"));
+                y += ROW_STEP;
+                addGroupBox(groupBoxAdder, translator.t("group.written_books"), x, width, bookStart, y);
+
+                y += GROUP_GAP;
                 int hotkeyStart = y;
                 actionAdder.add(
                         x,

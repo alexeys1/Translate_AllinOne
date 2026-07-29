@@ -84,7 +84,7 @@ public class PromptEditorScreen extends Screen {
 
     private static final String[] ROUTE_KEYS = {
             "item", "scoreboard", "chat_output", "chat_input_translate",
-            "wynn_npc_dialogue", "wynntils_task_tracker"
+            "wynn_npc_dialogue", "wynntils_task_tracker", "sign_book", "entity_text"
     };
 
     public PromptEditorScreen(Screen parent, String providerId) {
