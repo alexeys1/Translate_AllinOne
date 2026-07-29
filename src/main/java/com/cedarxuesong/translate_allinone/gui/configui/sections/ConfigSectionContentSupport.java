@@ -757,7 +757,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("desc.advancement_component_json_v1")
                 );
                 y += ROW_STEP;
-                addGroupBox(groupBoxAdder, translator.t("group.basic"), x, width, basicStart, y);
+                addGroupBox(groupBoxAdder, translator.t("group.advancements"), x, width, basicStart, y);
 
                 y += GROUP_GAP;
                 int signStart = y;

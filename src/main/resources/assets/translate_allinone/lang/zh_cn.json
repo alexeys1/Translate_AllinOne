@@ -440,6 +440,7 @@
   "text.translate_allinone.configscreen.error.temperature_invalid": "温度必须是有效数字",
   "text.translate_allinone.configscreen.group.backup_policy": "备份策略",
   "text.translate_allinone.configscreen.group.backup_tools": "备份工具",
+  "text.translate_allinone.configscreen.group.advancements": "成就翻译",
   "text.translate_allinone.configscreen.group.basic": "物品翻译",
   "text.translate_allinone.configscreen.group.cache_entries": "当前缓存",
   "text.translate_allinone.configscreen.group.chat_output_debug": "聊天输出",
