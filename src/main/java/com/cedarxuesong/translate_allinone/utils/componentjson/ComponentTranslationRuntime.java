@@ -225,7 +225,7 @@ public final class ComponentTranslationRuntime {
                         T rendered = renderer.apply(templateLookup.response());
                         store().put(request, templateLookup.response());
                         FAILURES.remove(request.identity().key());
-                        ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.CACHE_HIT);
+                        ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.TEMPLATE_HIT);
                         return new Resolution<>(State.V1_HIT, rendered, request.identity().key(), "");
                     } catch (RuntimeException error) {
                         store().removeEntityTemplate(request);

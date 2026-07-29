@@ -251,6 +251,7 @@ public final class ComponentTranslationMetrics {
         PROVIDER_FAILURE,
         RESPONSE_REJECTED,
         CACHE_HIT,
+        TEMPLATE_HIT,
         CACHE_MISS,
         LEGACY_HIT,
         LOCAL_DICTIONARY_HIT,
