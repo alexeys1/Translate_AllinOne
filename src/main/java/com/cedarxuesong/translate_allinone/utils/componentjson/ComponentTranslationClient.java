@@ -2,17 +2,23 @@ package com.cedarxuesong.translate_allinone.utils.componentjson;
 
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.cedarxuesong.translate_allinone.utils.TranslateExceptionUtils;
+import com.cedarxuesong.translate_allinone.utils.TranslateStringUtils;
 import com.cedarxuesong.translate_allinone.utils.llmapi.LLM;
+import com.cedarxuesong.translate_allinone.utils.llmapi.LlmCompletion;
 import com.cedarxuesong.translate_allinone.utils.llmapi.ProviderSettings;
+import com.cedarxuesong.translate_allinone.utils.llmapi.StructuredOutputSpec;
 import com.cedarxuesong.translate_allinone.utils.llmapi.openai.OpenAIRequest;
 import com.cedarxuesong.translate_allinone.utils.translate.PromptMessageBuilder;
 import net.minecraft.network.chat.Component;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 public final class ComponentTranslationClient {
+    private static final int MAX_RESPONSE_ATTEMPTS = 2;
+    private static final int MAX_CORRECTION_REASON_CHARS = 480;
     private static final String PROTOCOL_CONTRACT = "Component translation protocol contract:\n"
             + "1) Output exactly one JSON object with only protocol and translations fields.\n"
             + "2) protocol must be taio-component-v1.\n"
@@ -95,6 +101,7 @@ public final class ComponentTranslationClient {
         List<OpenAIRequest.Message> messages = buildMessages(document.route(), request, providerProfile);
         ProviderSettings settings = ProviderSettings.fromProviderProfile(providerProfile).withStructuredOutputEnabled();
         LLM llm = new LLM(settings);
+        StructuredOutputSpec responseSchema = ComponentResponseJsonSchema.forDocument(document);
         ComponentTranslationMetrics.recordValue(
                 document,
                 ComponentTranslationMetrics.Measurement.REQUEST_BYTES,
@@ -107,40 +114,21 @@ public final class ComponentTranslationClient {
         );
         long startedAt = System.nanoTime();
 
-        CompletableFuture<ComponentTranslationResponse> future = llm.getCompletion(
+        CompletableFuture<ComponentTranslationResponse> future = requestValidResponse(
+                document,
                 messages,
+                llm,
+                responseSchema,
                 requestContext,
-                (structuredOutput, fallback) -> {
-                    if (structuredOutput) {
-                        ComponentTranslationMetrics.record(
-                                document,
-                                ComponentTranslationMetrics.Outcome.PROVIDER_STRUCTURED_OUTPUT
-                        );
-                    }
-                    if (fallback) {
-                        ComponentTranslationMetrics.record(
-                                document,
-                                ComponentTranslationMetrics.Outcome.PROVIDER_FALLBACK_OUTPUT
-                        );
-                    }
-                }
-        ).thenApply(rawResponse -> {
-            ComponentTranslationResponse response = parser.parse(rawResponse);
-            validator.validate(document, response);
+                1
+        ).thenApply(response -> {
             long elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000L;
-            int responseBytes = rawResponse.getBytes(StandardCharsets.UTF_8).length;
-            ComponentTranslationMetrics.recordValue(
-                    document,
-                    ComponentTranslationMetrics.Measurement.RESPONSE_BYTES,
-                    responseBytes
-            );
             ComponentTranslationDebugLogger.flow(
                     document.route(),
-                    "provider route={} result=completed model={} units={} responseBytes={} elapsedMs={}",
+                    "provider route={} result=completed model={} units={} elapsedMs={}",
                     document.route().wireName(),
                     providerProfile.model_id,
                     document.units().size(),
-                    responseBytes,
                     elapsedMillis
             );
             ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.SUCCESS);
@@ -156,6 +144,116 @@ public final class ComponentTranslationClient {
                 recordResponseFailure(document, error);
             }
         });
+    }
+
+    private CompletableFuture<ComponentTranslationResponse> requestValidResponse(
+            ComponentTranslationDocument document,
+            List<OpenAIRequest.Message> messages,
+            LLM llm,
+            StructuredOutputSpec responseSchema,
+            String requestContext,
+            int attempt
+    ) {
+        return llm.getCompletion(
+                messages,
+                requestContext,
+                (structuredOutput, fallback) -> {
+                    if (structuredOutput) {
+                        ComponentTranslationMetrics.record(
+                                document,
+                                ComponentTranslationMetrics.Outcome.PROVIDER_STRUCTURED_OUTPUT
+                        );
+                    }
+                    if (fallback) {
+                        ComponentTranslationMetrics.record(
+                                document,
+                                ComponentTranslationMetrics.Outcome.PROVIDER_FALLBACK_OUTPUT
+                        );
+                    }
+                },
+                responseSchema
+        ).thenCompose(completion -> {
+            String rawResponse = completion.content();
+            try {
+                if (completion.wasTruncated()) {
+                    throw new ComponentJsonException(
+                            ComponentJsonException.Kind.RESPONSE,
+                            "Component translation response was truncated by the provider: finishReason="
+                                    + completion.finishReason()
+                                    + ", expected=complete JSON object"
+                    );
+                }
+                ComponentTranslationResponse response = parser.parse(rawResponse);
+                validator.validate(document, response);
+                ComponentTranslationMetrics.recordValue(
+                        document,
+                        ComponentTranslationMetrics.Measurement.RESPONSE_BYTES,
+                        rawResponse.getBytes(StandardCharsets.UTF_8).length
+                );
+                return CompletableFuture.completedFuture(response);
+            } catch (Throwable error) {
+                Throwable cause = TranslateExceptionUtils.unwrapThrowable(error);
+                if (!isRetryableResponseFailure(cause)) {
+                    return CompletableFuture.failedFuture(cause);
+                }
+
+                ComponentTranslationMetrics.record(
+                        document,
+                        ComponentTranslationMetrics.Outcome.RESPONSE_REJECTED
+                );
+                ComponentTranslationDebugLogger.error(
+                        document.route(),
+                        "provider response rejected route={} attempt={}/{} finishReason={} reason={} responseBytes={} response={}",
+                        document.route().wireName(),
+                        attempt,
+                        MAX_RESPONSE_ATTEMPTS,
+                        completion.finishReason(),
+                        cause.getMessage(),
+                        rawResponse.getBytes(StandardCharsets.UTF_8).length,
+                        ComponentTranslationDebugLogger.responsePreview(rawResponse)
+                );
+
+                if (attempt >= MAX_RESPONSE_ATTEMPTS) {
+                    return CompletableFuture.failedFuture(cause);
+                }
+
+                return requestValidResponse(
+                        document,
+                        buildCorrectionMessages(messages, cause),
+                        llm,
+                        responseSchema,
+                        requestContext,
+                        attempt + 1
+                );
+            }
+        });
+    }
+
+    private static boolean isRetryableResponseFailure(Throwable error) {
+        if (!(error instanceof ComponentJsonException componentError)) {
+            return false;
+        }
+        return switch (componentError.kind()) {
+            case RESPONSE, VALIDATION, LIMIT -> true;
+            case APPLY, CODEC, DOCUMENT -> false;
+        };
+    }
+
+    static List<OpenAIRequest.Message> buildCorrectionMessages(
+            List<OpenAIRequest.Message> previousMessages,
+            Throwable validationError
+    ) {
+        List<OpenAIRequest.Message> messages = new ArrayList<>(previousMessages == null ? List.of() : previousMessages);
+        String reason = validationError == null || validationError.getMessage() == null
+                ? "the response did not satisfy the required JSON response contract"
+                : TranslateStringUtils.truncate(validationError.getMessage(), MAX_CORRECTION_REASON_CHARS);
+        messages.add(new OpenAIRequest.Message(
+                "user",
+                "Your previous component translation response was rejected. Reason: " + reason + "\n"
+                        + "Return one complete replacement response now. Output only the required JSON object; "
+                        + "do not explain the error and do not include Markdown."
+        ));
+        return List.copyOf(messages);
     }
 
     public static List<OpenAIRequest.Message> buildMessages(

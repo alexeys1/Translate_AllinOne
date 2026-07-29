@@ -4,6 +4,7 @@ import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.utils.TranslateStringUtils;
 import com.cedarxuesong.translate_allinone.utils.TranslateExceptionUtils;
 import com.cedarxuesong.translate_allinone.utils.llmapi.LLMApiException;
+import com.cedarxuesong.translate_allinone.utils.llmapi.LlmCompletion;
 import com.cedarxuesong.translate_allinone.utils.llmapi.LlmPayloadJsonSupport;
 import com.cedarxuesong.translate_allinone.utils.llmapi.ProviderSettings;
 import com.google.gson.Gson;
@@ -137,6 +138,10 @@ public class OpenAIClient {
      * 发送非流式请求到 OpenAI Responses API。
      */
     public CompletableFuture<String> getResponsesCompletion(OpenAIResponsesRequest request) {
+        return getResponsesCompletionDetail(request).thenApply(LlmCompletion::content);
+    }
+
+    public CompletableFuture<LlmCompletion> getResponsesCompletionDetail(OpenAIResponsesRequest request) {
         request.stream = false;
         String requestBody = buildRequestBody(request);
         String requestSummary = summarizeResponsesRequest(request, requestBody);
@@ -149,7 +154,7 @@ public class OpenAIClient {
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                 .build();
 
-        CompletableFuture<String> future = SHARED_HTTP_CLIENT.sendAsync(httpRequest, HttpResponse.BodyHandlers.ofString())
+        CompletableFuture<LlmCompletion> future = SHARED_HTTP_CLIENT.sendAsync(httpRequest, HttpResponse.BodyHandlers.ofString())
                 .thenApply(response -> {
                     if (response.statusCode() != 200) {
                         String message = resolveApiErrorMessage(response.body());
@@ -162,7 +167,7 @@ public class OpenAIClient {
                     if (content.isBlank()) {
                         throw new LLMApiException("Responses API returned empty output text");
                     }
-                    return content;
+                    return new LlmCompletion(content, extractResponsesFinishReason(responseJson));
                 });
 
         return future.whenComplete((ignored, throwable) -> {
@@ -477,6 +482,20 @@ public class OpenAIClient {
         }
 
         return "";
+    }
+
+    private String extractResponsesFinishReason(JsonObject responseJson) {
+        if (responseJson == null) {
+            return "";
+        }
+        if (responseJson.has("incomplete_details") && responseJson.get("incomplete_details").isJsonObject()) {
+            String reason = getStringMember(responseJson.getAsJsonObject("incomplete_details"), "reason");
+            if (reason != null && !reason.isBlank()) {
+                return reason;
+            }
+        }
+        String status = getStringMember(responseJson, "status");
+        return status == null ? "" : status;
     }
 
     private String extractResponseTextFromOutput(JsonArray outputArray) {
