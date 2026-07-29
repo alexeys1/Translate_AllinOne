@@ -15,6 +15,7 @@ import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
@@ -58,7 +59,7 @@ public final class ExternalScoreboardTranslationSupport {
                     ExternalScoreboardComponentTemplate.prepare(sourceComponent, privateTokens);
             ComponentTranslationDocument document = prepareDocument(
                     template.templateComponent(),
-                    privateTokens
+                    template.privatePlaceholders()
             );
             if (document.units().isEmpty()) {
                 return new Result(sourceComponent, false);
@@ -122,10 +123,17 @@ public final class ExternalScoreboardTranslationSupport {
     static ComponentTranslationDocument prepareDocument(Component component, Set<String> privateTokens) {
         ComponentTranslationPolicy policy = ComponentTranslationPolicy.forRoute(ComponentTranslationRoute.SCOREBOARD)
                 .withContext(CONTEXT)
-                .withPrivateTokens(privateTokens)
                 .withSemanticSetting("route_policy", POLICY_VERSION)
-                .withSemanticSetting("layout", "arbitrary-component");
+                .withSemanticSetting("layout", "arbitrary-component")
+                .withSemanticSetting("private_slot_schema", privateSlotSchema(privateTokens));
         return ComponentTranslationRuntime.prepare(component, policy);
+    }
+
+    private static String privateSlotSchema(Set<String> privateSlots) {
+        if (privateSlots == null || privateSlots.isEmpty()) {
+            return "none";
+        }
+        return String.join("\u001f", new TreeSet<>(privateSlots));
     }
 
     static Result resultForResolution(

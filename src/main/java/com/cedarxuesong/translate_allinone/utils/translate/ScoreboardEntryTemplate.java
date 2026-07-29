@@ -1,6 +1,7 @@
 package com.cedarxuesong.translate_allinone.utils.translate;
 
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentDocumentBuilder;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentDynamicTemplate;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentJsonCodec;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTextUnit;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationApplier;
@@ -13,6 +14,7 @@ import com.cedarxuesong.translate_allinone.utils.text.TemplateProcessor;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import java.util.List;
+import java.util.Set;
 import net.minecraft.network.chat.Component;
 
 /**
@@ -31,7 +33,8 @@ public final class ScoreboardEntryTemplate {
             List<String> templateValues,
             String playerName,
             Component v1Original,
-            ComponentTranslationDocument v1Document
+            ComponentTranslationDocument v1Document,
+            ComponentDynamicTemplate v1Template
     ) {
         public Prepared {
             translationTemplateKey = translationTemplateKey == null ? "" : translationTemplateKey;
@@ -60,7 +63,8 @@ public final class ScoreboardEntryTemplate {
             if (v1Document == null) {
                 throw new IllegalStateException("Scoreboard Component V1 document is unavailable.");
             }
-            return V1_APPLIER.apply(v1Document, response);
+            Component translatedTemplate = V1_APPLIER.apply(v1Document, response);
+            return v1Template == null ? translatedTemplate : v1Template.restore(translatedTemplate);
         }
     }
 
@@ -92,6 +96,7 @@ public final class ScoreboardEntryTemplate {
                 legacy.templateValues(),
                 includePlayerName ? playerName : "",
                 Component.empty(),
+                null,
                 null
         );
     }
@@ -116,20 +121,24 @@ public final class ScoreboardEntryTemplate {
         String playerName = resolvedOwner.getString();
 
         LegacyPrepared legacy = prepareLegacy(resolvedPrefix, playerName, translateOwner, resolvedSuffix);
-        ComponentTranslationDocument document = prepareV1Document(
-                resolvedPrefix,
-                resolvedOwner,
-                translateOwner,
-                protectOwner,
-                resolvedSuffix
+        Component v1Original = prepareV1Source(resolvedPrefix, resolvedOwner, resolvedSuffix);
+        boolean ownerIsPassthrough = protectOwner || !translateOwner;
+        ComponentDynamicTemplate v1Template = ComponentDynamicTemplate.prepare(
+                v1Original,
+                ownerIsPassthrough && !playerName.isBlank() ? Set.of(playerName) : Set.of()
         );
-        Component v1Original = ComponentJsonCodec.decode(document.sourceJson());
+        ComponentTranslationDocument document = prepareV1Document(
+                v1Template.templateComponent(),
+                translateOwner,
+                protectOwner
+        );
         return new Prepared(
                 legacy.translationTemplateKey(),
                 legacy.templateValues(),
                 playerName,
                 v1Original,
-                document
+                document,
+                v1Template
         );
     }
 
@@ -165,20 +174,10 @@ public final class ScoreboardEntryTemplate {
     }
 
     private static ComponentTranslationDocument prepareV1Document(
-            Component prefix,
-            Component owner,
+            Component sourceComponent,
             boolean translateOwner,
-            boolean protectOwner,
-            Component suffix
+            boolean protectOwner
     ) {
-        JsonObject source = new JsonObject();
-        source.addProperty("text", "");
-        JsonArray segments = new JsonArray();
-        segments.add(ComponentJsonCodec.encode(prefix));
-        segments.add(ComponentJsonCodec.encode(owner));
-        segments.add(ComponentJsonCodec.encode(suffix));
-        source.add("extra", segments);
-
         ComponentTranslationPolicy policy = ComponentTranslationPolicy.forRoute(ComponentTranslationRoute.SCOREBOARD)
                 .withContext("scoreboard_entry")
                 .withSemanticSetting("route_policy", V1_POLICY_VERSION)
@@ -186,7 +185,7 @@ public final class ScoreboardEntryTemplate {
                 .withSemanticSetting("translate_prefix_suffix", "true")
                 .withSemanticSetting("translate_owner", Boolean.toString(translateOwner))
                 .withSemanticSetting("owner_protected", Boolean.toString(protectOwner));
-        ComponentTranslationDocument extracted = new ComponentDocumentBuilder().build(source, policy);
+        ComponentTranslationDocument extracted = new ComponentDocumentBuilder().build(sourceComponent, policy);
         if (translateOwner && !protectOwner) {
             return extracted;
         }
@@ -202,6 +201,17 @@ public final class ScoreboardEntryTemplate {
                 filteredUnits,
                 extracted.semanticSettings()
         );
+    }
+
+    private static Component prepareV1Source(Component prefix, Component owner, Component suffix) {
+        JsonObject source = new JsonObject();
+        source.addProperty("text", "");
+        JsonArray segments = new JsonArray();
+        segments.add(ComponentJsonCodec.encode(prefix));
+        segments.add(ComponentJsonCodec.encode(owner));
+        segments.add(ComponentJsonCodec.encode(suffix));
+        source.add("extra", segments);
+        return ComponentJsonCodec.decode(source);
     }
 
     private static boolean isOwnerPointer(String pointer) {

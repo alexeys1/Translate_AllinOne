@@ -11,15 +11,20 @@ import net.minecraft.network.chat.Component;
 
 public record ComponentTranslationBundle(
         ComponentTranslationDocument cacheDocument,
-        List<ComponentTranslationDocument> documents
+        List<ComponentTranslationDocument> documents,
+        List<ComponentDynamicTemplate> templates
 ) {
     private static final String COHERENT_PARAGRAPH_ID = "paragraph";
 
     public ComponentTranslationBundle {
-        if (cacheDocument == null || documents == null || documents.isEmpty()) {
+        if (cacheDocument == null || documents == null || documents.isEmpty() || templates == null) {
             throw new IllegalArgumentException("Component translation bundle is incomplete.");
         }
         documents = List.copyOf(documents);
+        templates = List.copyOf(templates);
+        if (documents.size() != templates.size()) {
+            throw new IllegalArgumentException("Component translation bundle templates do not match its documents.");
+        }
     }
 
     public static ComponentTranslationBundle create(
@@ -34,17 +39,22 @@ public record ComponentTranslationBundle(
 
         ComponentDocumentBuilder builder = new ComponentDocumentBuilder();
         List<ComponentTranslationDocument> documents = new ArrayList<>(components.size());
+        List<ComponentDynamicTemplate> templates = new ArrayList<>(components.size());
         JsonArray sourceLines = new JsonArray();
         List<ComponentTextUnit> bundleUnits = new ArrayList<>();
         int lineCount = components.size();
 
+        for (Component component : components) {
+            templates.add(ComponentDynamicTemplate.prepare(component));
+        }
+
         for (int lineIndex = 0; lineIndex < components.size(); lineIndex++) {
-            Component component = components.get(lineIndex);
-            String lineContext = buildLineContext(components, lineIndex, context);
+            ComponentDynamicTemplate template = templates.get(lineIndex);
+            String lineContext = buildLineContext(templates, lineIndex, context);
             ComponentTranslationPolicy policy = ComponentTranslationPolicy.forRoute(route)
                     .withContext(lineContext)
                     .withSemanticSetting("bundle_policy", policyVersion == null ? "1" : policyVersion);
-            ComponentTranslationDocument document = builder.build(component, policy);
+            ComponentTranslationDocument document = builder.build(template.templateComponent(), policy);
             documents.add(document);
             sourceLines.add(document.sourceJson());
 
@@ -86,7 +96,7 @@ public record ComponentTranslationBundle(
                 bundleUnits,
                 settings
         );
-        return new ComponentTranslationBundle(cacheDocument, documents);
+        return new ComponentTranslationBundle(cacheDocument, documents, templates);
     }
 
     public static ComponentTranslationBundle createCoherentParagraph(
@@ -122,13 +132,16 @@ public record ComponentTranslationBundle(
 
         ComponentDocumentBuilder builder = new ComponentDocumentBuilder();
         List<ComponentTranslationDocument> documents = new ArrayList<>(components.size());
+        List<ComponentDynamicTemplate> templates = new ArrayList<>(components.size());
         JsonArray sourceLines = new JsonArray();
         for (Component component : components) {
             if (component == null) {
                 throw new IllegalArgumentException("Coherent paragraph contains a null Component.");
             }
-            ComponentTranslationDocument document = builder.build(component, policy);
+            ComponentDynamicTemplate template = ComponentDynamicTemplate.prepare(component);
+            ComponentTranslationDocument document = builder.build(template.templateComponent(), policy);
             documents.add(document);
+            templates.add(template);
             sourceLines.add(document.sourceJson());
         }
 
@@ -161,7 +174,7 @@ public record ComponentTranslationBundle(
                 List.of(paragraphUnit),
                 settings
         );
-        return new ComponentTranslationBundle(cacheDocument, documents);
+        return new ComponentTranslationBundle(cacheDocument, documents, templates);
     }
 
     public List<Component> apply(ComponentTranslationResponse response) {
@@ -175,10 +188,11 @@ public record ComponentTranslationBundle(
                 String translation = response.translations().get("l" + lineIndex + ":" + unit.id());
                 lineTranslations.put(unit.id(), translation);
             }
-            result.add(applier.apply(
+            Component translatedTemplate = applier.apply(
                     document,
                     new ComponentTranslationResponse(response.protocol(), lineTranslations)
-            ));
+            );
+            result.add(templates.get(lineIndex).restore(translatedTemplate));
         }
         return List.copyOf(result);
     }
@@ -195,14 +209,14 @@ public record ComponentTranslationBundle(
         return response.translations().get(COHERENT_PARAGRAPH_ID);
     }
 
-    private static String buildLineContext(List<Component> components, int index, String context) {
+    private static String buildLineContext(List<ComponentDynamicTemplate> templates, int index, String context) {
         StringBuilder result = new StringBuilder(context == null || context.isBlank() ? "component_bundle" : context.trim());
-        result.append(" line ").append(index + 1).append('/').append(components.size());
-        if (index > 0 && components.get(index - 1) != null) {
-            result.append(" previous=").append(components.get(index - 1).getString());
+        result.append(" line ").append(index + 1).append('/').append(templates.size());
+        if (index > 0) {
+            result.append(" previous=").append(templates.get(index - 1).templateComponent().getString());
         }
-        if (index + 1 < components.size() && components.get(index + 1) != null) {
-            result.append(" next=").append(components.get(index + 1).getString());
+        if (index + 1 < templates.size()) {
+            result.append(" next=").append(templates.get(index + 1).templateComponent().getString());
         }
         return result.toString();
     }
