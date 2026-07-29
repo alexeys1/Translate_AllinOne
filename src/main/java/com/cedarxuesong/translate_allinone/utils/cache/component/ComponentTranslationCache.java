@@ -323,7 +323,8 @@ public final class ComponentTranslationCache {
     private static Namespace namespaceFor(ComponentTranslationRoute route) {
         return switch (route) {
             case TOOLTIP_LINE, TOOLTIP_STRUCTURED, TOOLTIP_PARAGRAPH -> Namespace.ITEM;
-            case ADVANCEMENT -> Namespace.OTHER_TRANSLATIONS;
+            case ADVANCEMENT, SIGN_FACE, SIGN_CONTINUOUS, ENTITY_NAME, TEXT_DISPLAY, BOOK_PAGE ->
+                    Namespace.OTHER_TRANSLATIONS;
             case SCOREBOARD -> Namespace.SCOREBOARD;
             case CHAT_OUTPUT -> null;
         };

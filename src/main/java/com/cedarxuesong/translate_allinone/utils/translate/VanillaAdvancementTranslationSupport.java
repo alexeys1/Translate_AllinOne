@@ -86,7 +86,9 @@ public final class VanillaAdvancementTranslationSupport {
         OtherTranslationsConfig config = currentOtherTranslationsConfig();
         boolean componentV1Enabled = config != null && config.component_json_v1_advancements;
         if (!componentV1Enabled) {
-            maybeForceRefreshAdvancementKeys(config, translationTemplateKeys);
+            if (maybeForceRefreshAdvancementKeys(config, translationTemplateKeys)) {
+                queueRefreshedAdvancementKeys(translationTemplateKeys);
+            }
         }
         Component translatedTitle = translateComponent(holder, originalTitle, "title", true, componentV1Enabled);
         Component translatedDescription = translateComponent(
@@ -156,9 +158,18 @@ public final class VanillaAdvancementTranslationSupport {
         if (!isAdvancementTranslationFeatureEnabled(config)) {
             return originalText;
         }
+        boolean renderTranslated = shouldRenderTranslatedAdvancement(config);
 
         if (config.component_json_v1_advancements) {
-            return translateComponentV1(holder, originalText, fieldName, queueIfMissing, allowForceRefresh, config);
+            return translateComponentV1(
+                    holder,
+                    originalText,
+                    fieldName,
+                    queueIfMissing,
+                    allowForceRefresh,
+                    renderTranslated,
+                    config
+            );
         }
 
         try {
@@ -169,11 +180,14 @@ public final class VanillaAdvancementTranslationSupport {
                 return originalText;
             }
 
-            if (queueIfMissing && allowForceRefresh) {
-                maybeForceRefreshAdvancementKeys(config, Set.of(translationTemplateKey));
+            boolean refreshRequested = queueIfMissing
+                    && allowForceRefresh
+                    && maybeForceRefreshAdvancementKeys(config, Set.of(translationTemplateKey));
+            if (refreshRequested) {
+                queueRefreshedAdvancementKeys(Set.of(translationTemplateKey));
             }
 
-            if (!shouldRenderTranslatedAdvancement(config)) {
+            if (!renderTranslated) {
                 return originalText;
             }
 
@@ -212,6 +226,7 @@ public final class VanillaAdvancementTranslationSupport {
             String fieldName,
             boolean queueIfMissing,
             boolean allowForceRefresh,
+            boolean renderTranslated,
             OtherTranslationsConfig config
     ) {
         try {
@@ -228,16 +243,22 @@ public final class VanillaAdvancementTranslationSupport {
                 return originalText;
             }
 
-            if (queueIfMissing && allowForceRefresh) {
-                maybeForceRefreshAdvancementDocument(config, document);
+            boolean refreshRequested = queueIfMissing
+                    && allowForceRefresh
+                    && maybeForceRefreshAdvancementDocument(config, document);
+            if (!renderTranslated) {
+                if (refreshRequested) {
+                    queueRefreshedAdvancementDocument(document, config, "advancement:" + holder.id() + ":" + fieldName);
+                }
+                return originalText;
             }
 
             ComponentTranslationApplier applier = new ComponentTranslationApplier();
             ComponentTranslationRuntime.Resolution<Component> resolution = ComponentTranslationRuntime.resolve(
                     document,
                     config.target_language,
-                    legacyKey,
-                    () -> peekLegacyTranslation(styleResult, templateResult, legacyKey),
+                    refreshRequested ? null : legacyKey,
+                    refreshRequested ? () -> null : () -> peekLegacyTranslation(styleResult, templateResult, legacyKey),
                     response -> {
                         long startedAt = System.nanoTime();
                         Component translated = applier.apply(document, response);
@@ -300,42 +321,46 @@ public final class VanillaAdvancementTranslationSupport {
         return StylePreserver.reapplyStylesFromTags(reassembled, styleResult.styleMap, true);
     }
 
-    private static void maybeForceRefreshAdvancementDocument(
+    private static boolean maybeForceRefreshAdvancementDocument(
             OtherTranslationsConfig config,
             ComponentTranslationDocument document
     ) {
         if (config == null || config.keybinding == null || config.keybinding.refreshBinding == null) {
-            return;
+            return false;
         }
         boolean pressed = KeybindingManager.isPressed(config.keybinding.refreshBinding);
         long now = System.currentTimeMillis();
         if (!updateRefreshHoldState(pressed, now)) {
-            return;
+            return false;
         }
 
         String v1Key = ComponentTranslationRuntime.cacheKey(document, config.target_language);
         synchronized (refreshedKeysThisHold) {
             if (!refreshedKeysThisHold.add("v1:" + v1Key)) {
-                return;
+                return false;
             }
         }
         ComponentTranslationRuntime.forceRefresh(document, config.target_language);
+        return true;
     }
 
-    private static void maybeForceRefreshAdvancementKeys(OtherTranslationsConfig config, Set<String> translationTemplateKeys) {
+    private static boolean maybeForceRefreshAdvancementKeys(
+            OtherTranslationsConfig config,
+            Set<String> translationTemplateKeys
+    ) {
         if (!isAdvancementTranslationFeatureEnabled(config)
                 || translationTemplateKeys == null
                 || translationTemplateKeys.isEmpty()) {
-            return;
+            return false;
         }
         if (config == null || config.keybinding == null || config.keybinding.refreshBinding == null) {
-            return;
+            return false;
         }
 
         boolean isRefreshPressed = KeybindingManager.isPressed(config.keybinding.refreshBinding);
         long now = System.currentTimeMillis();
         if (!updateRefreshHoldState(isRefreshPressed, now)) {
-            return;
+            return false;
         }
 
         List<String> keysToRefresh = new ArrayList<>();
@@ -350,7 +375,7 @@ public final class VanillaAdvancementTranslationSupport {
             }
         }
         if (keysToRefresh.isEmpty()) {
-            return;
+            return false;
         }
 
         int refreshedCount = OtherTranslationsTextCache.getInstance().forceRefresh(keysToRefresh);
@@ -363,6 +388,35 @@ public final class VanillaAdvancementTranslationSupport {
                     refreshedCount
             );
         }
+        return true;
+    }
+
+    private static void queueRefreshedAdvancementKeys(Set<String> translationTemplateKeys) {
+        if (translationTemplateKeys == null || translationTemplateKeys.isEmpty()) {
+            return;
+        }
+        OtherTranslationsTextCache cache = OtherTranslationsTextCache.getInstance();
+        for (String translationTemplateKey : translationTemplateKeys) {
+            if (translationTemplateKey != null && !translationTemplateKey.isBlank()) {
+                cache.lookupOrQueue(translationTemplateKey);
+            }
+        }
+    }
+
+    private static void queueRefreshedAdvancementDocument(
+            ComponentTranslationDocument document,
+            OtherTranslationsConfig config,
+            String requestContext
+    ) {
+        ComponentTranslationRuntime.resolve(
+                document,
+                config.target_language,
+                null,
+                () -> null,
+                response -> null,
+                requestContext,
+                true
+        );
     }
 
     private static boolean updateRefreshHoldState(boolean isRefreshPressed, long now) {
@@ -529,19 +583,7 @@ public final class VanillaAdvancementTranslationSupport {
     }
 
     private static boolean shouldRenderTranslatedAdvancement(OtherTranslationsConfig config) {
-        if (!isAdvancementTranslationFeatureEnabled(config)) {
-            return false;
-        }
-
-        OtherTranslationsConfig.KeybindingMode mode = config.keybinding == null || config.keybinding.mode == null
-                ? OtherTranslationsConfig.KeybindingMode.DISABLED
-                : config.keybinding.mode;
-        boolean keyPressed = config.keybinding != null
-                && KeybindingManager.isPressed(config.keybinding.binding);
-        return switch (mode) {
-            case HOLD_TO_TRANSLATE -> keyPressed;
-            case HOLD_TO_SEE_ORIGINAL -> !keyPressed;
-            case DISABLED -> true;
-        };
+        return isAdvancementTranslationFeatureEnabled(config)
+                && ComponentRenderTranslationSupport.shouldRenderTranslated(config);
     }
 }

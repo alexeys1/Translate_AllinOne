@@ -10,6 +10,7 @@ import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslat
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRoute;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ScoreboardConfig;
 import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardComponentTranslationSupport;
+import com.cedarxuesong.translate_allinone.utils.translate.ComponentRenderTranslationSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardEntryTemplate;
 import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardTranslationInputSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TranslationErrorTextSupport;
@@ -293,6 +294,10 @@ public class InGameHudMixin {
                 translate_allinone$scoreboardReplacements.set(null);
                 ScoreboardComponentTranslationSupport.reset();
                 ScoreboardTranslationInputSupport.reset();
+                return;
+            }
+            if (ComponentRenderTranslationSupport.isTranslationBlockedByScreen()) {
+                translate_allinone$scoreboardReplacements.set(null);
                 return;
             }
 

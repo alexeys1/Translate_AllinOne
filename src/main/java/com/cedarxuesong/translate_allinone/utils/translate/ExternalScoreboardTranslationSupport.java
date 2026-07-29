@@ -48,7 +48,8 @@ public final class ExternalScoreboardTranslationSupport {
         ScoreboardConfig config = Translate_AllinOne.getConfig() == null
                 ? null
                 : Translate_AllinOne.getConfig().scoreboardTranslate;
-        if (!isEnabled(config, hidesVanillaScoreboard)) {
+        if (ComponentRenderTranslationSupport.isTranslationBlockedByScreen()
+                || !isEnabled(config, hidesVanillaScoreboard)) {
             return new Result(sourceComponent, false);
         }
         boolean showOriginal = ScoreboardTranslationInputSupport.shouldShowOriginal(config);
@@ -106,7 +107,10 @@ public final class ExternalScoreboardTranslationSupport {
     }
 
     public static boolean isEnabled(ScoreboardConfig config, boolean hidesVanillaScoreboard) {
-        if (config == null || !config.enabled || config.external_custom_scoreboard_mode == null) {
+        if (ComponentRenderTranslationSupport.isTranslationBlockedByScreen()
+                || config == null
+                || !config.enabled
+                || config.external_custom_scoreboard_mode == null) {
             return false;
         }
         return switch (config.external_custom_scoreboard_mode) {

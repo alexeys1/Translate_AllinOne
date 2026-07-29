@@ -46,6 +46,9 @@ public final class ScoreboardComponentTranslationSupport {
         if (prepared == null || config == null) {
             return Component.empty();
         }
+        if (ComponentRenderTranslationSupport.isTranslationBlockedByScreen()) {
+            return prepared.renderV1Original();
+        }
 
         ComponentTranslationRuntime.Resolution<Component> resolution = ComponentTranslationRuntime.resolve(
                 prepared.v1Document(),
