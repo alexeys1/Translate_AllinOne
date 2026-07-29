@@ -19,6 +19,8 @@
     "mixinAdvancement.AdvancementTabMixin",
     "mixinAdvancement.AdvancementToastMixin",
     "mixinAdvancement.AdvancementWidgetMixin",
+    "mixinSign.AbstractSignRendererMixin",
+    "mixinSign.SignTextMixin",
     "mixinWynntils.ActivityNameFunctionMixin",
     "mixinWynntils.ActivityTaskFunctionMixin",
     "mixinWynntils.ActivityTypeFunctionMixin",
