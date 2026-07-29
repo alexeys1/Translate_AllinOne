@@ -23,11 +23,6 @@ public final class SignTranslationSupport {
     private static final Map<SignText, FormattedCharSequence[]> REGISTERED_RENDER_LINES =
             Collections.synchronizedMap(new WeakHashMap<>());
 
-    private enum Face {
-        FRONT,
-        BACK
-    }
-
     private SignTranslationSupport() {
     }
 
@@ -49,13 +44,13 @@ public final class SignTranslationSupport {
         SignText originalBack = sign.getBackText();
         boolean filtered = state.isTextFilteringEnabled;
         if (!ComponentRenderTranslationSupport.shouldRenderTranslated(config)) {
-            refreshFaceIfNeeded(sign, originalFront, Face.FRONT, filtered, config);
-            refreshFaceIfNeeded(sign, originalBack, Face.BACK, filtered, config);
+            refreshFaceIfNeeded(sign, originalFront, ContinuousSignTranslationCoordinator.Face.FRONT, filtered, config);
+            refreshFaceIfNeeded(sign, originalBack, ContinuousSignTranslationCoordinator.Face.BACK, filtered, config);
             return new RenderedSignText(originalFront, originalBack);
         }
         return new RenderedSignText(
-                resolveFace(sign, originalFront, Face.FRONT, filtered, state, font, config),
-                resolveFace(sign, originalBack, Face.BACK, filtered, state, font, config)
+                resolveFace(sign, originalFront, ContinuousSignTranslationCoordinator.Face.FRONT, filtered, state, font, config),
+                resolveFace(sign, originalBack, ContinuousSignTranslationCoordinator.Face.BACK, filtered, state, font, config)
         );
     }
 
@@ -74,9 +69,9 @@ public final class SignTranslationSupport {
             return;
         }
 
-        Face face = submittedFace(state, signText);
+        ContinuousSignTranslationCoordinator.Face face = submittedFace(state, signText);
         RenderedSignText resolved = resolveForRender(sign, state, font);
-        SignText renderedText = face == Face.FRONT
+        SignText renderedText = face == ContinuousSignTranslationCoordinator.Face.FRONT
                 ? resolved.frontText()
                 : resolved.backText();
         if (renderedText == null || renderedText == signText) {
@@ -97,10 +92,10 @@ public final class SignTranslationSupport {
         REGISTERED_RENDER_LINES.put(signText, visualLines);
     }
 
-    static Face submittedFace(SignRenderState state, SignText signText) {
+    static ContinuousSignTranslationCoordinator.Face submittedFace(SignRenderState state, SignText signText) {
         return state != null && signText == state.backText && signText != state.frontText
-                ? Face.BACK
-                : Face.FRONT;
+                ? ContinuousSignTranslationCoordinator.Face.BACK
+                : ContinuousSignTranslationCoordinator.Face.FRONT;
     }
 
     public static FormattedCharSequence[] getRegisteredRenderLines(SignText signText) {
@@ -135,7 +130,7 @@ public final class SignTranslationSupport {
     private static SignText resolveFace(
             SignBlockEntity sign,
             SignText original,
-            Face face,
+            ContinuousSignTranslationCoordinator.Face face,
             boolean filtered,
             SignRenderState state,
             Font font,
@@ -144,6 +139,28 @@ public final class SignTranslationSupport {
         if (original == null) {
             return null;
         }
+        ContinuousSignTranslationCoordinator.SignFaceKey key =
+                new ContinuousSignTranslationCoordinator.SignFaceKey(sign.getBlockPos(), face);
+        Component[] coordinated = ContinuousSignTranslationCoordinator.translatedLines(key);
+        if (coordinated != null) {
+            return rebuildSignText(original, coordinated, state, font);
+        }
+        String coordinatedAnimationKey = ContinuousSignTranslationCoordinator.pendingAnimationKey(key);
+        if (coordinatedAnimationKey != null) {
+            return rebuildSignText(
+                    original,
+                    animateLines(original.getMessages(filtered), coordinatedAnimationKey),
+                    state,
+                    font
+            );
+        }
+        if (!config.continuous_sign_translation) {
+            return original;
+        }
+        if (config.continuous_sign_translation && ContinuousSignTranslationCoordinator.isGroupedFace(key)) {
+            return original;
+        }
+
         Component[] source = original.getMessages(filtered);
         if (source == null || source.length != SignText.LINES) {
             return original;
@@ -187,11 +204,19 @@ public final class SignTranslationSupport {
     private static void refreshFaceIfNeeded(
             SignBlockEntity sign,
             SignText original,
-            Face face,
+            ContinuousSignTranslationCoordinator.Face face,
             boolean filtered,
             OtherTranslationsConfig config
     ) {
         if (original == null || !ComponentRenderTranslationSupport.isRefreshPressed(config)) {
+            return;
+        }
+        if (!config.continuous_sign_translation) {
+            return;
+        }
+        ContinuousSignTranslationCoordinator.SignFaceKey key =
+                new ContinuousSignTranslationCoordinator.SignFaceKey(sign.getBlockPos(), face);
+        if (config.continuous_sign_translation && ContinuousSignTranslationCoordinator.isGroupedFace(key)) {
             return;
         }
         Component[] source = original.getMessages(filtered);

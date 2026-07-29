@@ -10,6 +10,7 @@ import com.cedarxuesong.translate_allinone.utils.cache.component.ComponentTransl
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRuntime;
 import com.cedarxuesong.translate_allinone.utils.translate.ItemTranslateManager;
 import com.cedarxuesong.translate_allinone.utils.translate.AdvancementTranslateManager;
+import com.cedarxuesong.translate_allinone.utils.translate.ContinuousSignTranslationCoordinator;
 import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardTranslateManager;
 import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardTranslationInputSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.ExternalScoreboardTranslationSupport;
@@ -50,6 +51,7 @@ public class LifecycleEventManager {
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             resetReadinessState();
             ComponentTranslationRuntime.beginSession();
+            ContinuousSignTranslationCoordinator.reset();
             ScoreboardTranslationInputSupport.reset();
             ExternalScoreboardTranslationSupport.resetSession();
             awaitingReadinessCheck = true;
@@ -79,6 +81,7 @@ public class LifecycleEventManager {
             if (isReadyForTranslation) {
                 UpdateCheckManager.tryNotifyInChat(client);
                 WynnDialogueTranslationSupport.tick();
+                ContinuousSignTranslationCoordinator.tick();
             }
             ScoreboardTranslationInputSupport.tick(
                     Translate_AllinOne.getConfig() == null
@@ -93,6 +96,7 @@ public class LifecycleEventManager {
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             resetReadinessState();
             ComponentTranslationRuntime.endSession();
+            ContinuousSignTranslationCoordinator.reset();
             ScoreboardTranslationInputSupport.reset();
             ExternalScoreboardTranslationSupport.resetSession();
             LOGGER.info("Player has disconnected. Translation readiness reset.");
