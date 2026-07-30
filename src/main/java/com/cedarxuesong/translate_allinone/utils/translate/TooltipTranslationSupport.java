@@ -190,9 +190,20 @@ public final class TooltipTranslationSupport {
 
         int refreshed = 0;
         for (TooltipRouteSegment segment : tooltipPlan.segments()) {
-            if (segment == null
-                    || segment.kind() != TooltipRouteKind.LINE_TEMPLATE
-                    || segment.candidate() == null
+            if (segment == null || segment.kind() == null || segment.candidate() == null) {
+                continue;
+            }
+            if (segment.kind() == TooltipRouteKind.STRUCTURED_LINE) {
+                boolean preserveStyles = segment.preparedTemplate() != null
+                        && segment.preparedTemplate().useTagStylePreservation();
+                refreshed += TooltipStructuredCaptureSupport.forceRefreshStructuredLine(
+                        segment.candidate().line(),
+                        preserveStyles,
+                        config
+                );
+                continue;
+            }
+            if (segment.kind() != TooltipRouteKind.LINE_TEMPLATE
                     || TooltipTemplateRuntime.hasLocalDictionaryTranslation(segment.candidate().line())) {
                 continue;
             }
@@ -443,7 +454,8 @@ public final class TooltipTranslationSupport {
             if (segment.kind() == TooltipRouteKind.STRUCTURED_LINE) {
                 structuredLineResult = TooltipStructuredCaptureSupport.tryTranslateStructuredLine(
                         segment.candidate().line(),
-                        useTagStylePreservation
+                        useTagStylePreservation,
+                        config
                 );
             }
 
@@ -576,12 +588,6 @@ public final class TooltipTranslationSupport {
                     }
                 }
                 case STRUCTURED_LINE -> {
-                    if (segment.candidate() != null) {
-                        remoteKeys.addAll(TooltipStructuredCaptureSupport.collectRemoteStructuredTemplateKeys(
-                                segment.candidate().line(),
-                                useTagStylePreservation
-                        ));
-                    }
                 }
                 case LINE_TEMPLATE -> {
                     // Ordinary lines are queued directly through the component translation runtime.

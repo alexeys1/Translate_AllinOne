@@ -2,6 +2,8 @@ package com.cedarxuesong.translate_allinone.utils.translate;
 
 import com.cedarxuesong.translate_allinone.utils.AnimationManager;
 import com.cedarxuesong.translate_allinone.utils.TranslateStringUtils;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRoute;
+import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.textmatcher.ContentMatcher;
 import com.cedarxuesong.translate_allinone.utils.textmatcher.FlatNode;
 import com.cedarxuesong.translate_allinone.utils.textmatcher.TextMatchResult;
@@ -68,6 +70,189 @@ final class TooltipStructuredCaptureSupport {
             return enchantListMatch == null ? null : translateEnchantListLine(enchantListMatch, useTagStylePreservation);
         }
         return translateLabelValueStructuredLine(structuredLine, useTagStylePreservation);
+    }
+
+    static StructuredTooltipLineResult tryTranslateStructuredLine(
+            Text line,
+            boolean useTagStylePreservation,
+            ItemTranslateConfig config
+    ) {
+        if (config != null && TooltipComponentTranslationSupport.isEligibleLine(line, config)) {
+            StructuredTooltipLineResult component = tryTranslateStructuredLineComponent(
+                    line,
+                    useTagStylePreservation,
+                    config
+            );
+            if (component != null) {
+                return component;
+            }
+        }
+        return tryTranslateStructuredLine(line, useTagStylePreservation);
+    }
+
+    private static StructuredTooltipLineResult tryTranslateStructuredLineComponent(
+            Text line,
+            boolean useTagStylePreservation,
+            ItemTranslateConfig config
+    ) {
+        if (containsEmbeddedLegacyFormattingCodes(line)) {
+            return null;
+        }
+        List<FlatNode> splitNodes = splitStructuredNodes(line);
+        if (splitNodes.isEmpty()) {
+            return null;
+        }
+        StructuredLineMatch structuredLine = matchStructuredLine(splitNodes, useTagStylePreservation);
+        if (structuredLine != null) {
+            return translateLabelValueStructuredLineComponent(structuredLine, useTagStylePreservation, config);
+        }
+        EnchantListMatch enchantList = matchEnchantListLine(splitNodes, useTagStylePreservation);
+        return enchantList == null
+                ? null
+                : translateEnchantListLineComponent(enchantList, useTagStylePreservation, config);
+    }
+
+    static int forceRefreshStructuredLine(
+            Text line,
+            boolean useTagStylePreservation,
+            ItemTranslateConfig config
+    ) {
+        if (line == null || config == null || containsEmbeddedLegacyFormattingCodes(line)) {
+            return 0;
+        }
+        List<FlatNode> splitNodes = splitStructuredNodes(line);
+        if (splitNodes.isEmpty()) {
+            return 0;
+        }
+
+        int refreshed = 0;
+        StructuredLineMatch structuredLine = matchStructuredLine(splitNodes, useTagStylePreservation);
+        if (structuredLine != null) {
+            if (!TooltipTemplateRuntime.hasLocalDictionaryTranslation(structuredLine.labelTranslationText())) {
+                refreshed += TooltipComponentTranslationSupport.forceRefreshPreparedLine(
+                        TooltipTemplateRuntime.prepareTemplate(
+                                structuredLine.labelTranslationText(),
+                                useTagStylePreservation
+                        ),
+                        ComponentTranslationRoute.TOOLTIP_STRUCTURED,
+                        "tooltip:structured:" + structuredLine.kind().debugName() + ":label",
+                        "structured-v2",
+                        config
+                );
+            }
+            if (structuredLine.kind().translateValue()
+                    && !TooltipTemplateRuntime.hasLocalDictionaryTranslation(structuredLine.valueTranslationText())) {
+                refreshed += TooltipComponentTranslationSupport.forceRefreshPreparedLine(
+                        TooltipTemplateRuntime.prepareTemplate(
+                                structuredLine.valueTranslationText(),
+                                useTagStylePreservation
+                        ),
+                        ComponentTranslationRoute.TOOLTIP_STRUCTURED,
+                        "tooltip:structured:" + structuredLine.kind().debugName() + ":value",
+                        "structured-v2",
+                        config
+                );
+            }
+            return refreshed;
+        }
+
+        EnchantListMatch enchantList = matchEnchantListLine(splitNodes, useTagStylePreservation);
+        if (enchantList == null || enchantList.entries().isEmpty()) {
+            return 0;
+        }
+        for (int index = 0; index < enchantList.entries().size(); index++) {
+            EnchantListEntry entry = enchantList.entries().get(index);
+            if (entry == null || TooltipTemplateRuntime.hasLocalDictionaryTranslation(entry.nameTranslationText())) {
+                continue;
+            }
+            refreshed += TooltipComponentTranslationSupport.forceRefreshPreparedLine(
+                    TooltipTemplateRuntime.prepareTemplate(entry.nameTranslationText(), useTagStylePreservation),
+                    ComponentTranslationRoute.TOOLTIP_STRUCTURED,
+                    "tooltip:structured:enchantment:" + index,
+                    "structured-v2",
+                    config
+            );
+        }
+        return refreshed;
+    }
+
+    private static StructuredTooltipLineResult translateLabelValueStructuredLineComponent(
+            StructuredLineMatch structuredLine,
+            boolean useTagStylePreservation,
+            ItemTranslateConfig config
+    ) {
+        TooltipTemplateRuntime.PreparedTooltipTemplate labelPrepared = TooltipTemplateRuntime.prepareTemplate(
+                structuredLine.labelTranslationText(),
+                useTagStylePreservation
+        );
+        TooltipTranslationSupport.TooltipLineResult labelTranslation =
+                TooltipTemplateRuntime.hasLocalDictionaryTranslation(structuredLine.labelTranslationText())
+                        ? TooltipTemplateRuntime.translatePreparedTemplate(labelPrepared)
+                        : TooltipComponentTranslationSupport.translatePreparedLine(
+                        labelPrepared,
+                        ComponentTranslationRoute.TOOLTIP_STRUCTURED,
+                        "tooltip:structured:" + structuredLine.kind().debugName() + ":label",
+                        "structured-v2",
+                        config
+                );
+        if (labelTranslation == null) {
+            return null;
+        }
+
+        TooltipTranslationSupport.TooltipLineResult valueTranslation = null;
+        if (structuredLine.kind().translateValue()) {
+            TooltipTemplateRuntime.PreparedTooltipTemplate valuePrepared = TooltipTemplateRuntime.prepareTemplate(
+                    structuredLine.valueTranslationText(),
+                    useTagStylePreservation
+            );
+            valueTranslation = TooltipTemplateRuntime.hasLocalDictionaryTranslation(structuredLine.valueTranslationText())
+                    ? TooltipTemplateRuntime.translatePreparedTemplate(valuePrepared)
+                    : TooltipComponentTranslationSupport.translatePreparedLine(
+                    valuePrepared,
+                    ComponentTranslationRoute.TOOLTIP_STRUCTURED,
+                    "tooltip:structured:" + structuredLine.kind().debugName() + ":value",
+                    "structured-v2",
+                    config
+            );
+            if (valueTranslation == null) {
+                return null;
+            }
+        }
+
+        String error = !labelTranslation.errorMessage().isBlank()
+                ? labelTranslation.errorMessage()
+                : valueTranslation != null ? valueTranslation.errorMessage() : "";
+        if (!error.isBlank()) {
+            return new StructuredTooltipLineResult(
+                    new TooltipTranslationSupport.TooltipLineResult(
+                            structuredLine.originalLine(),
+                            false,
+                            false,
+                            error
+                    ),
+                    structuredLine.translationTemplateKeys(),
+                    buildDetailedDebugSummary(structuredLine)
+            );
+        }
+
+        MutableText combined = Text.empty();
+        appendPreservedPrefixPassThroughText(combined, structuredLine.prefixText());
+        combined.append(labelTranslation.translatedLine());
+        appendNormalizedPassThroughText(combined, structuredLine.colonText());
+        appendNormalizedPassThroughText(combined, structuredLine.spacingText());
+        combined.append(valueTranslation == null
+                ? TooltipTemplateRuntime.normalizeDecorativePassthroughText(structuredLine.valueText())
+                : valueTranslation.translatedLine());
+        return new StructuredTooltipLineResult(
+                new TooltipTranslationSupport.TooltipLineResult(
+                        combined,
+                        labelTranslation.pending() || (valueTranslation != null && valueTranslation.pending()),
+                        labelTranslation.missingKeyIssue()
+                                || (valueTranslation != null && valueTranslation.missingKeyIssue())
+                ),
+                structuredLine.translationTemplateKeys(),
+                buildDetailedDebugSummary(structuredLine)
+        );
     }
 
     static Set<String> collectStructuredTemplateKeys(Text line, boolean useTagStylePreservation) {
@@ -418,6 +603,76 @@ final class TooltipStructuredCaptureSupport {
             }
         }
 
+        return new StructuredTooltipLineResult(
+                new TooltipTranslationSupport.TooltipLineResult(combined, pending, missingKeyIssue),
+                enchantListMatch.translationTemplateKeys(),
+                buildDebugSummary(enchantListMatch)
+        );
+    }
+
+    private static StructuredTooltipLineResult translateEnchantListLineComponent(
+            EnchantListMatch enchantListMatch,
+            boolean useTagStylePreservation,
+            ItemTranslateConfig config
+    ) {
+        if (enchantListMatch == null || enchantListMatch.entries().isEmpty()) {
+            return null;
+        }
+
+        MutableText combined = Text.empty();
+        boolean pending = false;
+        boolean missingKeyIssue = false;
+        int entryIndex = 0;
+        for (EnchantListEntry entry : enchantListMatch.entries()) {
+            if (entry.leadingText() != null) {
+                combined.append(entry.leadingText());
+            }
+            TooltipTemplateRuntime.PreparedTooltipTemplate prepared = TooltipTemplateRuntime.prepareTemplate(
+                    entry.nameTranslationText(),
+                    useTagStylePreservation
+            );
+            TooltipTranslationSupport.TooltipLineResult translated =
+                    TooltipTemplateRuntime.hasLocalDictionaryTranslation(entry.nameTranslationText())
+                            ? TooltipTemplateRuntime.translatePreparedTemplate(prepared)
+                            : TooltipComponentTranslationSupport.translatePreparedLine(
+                            prepared,
+                            ComponentTranslationRoute.TOOLTIP_STRUCTURED,
+                            "tooltip:structured:enchantment:" + entryIndex,
+                            "structured-v2",
+                            config
+                    );
+            if (translated == null) {
+                return null;
+            }
+            if (!translated.errorMessage().isBlank()) {
+                return new StructuredTooltipLineResult(
+                        new TooltipTranslationSupport.TooltipLineResult(
+                                enchantListMatch.originalLine(),
+                                false,
+                                false,
+                                translated.errorMessage()
+                        ),
+                        enchantListMatch.translationTemplateKeys(),
+                        buildDebugSummary(enchantListMatch)
+                );
+            }
+            pending |= translated.pending();
+            missingKeyIssue |= translated.missingKeyIssue();
+            combined.append(translated.translatedLine());
+            if (entry.bridgeText() != null) {
+                combined.append(entry.bridgeText());
+            }
+            if (entry.levelText() != null) {
+                combined.append(entry.levelText());
+            }
+            if (entry.trailingText() != null) {
+                combined.append(entry.trailingText());
+            }
+            if (entry.delimiterText() != null) {
+                combined.append(entry.delimiterText());
+            }
+            entryIndex++;
+        }
         return new StructuredTooltipLineResult(
                 new TooltipTranslationSupport.TooltipLineResult(combined, pending, missingKeyIssue),
                 enchantListMatch.translationTemplateKeys(),
