@@ -7,11 +7,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 
-/**
- * In-process rollout metrics for Component V1. Metrics contain no translated text
- * and are grouped by route plus the document protocol policy version where one is
- * available.
- */
 public final class ComponentTranslationMetrics {
     private static final Map<ComponentTranslationRoute, RouteMetrics> ROUTES = createRoutes();
     private static final ConcurrentMap<RoutePolicyKey, RouteMetrics> POLICIES = new ConcurrentHashMap<>();
@@ -87,7 +82,6 @@ public final class ComponentTranslationMetrics {
         policyMetrics(route, policyVersion).timings().get(timing).record(nanos);
     }
 
-    /** Compatibility snapshot containing total nanoseconds per timing phase. */
     public static Map<Timing, Long> timingSnapshot(ComponentTranslationRoute route) {
         Map<Timing, Long> result = new EnumMap<>(Timing.class);
         if (route == null) {

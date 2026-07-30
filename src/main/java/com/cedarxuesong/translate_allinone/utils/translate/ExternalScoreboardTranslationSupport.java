@@ -89,7 +89,7 @@ public final class ExternalScoreboardTranslationSupport {
             );
             Component retained = RETAINED_TRANSLATIONS.get(cacheKey);
             Result result = resultForResolution(sourceComponent, resolution, retained, refreshStarted);
-            if (resolution.state() == ComponentTranslationRuntime.State.V1_HIT
+            if (resolution.state() == ComponentTranslationRuntime.State.CACHE_HIT
                     && result.component() != sourceComponent) {
                 RETAINED_TRANSLATIONS.put(cacheKey, result.component().copy());
             }
@@ -97,7 +97,7 @@ public final class ExternalScoreboardTranslationSupport {
         } catch (RuntimeException e) {
             if (PREPARE_FAILURE_LOGGED.compareAndSet(false, true)) {
                 LOGGER.warn(
-                        "External scoreboard Component V1 preparation failed; preserving original lines. source={}",
+                        "External scoreboard Component preparation failed; preserving original lines. source={}",
                         sourceName,
                         e
                 );
@@ -155,7 +155,7 @@ public final class ExternalScoreboardTranslationSupport {
             boolean refreshStarted
     ) {
         if (resolution != null
-                && resolution.state() == ComponentTranslationRuntime.State.V1_HIT
+                && resolution.state() == ComponentTranslationRuntime.State.CACHE_HIT
                 && resolution.value() != null) {
             return new Result(resolution.value(), false);
         }

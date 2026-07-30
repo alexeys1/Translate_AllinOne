@@ -76,18 +76,16 @@ final class TooltipStructuredCaptureSupport {
             boolean useTagStylePreservation,
             ItemTranslateConfig config
     ) {
-        if (config != null
-                && config.component_json_v1_tooltip_structured
-                && TooltipComponentTranslationSupport.isEligibleLine(line, config)) {
-            StructuredTooltipLineResult v1 = tryTranslateStructuredLineV1(line, useTagStylePreservation, config);
-            if (v1 != null) {
-                return v1;
+        if (config != null && TooltipComponentTranslationSupport.isEligibleLine(line, config)) {
+            StructuredTooltipLineResult component = tryTranslateStructuredLineComponent(line, useTagStylePreservation, config);
+            if (component != null) {
+                return component;
             }
         }
         return tryTranslateStructuredLine(line, useTagStylePreservation);
     }
 
-    private static StructuredTooltipLineResult tryTranslateStructuredLineV1(
+    private static StructuredTooltipLineResult tryTranslateStructuredLineComponent(
             Component line,
             boolean useTagStylePreservation,
             ItemTranslateConfig config
@@ -101,22 +99,21 @@ final class TooltipStructuredCaptureSupport {
         }
         StructuredLineMatch structuredLine = matchStructuredLine(splitNodes, useTagStylePreservation);
         if (structuredLine != null) {
-            return translateLabelValueStructuredLineV1(structuredLine, useTagStylePreservation, config);
+            return translateLabelValueStructuredLineComponent(structuredLine, useTagStylePreservation, config);
         }
         EnchantListMatch enchantList = matchEnchantListLine(splitNodes, useTagStylePreservation);
         return enchantList == null
                 ? null
-                : translateEnchantListLineV1(enchantList, useTagStylePreservation, config);
+                : translateEnchantListLineComponent(enchantList, useTagStylePreservation, config);
     }
 
-    static int forceRefreshStructuredLineV1(
+    static int forceRefreshStructuredLine(
             Component line,
             boolean useTagStylePreservation,
             ItemTranslateConfig config
     ) {
         if (line == null
                 || config == null
-                || !config.component_json_v1_tooltip_structured
                 || containsEmbeddedLegacyFormattingCodes(line)) {
             return 0;
         }
@@ -176,7 +173,7 @@ final class TooltipStructuredCaptureSupport {
         return refreshed;
     }
 
-    private static StructuredTooltipLineResult translateLabelValueStructuredLineV1(
+    private static StructuredTooltipLineResult translateLabelValueStructuredLineComponent(
             StructuredLineMatch structuredLine,
             boolean useTagStylePreservation,
             ItemTranslateConfig config
@@ -610,7 +607,7 @@ final class TooltipStructuredCaptureSupport {
         );
     }
 
-    private static StructuredTooltipLineResult translateEnchantListLineV1(
+    private static StructuredTooltipLineResult translateEnchantListLineComponent(
             EnchantListMatch enchantListMatch,
             boolean useTagStylePreservation,
             ItemTranslateConfig config

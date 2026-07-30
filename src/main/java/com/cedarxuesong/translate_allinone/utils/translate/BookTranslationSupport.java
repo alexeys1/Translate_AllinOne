@@ -82,8 +82,7 @@ public final class BookTranslationSupport {
     private static boolean isFeatureEnabled(OtherTranslationsConfig config) {
         return ComponentRenderTranslationSupport.isFeatureEnabled(
                 config,
-                config != null && config.enabled_translate_written_books,
-                config != null && config.component_json_v1_written_books
+                config != null && config.enabled_translate_written_books
         );
     }
 

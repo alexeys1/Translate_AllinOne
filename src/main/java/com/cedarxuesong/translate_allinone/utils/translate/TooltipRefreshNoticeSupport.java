@@ -21,7 +21,7 @@ public final class TooltipRefreshNoticeSupport {
     private static final long REFRESH_HOLD_RELEASE_GRACE_MILLIS = 250L;
     private static final Logger LOGGER = LoggerFactory.getLogger("Translate_AllinOne/TooltipRefreshNoticeSupport");
     private static final Set<Integer> refreshedTooltipSignaturesThisHold = new HashSet<>();
-    private static final Set<String> refreshedV1KeysThisHold = new HashSet<>();
+    private static final Set<String> refreshedComponentKeysThisHold = new HashSet<>();
     private static volatile boolean refreshHoldActive = false;
     private static volatile long refreshHoldGraceExpiresAtMillis = 0L;
     private static volatile int refreshNoticeTooltipSignature = 0;
@@ -78,17 +78,17 @@ public final class TooltipRefreshNoticeSupport {
         }
 
         int legacyRefreshedCount = ItemTemplateCache.getInstance().forceRefresh(keysToRefresh);
-        int v1RefreshedCount = TooltipTranslationSupport.forceRefreshV1Caches(tooltipPlan, config);
+        int componentRefreshedCount = TooltipTranslationSupport.forceRefreshComponentCaches(tooltipPlan, config);
         if (legacyRefreshedCount > 0) {
             TooltipTemplateRuntime.registerForceRefreshCompatBypass(keysToRefresh);
         }
-        if (legacyRefreshedCount > 0 || v1RefreshedCount > 0) {
+        if (legacyRefreshedCount > 0 || componentRefreshedCount > 0) {
             refreshNoticeTooltipSignature = tooltipSignature;
             refreshNoticeExpiresAtMillis = now + REFRESH_NOTICE_DURATION_MILLIS;
             LOGGER.info(
-                    "Forced refresh of current item tooltip translation keys: legacy={}, v1={}.",
+                    "Forced refresh of current item tooltip translation keys: legacy={}, component={}.",
                     legacyRefreshedCount,
-                    v1RefreshedCount
+                    componentRefreshedCount
             );
         }
     }
@@ -195,7 +195,7 @@ public final class TooltipRefreshNoticeSupport {
         return false;
     }
 
-    static boolean consumeV1Refresh(String cacheKey, ItemTranslateConfig config) {
+    static boolean consumeComponentRefresh(String cacheKey, ItemTranslateConfig config) {
         if (cacheKey == null || cacheKey.isBlank() || config == null || config.keybinding == null) {
             return false;
         }
@@ -203,17 +203,17 @@ public final class TooltipRefreshNoticeSupport {
         if (!updateRefreshHoldState(pressed, System.currentTimeMillis())) {
             return false;
         }
-        synchronized (refreshedV1KeysThisHold) {
-            return refreshedV1KeysThisHold.add(cacheKey);
+        synchronized (refreshedComponentKeysThisHold) {
+            return refreshedComponentKeysThisHold.add(cacheKey);
         }
     }
 
-    static void markV1RefreshHandled(String cacheKey) {
+    static void markComponentRefreshHandled(String cacheKey) {
         if (cacheKey == null || cacheKey.isBlank()) {
             return;
         }
-        synchronized (refreshedV1KeysThisHold) {
-            refreshedV1KeysThisHold.add(cacheKey);
+        synchronized (refreshedComponentKeysThisHold) {
+            refreshedComponentKeysThisHold.add(cacheKey);
         }
     }
 
@@ -223,8 +223,8 @@ public final class TooltipRefreshNoticeSupport {
         synchronized (refreshedTooltipSignaturesThisHold) {
             refreshedTooltipSignaturesThisHold.clear();
         }
-        synchronized (refreshedV1KeysThisHold) {
-            refreshedV1KeysThisHold.clear();
+        synchronized (refreshedComponentKeysThisHold) {
+            refreshedComponentKeysThisHold.clear();
         }
     }
 }

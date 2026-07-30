@@ -111,7 +111,7 @@ final class TooltipTemplateRuntime {
 
     record PreparedParagraphTemplate(
             String translationTemplateKey,
-            String componentV1TranslationTemplateKey,
+            String componentTranslationTemplateKey,
             Map<Integer, Style> styleMap,
             List<String> templateValues,
             List<String> glyphValues,
@@ -407,7 +407,7 @@ final class TooltipTemplateRuntime {
         );
     }
 
-    static PreparedTooltipTemplate prepareComponentV1Template(PreparedTooltipTemplate preparedTemplate) {
+    static PreparedTooltipTemplate prepareComponentTemplate(PreparedTooltipTemplate preparedTemplate) {
         if (preparedTemplate == null || preparedTemplate.sourceLine() == null) {
             return null;
         }
@@ -464,14 +464,14 @@ final class TooltipTemplateRuntime {
         }
 
         String legacyTemplateKey = combinedTemplateKey.toString();
-        String componentV1TemplateKey = canonicalizeParagraphStyleIds(legacyTemplateKey, combinedStyleMap);
+        String componentTemplateKey = canonicalizeParagraphStyleIds(legacyTemplateKey, combinedStyleMap);
         return new PreparedParagraphTemplate(
                 legacyTemplateKey,
-                componentV1TemplateKey,
+                componentTemplateKey,
                 combinedStyleMap,
                 combinedTemplateValues,
                 combinedGlyphValues,
-                TooltipParagraphSupport.findDominantParagraphBodyStyleId(componentV1TemplateKey, combinedStyleMap),
+                TooltipParagraphSupport.findDominantParagraphBodyStyleId(componentTemplateKey, combinedStyleMap),
                 computeParagraphWrapWidth(preparedLines),
                 lineEndStyleIds
         );
@@ -487,7 +487,7 @@ final class TooltipTemplateRuntime {
                 : StylePreserver.reapplyStyles(reassembledOriginal, preparedTemplate.styleResult().styleMap);
     }
 
-    static Component renderComponentV1TemplateTranslation(
+    static Component renderComponentTemplateTranslation(
             PreparedTooltipTemplate preparedTemplate,
             String translatedTemplate
     ) {

@@ -52,8 +52,7 @@ public final class EntityTextTranslationSupport {
     static boolean isFeatureEnabled(OtherTranslationsConfig config) {
         return ComponentRenderTranslationSupport.isFeatureEnabled(
                 config,
-                config != null && config.enabled_translate_entity_text,
-                config != null && config.component_json_v1_entity_text
+                config != null && config.enabled_translate_entity_text
         );
     }
 

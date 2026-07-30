@@ -34,9 +34,9 @@ public final class ComponentTranslationDebugLogger {
         THROTTLES.clear();
         TEXT_CONTENT_LOG_TIMES.clear();
         var itemDebug = config == null || config.itemTranslate == null ? null : config.itemTranslate.debug;
-        itemFlowEnabled = itemDebug != null && itemDebug.enabled && itemDebug.log_component_v1_flow;
-        itemTextContentEnabled = itemFlowEnabled && itemDebug.log_component_v1_text_content;
-        itemTimingEnabled = itemDebug != null && itemDebug.enabled && itemDebug.log_component_v1_timing;
+        itemFlowEnabled = itemDebug != null && itemDebug.enabled && itemDebug.log_component_flow;
+        itemTextContentEnabled = itemFlowEnabled && itemDebug.log_component_text_content;
+        itemTimingEnabled = itemDebug != null && itemDebug.enabled && itemDebug.log_component_timing;
         var scoreboardDebug = config == null || config.scoreboardTranslate == null
                 ? null
                 : config.scoreboardTranslate.debug;
@@ -51,18 +51,18 @@ public final class ComponentTranslationDebugLogger {
         var otherDebug = config == null || config.otherTranslations == null ? null : config.otherTranslations.debug;
         entityIdentityEnabled = otherDebug != null
                 && otherDebug.enabled
-                && otherDebug.log_component_v1_entity_identity;
+                && otherDebug.log_component_entity_identity;
     }
 
     public static void flow(ComponentTranslationRoute route, String message, Object... arguments) {
         if (isFlowEnabled(route) && permit("flow")) {
-            Translate_AllinOne.LOGGER.info("[component-v1] " + message, arguments);
+            Translate_AllinOne.LOGGER.info("[component] " + message, arguments);
         }
     }
 
     public static void flowForNamespace(String namespace, String message, Object... arguments) {
         if ("item".equals(namespace) && itemFlowEnabled && permit("flow")) {
-            Translate_AllinOne.LOGGER.info("[component-v1] " + message, arguments);
+            Translate_AllinOne.LOGGER.info("[component] " + message, arguments);
         }
     }
 
@@ -88,7 +88,7 @@ public final class ComponentTranslationDebugLogger {
             return;
         }
         Translate_AllinOne.LOGGER.info(
-                "[component-v1-text] route={} key={} units={} content={}",
+                "[component-text] route={} key={} units={} content={}",
                 document.route().wireName(),
                 deduplicationKey,
                 document.units().size(),
@@ -97,7 +97,7 @@ public final class ComponentTranslationDebugLogger {
     }
 
     /**
-     * Logs only the hashed cache-identity material for entity-name V2 misses. Source and translated
+     * Logs only the hashed cache-identity material for entity-name Component cache misses. Source and translated
      * text are intentionally excluded so the switch is safe to use when investigating key churn.
      */
     public static void entityIdentityMiss(
@@ -115,7 +115,7 @@ public final class ComponentTranslationDebugLogger {
         }
         ComponentTranslationCacheKey.Metadata metadata = ComponentTranslationCacheKey.metadata(document, targetLanguage);
         Translate_AllinOne.LOGGER.info(
-                "[component-v1-entity-identity] lookup={} key={} binding={} keyMatches={} bindingMatches={} "
+                "[component-entity-identity] lookup={} key={} binding={} keyMatches={} bindingMatches={} "
                         + "structure={} source={} tokens={} units={} semanticSettings={}",
                 lookupStatus == null ? "UNKNOWN" : lookupStatus,
                 identity.key(),
@@ -134,7 +134,7 @@ public final class ComponentTranslationDebugLogger {
     public static void entityTemplateReuse(String fullKey, String templateKey) {
         if (entityIdentityEnabled && permit("entity-template")) {
             Translate_AllinOne.LOGGER.info(
-                    "[component-v1-entity-template] fullKey={} templateKey={} action=reused",
+                    "[component-entity-template] fullKey={} templateKey={} action=reused",
                     fullKey,
                     templateKey
             );
@@ -143,11 +143,10 @@ public final class ComponentTranslationDebugLogger {
 
     public static void timing(ComponentTranslationRoute route, String message, Object... arguments) {
         if (isTimingEnabled(route) && permit("timing")) {
-            Translate_AllinOne.LOGGER.info("[component-v1-timing] " + message, arguments);
+            Translate_AllinOne.LOGGER.info("[component-timing] " + message, arguments);
         }
     }
 
-    /** Logs a caller-gated diagnostic while sharing the Component V1 throttle window. */
     public static void throttled(String category, String message, Object... arguments) {
         if (permit(category)) {
             Translate_AllinOne.LOGGER.info(message, arguments);
@@ -157,7 +156,7 @@ public final class ComponentTranslationDebugLogger {
     /** Logs a validation/provider failure with a lower, independent limit. */
     public static void error(ComponentTranslationRoute route, String message, Object... arguments) {
         if (permit("error")) {
-            Translate_AllinOne.LOGGER.warn("[component-v1-error] " + message, arguments);
+            Translate_AllinOne.LOGGER.warn("[component-error] " + message, arguments);
         }
     }
 
@@ -181,7 +180,7 @@ public final class ComponentTranslationDebugLogger {
             if (now - state.windowStartedAt >= THROTTLE_WINDOW_MILLIS) {
                 if (state.suppressed > 0) {
                     Translate_AllinOne.LOGGER.info(
-                            "[component-v1] throttled category={} suppressed={}",
+                            "[component] throttled category={} suppressed={}",
                             resolvedCategory,
                             state.suppressed
                     );

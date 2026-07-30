@@ -88,7 +88,7 @@ public final class ComponentTranslationClient {
             String requestContext
     ) {
         if (document == null || targetLanguage == null || targetLanguage.isBlank() || providerProfile == null) {
-            return CompletableFuture.failedFuture(new IllegalArgumentException("Component V1 provider request is incomplete."));
+            return CompletableFuture.failedFuture(new IllegalArgumentException("Component provider request is incomplete."));
         }
         if (document.units().isEmpty()) {
             ComponentTranslationMetrics.record(document.route(), ComponentTranslationMetrics.Outcome.NO_TEXT);

@@ -40,6 +40,10 @@ public final class TooltipInternalLineSupport {
         return Component.translatable(ERROR_STATUS_KEY, TranslationErrorTextSupport.localizeReason(errorMessage)).withStyle(ChatFormatting.RED);
     }
 
+    public static Component createAnimatedPendingStatusLine(String animationKey) {
+        return AnimationManager.getAnimatedStyledText(createTranslatingStatusText(), animationKey, false);
+    }
+
     public static boolean shouldShowStatusLine(
             TooltipTranslationSupport.TooltipProcessingResult processedTooltip,
             CacheStats stats

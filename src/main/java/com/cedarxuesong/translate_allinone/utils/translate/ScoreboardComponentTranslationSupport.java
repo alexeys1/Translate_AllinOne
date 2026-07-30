@@ -1,9 +1,6 @@
 package com.cedarxuesong.translate_allinone.utils.translate;
 
 import com.cedarxuesong.translate_allinone.utils.AnimationManager;
-import com.cedarxuesong.translate_allinone.utils.cache.LookupResult;
-import com.cedarxuesong.translate_allinone.utils.cache.ScoreboardTextCache;
-import com.cedarxuesong.translate_allinone.utils.cache.TranslationStatus;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentJsonException;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationMetrics;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRoute;
@@ -13,7 +10,6 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 import net.minecraft.network.chat.Component;
 
-/** Coordinates the opt-in scoreboard Component V1 path and legacy dual-read fallback. */
 public final class ScoreboardComponentTranslationSupport {
     private static final ScoreboardPreparedDocumentCache PREPARED_DOCUMENTS =
             new ScoreboardPreparedDocumentCache();
@@ -47,18 +43,18 @@ public final class ScoreboardComponentTranslationSupport {
             return Component.empty();
         }
         if (ComponentRenderTranslationSupport.isTranslationBlockedByScreen()) {
-            return prepared.renderV1Original();
+            return prepared.renderOriginal();
         }
 
         ComponentTranslationRuntime.Resolution<Component> resolution = ComponentTranslationRuntime.resolve(
-                prepared.v1Document(),
+                prepared.document(),
                 config.target_language,
-                prepared.translationTemplateKey(),
-                () -> lookupLegacy(prepared),
+                null,
+                () -> null,
                 response -> {
                     long startedAt = System.nanoTime();
                     try {
-                        return prepared.renderV1Translated(response);
+                        return prepared.renderTranslated(response);
                     } catch (RuntimeException e) {
                         ComponentTranslationMetrics.Outcome outcome =
                                 e instanceof ComponentJsonException componentError
@@ -66,13 +62,13 @@ public final class ScoreboardComponentTranslationSupport {
                                         ? ComponentTranslationMetrics.Outcome.CODEC_DECODE_FAILURE
                                         : ComponentTranslationMetrics.Outcome.VALIDATION_STRUCTURE_FAILURE;
                         ComponentTranslationMetrics.record(
-                                prepared.v1Document(),
+                                prepared.document(),
                                 outcome
                         );
                         throw e;
                     } finally {
                         ComponentTranslationMetrics.recordNanos(
-                                prepared.v1Document(),
+                                prepared.document(),
                                 ComponentTranslationMetrics.Timing.APPLY,
                                 System.nanoTime() - startedAt
                         );
@@ -80,25 +76,24 @@ public final class ScoreboardComponentTranslationSupport {
                 },
                 "scoreboard_entry"
         );
-        if (resolution.state() == ComponentTranslationRuntime.State.V1_HIT
-                || resolution.state() == ComponentTranslationRuntime.State.LEGACY_HIT) {
+        if (resolution.state() == ComponentTranslationRuntime.State.CACHE_HIT) {
             return resolution.value();
         }
 
-        Component original = prepared.renderV1Original();
+        Component original = prepared.renderOriginal();
         if (resolution.state() == ComponentTranslationRuntime.State.PENDING) {
             String animationKey = resolution.cacheKey().isBlank()
-                    ? prepared.translationTemplateKey()
+                    ? ComponentTranslationRuntime.cacheKey(prepared.document(), config.target_language)
                     : resolution.cacheKey();
             return AnimationManager.getAnimatedStyledText(original, animationKey, false);
         }
         if (resolution.state() == ComponentTranslationRuntime.State.FAILED) {
             ComponentTranslationMetrics.record(
-                    prepared.v1Document(),
+                    prepared.document(),
                     ComponentTranslationMetrics.Outcome.LOCAL_FALLBACK
             );
             ComponentTranslationMetrics.record(
-                    prepared.v1Document(),
+                    prepared.document(),
                     ComponentTranslationMetrics.Outcome.FALLBACK_ORIGINAL
             );
         }
@@ -113,11 +108,8 @@ public final class ScoreboardComponentTranslationSupport {
             return Set.of();
         }
         Set<String> result = new LinkedHashSet<>();
-        if (!prepared.translationTemplateKey().isBlank()) {
-            result.add("legacy:" + prepared.translationTemplateKey());
-        }
-        if (prepared.v1Document() != null && targetLanguage != null && !targetLanguage.isBlank()) {
-            result.add("v1:" + ComponentTranslationRuntime.cacheKey(prepared.v1Document(), targetLanguage));
+        if (prepared.document() != null && targetLanguage != null && !targetLanguage.isBlank()) {
+            result.add("component:" + ComponentTranslationRuntime.cacheKey(prepared.document(), targetLanguage));
         }
         return Set.copyOf(result);
     }
@@ -129,21 +121,17 @@ public final class ScoreboardComponentTranslationSupport {
         if (preparedEntries == null) {
             return 0;
         }
-        Set<String> legacyKeys = new LinkedHashSet<>();
         int refreshed = 0;
         for (ScoreboardEntryTemplate.Prepared prepared : preparedEntries) {
             if (prepared == null) {
                 continue;
             }
-            if (!prepared.translationTemplateKey().isBlank()) {
-                legacyKeys.add(prepared.translationTemplateKey());
-            }
-            if (prepared.v1Document() != null
-                    && ComponentTranslationRuntime.forceRefresh(prepared.v1Document(), targetLanguage)) {
+            if (prepared.document() != null
+                    && ComponentTranslationRuntime.forceRefresh(prepared.document(), targetLanguage)) {
                 refreshed++;
             }
         }
-        return refreshed + ScoreboardTextCache.getInstance().forceRefresh(legacyKeys);
+        return refreshed;
     }
 
     public static void beginObjective(Object objective) {
@@ -154,14 +142,4 @@ public final class ScoreboardComponentTranslationSupport {
         PREPARED_DOCUMENTS.clear();
     }
 
-    private static Component lookupLegacy(ScoreboardEntryTemplate.Prepared prepared) {
-        if (prepared.translationTemplateKey().isBlank()) {
-            return null;
-        }
-        LookupResult lookup = ScoreboardTextCache.getInstance().peek(prepared.translationTemplateKey());
-        if (lookup.status() != TranslationStatus.TRANSLATED) {
-            return null;
-        }
-        return prepared.renderTranslated(lookup.translation());
-    }
 }

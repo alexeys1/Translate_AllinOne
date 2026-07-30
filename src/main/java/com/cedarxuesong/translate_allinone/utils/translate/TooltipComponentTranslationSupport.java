@@ -36,7 +36,7 @@ final class TooltipComponentTranslationSupport {
 
         String targetLanguage = config.target_language;
         String cacheKey = ComponentTranslationRuntime.cacheKey(document, targetLanguage);
-        if (TooltipRefreshNoticeSupport.consumeV1Refresh(cacheKey, config)) {
+        if (TooltipRefreshNoticeSupport.consumeComponentRefresh(cacheKey, config)) {
             ComponentTranslationRuntime.forceRefresh(document, targetLanguage);
         }
 
@@ -49,12 +49,12 @@ final class TooltipComponentTranslationSupport {
                 response -> {
                     long startedAt = System.nanoTime();
                     Component translatedTemplate = applier.apply(document, response);
-                    Component translated = TooltipTemplateRuntime.renderComponentV1TemplateTranslation(
+                    Component translated = TooltipTemplateRuntime.renderComponentTemplateTranslation(
                             preparedDocument.renderTemplate(),
                             translatedTemplate.getString()
                     );
                     if (translated == null) {
-                        throw new IllegalArgumentException("Component V1 tooltip template could not be rendered.");
+                        throw new IllegalArgumentException("Component tooltip template could not be rendered.");
                     }
                     ComponentTranslationMetrics.recordNanos(
                             route,
@@ -81,7 +81,7 @@ final class TooltipComponentTranslationSupport {
         }
         ComponentTranslationDocument document = preparedDocument.document();
         String cacheKey = ComponentTranslationRuntime.cacheKey(document, config.target_language);
-        TooltipRefreshNoticeSupport.markV1RefreshHandled(cacheKey);
+        TooltipRefreshNoticeSupport.markComponentRefreshHandled(cacheKey);
         return ComponentTranslationRuntime.forceRefresh(document, config.target_language) ? 1 : 0;
     }
 
@@ -100,7 +100,7 @@ final class TooltipComponentTranslationSupport {
 
         String targetLanguage = config.target_language;
         String cacheKey = ComponentTranslationRuntime.cacheKey(bundle.cacheDocument(), targetLanguage);
-        if (TooltipRefreshNoticeSupport.consumeV1Refresh(cacheKey, config)) {
+        if (TooltipRefreshNoticeSupport.consumeComponentRefresh(cacheKey, config)) {
             ComponentTranslationRuntime.forceRefresh(bundle.cacheDocument(), targetLanguage);
         }
 
@@ -112,7 +112,7 @@ final class TooltipComponentTranslationSupport {
                 response -> {
                     long startedAt = System.nanoTime();
                     String translatedTemplate = bundle.coherentParagraphTranslation(response);
-                    List<Component> translated = TooltipParagraphSupport.renderComponentV1ParagraphTranslation(
+                    List<Component> translated = TooltipParagraphSupport.renderComponentParagraphTranslation(
                             block,
                             translatedTemplate,
                             config
@@ -127,13 +127,13 @@ final class TooltipComponentTranslationSupport {
                 "tooltip:paragraph:lines=" + lines.size()
         );
 
-        boolean validV1Hit = resolution.state() == ComponentTranslationRuntime.State.V1_HIT
+        boolean validCacheHit = resolution.state() == ComponentTranslationRuntime.State.CACHE_HIT
                 && resolution.value() != null
                 && !resolution.value().isEmpty();
         boolean validLegacyHit = resolution.state() == ComponentTranslationRuntime.State.LEGACY_HIT
                 && resolution.value() != null
                 && !resolution.value().isEmpty();
-        if (validV1Hit || validLegacyHit) {
+        if (validCacheHit || validLegacyHit) {
             List<TooltipTranslationSupport.TooltipLineResult> results = resolution.value().stream()
                     .map(line -> new TooltipTranslationSupport.TooltipLineResult(line, false, false))
                     .toList();
@@ -164,7 +164,7 @@ final class TooltipComponentTranslationSupport {
             return 0;
         }
         String cacheKey = ComponentTranslationRuntime.cacheKey(bundle.cacheDocument(), config.target_language);
-        TooltipRefreshNoticeSupport.markV1RefreshHandled(cacheKey);
+        TooltipRefreshNoticeSupport.markComponentRefreshHandled(cacheKey);
         return ComponentTranslationRuntime.forceRefresh(bundle.cacheDocument(), config.target_language) ? 1 : 0;
     }
 
@@ -180,7 +180,7 @@ final class TooltipComponentTranslationSupport {
         }
         try {
             PreparedTooltipTemplate renderTemplate =
-                    TooltipTemplateRuntime.prepareComponentV1Template(prepared);
+                    TooltipTemplateRuntime.prepareComponentTemplate(prepared);
             ComponentTranslationDocument document = ComponentTranslationRuntime.prepare(
                     Component.literal(renderTemplate.normalizedTemplate()),
                     route,
@@ -216,7 +216,7 @@ final class TooltipComponentTranslationSupport {
                     lines,
                     "tooltip:paragraph:coherent",
                     "paragraph-v4",
-                    block.paragraphTemplate().componentV1TranslationTemplateKey()
+                    block.paragraphTemplate().componentTranslationTemplateKey()
             );
             return bundle.cacheDocument().units().isEmpty() ? null : bundle;
         } catch (RuntimeException e) {
@@ -229,7 +229,7 @@ final class TooltipComponentTranslationSupport {
             String cacheKey,
             ComponentTranslationRuntime.Resolution<Component> resolution
     ) {
-        if ((resolution.state() == ComponentTranslationRuntime.State.V1_HIT
+        if ((resolution.state() == ComponentTranslationRuntime.State.CACHE_HIT
                 || resolution.state() == ComponentTranslationRuntime.State.LEGACY_HIT)
                 && resolution.value() != null) {
             return new TooltipTranslationSupport.TooltipLineResult(resolution.value(), false, false);
@@ -254,10 +254,6 @@ final class TooltipComponentTranslationSupport {
 
     static boolean isEligibleLine(Component line, ItemTranslateConfig config) {
         if (line == null || line.getString().isBlank() || line.getString().indexOf('§') >= 0) {
-            return false;
-        }
-        if (!config.component_json_v1_tooltip_custom_fonts
-                && TooltipTemplateRuntime.hasCustomFontOrDecorativeGlyph(line)) {
             return false;
         }
         return !TooltipTemplateRuntime.hasUnsafeMixedDecorativeLiteral(line);

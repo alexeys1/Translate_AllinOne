@@ -1,7 +1,6 @@
 package com.cedarxuesong.translate_allinone.utils.translate;
 
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
-import com.cedarxuesong.translate_allinone.utils.cache.ItemTemplateCache;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipRoutePlanner.TooltipParagraphBlock;
@@ -157,8 +156,9 @@ public final class TooltipTranslationSupport {
     }
 
     static void queueRemoteTranslationTemplateKeys(Set<String> remoteTranslationTemplateKeys) {
-        ItemTemplateCache cache = ItemTemplateCache.getInstance();
-        queueRemoteTranslationTemplateKeys(remoteTranslationTemplateKeys, cache::lookupOrQueue);
+        if (remoteTranslationTemplateKeys == null || remoteTranslationTemplateKeys.isEmpty()) {
+            return;
+        }
     }
 
     static void queueRemoteTranslationTemplateKeys(
@@ -180,7 +180,7 @@ public final class TooltipTranslationSupport {
         }
     }
 
-    static int forceRefreshV1Caches(TooltipPlan tooltipPlan, ItemTranslateConfig config) {
+    static int forceRefreshComponentCaches(TooltipPlan tooltipPlan, ItemTranslateConfig config) {
         if (tooltipPlan == null
                 || tooltipPlan.segments() == null
                 || tooltipPlan.segments().isEmpty()
@@ -197,8 +197,7 @@ public final class TooltipTranslationSupport {
                 case PASSTHROUGH -> {
                 }
                 case PARAGRAPH_BLOCK -> {
-                    if (config.component_json_v1_tooltip_paragraph
-                            && !TooltipParagraphSupport.hasAcceptedLocalDictionaryTranslation(segment.paragraphBlock())) {
+                    if (!TooltipParagraphSupport.hasAcceptedLocalDictionaryTranslation(segment.paragraphBlock())) {
                         refreshed += TooltipComponentTranslationSupport.forceRefreshParagraphBlock(
                                 segment.paragraphBlock(),
                                 config
@@ -211,13 +210,12 @@ public final class TooltipTranslationSupport {
                     }
                     boolean preserveStyles = segment.preparedTemplate() != null
                             && segment.preparedTemplate().useTagStylePreservation();
-                    refreshed += TooltipStructuredCaptureSupport.forceRefreshStructuredLineV1(
+                    refreshed += TooltipStructuredCaptureSupport.forceRefreshStructuredLine(
                             segment.candidate().line(),
                             preserveStyles,
                             config
                     );
-                    if (config.component_json_v1_tooltip_lines
-                            && !TooltipTemplateRuntime.hasLocalDictionaryTranslation(segment.candidate().line())) {
+                    if (!TooltipTemplateRuntime.hasLocalDictionaryTranslation(segment.candidate().line())) {
                         PreparedTooltipTemplate prepared = segment.preparedTemplate() == null
                                 ? TooltipTemplateRuntime.prepareTemplate(
                                 segment.candidate().line(),
@@ -234,8 +232,7 @@ public final class TooltipTranslationSupport {
                     }
                 }
                 case LINE_TEMPLATE -> {
-                    if (!config.component_json_v1_tooltip_lines
-                            || segment.candidate() == null
+                    if (segment.candidate() == null
                             || TooltipTemplateRuntime.hasLocalDictionaryTranslation(segment.candidate().line())) {
                         continue;
                     }
@@ -524,10 +521,9 @@ public final class TooltipTranslationSupport {
                         "line-template",
                         preparedTemplate
                 );
-                TooltipLineResult v1LineResult = null;
-                if (config.component_json_v1_tooltip_lines
-                        && !TooltipTemplateRuntime.hasLocalDictionaryTranslation(segment.candidate().line())) {
-                    v1LineResult = TooltipComponentTranslationSupport.translatePreparedLine(
+                TooltipLineResult componentLineResult = null;
+                if (!TooltipTemplateRuntime.hasLocalDictionaryTranslation(segment.candidate().line())) {
+                    componentLineResult = TooltipComponentTranslationSupport.translatePreparedLine(
                             preparedTemplate,
                             com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRoute.TOOLTIP_LINE,
                             "tooltip:line",
@@ -535,9 +531,9 @@ public final class TooltipTranslationSupport {
                             config
                     );
                 }
-                lineResult = v1LineResult == null
-                        ? TooltipTemplateRuntime.translatePreparedTemplate(preparedTemplate)
-                        : v1LineResult;
+                lineResult = componentLineResult == null
+                        ? new TooltipLineResult(segment.candidate().line(), false, false)
+                        : componentLineResult;
                 route = "line-template";
                 detail = "templateKey=" + (preparedTemplate.translationTemplateKey() == null
                         ? ""
@@ -580,10 +576,6 @@ public final class TooltipTranslationSupport {
         hash = 31 * hash + Boolean.hashCode(useTagStylePreservation);
         hash = 31 * hash + Boolean.hashCode(config.enabled_translate_item_custom_name);
         hash = 31 * hash + Boolean.hashCode(config.enabled_translate_item_lore);
-        hash = 31 * hash + Boolean.hashCode(config.component_json_v1_tooltip_lines);
-        hash = 31 * hash + Boolean.hashCode(config.component_json_v1_tooltip_structured);
-        hash = 31 * hash + Boolean.hashCode(config.component_json_v1_tooltip_paragraph);
-        hash = 31 * hash + Boolean.hashCode(config.component_json_v1_tooltip_custom_fonts);
         hash = 31 * hash + (config.target_language == null ? 0 : config.target_language.hashCode());
         hash = 31 * hash + Long.hashCode(WynnSharedDictionaryService.getInstance().getItemSkillVersion());
         for (Component line : tooltip) {
@@ -634,27 +626,7 @@ public final class TooltipTranslationSupport {
             switch (segment.kind()) {
                 case PASSTHROUGH -> {
                 }
-                case PARAGRAPH_BLOCK -> {
-                    if ((config == null || !config.component_json_v1_tooltip_paragraph)
-                            && !TooltipParagraphSupport.hasAcceptedLocalDictionaryTranslation(segment.paragraphBlock())) {
-                        remoteKeys.addAll(segment.translationTemplateKeys());
-                    }
-                }
-                case STRUCTURED_LINE -> {
-                    if ((config == null || !config.component_json_v1_tooltip_structured)
-                            && segment.candidate() != null) {
-                        remoteKeys.addAll(TooltipStructuredCaptureSupport.collectRemoteStructuredTemplateKeys(
-                                segment.candidate().line(),
-                                useTagStylePreservation
-                        ));
-                    }
-                }
-                case LINE_TEMPLATE -> {
-                    if ((config == null || !config.component_json_v1_tooltip_lines)
-                            && (segment.candidate() == null
-                            || !TooltipTemplateRuntime.hasLocalDictionaryTranslation(segment.candidate().line()))) {
-                        remoteKeys.addAll(segment.translationTemplateKeys());
-                    }
+                case PARAGRAPH_BLOCK, STRUCTURED_LINE, LINE_TEMPLATE -> {
                 }
             }
         }

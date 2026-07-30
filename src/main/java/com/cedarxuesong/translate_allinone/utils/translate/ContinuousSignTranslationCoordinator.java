@@ -209,7 +209,7 @@ public final class ContinuousSignTranslationCoordinator {
                 }
                 return;
             }
-            if (resolution.state() != ComponentTranslationRuntime.State.V1_HIT
+            if (resolution.state() != ComponentTranslationRuntime.State.CACHE_HIT
                     || resolution.value() == null
                     || resolution.value().size() != lines.size()) {
                 return;
@@ -258,7 +258,7 @@ public final class ContinuousSignTranslationCoordinator {
                 );
                 return;
             }
-            if (resolution.state() == ComponentTranslationRuntime.State.V1_HIT
+            if (resolution.state() == ComponentTranslationRuntime.State.CACHE_HIT
                     && resolution.value() != null
                     && resolution.value().size() == SignText.LINES) {
                 translated.put(candidate.key(), resolution.value().toArray(Component[]::new));
@@ -400,7 +400,7 @@ public final class ContinuousSignTranslationCoordinator {
                 }
                 return;
             }
-            if (resolution.state() != ComponentTranslationRuntime.State.V1_HIT || resolution.value() == null) {
+            if (resolution.state() != ComponentTranslationRuntime.State.CACHE_HIT || resolution.value() == null) {
                 return;
             }
             List<Component> responseLines = resolution.value();
@@ -421,8 +421,7 @@ public final class ContinuousSignTranslationCoordinator {
     private static boolean isActive(OtherTranslationsConfig config) {
         return ComponentRenderTranslationSupport.isFeatureEnabled(
                 config,
-                config != null && config.enabled_translate_signs,
-                config != null && config.component_json_v1_signs
+                config != null && config.enabled_translate_signs
         );
     }
 

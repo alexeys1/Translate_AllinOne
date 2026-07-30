@@ -9,7 +9,7 @@ public record BookPageTranslationSnapshot(
         ComponentTranslationRuntime.State state
 ) {
     public boolean isTranslated() {
-        return state == ComponentTranslationRuntime.State.V1_HIT
+        return state == ComponentTranslationRuntime.State.CACHE_HIT
                 && displayedPage != null
                 && !displayedPage.equals(originalPage);
     }

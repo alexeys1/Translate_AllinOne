@@ -3,6 +3,7 @@ package com.cedarxuesong.translate_allinone.utils.componentjson;
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.registration.LifecycleEventManager;
 import com.cedarxuesong.translate_allinone.utils.cache.component.ComponentTranslationStore;
+import com.cedarxuesong.translate_allinone.utils.cache.component.ComponentTranslationStoreRegistry;
 import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
 import com.cedarxuesong.translate_allinone.utils.config.ProviderRouteResolver;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ApiProviderProfile;
@@ -29,6 +30,8 @@ public final class ComponentTranslationRuntime {
     private static final int DOCUMENT_CACHE_LIMIT = 512;
     private static final long FAILURE_COOLDOWN_MILLIS = 30_000L;
     private static final long ITEM_BATCH_COLLECT_DELAY_MILLIS = 10L;
+    private static final long REQUEST_RATE_WINDOW_MILLIS = TimeUnit.MINUTES.toMillis(1);
+    private static final int OTHER_TRANSLATIONS_REQUESTS_PER_MINUTE = 60;
     private static final ComponentTranslationClient CLIENT = new ComponentTranslationClient();
     private static final Map<DispatchRoute, DispatchState> DISPATCH = createDispatchStates();
     private static final Map<String, FailureState> FAILURES = new ConcurrentHashMap<>();
@@ -161,7 +164,7 @@ public final class ComponentTranslationRuntime {
             boolean queueIfMissing
     ) {
         if (document == null || targetLanguage == null || targetLanguage.isBlank() || renderer == null) {
-            return new Resolution<>(State.INELIGIBLE, null, "", "Incomplete Component V1 request");
+            return new Resolution<>(State.INELIGIBLE, null, "", "Incomplete Component request");
         }
         if (document.units().isEmpty()) {
             ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.NO_TEXT);
@@ -183,34 +186,34 @@ public final class ComponentTranslationRuntime {
 
         ComponentTranslationStore.Lookup lookup;
         try {
-            lookup = store().lookup(request);
+            lookup = store(request.document().route()).lookup(request);
             if (lookup.status() == ComponentTranslationStore.Status.HIT) {
                 try {
                     T rendered = renderer.apply(lookup.response());
                     if (document.route() == ComponentTranslationRoute.ENTITY_NAME
                             && markEntityTemplateSeeded(request.identity().key())) {
-                        store().put(request, lookup.response());
+                        store(request.document().route()).put(request, lookup.response());
                     }
                     FAILURES.remove(lookup.cacheKey());
                     ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.CACHE_HIT);
                     ComponentTranslationDebugLogger.flow(
                             document.route(),
-                            "resolve route={} state=V2_HIT key={}",
+                            "resolve route={} state=CACHE_HIT key={}",
                             document.route().wireName(),
                             lookup.cacheKey()
                     );
 
 
-                    return new Resolution<>(State.V1_HIT, rendered, lookup.cacheKey(), "");
+                    return new Resolution<>(State.CACHE_HIT, rendered, lookup.cacheKey(), "");
                 } catch (RuntimeException error) {
-                    store().remove(request);
+                    store(request.document().route()).remove(request);
                     ComponentTranslationMetrics.record(
                             document,
                             ComponentTranslationMetrics.Outcome.RESPONSE_REJECTED
                     );
                     ComponentTranslationDebugLogger.error(
                             document.route(),
-                            "V2 cached response apply failed: route={} key={} reason={}",
+                            "Component cached response apply failed: route={} key={} reason={}",
                             document.route().wireName(),
                             lookup.cacheKey(),
                             error.getMessage(),
@@ -219,20 +222,20 @@ public final class ComponentTranslationRuntime {
                 }
             }
             if (document.route() == ComponentTranslationRoute.ENTITY_NAME) {
-                ComponentTranslationStore.Lookup templateLookup = store().lookupEntityTemplate(request);
+                ComponentTranslationStore.Lookup templateLookup = store(request.document().route()).lookupEntityTemplate(request);
                 if (templateLookup.status() == ComponentTranslationStore.Status.HIT) {
                     try {
                         T rendered = renderer.apply(templateLookup.response());
-                        store().put(request, templateLookup.response());
+                        store(request.document().route()).put(request, templateLookup.response());
                         FAILURES.remove(request.identity().key());
                         ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.TEMPLATE_HIT);
                         ComponentTranslationDebugLogger.entityTemplateReuse(
                                 request.identity().key(),
                                 templateLookup.cacheKey()
                         );
-                        return new Resolution<>(State.V1_HIT, rendered, request.identity().key(), "");
+                        return new Resolution<>(State.CACHE_HIT, rendered, request.identity().key(), "");
                     } catch (RuntimeException error) {
-                        store().removeEntityTemplate(request);
+                        store(request.document().route()).removeEntityTemplate(request);
                         ComponentTranslationMetrics.record(
                                 document,
                                 ComponentTranslationMetrics.Outcome.RESPONSE_REJECTED
@@ -269,28 +272,27 @@ public final class ComponentTranslationRuntime {
             );
         }
 
-
-
-        T legacyValue = legacyLookup == null ? null : legacyLookup.get();
-        if (legacyValue != null) {
-            ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.LEGACY_HIT);
-            ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.FALLBACK_LEGACY);
-            ComponentTranslationDebugLogger.flow(
-                    document.route(),
-                    "resolve route={} state=LEGACY_HIT key={}",
-                    document.route().wireName(),
-                    request.identity().key()
-            );
-            return new Resolution<>(State.LEGACY_HIT, legacyValue, request.identity().key(), "");
+        if (isTooltipLegacyCompatibilityRoute(document.route()) && legacyLookup != null) {
+            T legacyValue = legacyLookup.get();
+            if (legacyValue != null) {
+                ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.LEGACY_HIT);
+                ComponentTranslationDebugLogger.flow(
+                        document.route(),
+                        "resolve route={} state=LEGACY_HIT key={}",
+                        document.route().wireName(),
+                        legacyKey == null ? request.identity().key() : legacyKey
+                );
+                return new Resolution<>(State.LEGACY_HIT, legacyValue, request.identity().key(), "");
+            }
         }
 
-        if (store().isWriteProtected()) {
+        if (store(request.document().route()).isWriteProtected()) {
             ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.FALLBACK_ORIGINAL);
             return new Resolution<>(
                     State.FAILED,
                     null,
                     request.identity().key(),
-                    "Component V2 cache is write-protected for this session."
+                    "Component cache is write-protected for this session."
             );
         }
 
@@ -346,8 +348,8 @@ public final class ComponentTranslationRuntime {
         FAILURES.remove(key);
         ENTITY_TEMPLATE_SEEDS.remove(key);
         boolean refreshRequested = requestRefresh(key);
-        boolean removed = store().remove(request);
-        boolean templateRemoved = store().removeEntityTemplate(request);
+        boolean removed = store(document.route()).remove(request);
+        boolean templateRemoved = store(document.route()).removeEntityTemplate(request);
         return removed || templateRemoved || refreshRequested;
     }
 
@@ -379,6 +381,7 @@ public final class ComponentTranslationRuntime {
             synchronized (state) {
                 state.queue.clear();
                 state.active.clear();
+                state.requestStartTimes.clear();
                 state.drainScheduled = false;
             }
         }
@@ -427,6 +430,10 @@ public final class ComponentTranslationRuntime {
     }
 
     private static void scheduleDrain(DispatchRoute route) {
+        scheduleDrain(route, ITEM_BATCH_COLLECT_DELAY_MILLIS);
+    }
+
+    private static void scheduleDrain(DispatchRoute route, long delayMillis) {
         DispatchState state = DISPATCH.get(route);
         synchronized (state) {
             if (state.drainScheduled) {
@@ -434,7 +441,7 @@ public final class ComponentTranslationRuntime {
             }
             state.drainScheduled = true;
         }
-        CompletableFuture.delayedExecutor(ITEM_BATCH_COLLECT_DELAY_MILLIS, TimeUnit.MILLISECONDS).execute(() -> {
+        CompletableFuture.delayedExecutor(Math.max(0L, delayMillis), TimeUnit.MILLISECONDS).execute(() -> {
             synchronized (state) {
                 state.drainScheduled = false;
             }
@@ -446,15 +453,27 @@ public final class ComponentTranslationRuntime {
         DispatchState state = DISPATCH.get(route);
         while (true) {
             PendingBatch batch;
+            long rateLimitDelayMillis;
             synchronized (state) {
                 if (state.active.size() >= maxConcurrency(route)) {
                     return;
                 }
-                batch = pollBatch(state, maxBatchSize(route));
-                if (batch == null) {
-                    return;
+                long now = System.currentTimeMillis();
+                rateLimitDelayMillis = rateLimitDelayMillis(route, state, now);
+                if (rateLimitDelayMillis > 0L) {
+                    batch = null;
+                } else {
+                    batch = pollBatch(state, maxBatchSize(route));
+                    if (batch == null) {
+                        return;
+                    }
+                    state.active.add(batch);
+                    state.requestStartTimes.add(now);
                 }
-                state.active.add(batch);
+            }
+            if (batch == null) {
+                scheduleDrain(route, rateLimitDelayMillis);
+                return;
             }
             startRequest(route, batch);
         }
@@ -643,7 +662,7 @@ public final class ComponentTranslationRuntime {
     private static void recordRequestFailure(PendingRequest request, String message, Throwable error) {
         failWork(request.cacheKey(), request.epoch());
         if (request.epoch() == SESSION_EPOCH.get()) {
-            String resolvedMessage = message == null || message.isBlank() ? "Component V2 translation failed" : message;
+            String resolvedMessage = message == null || message.isBlank() ? "Component translation failed" : message;
             FAILURES.put(
                     request.cacheKey(),
                     new FailureState(resolvedMessage, System.currentTimeMillis() + FAILURE_COOLDOWN_MILLIS)
@@ -732,6 +751,26 @@ public final class ComponentTranslationRuntime {
                 : Math.max(1, config.scoreboardTranslate.max_batch_size);
     }
 
+    private static long rateLimitDelayMillis(DispatchRoute route, DispatchState state, long now) {
+        int requestsPerMinute = requestsPerMinute(route);
+        if (requestsPerMinute <= 0) {
+            state.requestStartTimes.clear();
+            return 0L;
+        }
+        long windowStart = now - REQUEST_RATE_WINDOW_MILLIS;
+        while (!state.requestStartTimes.isEmpty() && state.requestStartTimes.peek() <= windowStart) {
+            state.requestStartTimes.poll();
+        }
+        if (state.requestStartTimes.size() < requestsPerMinute) {
+            return 0L;
+        }
+        return Math.max(1L, state.requestStartTimes.peek() + REQUEST_RATE_WINDOW_MILLIS - now);
+    }
+
+    private static int requestsPerMinute(DispatchRoute route) {
+        return route == DispatchRoute.OTHER_TRANSLATIONS ? OTHER_TRANSLATIONS_REQUESTS_PER_MINUTE : 0;
+    }
+
     private static DispatchRoute dispatchRoute(ComponentTranslationRoute route) {
         return switch (route) {
             case ADVANCEMENT, SIGN_FACE, SIGN_CONTINUOUS, ENTITY_NAME, TEXT_DISPLAY, BOOK_PAGE ->
@@ -776,8 +815,14 @@ public final class ComponentTranslationRuntime {
         }
     }
 
-    private static ComponentTranslationStore store() {
-        return StoreHolder.INSTANCE;
+    private static ComponentTranslationStore store(ComponentTranslationRoute route) {
+        return StoreHolder.INSTANCE.forRoute(route);
+    }
+
+    private static boolean isTooltipLegacyCompatibilityRoute(ComponentTranslationRoute route) {
+        return route == ComponentTranslationRoute.TOOLTIP_LINE
+                || route == ComponentTranslationRoute.TOOLTIP_STRUCTURED
+                || route == ComponentTranslationRoute.TOOLTIP_PARAGRAPH;
     }
 
     private static boolean registerQueued(
@@ -827,7 +872,7 @@ public final class ComponentTranslationRuntime {
                 WORKS.remove(request.cacheKey());
                 return new WorkCompletion(true, true, false);
             }
-            boolean stored = store().put(request.prepared(), response);
+            boolean stored = store(request.prepared().document().route()).put(request.prepared(), response);
             WORKS.remove(request.cacheKey());
             return new WorkCompletion(true, false, stored);
         }
@@ -858,7 +903,7 @@ public final class ComponentTranslationRuntime {
     }
 
     private static final class StoreHolder {
-        private static final ComponentTranslationStore INSTANCE = ComponentTranslationStore.getInstance();
+        private static final ComponentTranslationStoreRegistry INSTANCE = ComponentTranslationStoreRegistry.getInstance();
     }
 
     public record Resolution<T>(State state, T value, String cacheKey, String errorMessage) {
@@ -869,7 +914,7 @@ public final class ComponentTranslationRuntime {
     }
 
     public enum State {
-        V1_HIT,
+        CACHE_HIT,
         LEGACY_HIT,
         PENDING,
         FAILED,
@@ -887,6 +932,7 @@ public final class ComponentTranslationRuntime {
     private static final class DispatchState {
         private final Queue<PendingRequest> queue = new ArrayDeque<>();
         private final java.util.Set<PendingBatch> active = new HashSet<>();
+        private final Queue<Long> requestStartTimes = new ArrayDeque<>();
         private boolean drainScheduled;
     }
 

@@ -29,8 +29,8 @@ public final class ComponentRenderTranslationSupport {
         return config == null ? null : config.otherTranslations;
     }
 
-    static boolean isFeatureEnabled(OtherTranslationsConfig config, boolean featureEnabled, boolean componentV1Enabled) {
-        return config != null && config.enabled && featureEnabled && componentV1Enabled;
+    static boolean isFeatureEnabled(OtherTranslationsConfig config, boolean featureEnabled) {
+        return config != null && config.enabled && featureEnabled;
     }
 
     static boolean shouldRenderTranslated(OtherTranslationsConfig config) {
@@ -105,7 +105,7 @@ public final class ComponentRenderTranslationSupport {
                     response -> template.restore(new ComponentTranslationApplier().apply(document, response)),
                     context
             );
-            if (resolution.state() == ComponentTranslationRuntime.State.V1_HIT && resolution.value() != null) {
+            if (resolution.state() == ComponentTranslationRuntime.State.CACHE_HIT && resolution.value() != null) {
                 return new TranslationResult(original, resolution.value(), document, resolution.state());
             }
             return new TranslationResult(original, original, document, resolution.state());
@@ -251,7 +251,7 @@ public final class ComponentRenderTranslationSupport {
         }
 
         boolean isTranslated() {
-            return state == ComponentTranslationRuntime.State.V1_HIT && displayed != null && !displayed.equals(original);
+            return state == ComponentTranslationRuntime.State.CACHE_HIT && displayed != null && !displayed.equals(original);
         }
     }
 }

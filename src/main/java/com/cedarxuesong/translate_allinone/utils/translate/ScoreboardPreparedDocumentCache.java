@@ -62,17 +62,17 @@ public final class ScoreboardPreparedDocumentCache {
                     key.suffix()
             );
             ComponentTranslationMetrics.record(
-                    created.v1Document(),
+                    created.document(),
                     ComponentTranslationMetrics.Outcome.DOCUMENT_BUILT
             );
             ComponentTranslationMetrics.recordValue(
-                    created.v1Document(),
+                    created.document(),
                     ComponentTranslationMetrics.Measurement.TEXT_UNITS,
-                    created.v1Document().units().size()
+                    created.document().units().size()
             );
-            if (created.v1Document().units().isEmpty()) {
+            if (created.document().units().isEmpty()) {
                 ComponentTranslationMetrics.record(
-                        created.v1Document(),
+                        created.document(),
                         ComponentTranslationMetrics.Outcome.NO_TEXT
                 );
             }
