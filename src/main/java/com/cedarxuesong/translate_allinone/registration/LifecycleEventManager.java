@@ -6,7 +6,8 @@ import com.cedarxuesong.translate_allinone.utils.cache.WynnDialogueTextCache;
 import com.cedarxuesong.translate_allinone.utils.cache.ItemTemplateCache;
 import com.cedarxuesong.translate_allinone.utils.cache.OtherTranslationsTextCache;
 import com.cedarxuesong.translate_allinone.utils.cache.WynntilsTaskTrackerTextCache;
-import com.cedarxuesong.translate_allinone.utils.cache.component.ComponentTranslationStore;
+import com.cedarxuesong.translate_allinone.utils.cache.component.ComponentCacheMigrationManager;
+import com.cedarxuesong.translate_allinone.utils.cache.component.ComponentTranslationStoreRegistry;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRuntime;
 import com.cedarxuesong.translate_allinone.utils.translate.ItemTranslateManager;
 import com.cedarxuesong.translate_allinone.utils.translate.AdvancementTranslateManager;
@@ -127,7 +128,8 @@ public class LifecycleEventManager {
     }
 
     private static void loadCachesAndStartTranslationManagers() {
-        ComponentTranslationStore.getInstance().load();
+        ComponentTranslationStoreRegistry.getInstance().load();
+        ComponentCacheMigrationManager.migrateLegacyCaches(ComponentTranslationStoreRegistry.getInstance());
         ItemTemplateCache.getInstance().load();
         ItemTranslateManager.getInstance().start();
         OtherTranslationsTextCache.getInstance().load();
@@ -141,7 +143,7 @@ public class LifecycleEventManager {
     }
 
     private static void saveCaches() {
-        ComponentTranslationStore.getInstance().save();
+        ComponentTranslationStoreRegistry.getInstance().save();
         ItemTemplateCache.getInstance().save();
         OtherTranslationsTextCache.getInstance().save();
         ScoreboardTextCache.getInstance().save();
