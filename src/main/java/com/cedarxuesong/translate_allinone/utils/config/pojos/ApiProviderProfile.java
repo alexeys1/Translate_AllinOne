@@ -9,6 +9,7 @@ public class ApiProviderProfile {
     public static final double DEFAULT_CHAT_TEMPERATURE = 1.3;
     public static final double DEFAULT_ITEM_TEMPERATURE = 0.5;
     public static final double DEFAULT_SCOREBOARD_TEMPERATURE = 0.5;
+    public static final double DEFAULT_OTHER_TRANSLATIONS_TEMPERATURE = 0.5;
     public static final double DEFAULT_WYNNTILS_TASK_TRACKER_TEMPERATURE = 0.5;
     public static final double DEFAULT_WYNN_NPC_DIALOGUE_TEMPERATURE = 1.3;
 
@@ -27,6 +28,7 @@ public class ApiProviderProfile {
     public Double chat_temperature = null;
     public Double item_temperature = null;
     public Double scoreboard_temperature = null;
+    public Double other_translations_temperature = null;
     public Double wynntils_task_tracker_temperature = null;
     public Double wynn_npc_dialogue_temperature = null;
     public String keep_alive_time = "1m";
@@ -189,6 +191,7 @@ public class ApiProviderProfile {
         chat_temperature = active.temperatureFor(TemperatureScene.CHAT);
         item_temperature = active.temperatureFor(TemperatureScene.ITEM);
         scoreboard_temperature = active.temperatureFor(TemperatureScene.SCOREBOARD);
+        other_translations_temperature = active.temperatureFor(TemperatureScene.OTHER_TRANSLATIONS);
         wynntils_task_tracker_temperature = active.temperatureFor(TemperatureScene.WYNNTILS_TASK_TRACKER);
         wynn_npc_dialogue_temperature = active.temperatureFor(TemperatureScene.WYNN_NPC_DIALOGUE);
         keep_alive_time = normalizeKeepAlive(active.keep_alive_time);
@@ -206,6 +209,7 @@ public class ApiProviderProfile {
         settings.chat_temperature = normalizeTemperature(source.chat_temperature, DEFAULT_CHAT_TEMPERATURE);
         settings.item_temperature = normalizeTemperature(source.item_temperature, legacyOrDefault(legacyTemperature, DEFAULT_ITEM_TEMPERATURE));
         settings.scoreboard_temperature = normalizeTemperature(source.scoreboard_temperature, legacyOrDefault(legacyTemperature, DEFAULT_SCOREBOARD_TEMPERATURE));
+        settings.other_translations_temperature = normalizeTemperature(source.other_translations_temperature, legacyOrDefault(legacyTemperature, DEFAULT_OTHER_TRANSLATIONS_TEMPERATURE));
         settings.wynntils_task_tracker_temperature = normalizeTemperature(source.wynntils_task_tracker_temperature, legacyOrDefault(legacyTemperature, DEFAULT_WYNNTILS_TASK_TRACKER_TEMPERATURE));
         settings.wynn_npc_dialogue_temperature = normalizeTemperature(source.wynn_npc_dialogue_temperature, DEFAULT_WYNN_NPC_DIALOGUE_TEMPERATURE);
         settings.temperature = settings.temperatureFor(TemperatureScene.CHAT);
@@ -225,6 +229,7 @@ public class ApiProviderProfile {
         settings.chat_temperature = normalizeTemperature(chat_temperature, DEFAULT_CHAT_TEMPERATURE);
         settings.item_temperature = normalizeTemperature(item_temperature, legacyOrDefault(legacyTemperature, DEFAULT_ITEM_TEMPERATURE));
         settings.scoreboard_temperature = normalizeTemperature(scoreboard_temperature, legacyOrDefault(legacyTemperature, DEFAULT_SCOREBOARD_TEMPERATURE));
+        settings.other_translations_temperature = normalizeTemperature(other_translations_temperature, legacyOrDefault(legacyTemperature, DEFAULT_OTHER_TRANSLATIONS_TEMPERATURE));
         settings.wynntils_task_tracker_temperature = normalizeTemperature(wynntils_task_tracker_temperature, legacyOrDefault(legacyTemperature, DEFAULT_WYNNTILS_TASK_TRACKER_TEMPERATURE));
         settings.wynn_npc_dialogue_temperature = normalizeTemperature(wynn_npc_dialogue_temperature, DEFAULT_WYNN_NPC_DIALOGUE_TEMPERATURE);
         settings.temperature = settings.temperatureFor(TemperatureScene.CHAT);
@@ -255,6 +260,7 @@ public class ApiProviderProfile {
             case CHAT -> normalizeTemperature(chat_temperature, DEFAULT_CHAT_TEMPERATURE);
             case ITEM -> normalizeTemperature(item_temperature, legacyOrDefault(normalizeTemperatureOrNull(temperature), DEFAULT_ITEM_TEMPERATURE));
             case SCOREBOARD -> normalizeTemperature(scoreboard_temperature, legacyOrDefault(normalizeTemperatureOrNull(temperature), DEFAULT_SCOREBOARD_TEMPERATURE));
+            case OTHER_TRANSLATIONS -> normalizeTemperature(other_translations_temperature, legacyOrDefault(normalizeTemperatureOrNull(temperature), DEFAULT_OTHER_TRANSLATIONS_TEMPERATURE));
             case WYNNTILS_TASK_TRACKER -> normalizeTemperature(wynntils_task_tracker_temperature, legacyOrDefault(normalizeTemperatureOrNull(temperature), DEFAULT_WYNNTILS_TASK_TRACKER_TEMPERATURE));
             case WYNN_NPC_DIALOGUE -> normalizeTemperature(wynn_npc_dialogue_temperature, DEFAULT_WYNN_NPC_DIALOGUE_TEMPERATURE);
         };
@@ -280,6 +286,7 @@ public class ApiProviderProfile {
         CHAT,
         ITEM,
         SCOREBOARD,
+        OTHER_TRANSLATIONS,
         WYNNTILS_TASK_TRACKER,
         WYNN_NPC_DIALOGUE
     }
@@ -290,6 +297,7 @@ public class ApiProviderProfile {
         public Double chat_temperature = null;
         public Double item_temperature = null;
         public Double scoreboard_temperature = null;
+        public Double other_translations_temperature = null;
         public Double wynntils_task_tracker_temperature = null;
         public Double wynn_npc_dialogue_temperature = null;
         public String keep_alive_time = "1m";
@@ -318,6 +326,7 @@ public class ApiProviderProfile {
                 case CHAT -> normalizeTemperature(chat_temperature, DEFAULT_CHAT_TEMPERATURE);
                 case ITEM -> normalizeTemperature(item_temperature, legacyOrDefault(normalizeTemperatureOrNull(temperature), DEFAULT_ITEM_TEMPERATURE));
                 case SCOREBOARD -> normalizeTemperature(scoreboard_temperature, legacyOrDefault(normalizeTemperatureOrNull(temperature), DEFAULT_SCOREBOARD_TEMPERATURE));
+                case OTHER_TRANSLATIONS -> normalizeTemperature(other_translations_temperature, legacyOrDefault(normalizeTemperatureOrNull(temperature), DEFAULT_OTHER_TRANSLATIONS_TEMPERATURE));
                 case WYNNTILS_TASK_TRACKER -> normalizeTemperature(wynntils_task_tracker_temperature, legacyOrDefault(normalizeTemperatureOrNull(temperature), DEFAULT_WYNNTILS_TASK_TRACKER_TEMPERATURE));
                 case WYNN_NPC_DIALOGUE -> normalizeTemperature(wynn_npc_dialogue_temperature, DEFAULT_WYNN_NPC_DIALOGUE_TEMPERATURE);
             };

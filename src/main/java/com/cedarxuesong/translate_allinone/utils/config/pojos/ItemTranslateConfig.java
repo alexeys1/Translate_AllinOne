@@ -6,12 +6,16 @@ public class ItemTranslateConfig {
     public boolean enabled = false;
     public boolean enabled_translate_item_custom_name = false;
     public boolean enabled_translate_item_lore = false;
+    /**
+     * Temporary legacy bridge for the pre-component advancement renderer.
+     * The final runtime migration will move this setting to OtherTranslationsConfig and remove the alias.
+     */
     public boolean enabled_translate_vanilla_advancements = false;
     public int max_concurrent_requests = 2;
     public int requests_per_minute = 60;
     public int max_batch_size = 10;
     public String target_language = "Chinese";
-    // Legacy compatibility only. Local-hit logging now uses debug.log_items_local_hits / debug.log_skills_local_hits.
+
     public boolean log_skills_local_hits = false;
     public KeybindingConfig keybinding = new KeybindingConfig();
     @SerializedName(value = "debug", alternate = {"dev"})
@@ -38,6 +42,9 @@ public class ItemTranslateConfig {
         public boolean log_tooltip_paragraph_result = false;
         public boolean log_tooltip_style_map = false;
         public boolean log_tooltip_timing = false;
+        public boolean log_component_flow = false;
+        public boolean log_component_text_content = false;
+        public boolean log_component_timing = false;
         public boolean log_item_batch_timing = false;
         public boolean log_cache_migration = false;
     }
