@@ -1,6 +1,7 @@
 package com.cedarxuesong.translate_allinone.registration;
 
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationDebugLogger;
 import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ChatTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.CacheBackupConfig;
@@ -39,6 +40,7 @@ public class ConfigManager {
         }
 
         config = loadConfig(resolveConfigPath());
+        ComponentTranslationDebugLogger.refresh(config);
         registered = true;
     }
 
@@ -49,6 +51,7 @@ public class ConfigManager {
 
     public static synchronized void save() {
         ensureRegistered();
+        ComponentTranslationDebugLogger.refresh(config);
         writeConfig(resolveConfigPath(), config);
     }
 
@@ -60,11 +63,13 @@ public class ConfigManager {
     public static synchronized void replaceConfig(ModConfig replacement) {
         ensureRegistered();
         config = normalizeConfig(deepCopy(replacement));
+        ComponentTranslationDebugLogger.refresh(config);
     }
 
     public static synchronized void resetToDefaults() {
         ensureRegistered();
         config = normalizeConfig(new ModConfig());
+        ComponentTranslationDebugLogger.refresh(config);
     }
 
     public static Path getConfigPath() {

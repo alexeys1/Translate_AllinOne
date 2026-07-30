@@ -2,6 +2,8 @@ package com.cedarxuesong.translate_allinone.registration;
 
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.utils.cache.ScoreboardTextCache;
+import com.cedarxuesong.translate_allinone.utils.cache.component.ComponentTranslationStoreRegistry;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRuntime;
 import com.cedarxuesong.translate_allinone.utils.cache.WynnDialogueTextCache;
 import com.cedarxuesong.translate_allinone.utils.cache.ItemTemplateCache;
 import com.cedarxuesong.translate_allinone.utils.cache.WynntilsTaskTrackerTextCache;
@@ -43,6 +45,7 @@ public class LifecycleEventManager {
     private static void registerJoinHandler() {
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             resetReadinessState();
+            ComponentTranslationRuntime.beginSession();
             awaitingReadinessCheck = true;
             LOGGER.info("Player joining world, awaiting client readiness for translation...");
 
@@ -78,6 +81,7 @@ public class LifecycleEventManager {
     private static void registerDisconnectHandler() {
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             resetReadinessState();
+            ComponentTranslationRuntime.endSession();
             LOGGER.info("Player has disconnected. Translation readiness reset.");
             stopTranslationManagers();
             saveCaches();
@@ -93,6 +97,7 @@ public class LifecycleEventManager {
     }
 
     private static void loadCachesAndStartTranslationManagers() {
+        ComponentTranslationStoreRegistry.getInstance().load();
         ItemTemplateCache.getInstance().load();
         ItemTranslateManager.getInstance().start();
         ScoreboardTextCache.getInstance().load();
@@ -104,6 +109,7 @@ public class LifecycleEventManager {
     }
 
     private static void saveCaches() {
+        ComponentTranslationStoreRegistry.getInstance().save();
         ItemTemplateCache.getInstance().save();
         ScoreboardTextCache.getInstance().save();
         WynnDialogueTextCache.getInstance().save();
