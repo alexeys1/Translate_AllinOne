@@ -4,9 +4,10 @@ import com.cedarxuesong.translate_allinone.gui.configui.model.ConfigSection;
 import com.cedarxuesong.translate_allinone.gui.configui.model.RouteSlot;
 import com.cedarxuesong.translate_allinone.utils.cache.CacheStats;
 import com.cedarxuesong.translate_allinone.utils.cache.ItemTemplateCache;
-import com.cedarxuesong.translate_allinone.utils.cache.ScoreboardTextCache;
 import com.cedarxuesong.translate_allinone.utils.cache.WynnDialogueTextCache;
 import com.cedarxuesong.translate_allinone.utils.cache.WynntilsTaskTrackerTextCache;
+import com.cedarxuesong.translate_allinone.utils.cache.component.ComponentCacheModule;
+import com.cedarxuesong.translate_allinone.utils.cache.component.ComponentTranslationStoreRegistry;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationDebugLogger;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ChatTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.CacheBackupConfig;
@@ -173,46 +174,6 @@ public final class ConfigSectionContentSupport {
                 toggleAdder.add(x, y, width, translator.t("label.translate_item_name"), () -> item.enabled_translate_item_custom_name, value -> item.enabled_translate_item_custom_name = value, tooltip(translator, "label.translate_item_name"));
                 y += ROW_STEP;
                 toggleAdder.add(x, y, width, translator.t("label.translate_item_lore"), () -> item.enabled_translate_item_lore, value -> item.enabled_translate_item_lore = value, tooltip(translator, "label.translate_item_lore"));
-                y += ROW_STEP;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.tooltip_component_json_v1_lines"),
-                        () -> item.component_json_v1_tooltip_lines,
-                        value -> item.component_json_v1_tooltip_lines = value,
-                        translator.t("desc.tooltip_component_json_v1_lines")
-                );
-                y += ROW_STEP;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.tooltip_component_json_v1_structured"),
-                        () -> item.component_json_v1_tooltip_structured,
-                        value -> item.component_json_v1_tooltip_structured = value,
-                        translator.t("desc.tooltip_component_json_v1_structured")
-                );
-                y += ROW_STEP;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.tooltip_component_json_v1_paragraph"),
-                        () -> item.component_json_v1_tooltip_paragraph,
-                        value -> item.component_json_v1_tooltip_paragraph = value,
-                        translator.t("desc.tooltip_component_json_v1_paragraph")
-                );
-                y += ROW_STEP;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.tooltip_component_json_v1_custom_fonts"),
-                        () -> item.component_json_v1_tooltip_custom_fonts,
-                        value -> item.component_json_v1_tooltip_custom_fonts = value,
-                        translator.t("desc.tooltip_component_json_v1_custom_fonts")
-                );
                 y += ROW_STEP;
                 textFieldRowAdder.add(
                         x,
@@ -398,37 +359,37 @@ public final class ConfigSectionContentSupport {
                         x,
                         y,
                         width,
-                        translator.t("label.item_dev_log_component_v1_flow"),
-                        () -> item.debug.log_component_v1_flow,
+                        translator.t("label.item_dev_log_component_flow"),
+                        () -> item.debug.log_component_flow,
                         value -> {
-                            item.debug.log_component_v1_flow = value;
+                            item.debug.log_component_flow = value;
                             ComponentTranslationDebugLogger.refresh(config);
                         }
-                , tooltip(translator, "label.item_dev_log_component_v1_flow"));
+                , tooltip(translator, "label.item_dev_log_component_flow"));
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
                         y,
                         width,
-                        translator.t("label.item_dev_log_component_v1_text_content"),
-                        () -> item.debug.log_component_v1_text_content,
+                        translator.t("label.item_dev_log_component_text_content"),
+                        () -> item.debug.log_component_text_content,
                         value -> {
-                            item.debug.log_component_v1_text_content = value;
+                            item.debug.log_component_text_content = value;
                             ComponentTranslationDebugLogger.refresh(config);
                         }
-                , tooltip(translator, "label.item_dev_log_component_v1_text_content"));
+                , tooltip(translator, "label.item_dev_log_component_text_content"));
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
                         y,
                         width,
-                        translator.t("label.item_dev_log_component_v1_timing"),
-                        () -> item.debug.log_component_v1_timing,
+                        translator.t("label.item_dev_log_component_timing"),
+                        () -> item.debug.log_component_timing,
                         value -> {
-                            item.debug.log_component_v1_timing = value;
+                            item.debug.log_component_timing = value;
                             ComponentTranslationDebugLogger.refresh(config);
                         }
-                , tooltip(translator, "label.item_dev_log_component_v1_timing"));
+                , tooltip(translator, "label.item_dev_log_component_timing"));
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -514,13 +475,13 @@ public final class ConfigSectionContentSupport {
                         x,
                         y,
                         width,
-                        translator.t("label.other_translations_dev_log_component_v1_entity_identity"),
-                        () -> resolvedOtherTranslations.debug.log_component_v1_entity_identity,
+                        translator.t("label.other_translations_dev_log_component_entity_identity"),
+                        () -> resolvedOtherTranslations.debug.log_component_entity_identity,
                         value -> {
-                            resolvedOtherTranslations.debug.log_component_v1_entity_identity = value;
+                            resolvedOtherTranslations.debug.log_component_entity_identity = value;
                             ComponentTranslationDebugLogger.refresh(config);
                         },
-                        tooltip(translator, "label.other_translations_dev_log_component_v1_entity_identity")
+                        tooltip(translator, "label.other_translations_dev_log_component_entity_identity")
                 );
                 y += ROW_STEP;
                 addGroupBox(
@@ -628,7 +589,6 @@ public final class ConfigSectionContentSupport {
                 if (scoreboard.keybinding.refreshBinding == null) {
                     scoreboard.keybinding.refreshBinding = new InputBindingConfig();
                 }
-
                 if (scoreboard.external_custom_scoreboard_mode == null) {
                     scoreboard.external_custom_scoreboard_mode =
                             ScoreboardConfig.ExternalCustomScoreboardMode.DISABLED;
@@ -640,16 +600,6 @@ public final class ConfigSectionContentSupport {
                 toggleAdder.add(x, y, width, translator.t("label.translate_prefix_suffix"), () -> scoreboard.enabled_translate_prefix_and_suffix_name, value -> scoreboard.enabled_translate_prefix_and_suffix_name = value, tooltip(translator, "label.translate_prefix_suffix"));
                 y += ROW_STEP;
                 toggleAdder.add(x, y, width, translator.t("label.translate_player_name"), () -> scoreboard.enabled_translate_player_name, value -> scoreboard.enabled_translate_player_name = value, tooltip(translator, "label.translate_player_name"));
-                y += ROW_STEP;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.scoreboard_component_json_v1"),
-                        () -> scoreboard.component_json_v1_scoreboard,
-                        value -> scoreboard.component_json_v1_scoreboard = value,
-                        translator.t("desc.scoreboard_component_json_v1")
-                );
                 y += ROW_STEP;
                 actionAdder.add(
                         x,
@@ -737,6 +687,10 @@ public final class ConfigSectionContentSupport {
                         translator.t("desc.other_translations_enabled")
                 );
                 y += ROW_STEP;
+                addGroupBox(groupBoxAdder, translator.t("group.basic"), x, width, basicStart, y);
+
+                y += GROUP_GAP;
+                int advancementsStart = y;
                 toggleAdder.add(
                         x,
                         y,
@@ -747,23 +701,11 @@ public final class ConfigSectionContentSupport {
                         tooltip(translator, "label.translate_vanilla_advancements")
                 );
                 y += ROW_STEP;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.advancement_component_json_v1"),
-                        () -> otherTranslations.component_json_v1_advancements,
-                        value -> otherTranslations.component_json_v1_advancements = value,
-                        translator.t("desc.advancement_component_json_v1")
-                );
-                y += ROW_STEP;
-                addGroupBox(groupBoxAdder, translator.t("group.advancements"), x, width, basicStart, y);
+                addGroupBox(groupBoxAdder, translator.t("group.advancements"), x, width, advancementsStart, y);
 
                 y += GROUP_GAP;
                 int signStart = y;
                 toggleAdder.add(x, y, width, translator.t("label.translate_signs"), () -> otherTranslations.enabled_translate_signs, value -> otherTranslations.enabled_translate_signs = value, translator.t("desc.translate_signs"));
-                y += ROW_STEP;
-                toggleAdder.add(x, y, width, translator.t("label.sign_component_json_v1"), () -> otherTranslations.component_json_v1_signs, value -> otherTranslations.component_json_v1_signs = value, translator.t("desc.sign_component_json_v1"));
                 y += ROW_STEP;
                 toggleAdder.add(x, y, width, translator.t("label.continuous_sign_translation"), () -> otherTranslations.continuous_sign_translation, value -> otherTranslations.continuous_sign_translation = value, translator.t("desc.continuous_sign_translation"));
                 y += ROW_STEP;
@@ -774,8 +716,6 @@ public final class ConfigSectionContentSupport {
                 y += GROUP_GAP;
                 int entityStart = y;
                 toggleAdder.add(x, y, width, translator.t("label.translate_entity_text"), () -> otherTranslations.enabled_translate_entity_text, value -> otherTranslations.enabled_translate_entity_text = value, translator.t("desc.translate_entity_text"));
-                y += ROW_STEP;
-                toggleAdder.add(x, y, width, translator.t("label.entity_component_json_v1"), () -> otherTranslations.component_json_v1_entity_text, value -> otherTranslations.component_json_v1_entity_text = value, translator.t("desc.entity_component_json_v1"));
                 y += ROW_STEP;
                 toggleAdder.add(x, y, width, translator.t("label.translate_entity_name_tags"), () -> otherTranslations.translate_entity_name_tags, value -> otherTranslations.translate_entity_name_tags = value, translator.t("desc.translate_entity_name_tags"));
                 y += ROW_STEP;
@@ -790,8 +730,6 @@ public final class ConfigSectionContentSupport {
                 y += GROUP_GAP;
                 int bookStart = y;
                 toggleAdder.add(x, y, width, translator.t("label.translate_written_books"), () -> otherTranslations.enabled_translate_written_books, value -> otherTranslations.enabled_translate_written_books = value, translator.t("desc.translate_written_books"));
-                y += ROW_STEP;
-                toggleAdder.add(x, y, width, translator.t("label.book_component_json_v1"), () -> otherTranslations.component_json_v1_written_books, value -> otherTranslations.component_json_v1_written_books = value, translator.t("desc.book_component_json_v1"));
                 y += ROW_STEP;
                 toggleAdder.add(x, y, width, translator.t("label.book_prefetch_adjacent_pages"), () -> otherTranslations.book_prefetch_adjacent_pages, value -> otherTranslations.book_prefetch_adjacent_pages = value, translator.t("desc.book_prefetch_adjacent_pages"));
                 y += ROW_STEP;
@@ -838,6 +776,34 @@ public final class ConfigSectionContentSupport {
                 );
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.hotkey"), x, width, hotkeyStart, y);
+
+                y += GROUP_GAP;
+                int performanceStart = y;
+                sliderAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.other_translations_threads"),
+                        1,
+                        16,
+                        () -> otherTranslations.max_concurrent_requests,
+                        value -> otherTranslations.max_concurrent_requests = value,
+                        tooltip(translator, "desc.other_translations_threads")
+                );
+                y += SLIDER_STEP;
+                sliderAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.other_translations_batch_size"),
+                        1,
+                        64,
+                        () -> otherTranslations.max_batch_size,
+                        value -> otherTranslations.max_batch_size = value,
+                        tooltip(translator, "desc.other_translations_batch_size")
+                );
+                y += SLIDER_STEP;
+                addGroupBox(groupBoxAdder, translator.t("group.performance"), x, width, performanceStart, y);
 
                 y += GROUP_GAP;
                 int routeStart = y;
@@ -1171,20 +1137,25 @@ public final class ConfigSectionContentSupport {
                 addGroupBox(groupBoxAdder, translator.t("group.backup_policy"), x, width, policyStart, y);
 
                 y += GROUP_GAP;
-                CacheStats itemStats = ItemTemplateCache.getInstance().getCacheStats();
-                CacheStats scoreboardStats = ScoreboardTextCache.getInstance().getCacheStats();
+                ComponentTranslationStoreRegistry componentStores = ComponentTranslationStoreRegistry.getInstance();
+                CacheStats itemStats = componentStores
+                        .forModule(ComponentCacheModule.ITEM)
+                        .getCacheStats();
+                CacheStats legacyItemStats = ItemTemplateCache.getInstance().getCacheStats();
+                CacheStats scoreboardStats = componentStores
+                        .forModule(ComponentCacheModule.SCOREBOARD)
+                        .getCacheStats();
+                CacheStats signStats = componentStores
+                        .forModule(ComponentCacheModule.SIGN)
+                        .getCacheStats();
+                CacheStats entityStats = componentStores
+                        .forModule(ComponentCacheModule.ENTITY)
+                        .getCacheStats();
+                CacheStats bookStats = componentStores
+                        .forModule(ComponentCacheModule.BOOK)
+                        .getCacheStats();
                 CacheStats dialogueStats = WynnDialogueTextCache.getInstance().getCacheStats();
                 CacheStats taskTrackerStats = WynntilsTaskTrackerTextCache.getInstance().getCacheStats();
-                int totalTranslated =
-                        itemStats.translated()
-                                + scoreboardStats.translated()
-                                + dialogueStats.translated()
-                                + taskTrackerStats.translated();
-                int totalTracked =
-                        itemStats.total()
-                                + scoreboardStats.total()
-                                + dialogueStats.total()
-                                + taskTrackerStats.total();
 
                 int statsStart = y;
                 textFieldRowAdder.add(
@@ -1193,7 +1164,7 @@ public final class ConfigSectionContentSupport {
                         width,
                         translator.t("label.cache_entries_item"),
                         64,
-                        translator.t("value.cache_entries", itemStats.translated(), itemStats.total()).getString(),
+                        translator.t("value.cache_entries_item", itemStats.translated(), legacyItemStats.translated()).getString(),
                         Component.empty(),
                         value -> {
                         },
@@ -1207,7 +1178,49 @@ public final class ConfigSectionContentSupport {
                         width,
                         translator.t("label.cache_entries_scoreboard"),
                         64,
-                        translator.t("value.cache_entries", scoreboardStats.translated(), scoreboardStats.total()).getString(),
+                        translator.t("value.cache_entries", scoreboardStats.translated()).getString(),
+                        Component.empty(),
+                        value -> {
+                        },
+                        value -> true,
+                        false
+                );
+                y += ROW_STEP;
+                textFieldRowAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.cache_entries_sign"),
+                        64,
+                        translator.t("value.cache_entries", signStats.translated()).getString(),
+                        Component.empty(),
+                        value -> {
+                        },
+                        value -> true,
+                        false
+                );
+                y += ROW_STEP;
+                textFieldRowAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.cache_entries_entity"),
+                        64,
+                        translator.t("value.cache_entries", entityStats.translated()).getString(),
+                        Component.empty(),
+                        value -> {
+                        },
+                        value -> true,
+                        false
+                );
+                y += ROW_STEP;
+                textFieldRowAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.cache_entries_book"),
+                        64,
+                        translator.t("value.cache_entries", bookStats.translated()).getString(),
                         Component.empty(),
                         value -> {
                         },
@@ -1221,7 +1234,7 @@ public final class ConfigSectionContentSupport {
                         width,
                         translator.t("label.cache_entries_wynn_dialogue"),
                         64,
-                        translator.t("value.cache_entries", dialogueStats.translated(), dialogueStats.total()).getString(),
+                        translator.t("value.cache_entries", dialogueStats.translated()).getString(),
                         Component.empty(),
                         value -> {
                         },
@@ -1235,21 +1248,7 @@ public final class ConfigSectionContentSupport {
                         width,
                         translator.t("label.cache_entries_wynntils_task_tracker"),
                         64,
-                        translator.t("value.cache_entries", taskTrackerStats.translated(), taskTrackerStats.total()).getString(),
-                        Component.empty(),
-                        value -> {
-                        },
-                        value -> true,
-                        false
-                );
-                y += ROW_STEP;
-                textFieldRowAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.cache_entries_total"),
-                        64,
-                        translator.t("value.cache_entries", totalTranslated, totalTracked).getString(),
+                        translator.t("value.cache_entries", taskTrackerStats.translated()).getString(),
                         Component.empty(),
                         value -> {
                         },

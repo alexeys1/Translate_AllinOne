@@ -93,12 +93,14 @@ public class ConfigManager {
 
         try {
             ModConfig parsedConfig = GSON.fromJson(rawConfig, ModConfig.class);
-            boolean shouldRewriteConfig = parsedConfig == null;
+            boolean shouldRewriteConfig = parsedConfig == null || hasLegacyConfigAliases(rawConfig);
             ModConfig loadedConfig = normalizeConfig(parsedConfig);
             boolean migratedLegacyItemDebugConfig = migrateLegacyItemDebugConfig(rawConfig, loadedConfig);
             boolean migratedLegacyItemWynnCompatibilityConfig = ConfigMigrationSupport.hasDeprecatedWynnItemCompatibilityConfig(rawConfig);
             boolean migratedLegacyWynnTargetLanguageConfig = migrateLegacyWynnTargetLanguageConfig(rawConfig, loadedConfig);
             boolean migratedLegacyVanillaAdvancementConfig = migrateLegacyVanillaAdvancementConfig(rawConfig, loadedConfig);
+            boolean migratedLegacyComponentRoutingConfig = migrateLegacyComponentRoutingConfig(rawConfig, loadedConfig);
+            boolean removedOtherTranslationsRequestsPerMinute = removeOtherTranslationsRequestsPerMinute(rawConfig);
             loadedConfig = normalizeConfig(loadedConfig);
 
             if (shouldRewriteConfig) {
@@ -109,7 +111,9 @@ public class ConfigManager {
                     || migratedLegacyItemDebugConfig
                     || migratedLegacyItemWynnCompatibilityConfig
                     || migratedLegacyWynnTargetLanguageConfig
-                    || migratedLegacyVanillaAdvancementConfig) {
+                    || migratedLegacyVanillaAdvancementConfig
+                    || migratedLegacyComponentRoutingConfig
+                    || removedOtherTranslationsRequestsPerMinute) {
                 writeConfigBestEffort(
                         configPath,
                         loadedConfig,
@@ -416,6 +420,92 @@ public class ConfigManager {
                 || shouldRewriteLegacyItemDebugObject(rawConfig);
     }
 
+    private static boolean migrateLegacyComponentRoutingConfig(JsonElement rawConfig, ModConfig loadedConfig) {
+        if (rawConfig == null || !rawConfig.isJsonObject() || loadedConfig == null) {
+            return false;
+        }
+        JsonObject root = rawConfig.getAsJsonObject();
+        JsonObject item = getItemTranslateObject(rawConfig);
+        JsonObject scoreboard = getNestedObject(root, "scoreboardTranslate");
+        JsonObject other = getOtherTranslationsObject(rawConfig);
+        boolean migrated = hasAnyField(item,
+                "component_json_v1_tooltip_lines",
+                "component_json_v1_tooltip_structured",
+                "component_json_v1_tooltip_paragraph",
+                "component_json_v1_tooltip_custom_fonts")
+                || hasAnyField(scoreboard, "component_json_v1_scoreboard")
+                || hasAnyField(other,
+                "component_json_v1_advancements",
+                "component_json_v1_signs",
+                "component_json_v1_entity_text",
+                "component_json_v1_written_books");
+        if (loadedConfig.itemTranslate != null && loadedConfig.itemTranslate.debug != null) {
+            JsonObject debug = getNestedObject(item, "debug");
+            migrated |= migrateBoolean(debug, "log_component_v1_flow", loadedConfig.itemTranslate.debug, "log_component_flow");
+            migrated |= migrateBoolean(debug, "log_component_v1_text_content", loadedConfig.itemTranslate.debug, "log_component_text_content");
+            migrated |= migrateBoolean(debug, "log_component_v1_timing", loadedConfig.itemTranslate.debug, "log_component_timing");
+        }
+        if (loadedConfig.otherTranslations != null && loadedConfig.otherTranslations.debug != null) {
+            JsonObject debug = getNestedObject(other, "debug");
+            migrated |= migrateBoolean(debug, "log_component_v1_entity_identity", loadedConfig.otherTranslations.debug, "log_component_entity_identity");
+        }
+        return migrated;
+    }
+
+    private static boolean removeOtherTranslationsRequestsPerMinute(JsonElement rawConfig) {
+        return hasAnyField(getOtherTranslationsObject(rawConfig), "requests_per_minute");
+    }
+
+    private static boolean hasAnyField(JsonObject object, String... names) {
+        if (object == null) {
+            return false;
+        }
+        for (String name : names) {
+            if (object.has(name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasLegacyConfigAliases(JsonElement rawConfig) {
+        if (rawConfig == null || !rawConfig.isJsonObject()) {
+            return false;
+        }
+        JsonObject root = rawConfig.getAsJsonObject();
+        return root.has("ItemTranslateConfig")
+                || root.has("itemTranslateConfig")
+                || root.has("ScoreboardConfig")
+                || root.has("scoreboardConfig")
+                || root.has("chatTranslateConfig")
+                || root.has("ChatTranslateConfig");
+    }
+
+    private static boolean migrateBoolean(JsonObject source, String oldName, Object target, String newName) {
+        if (source == null || !source.has(oldName) || !source.get(oldName).isJsonPrimitive()
+                || !source.get(oldName).getAsJsonPrimitive().isBoolean()) {
+            return false;
+        }
+        if (source.has(newName)) {
+            return true;
+        }
+        boolean value = source.get(oldName).getAsBoolean();
+        if (target instanceof ItemTranslateConfig.DebugConfig itemDebug) {
+            switch (newName) {
+                case "log_component_flow" -> itemDebug.log_component_flow = value;
+                case "log_component_text_content" -> itemDebug.log_component_text_content = value;
+                case "log_component_timing" -> itemDebug.log_component_timing = value;
+                default -> throw new IllegalArgumentException("Unknown item Component debug field: " + newName);
+            }
+        } else if (target instanceof OtherTranslationsConfig.DebugConfig otherDebug) {
+            if (!"log_component_entity_identity".equals(newName)) {
+                throw new IllegalArgumentException("Unknown other Component debug field: " + newName);
+            }
+            otherDebug.log_component_entity_identity = value;
+        }
+        return true;
+    }
+
     private static boolean migrateLegacyWynnTargetLanguageConfig(JsonElement rawConfig, ModConfig loadedConfig) {
         if (loadedConfig == null) {
             return false;
@@ -476,13 +566,6 @@ public class ConfigManager {
         String legacyTargetLanguage = getOptionalString(legacyItemConfig, "target_language");
         if (legacyTargetLanguage != null) {
             loadedConfig.otherTranslations.target_language = legacyTargetLanguage;
-        }
-        if (loadedConfig.itemTranslate != null) {
-            loadedConfig.otherTranslations.max_concurrent_requests = Math.max(
-                    1,
-                    loadedConfig.itemTranslate.max_concurrent_requests
-            );
-            loadedConfig.otherTranslations.max_batch_size = Math.max(1, loadedConfig.itemTranslate.max_batch_size);
         }
         copyLegacyItemKeybinding(loadedConfig.itemTranslate, loadedConfig.otherTranslations);
 

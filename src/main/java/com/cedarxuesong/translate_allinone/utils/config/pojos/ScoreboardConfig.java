@@ -6,7 +6,6 @@ public class ScoreboardConfig {
     public boolean enabled = false;
     public boolean enabled_translate_prefix_and_suffix_name = true;
     public boolean enabled_translate_player_name = false;
-    public boolean component_json_v1_scoreboard = false;
     public ExternalCustomScoreboardMode external_custom_scoreboard_mode =
             ExternalCustomScoreboardMode.DISABLED;
     public int max_concurrent_requests = 2;
