@@ -101,45 +101,67 @@ final class TooltipParagraphSupport {
             }
         }
 
-        ItemTemplateCache cache = ItemTemplateCache.getInstance();
-        LookupResult blockLookup = cache.lookupOrQueue(block.paragraphTemplate().translationTemplateKey());
-        if (blockLookup.status() == TranslationStatus.TRANSLATED) {
-            List<TooltipTranslationSupport.TooltipLineResult> blockResults = renderTranslatedParagraphBlock(
-                    block,
-                    blockLookup.translation(),
-                    config,
-                    emitDevLog,
-                    devSource,
-                    false
-            );
-            if (blockResults != null) {
-                return new ParagraphTranslationAttempt(blockResults, false, false);
+        if (config != null) {
+            ParagraphTranslationAttempt componentAttempt = TooltipComponentTranslationSupport.translateParagraphBlock(block, config);
+            if (componentAttempt != null) {
+                return componentAttempt;
             }
-            return translateParagraphBlockLineByLine(block);
-        }
-
-        boolean pending = blockLookup.status() == TranslationStatus.PENDING
-                || blockLookup.status() == TranslationStatus.IN_PROGRESS;
-        boolean missingKeyIssue = blockLookup.status() == TranslationStatus.ERROR
-                && TooltipInternalLineSupport.isMissingKeyIssue(blockLookup.errorMessage());
-        if (blockLookup.status() == TranslationStatus.TRANSLATED) {
-            pending = true;
         }
 
         List<TooltipTranslationSupport.TooltipLineResult> fallbackResults = new ArrayList<>(block.preparedLines().size());
         for (int i = 0; i < block.preparedLines().size(); i++) {
             PreparedTooltipTemplate preparedLine = block.preparedLines().get(i);
             Text originalLine = TooltipTemplateRuntime.renderOriginalPreparedLine(preparedLine);
-            if (pending) {
-                originalLine = AnimationManager.getAnimatedStyledText(
-                        originalLine,
-                        block.paragraphTemplate().translationTemplateKey() + "#" + i,
-                        false
-                );
-            }
-            fallbackResults.add(new TooltipTranslationSupport.TooltipLineResult(originalLine, pending, missingKeyIssue));
+            fallbackResults.add(new TooltipTranslationSupport.TooltipLineResult(originalLine, false, false));
         }
-        return new ParagraphTranslationAttempt(fallbackResults, pending, missingKeyIssue);
+        return new ParagraphTranslationAttempt(fallbackResults, false, false);
+    }
+
+    static List<Text> peekLegacyParagraphTranslation(
+            TooltipParagraphBlock block,
+            ItemTranslateConfig config
+    ) {
+        if (block == null || block.paragraphTemplate() == null) {
+            return null;
+        }
+        LookupResult lookup = ItemTemplateCache.getInstance().peek(
+                block.paragraphTemplate().translationTemplateKey()
+        );
+        if (lookup.status() != TranslationStatus.TRANSLATED) {
+            return null;
+        }
+        List<TooltipTranslationSupport.TooltipLineResult> rendered = renderTranslatedParagraphBlock(
+                block,
+                lookup.translation(),
+                config,
+                false,
+                "component-legacy-read",
+                false
+        );
+        if (rendered == null || rendered.isEmpty()) {
+            return null;
+        }
+        return rendered.stream().map(TooltipTranslationSupport.TooltipLineResult::translatedLine).toList();
+    }
+
+    static List<Text> renderComponentParagraphTranslation(
+            TooltipParagraphBlock block,
+            String translatedBlockTemplate,
+            ItemTranslateConfig config
+    ) {
+        List<TooltipTranslationSupport.TooltipLineResult> rendered = renderTranslatedParagraphBlock(
+                block,
+                translatedBlockTemplate,
+                config,
+                false,
+                "component-coherent",
+                false,
+                true
+        );
+        if (rendered == null || rendered.isEmpty()) {
+            return List.of();
+        }
+        return rendered.stream().map(TooltipTranslationSupport.TooltipLineResult::translatedLine).toList();
     }
 
     static WynnSharedDictionaryService.LookupResult lookupAcceptedLocalDictionaryTranslation(TooltipParagraphBlock block) {
@@ -324,6 +346,7 @@ final class TooltipParagraphSupport {
                 config,
                 emitDevLog,
                 devSource,
+                false,
                 false
         );
     }
@@ -335,6 +358,26 @@ final class TooltipParagraphSupport {
             boolean emitDevLog,
             String devSource,
             boolean trustedLocalDictionary
+    ) {
+        return renderTranslatedParagraphBlock(
+                block,
+                translatedBlockTemplate,
+                config,
+                emitDevLog,
+                devSource,
+                trustedLocalDictionary,
+                false
+        );
+    }
+
+    private static List<TooltipTranslationSupport.TooltipLineResult> renderTranslatedParagraphBlock(
+            TooltipParagraphBlock block,
+            String translatedBlockTemplate,
+            ItemTranslateConfig config,
+            boolean emitDevLog,
+            String devSource,
+            boolean trustedLocalDictionary,
+            boolean componentCoherent
     ) {
         if (translatedBlockTemplate == null || translatedBlockTemplate.isBlank()) {
             logParagraphRenderIfDev(
@@ -375,7 +418,8 @@ final class TooltipParagraphSupport {
                 config,
                 emitDevLog,
                 devSource,
-                trustedLocalDictionary
+                trustedLocalDictionary,
+                componentCoherent
         );
         if (renderedParagraphText == null) {
             return null;
@@ -488,7 +532,8 @@ final class TooltipParagraphSupport {
             ItemTranslateConfig config,
             boolean emitDevLog,
             String devSource,
-            boolean trustedLocalDictionary
+            boolean trustedLocalDictionary,
+            boolean componentCoherent
     ) {
         PreparedParagraphTemplate paragraphTemplate = block.paragraphTemplate();
         String reassembledTranslated = TemplateProcessor.reassembleDecorativeGlyphs(
@@ -565,7 +610,7 @@ final class TooltipParagraphSupport {
             }
         }
 
-        String taggedWithLineBreaks = shouldPreserveParagraphLineBreaks(block)
+        String taggedWithLineBreaks = !componentCoherent && shouldPreserveParagraphLineBreaks(block)
                 ? insertLineBreaksAtLineBoundaries(reassembledTranslated, paragraphTemplate.lineEndStyleIds())
                 : reassembledTranslated;
         Text renderedText = StylePreserver.reapplyStylesFromTags(

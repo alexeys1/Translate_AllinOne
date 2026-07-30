@@ -190,7 +190,19 @@ public final class TooltipTranslationSupport {
 
         int refreshed = 0;
         for (TooltipRouteSegment segment : tooltipPlan.segments()) {
-            if (segment == null || segment.kind() == null || segment.candidate() == null) {
+            if (segment == null || segment.kind() == null) {
+                continue;
+            }
+            if (segment.kind() == TooltipRouteKind.PARAGRAPH_BLOCK) {
+                if (!TooltipParagraphSupport.hasAcceptedLocalDictionaryTranslation(segment.paragraphBlock())) {
+                    refreshed += TooltipComponentTranslationSupport.forceRefreshParagraphBlock(
+                            segment.paragraphBlock(),
+                            config
+                    );
+                }
+                continue;
+            }
+            if (segment.candidate() == null) {
                 continue;
             }
             if (segment.kind() == TooltipRouteKind.STRUCTURED_LINE) {
@@ -583,14 +595,10 @@ public final class TooltipTranslationSupport {
                 case PASSTHROUGH -> {
                 }
                 case PARAGRAPH_BLOCK -> {
-                    if (!TooltipParagraphSupport.hasAcceptedLocalDictionaryTranslation(segment.paragraphBlock())) {
-                        remoteKeys.addAll(segment.translationTemplateKeys());
-                    }
                 }
                 case STRUCTURED_LINE -> {
                 }
                 case LINE_TEMPLATE -> {
-                    // Ordinary lines are queued directly through the component translation runtime.
                 }
             }
         }
