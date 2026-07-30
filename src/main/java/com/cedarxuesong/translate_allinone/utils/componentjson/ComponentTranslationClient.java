@@ -19,22 +19,14 @@ import java.util.concurrent.CompletableFuture;
 public final class ComponentTranslationClient {
     private static final int MAX_RESPONSE_ATTEMPTS = 2;
     private static final int MAX_CORRECTION_REASON_CHARS = 480;
-    private static final String PROTOCOL_CONTRACT = "Component translation protocol contract:\n"
-            + "1) Output exactly one JSON object with only protocol and translations fields.\n"
-            + "2) protocol must be taio-component-v1.\n"
-            + "3) translations must contain exactly the requested ids, with string values only.\n"
-            + "4) Do not add, remove, rename, or duplicate ids.\n"
-            + "5) Do not output Component JSON, JSON Pointer operations, Markdown, or explanations.\n"
-            + "6) Read all requested items before translating. If item context contains batch_item, previous_item, or next_item, use those neighboring source texts only to resolve terminology and sentence meaning; never merge items and never return fewer or extra ids.\n"
-            + "7) Keep each item's semantic content together. Do not translate separate requested items as unrelated isolated fragments merely because their source text is short.";
+    private static final String PROTOCOL_CONTRACT = "Return one JSON object with only protocol and translations fields. "
+            + "protocol must be taio-component-v1. Return exactly the requested ids, once each, with string values only. "
+            + "No Component JSON, JSON Pointer operations, Markdown, explanations, or extra fields. "
+            + "Read all items before translating; context is only for meaning, never for merging items.";
     private static final String COHERENT_PARAGRAPH_CONTRACT = "\n"
-            + "8) Each tooltip_paragraph item is one complete paragraph assembled from wrapped UI lines.\n"
-            + "9) Translate each paragraph item as one coherent paragraph after reading all of it; never translate it line-by-line, tag-by-tag, or clause-by-clause in isolation.\n"
-            + "10) Natural target-language word order has priority over source line, fragment, and styled-span boundaries. This replaces any earlier generic instruction not to reorder them.\n"
-            + "11) Style tags are semantic style classes. The translation of text inside a source <sN> span must keep that same style id even when target-language word order moves the span. Never assign style ids by output position.\n"
-            + "12) Preserve every non-style placeholder exactly. Use every <sN> style id from this paragraph and never invent a new id. Style spans must be flat, balanced, and must not be nested.\n"
-            + "13) Equivalent source styles may reuse the same id. You may merge or reopen that id around translated semantic spans when natural target-language word order requires it.\n"
-            + "14) A tooltip_paragraph request contains exactly one paragraph item.";
+            + "tooltip_paragraph contains one wrapped paragraph: translate it coherently, not line-by-line or tag-by-tag. "
+            + "Natural target-language order may cross source spans. Preserve every non-style placeholder exactly. "
+            + "<sN> is a semantic style: use every source id, invent none, and keep tags flat and balanced.";
 
     private final ComponentResponseParser parser;
     private final ComponentTranslationValidator validator;

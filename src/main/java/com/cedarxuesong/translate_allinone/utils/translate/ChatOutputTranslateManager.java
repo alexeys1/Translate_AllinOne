@@ -308,10 +308,10 @@ public class ChatOutputTranslateManager {
     }
 
     private static void updateInProgressChatLine(UUID messageId, Component newContent) {
-        GuiMessage lineToUpdate = activeTranslationLines.get(messageId);
-        if (lineToUpdate == null) return;
-
         Minecraft.getInstance().execute(() -> {
+            GuiMessage lineToUpdate = activeTranslationLines.get(messageId);
+            if (lineToUpdate == null) return;
+
             ChatComponent chatHud = Minecraft.getInstance().gui.getChat();
             if (chatHud == null) return;
 
@@ -333,13 +333,13 @@ public class ChatOutputTranslateManager {
 
     private static void updateChatLineWithFinalText(UUID messageId, Component finalContent) {
         lineLocateRetryCounts.remove(messageId);
-        GuiMessage lineToUpdate = activeTranslationLines.remove(messageId);
-        if (lineToUpdate == null) {
-            logChatLineMapping(messageId, "final_update_missing_active_line", -1, finalContent);
-            return;
-        }
-
         Minecraft.getInstance().execute(() -> {
+            GuiMessage lineToUpdate = activeTranslationLines.remove(messageId);
+            if (lineToUpdate == null) {
+                logChatLineMapping(messageId, "final_update_missing_active_line", -1, finalContent);
+                return;
+            }
+
             ChatComponent chatHud = Minecraft.getInstance().gui.getChat();
             if (chatHud == null) return;
 
@@ -618,15 +618,7 @@ public class ChatOutputTranslateManager {
 
     @NotNull
     private static List<OpenAIRequest.Message> getMessages(ApiProviderProfile providerProfile, String targetLanguage, String textToTranslate) {
-        String basePrompt = "You are a deterministic translation engine.\n"
-                + "Target language: " + targetLanguage + ".\n"
-                + "\n"
-                + "Rules (highest priority first):\n"
-                + "1) Output only the final translated text. No explanation, markdown, or quotes.\n"
-                + "2) Preserve style tags exactly: <s0>...</s0>, <s1>...</s1>, ... Keep the same tag ids, counts, and order.\n"
-                + "3) Preserve tokens exactly: § color/style codes, placeholders (%s %d %f {d1}), URLs, numbers, <...>, {...}, \\n, \\t.\n"
-                + "4) If a term is uncertain, keep only that term unchanged and still translate surrounding text.\n"
-                + "5) If any rule cannot be guaranteed, return the original input unchanged.";
+        String basePrompt = PromptMessageBuilder.getDefaultPrompt("chat_output", targetLanguage);
         String resolved = PromptMessageBuilder.applyPromptOverride("chat_output", basePrompt, providerProfile.system_prompt_overrides, targetLanguage);
         String systemPrompt = PromptMessageBuilder.appendSystemPromptSuffix(
                 resolved,

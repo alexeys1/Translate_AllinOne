@@ -294,15 +294,7 @@ public class ChatInputTranslateManager {
 
     private static String buildSystemPrompt(String targetLanguage, TransformMode mode, String instruction) {
         return switch (mode) {
-            case TRANSLATE -> "You are a deterministic translation engine.\n"
-                    + "Target language: " + targetLanguage + ".\n"
-                    + "\n"
-                    + "Rules (highest priority first):\n"
-                    + "1) Output only the final translated text. No explanation, markdown, or quotes.\n"
-                    + "2) Preserve tokens exactly: § color/style codes, placeholders (%s %d %f {d1}), URLs, numbers, command prefix (/), <...>, {...}, \\n, \\t.\n"
-                    + "3) If a term is uncertain, keep only that term unchanged and still translate surrounding text.\n"
-                    + "4) Keep punctuation and spacing stable unless translation naturally requires changes.\n"
-                    + "5) If any rule cannot be guaranteed, return the original input unchanged.";
+            case TRANSLATE -> PromptMessageBuilder.getDefaultPrompt("chat_input_translate", targetLanguage);
             case PROFESSIONAL -> buildRewritePrompt(targetLanguage, "professional, precise, concise");
             case FRIENDLY -> buildRewritePrompt(targetLanguage, "friendly, warm, natural");
             case EXPAND -> buildRewritePrompt(targetLanguage, "rich, vivid, and more detailed while keeping the original intent");
@@ -312,30 +304,20 @@ public class ChatInputTranslateManager {
     }
 
     private static String buildRewritePrompt(String targetLanguage, String styleHint) {
-        return "You are a rewriting and translation assistant.\n"
-                + "Target language: " + targetLanguage + ".\n"
-                + "Style target: " + styleHint + ".\n"
-                + "\n"
-                + "Rules (highest priority first):\n"
-                + "1) Output only one final rewritten message. No explanation, markdown, or quotes.\n"
-                + "2) Preserve meaning and intent. Keep gameplay terms accurate.\n"
-                + "3) Preserve tokens exactly: § color/style codes, placeholders (%s %d %f {d1}), URLs, numbers, command prefix (/), <...>, {...}, \\n, \\t.\n"
-                + "4) If uncertain about a term, keep that term unchanged and rewrite the rest.\n"
-                + "5) If constraints cannot be satisfied, return original input unchanged.";
+        return "Rewrite player-composed Minecraft chat input in " + targetLanguage + ".\n"
+                + "Style: " + styleHint + ".\n"
+                + "Output only the final message, with no Markdown, quotes, or explanation.\n"
+                + "Preserve meaning, gameplay terms, commands beginning with /, player names, item ids, URLs, numbers, Minecraft formatting codes, <sN> tags, {dN}/{gN}, %s/%d/%f, \\n, and \\t exactly.\n"
+                + "Keep an uncertain term unchanged.";
     }
 
     private static String buildInstructionPrompt(String targetLanguage, String instruction) {
         String normalizedInstruction = instruction == null ? "" : instruction.trim();
-        return "You are a rewriting and translation assistant.\n"
-                + "Target language: " + targetLanguage + ".\n"
-                + "User instruction: " + normalizedInstruction + "\n"
-                + "\n"
-                + "Rules (highest priority first):\n"
-                + "1) Follow the user instruction exactly while preserving the original intent.\n"
-                + "2) Output only one final rewritten message. No explanation, markdown, or quotes.\n"
-                + "3) Preserve tokens exactly: § color/style codes, placeholders (%s %d %f {d1}), URLs, numbers, command prefix (/), <...>, {...}, \\n, \\t.\n"
-                + "4) If uncertain about a term, keep that term unchanged and rewrite the rest.\n"
-                + "5) If constraints cannot be satisfied, return original input unchanged.";
+        return "Rewrite player-composed Minecraft chat input in " + targetLanguage + ".\n"
+                + "Requested transformation: " + normalizedInstruction + "\n"
+                + "Output only the final message, with no Markdown, quotes, or explanation.\n"
+                + "Follow the requested transformation only when it preserves the original intent and these exact tokens: commands beginning with /, player names, item ids, URLs, numbers, Minecraft formatting codes, <sN> tags, {dN}/{gN}, %s/%d/%f, \\n, and \\t.\n"
+                + "Keep an uncertain term unchanged.";
     }
 
     private static String buildRequestContext(
