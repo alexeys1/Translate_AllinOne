@@ -74,6 +74,30 @@ public record ProviderSettings(OpenAISettings openAISettings, OllamaSettings oll
         return fromOpenAI(openAISettings);
     }
 
+    public ProviderSettings withStructuredOutputEnabled() {
+        if (openAISettings != null) {
+            return fromOpenAI(new OpenAISettings(
+                    openAISettings.baseUrl(),
+                    openAISettings.apiKey(),
+                    openAISettings.modelId(),
+                    openAISettings.temperature(),
+                    true,
+                    openAISettings.customParameters(),
+                    openAISettings.providerType()
+            ));
+        }
+        if (ollamaSettings != null) {
+            return fromOllama(new OllamaSettings(
+                    ollamaSettings.baseUrl(),
+                    ollamaSettings.modelId(),
+                    ollamaSettings.keepAlive(),
+                    true,
+                    ollamaSettings.options()
+            ));
+        }
+        return this;
+    }
+
     public static Map<String, Object> toParameterMap(List<CustomParameterEntry> customParameters) {
         Map<String, Object> parameterMap = new LinkedHashMap<>();
         if (customParameters == null) {

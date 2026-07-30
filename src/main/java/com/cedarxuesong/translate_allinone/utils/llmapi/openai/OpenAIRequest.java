@@ -1,6 +1,7 @@
 package com.cedarxuesong.translate_allinone.utils.llmapi.openai;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 代表发送到OpenAI Chat Completions API的请求体。
@@ -36,9 +37,27 @@ public class OpenAIRequest {
 
     public static class ResponseFormat {
         public String type;
+        public JsonSchema json_schema;
 
         public ResponseFormat(String type) {
             this.type = type;
         }
+
+        public ResponseFormat(String schemaName, Map<String, Object> schema) {
+            this.type = "json_schema";
+            this.json_schema = new JsonSchema(schemaName, schema, true);
+        }
     }
-} 
+
+    public static class JsonSchema {
+        public String name;
+        public Map<String, Object> schema;
+        public boolean strict;
+
+        public JsonSchema(String name, Map<String, Object> schema, boolean strict) {
+            this.name = name;
+            this.schema = schema;
+            this.strict = strict;
+        }
+    }
+}

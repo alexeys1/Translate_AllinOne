@@ -14,9 +14,9 @@ public class OllamaChatRequest {
     public boolean stream;
     public Map<String, Object> options;
     public String keep_alive;
-    public String format;
+    public Object format;
 
-    public OllamaChatRequest(String model, List<OpenAIRequest.Message> messages, boolean stream, String keep_alive, Map<String, Object> options, String format) {
+    public OllamaChatRequest(String model, List<OpenAIRequest.Message> messages, boolean stream, String keep_alive, Map<String, Object> options, Object format) {
         this.model = model;
         this.messages = messages;
         this.stream = stream;
