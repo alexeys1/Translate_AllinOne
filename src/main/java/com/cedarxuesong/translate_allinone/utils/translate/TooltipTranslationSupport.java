@@ -180,6 +180,36 @@ public final class TooltipTranslationSupport {
         }
     }
 
+    static int forceRefreshComponentCaches(TooltipPlan tooltipPlan, ItemTranslateConfig config) {
+        if (tooltipPlan == null
+                || tooltipPlan.segments() == null
+                || tooltipPlan.segments().isEmpty()
+                || config == null) {
+            return 0;
+        }
+
+        int refreshed = 0;
+        for (TooltipRouteSegment segment : tooltipPlan.segments()) {
+            if (segment == null
+                    || segment.kind() != TooltipRouteKind.LINE_TEMPLATE
+                    || segment.candidate() == null
+                    || TooltipTemplateRuntime.hasLocalDictionaryTranslation(segment.candidate().line())) {
+                continue;
+            }
+            PreparedTooltipTemplate prepared = segment.preparedTemplate() == null
+                    ? TooltipTemplateRuntime.prepareTemplate(segment.candidate().line(), false)
+                    : segment.preparedTemplate();
+            refreshed += TooltipComponentTranslationSupport.forceRefreshPreparedLine(
+                    prepared,
+                    com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRoute.TOOLTIP_LINE,
+                    "tooltip:line",
+                    "line-v2",
+                    config
+            );
+        }
+        return refreshed;
+    }
+
     public static TranslatedTooltipBuildResult buildTranslatedTooltipResult(List<Text> originalTooltip, String animationKey) {
         if (originalTooltip == null || originalTooltip.isEmpty()) {
             return new TranslatedTooltipBuildResult(originalTooltip, false);
@@ -239,8 +269,9 @@ public final class TooltipTranslationSupport {
             );
         }
 
-        TooltipRefreshNoticeSupport.maybeForceRefreshCurrentTooltip(remoteTranslationTemplateKeys, config);
-        boolean showRefreshNotice = TooltipRefreshNoticeSupport.shouldShowRefreshNotice(remoteTranslationTemplateKeys);
+        Set<String> refreshKeys = tooltipPlan.translationTemplateKeys();
+        TooltipRefreshNoticeSupport.maybeForceRefreshCurrentTooltip(tooltipPlan, refreshKeys, config);
+        boolean showRefreshNotice = TooltipRefreshNoticeSupport.shouldShowRefreshNotice(refreshKeys);
 
         boolean isKeyPressed = KeybindingManager.isPressed(config.keybinding.binding);
         if (shouldShowOriginal(config.keybinding.mode, isKeyPressed)) {
@@ -436,7 +467,20 @@ public final class TooltipTranslationSupport {
                         "line-template",
                         preparedTemplate
                 );
-                lineResult = TooltipTemplateRuntime.translatePreparedTemplate(preparedTemplate);
+                TooltipLineResult componentLineResult = null;
+                if (segment.kind() == TooltipRouteKind.LINE_TEMPLATE
+                        && !TooltipTemplateRuntime.hasLocalDictionaryTranslation(segment.candidate().line())) {
+                    componentLineResult = TooltipComponentTranslationSupport.translatePreparedLine(
+                            preparedTemplate,
+                            com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRoute.TOOLTIP_LINE,
+                            "tooltip:line",
+                            "line-v2",
+                            config
+                    );
+                }
+                lineResult = componentLineResult == null
+                        ? TooltipTemplateRuntime.translatePreparedTemplate(preparedTemplate)
+                        : componentLineResult;
                 route = "line-template";
                 detail = "templateKey=" + (preparedTemplate.translationTemplateKey() == null
                         ? ""
@@ -540,10 +584,7 @@ public final class TooltipTranslationSupport {
                     }
                 }
                 case LINE_TEMPLATE -> {
-                    if (segment.candidate() == null
-                            || !TooltipTemplateRuntime.hasLocalDictionaryTranslation(segment.candidate().line())) {
-                        remoteKeys.addAll(segment.translationTemplateKeys());
-                    }
+                    // Ordinary lines are queued directly through the component translation runtime.
                 }
             }
         }

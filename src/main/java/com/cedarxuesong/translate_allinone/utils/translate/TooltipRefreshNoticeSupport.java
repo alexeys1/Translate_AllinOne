@@ -20,6 +20,7 @@ public final class TooltipRefreshNoticeSupport {
     private static final long REFRESH_HOLD_RELEASE_GRACE_MILLIS = 250L;
     private static final Logger LOGGER = LoggerFactory.getLogger("Translate_AllinOne/TooltipRefreshNoticeSupport");
     private static final Set<Integer> refreshedTooltipSignaturesThisHold = new HashSet<>();
+    private static final Set<String> refreshedComponentKeysThisHold = new HashSet<>();
     private static volatile boolean refreshHoldActive = false;
     private static volatile long refreshHoldGraceExpiresAtMillis = 0L;
     private static volatile int refreshNoticeTooltipSignature = 0;
@@ -29,11 +30,31 @@ public final class TooltipRefreshNoticeSupport {
     }
 
     public static void maybeForceRefreshCurrentTooltip(List<Text> tooltip, ItemTranslateConfig config) {
-        Set<String> keysToRefresh = TooltipTranslationSupport.collectRemoteTranslationTemplateKeys(tooltip, config);
-        maybeForceRefreshCurrentTooltip(keysToRefresh, config);
+        if (tooltip == null || tooltip.isEmpty() || config == null || !config.enabled) {
+            return;
+        }
+        List<Text> sanitizedTooltip = TooltipInternalLineSupport.stripInternalGeneratedLines(tooltip);
+        if (sanitizedTooltip == null || sanitizedTooltip.isEmpty()) {
+            return;
+        }
+        boolean preserveStyles = TooltipDecorativeContextSupport.isDecorativeTooltipContext(sanitizedTooltip);
+        TooltipRoutePlanner.TooltipPlan plan = TooltipRoutePlanner.planTooltip(
+                sanitizedTooltip,
+                config,
+                preserveStyles
+        );
+        maybeForceRefreshCurrentTooltip(plan, plan.translationTemplateKeys(), config);
     }
 
     public static void maybeForceRefreshCurrentTooltip(Set<String> keysToRefresh, ItemTranslateConfig config) {
+        maybeForceRefreshCurrentTooltip(null, keysToRefresh, config);
+    }
+
+    static void maybeForceRefreshCurrentTooltip(
+            TooltipRoutePlanner.TooltipPlan tooltipPlan,
+            Set<String> keysToRefresh,
+            ItemTranslateConfig config
+    ) {
         boolean hasKeysToRefresh = keysToRefresh != null && !keysToRefresh.isEmpty();
 
         boolean isRefreshPressed = config != null
@@ -55,12 +76,19 @@ public final class TooltipRefreshNoticeSupport {
             }
         }
 
-        int refreshedCount = ItemTemplateCache.getInstance().forceRefresh(keysToRefresh);
-        if (refreshedCount > 0) {
+        int legacyRefreshedCount = ItemTemplateCache.getInstance().forceRefresh(keysToRefresh);
+        int componentRefreshedCount = TooltipTranslationSupport.forceRefreshComponentCaches(tooltipPlan, config);
+        if (legacyRefreshedCount > 0) {
             TooltipTemplateRuntime.registerForceRefreshCompatBypass(keysToRefresh);
+        }
+        if (legacyRefreshedCount > 0 || componentRefreshedCount > 0) {
             refreshNoticeTooltipSignature = tooltipSignature;
             refreshNoticeExpiresAtMillis = now + REFRESH_NOTICE_DURATION_MILLIS;
-            LOGGER.info("Forced refresh of {} current item tooltip translation key(s).", refreshedCount);
+            LOGGER.info(
+                    "Forced refresh of current item tooltip translation keys: legacy={}, component={}.",
+                    legacyRefreshedCount,
+                    componentRefreshedCount
+            );
         }
     }
 
@@ -166,11 +194,36 @@ public final class TooltipRefreshNoticeSupport {
         return false;
     }
 
+    static boolean consumeComponentRefresh(String cacheKey, ItemTranslateConfig config) {
+        if (cacheKey == null || cacheKey.isBlank() || config == null || config.keybinding == null) {
+            return false;
+        }
+        boolean pressed = KeybindingManager.isPressed(config.keybinding.refreshBinding);
+        if (!updateRefreshHoldState(pressed, System.currentTimeMillis())) {
+            return false;
+        }
+        synchronized (refreshedComponentKeysThisHold) {
+            return refreshedComponentKeysThisHold.add(cacheKey);
+        }
+    }
+
+    static void markComponentRefreshHandled(String cacheKey) {
+        if (cacheKey == null || cacheKey.isBlank()) {
+            return;
+        }
+        synchronized (refreshedComponentKeysThisHold) {
+            refreshedComponentKeysThisHold.add(cacheKey);
+        }
+    }
+
     static void clearRefreshHoldState() {
         refreshHoldActive = false;
         refreshHoldGraceExpiresAtMillis = 0L;
         synchronized (refreshedTooltipSignaturesThisHold) {
             refreshedTooltipSignaturesThisHold.clear();
+        }
+        synchronized (refreshedComponentKeysThisHold) {
+            refreshedComponentKeysThisHold.clear();
         }
     }
 }
