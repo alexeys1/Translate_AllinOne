@@ -3,6 +3,7 @@ package com.cedarxuesong.translate_allinone.utils.cache.component;
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.utils.cache.CacheBackupManager;
 import com.cedarxuesong.translate_allinone.utils.cache.CacheFileSaveSupport;
+import com.cedarxuesong.translate_allinone.utils.cache.CacheStats;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentJsonException;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentJsonLimits;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationDebugLogger;
@@ -33,9 +34,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 public final class ComponentTranslationStore {
-    public static final String CACHE_FILE = "component_v1_translate_cache_v2.json";
-    public static final int SCHEMA_VERSION = 3;
-    private static final int LEGACY_SCHEMA_VERSION = 2;
+    public static final int SCHEMA_VERSION = 4;
     private static final long MAX_FILE_BYTES = 16L * 1024L * 1024L;
     private static final int MAX_ENTRIES = 4_096;
     private static final int MAX_TRANSLATIONS_PER_ENTRY = ComponentJsonLimits.DEFAULT.maxTextUnits();
@@ -45,6 +44,7 @@ public final class ComponentTranslationStore {
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
 
     private final Path path;
+    private final ComponentCacheModule module;
     private final boolean passiveBackupEnabled;
     private final Map<String, Entry> entries = new LinkedHashMap<>();
     private final Map<String, Entry> entityTemplates = new LinkedHashMap<>();
@@ -54,29 +54,21 @@ public final class ComponentTranslationStore {
     private boolean dirty;
     private boolean writeProtected;
 
-    private ComponentTranslationStore() {
-        this(CacheBackupManager.getCacheDirectory(), true);
-    }
-
-    ComponentTranslationStore(Path cacheDirectory) {
-        this(cacheDirectory, false);
-    }
-
-    private ComponentTranslationStore(Path cacheDirectory, boolean passiveBackupEnabled) {
+    ComponentTranslationStore(Path cacheDirectory, ComponentCacheModule module, boolean passiveBackupEnabled) {
         if (cacheDirectory == null) {
-            throw new IllegalArgumentException("Component V2 cache directory is required.");
+            throw new IllegalArgumentException("Component cache directory is required.");
         }
-        this.path = cacheDirectory.resolve(CACHE_FILE);
+        if (module == null) {
+            throw new IllegalArgumentException("Component cache module is required.");
+        }
+        this.path = cacheDirectory.resolve(module.fileName());
+        this.module = module;
         this.passiveBackupEnabled = passiveBackupEnabled;
         this.saveExecutor = Executors.newSingleThreadScheduledExecutor(runnable -> {
-            Thread thread = new Thread(runnable, "translate_allinone-component-v2-save");
+            Thread thread = new Thread(runnable, "translate_allinone-component-" + module.wireName() + "-save");
             thread.setDaemon(true);
             return thread;
         });
-    }
-
-    public static ComponentTranslationStore getInstance() {
-        return Holder.INSTANCE;
     }
 
     public synchronized void load() {
@@ -86,20 +78,19 @@ public final class ComponentTranslationStore {
         writeProtected = false;
         saveScheduled.set(false);
         if (!Files.exists(path)) {
-            Translate_AllinOne.LOGGER.info("Component V2 cache file not found; starting empty.");
+            Translate_AllinOne.LOGGER.info("Component {} cache file not found; starting empty.", module.wireName());
             return;
         }
 
         try {
             if (Files.size(path) > MAX_FILE_BYTES) {
-                throw new IOException("Component V2 cache file exceeds the size limit.");
+                throw new IOException("Component cache file exceeds the size limit.");
             }
             LoadedFile loaded = readFile();
             entries.putAll(loaded.entries());
             entityTemplates.putAll(loaded.entityTemplates());
-            dirty = loaded.requiresMigration();
             ComponentTranslationDebugLogger.flowForNamespace(
-                    "v2",
+                    module.wireName(),
                     "cache_load schema={} entries={} entityTemplates={} path={}",
                     loaded.schemaVersion(),
                     entries.size(),
@@ -110,7 +101,8 @@ public final class ComponentTranslationStore {
             entries.clear();
             writeProtected = true;
             Translate_AllinOne.LOGGER.error(
-                    "Failed to load Component V2 cache. The original file will be preserved and not overwritten this session: {}",
+                    "Failed to load Component {} cache. The original file will be preserved and not overwritten this session: {}",
+                    module.wireName(),
                     path,
                     error
             );
@@ -118,7 +110,7 @@ public final class ComponentTranslationStore {
     }
 
     public synchronized Lookup lookup(ComponentTranslationPreparedRequest request) {
-        if (request == null) {
+        if (request == null || !module.owns(request.document().route())) {
             return new Lookup(Status.MISS, "", null);
         }
         String key = request.identity().key();
@@ -126,7 +118,7 @@ public final class ComponentTranslationStore {
         if (entry == null) {
             return new Lookup(Status.MISS, key, null);
         }
-        if (!request.identity().binding().equals(entry.binding())) {
+        if (entry.route() != request.document().route() || !request.identity().binding().equals(entry.binding())) {
             removeInternal(key);
             return new Lookup(Status.INVALID, key, null);
         }
@@ -140,7 +132,7 @@ public final class ComponentTranslationStore {
             removeInternal(key);
             ComponentTranslationDebugLogger.error(
                     request.document().route(),
-                    "V2 cache entry rejected: route={} key={} reason={}",
+                    "Component cache entry rejected: route={} key={} reason={}",
                     request.document().route().wireName(),
                     key,
                     error.getMessage(),
@@ -151,7 +143,9 @@ public final class ComponentTranslationStore {
     }
 
     public synchronized Lookup lookupEntityTemplate(ComponentTranslationPreparedRequest request) {
-        if (request == null || request.document().route() != ComponentTranslationRoute.ENTITY_NAME) {
+        if (request == null
+                || module != ComponentCacheModule.ENTITY
+                || request.document().route() != ComponentTranslationRoute.ENTITY_NAME) {
             return new Lookup(Status.MISS, "", null);
         }
         ComponentTranslationTemplateIdentity identity = ComponentTranslationTemplateIdentity.createEntityName(
@@ -163,7 +157,7 @@ public final class ComponentTranslationStore {
         if (entry == null) {
             return new Lookup(Status.MISS, key, null);
         }
-        if (!identity.binding().equals(entry.binding())) {
+        if (entry.route() != ComponentTranslationRoute.ENTITY_NAME || !identity.binding().equals(entry.binding())) {
             removeEntityTemplateInternal(key);
             return new Lookup(Status.INVALID, key, null);
         }
@@ -190,18 +184,18 @@ public final class ComponentTranslationStore {
             ComponentTranslationPreparedRequest request,
             ComponentTranslationResponse response
     ) {
-        if (request == null || response == null || writeProtected) {
+        if (request == null || response == null || writeProtected || !module.owns(request.document().route())) {
             return false;
         }
         ComponentTranslationResponse validated = validator.validate(request.document(), response);
-        Entry entry = new Entry(request.identity().binding(), validated.translations());
+        Entry entry = new Entry(request.document().route(), request.identity().binding(), validated.translations());
         boolean changed = !entry.equals(entries.put(request.identity().key(), entry));
-        if (request.document().route() == ComponentTranslationRoute.ENTITY_NAME) {
+        if (module == ComponentCacheModule.ENTITY && request.document().route() == ComponentTranslationRoute.ENTITY_NAME) {
             ComponentTranslationTemplateIdentity templateIdentity = ComponentTranslationTemplateIdentity.createEntityName(
                     request.document(),
                     request.targetLanguage()
             );
-            Entry templateEntry = new Entry(templateIdentity.binding(), validated.translations());
+            Entry templateEntry = new Entry(ComponentTranslationRoute.ENTITY_NAME, templateIdentity.binding(), validated.translations());
             changed |= !templateEntry.equals(entityTemplates.put(templateIdentity.key(), templateEntry));
         }
         if (changed) {
@@ -212,11 +206,12 @@ public final class ComponentTranslationStore {
     }
 
     public synchronized boolean remove(ComponentTranslationPreparedRequest request) {
-        return request != null && removeInternal(request.identity().key());
+        return request != null && module.owns(request.document().route()) && removeInternal(request.identity().key());
     }
 
     public synchronized boolean removeEntityTemplate(ComponentTranslationPreparedRequest request) {
         if (request == null
+                || module != ComponentCacheModule.ENTITY
                 || request.document().route() != ComponentTranslationRoute.ENTITY_NAME) {
             return false;
         }
@@ -237,18 +232,21 @@ public final class ComponentTranslationStore {
             Path tempPath = path.resolveSibling(path.getFileName() + ".tmp");
             JsonObject root = new JsonObject();
             root.addProperty("schema_version", SCHEMA_VERSION);
+            root.addProperty("cache_module", module.wireName());
             root.add("entries", serializeEntries(entries));
-            root.add("entity_templates", serializeEntries(entityTemplates));
+            if (module == ComponentCacheModule.ENTITY) {
+                root.add("entity_templates", serializeEntries(entityTemplates));
+            }
             try (var writer = Files.newBufferedWriter(tempPath, StandardCharsets.UTF_8)) {
                 GSON.toJson(root, writer);
             }
             CacheFileSaveSupport.replaceWithRetry(tempPath, path);
             dirty = false;
             if (passiveBackupEnabled) {
-                CacheBackupManager.maybeBackup(path, "component v2");
+                CacheBackupManager.maybeBackup(path, "component " + module.wireName());
             }
             ComponentTranslationDebugLogger.flowForNamespace(
-                    "v2",
+                    module.wireName(),
                     "cache_save schema={} entries={} entityTemplates={} path={}",
                     SCHEMA_VERSION,
                     entries.size(),
@@ -256,7 +254,14 @@ public final class ComponentTranslationStore {
                     path
             );
         } catch (IOException error) {
-            Translate_AllinOne.LOGGER.error("Failed to save Component V2 cache: {}", path, error);
+            Translate_AllinOne.LOGGER.error("Failed to save Component {} cache: {}", module.wireName(), path, error);
+        }
+    }
+
+    synchronized void ensureInitialized() {
+        if (!writeProtected && !Files.exists(path)) {
+            dirty = true;
+            save();
         }
     }
 
@@ -272,11 +277,17 @@ public final class ComponentTranslationStore {
         return writeProtected;
     }
 
+    public synchronized CacheStats getCacheStats() {
+        int total = entries.size() + entityTemplates.size();
+        return new CacheStats(total, total);
+    }
+
     private LoadedFile readFile() throws IOException {
         try (JsonReader reader = new JsonReader(Files.newBufferedReader(path, StandardCharsets.UTF_8))) {
             reader.setStrictness(Strictness.STRICT);
-            requireToken(reader, JsonToken.BEGIN_OBJECT, "Component V2 cache root");
+            requireToken(reader, JsonToken.BEGIN_OBJECT, "Component cache root");
             Integer schemaVersion = null;
+            String cacheModule = null;
             Map<String, Entry> loadedEntries = null;
             Map<String, Entry> loadedEntityTemplates = null;
             Set<String> fields = new HashSet<>();
@@ -284,37 +295,36 @@ public final class ComponentTranslationStore {
             while (reader.hasNext()) {
                 String field = reader.nextName();
                 if (!fields.add(field)) {
-                    throw new IOException("Duplicate Component V2 cache field: " + field);
+                    throw new IOException("Duplicate Component cache field: " + field);
                 }
                 switch (field) {
                     case "schema_version" -> schemaVersion = readInt(reader, field);
-                    case "entries" -> loadedEntries = readEntries(reader);
-                    case "entity_templates" -> loadedEntityTemplates = readEntries(reader);
-                    default -> throw new IOException("Unknown Component V2 cache field: " + field);
+                    case "cache_module" -> cacheModule = readString(reader, field);
+                    case "entries" -> loadedEntries = readEntries(reader, false);
+                    case "entity_templates" -> loadedEntityTemplates = readEntries(reader, true);
+                    default -> throw new IOException("Unknown Component cache field: " + field);
                 }
             }
             reader.endObject();
             if (reader.peek() != JsonToken.END_DOCUMENT) {
-                throw new IOException("Trailing content after Component V2 cache document.");
+                throw new IOException("Trailing content after Component cache document.");
             }
-            if (schemaVersion == null
-                    || (schemaVersion != LEGACY_SCHEMA_VERSION && schemaVersion != SCHEMA_VERSION)) {
-                throw new IOException("Unsupported Component V2 cache schema version: " + schemaVersion);
+            if (schemaVersion == null || schemaVersion != SCHEMA_VERSION) {
+                throw new IOException("Unsupported Component cache schema version: " + schemaVersion);
+            }
+            if (!module.wireName().equals(cacheModule)) {
+                throw new IOException("Component cache module does not match file ownership.");
             }
             if (loadedEntries == null) {
-                throw new IOException("Component V2 cache entries field is missing.");
+                throw new IOException("Component cache entries field is missing.");
             }
-            if (schemaVersion == SCHEMA_VERSION && loadedEntityTemplates == null) {
-                throw new IOException("Component V2 cache entity_templates field is missing.");
-            }
-            if (schemaVersion == LEGACY_SCHEMA_VERSION && loadedEntityTemplates != null) {
-                throw new IOException("Component V2 cache schema 2 cannot contain entity_templates.");
+            if (module != ComponentCacheModule.ENTITY && loadedEntityTemplates != null) {
+                throw new IOException("Only the entity Component cache can contain entity_templates.");
             }
             return new LoadedFile(
                     schemaVersion,
                     loadedEntries,
-                    loadedEntityTemplates == null ? Map.of() : loadedEntityTemplates,
-                    schemaVersion == LEGACY_SCHEMA_VERSION
+                    loadedEntityTemplates == null ? Map.of() : loadedEntityTemplates
             );
         }
     }
@@ -323,6 +333,7 @@ public final class ComponentTranslationStore {
         JsonObject serializedEntries = new JsonObject();
         for (Map.Entry<String, Entry> entry : new TreeMap<>(values).entrySet()) {
             JsonObject serialized = new JsonObject();
+            serialized.addProperty("route", entry.getValue().route().wireName());
             serialized.addProperty("binding", entry.getValue().binding());
             JsonObject translations = new JsonObject();
             for (Map.Entry<String, String> translation : entry.getValue().translations().entrySet()) {
@@ -334,29 +345,30 @@ public final class ComponentTranslationStore {
         return serializedEntries;
     }
 
-    private Map<String, Entry> readEntries(JsonReader reader) throws IOException {
-        requireToken(reader, JsonToken.BEGIN_OBJECT, "Component V2 cache entries");
+    private Map<String, Entry> readEntries(JsonReader reader, boolean entityTemplateEntries) throws IOException {
+        requireToken(reader, JsonToken.BEGIN_OBJECT, "Component cache entries");
         Map<String, Entry> loaded = new LinkedHashMap<>();
         reader.beginObject();
         while (reader.hasNext()) {
             String key = reader.nextName();
             if (!isSha256(key)) {
-                throw new IOException("Invalid Component V2 cache key: " + key);
+                throw new IOException("Invalid Component cache key: " + key);
             }
             if (loaded.containsKey(key)) {
-                throw new IOException("Duplicate Component V2 cache key: " + key);
+                throw new IOException("Duplicate Component cache key: " + key);
             }
             if (loaded.size() >= MAX_ENTRIES) {
-                throw new IOException("Component V2 cache exceeds the entry limit.");
+                throw new IOException("Component cache exceeds the entry limit.");
             }
-            loaded.put(key, readEntry(reader));
+            loaded.put(key, readEntry(reader, entityTemplateEntries));
         }
         reader.endObject();
         return loaded;
     }
 
-    private Entry readEntry(JsonReader reader) throws IOException {
-        requireToken(reader, JsonToken.BEGIN_OBJECT, "Component V2 cache entry");
+    private Entry readEntry(JsonReader reader, boolean entityTemplateEntry) throws IOException {
+        requireToken(reader, JsonToken.BEGIN_OBJECT, "Component cache entry");
+        ComponentTranslationRoute route = null;
         String binding = null;
         Map<String, String> translations = null;
         Set<String> fields = new HashSet<>();
@@ -364,39 +376,46 @@ public final class ComponentTranslationStore {
         while (reader.hasNext()) {
             String field = reader.nextName();
             if (!fields.add(field)) {
-                throw new IOException("Duplicate Component V2 cache entry field: " + field);
+                throw new IOException("Duplicate Component cache entry field: " + field);
             }
             switch (field) {
+                case "route" -> route = readRoute(reader, field);
                 case "binding" -> binding = readSha256(reader, field);
                 case "translations" -> translations = readTranslations(reader);
-                default -> throw new IOException("Unknown Component V2 cache entry field: " + field);
+                default -> throw new IOException("Unknown Component cache entry field: " + field);
             }
         }
         reader.endObject();
-        if (binding == null || translations == null) {
-            throw new IOException("Component V2 cache entry is missing required fields.");
+        if (route == null || binding == null || translations == null) {
+            throw new IOException("Component cache entry is missing required fields.");
         }
-        return new Entry(binding, translations);
+        if (!module.owns(route)) {
+            throw new IOException("Component cache entry route is not owned by this module.");
+        }
+        if (entityTemplateEntry && route != ComponentTranslationRoute.ENTITY_NAME) {
+            throw new IOException("Component entity template must use the entity_name route.");
+        }
+        return new Entry(route, binding, translations);
     }
 
     private Map<String, String> readTranslations(JsonReader reader) throws IOException {
-        requireToken(reader, JsonToken.BEGIN_OBJECT, "Component V2 cached translations");
+        requireToken(reader, JsonToken.BEGIN_OBJECT, "Component cached translations");
         Map<String, String> translations = new LinkedHashMap<>();
         reader.beginObject();
         while (reader.hasNext()) {
             String id = reader.nextName();
             if (id.isBlank() || id.length() > MAX_ID_CHARS || !isValidUtf16(id)) {
-                throw new IOException("Invalid Component V2 cached translation id.");
+                throw new IOException("Invalid Component cached translation id.");
             }
             if (translations.containsKey(id)) {
-                throw new IOException("Duplicate Component V2 cached translation id: " + id);
+                throw new IOException("Duplicate Component cached translation id: " + id);
             }
             if (translations.size() >= MAX_TRANSLATIONS_PER_ENTRY) {
-                throw new IOException("Component V2 cache entry exceeds the translation limit.");
+                throw new IOException("Component cache entry exceeds the translation limit.");
             }
             String translation = readString(reader, "translations." + id);
             if (translation.length() > MAX_TRANSLATION_CHARS || !isValidUtf16(translation)) {
-                throw new IOException("Invalid Component V2 cached translation: " + id);
+                throw new IOException("Invalid Component cached translation: " + id);
             }
             translations.put(id, translation);
         }
@@ -447,6 +466,15 @@ public final class ComponentTranslationStore {
         return value;
     }
 
+    private static ComponentTranslationRoute readRoute(JsonReader reader, String field) throws IOException {
+        String wireName = readString(reader, field);
+        try {
+            return ComponentTranslationRoute.fromWireName(wireName);
+        } catch (IllegalArgumentException error) {
+            throw new IOException(field + " is not a known Component route.", error);
+        }
+    }
+
     private static int readInt(JsonReader reader, String field) throws IOException {
         requireToken(reader, JsonToken.NUMBER, field);
         try {
@@ -493,10 +521,10 @@ public final class ComponentTranslationStore {
         INVALID
     }
 
-    private record Entry(String binding, Map<String, String> translations) {
+    private record Entry(ComponentTranslationRoute route, String binding, Map<String, String> translations) {
         private Entry {
-            if (!isSha256(binding) || translations == null || translations.size() > MAX_TRANSLATIONS_PER_ENTRY) {
-                throw new IllegalArgumentException("Component V2 cache entry is invalid.");
+            if (route == null || !isSha256(binding) || translations == null || translations.size() > MAX_TRANSLATIONS_PER_ENTRY) {
+                throw new IllegalArgumentException("Component cache entry is invalid.");
             }
             translations = Collections.unmodifiableMap(new LinkedHashMap<>(translations));
         }
@@ -505,12 +533,7 @@ public final class ComponentTranslationStore {
     private record LoadedFile(
             int schemaVersion,
             Map<String, Entry> entries,
-            Map<String, Entry> entityTemplates,
-            boolean requiresMigration
+            Map<String, Entry> entityTemplates
     ) {
-    }
-
-    private static final class Holder {
-        private static final ComponentTranslationStore INSTANCE = new ComponentTranslationStore();
     }
 }
