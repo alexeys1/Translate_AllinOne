@@ -1,19 +1,15 @@
 package com.cedarxuesong.translate_allinone.mixin.mixinInGameGui;
 
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
-import com.cedarxuesong.translate_allinone.utils.AnimationManager;
-import com.cedarxuesong.translate_allinone.utils.cache.LookupResult;
-import com.cedarxuesong.translate_allinone.utils.cache.ScoreboardTextCache;
-import com.cedarxuesong.translate_allinone.utils.cache.TranslationStatus;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ScoreboardConfig;
-import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
+import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardComponentTranslationSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardEntryTemplate;
-import com.cedarxuesong.translate_allinone.utils.translate.TranslationErrorTextSupport;
+import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardTranslationInputSupport;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.Locale;
+import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import net.minecraft.client.gui.DrawContext;
@@ -41,83 +37,55 @@ public class InGameHudMixin {
     private static final Logger LOGGER = LoggerFactory.getLogger("Translate_AllinOne/InGameHudMixin");
 
     @Unique
-    private static final String MISSING_KEY_HINT = "missing key";
+    private static final ThreadLocal<Map<AbstractTeam, Map<String, Text>>> translate_allinone$scoreboardReplacements = new ThreadLocal<>();
 
     @Unique
-    private static final String KEY_MISMATCH_HINT = "key mismatch";
-
-    @Unique
-    private static final String SCOREBOARD_TRANSLATION_ERROR_KEY = "text.translate_allinone.scoreboard.translation_error";
-
-    @Unique
-    private static final ThreadLocal<Map<String, Text>> translate_allinone$scoreboardReplacements = new ThreadLocal<>();
-
-    @Unique
-    private static final Set<String> translate_allinone$refreshedScoreboardKeysThisHold = new HashSet<>();
-
-    @Unique
-    private Text translate_allinone$processEntryForTranslation(
-            Text prefix,
+    private Text translate_allinone$processEntryForComponent(
+            ScoreboardObjective objective,
+            Team team,
             String playerName,
-            boolean includePlayerName,
-            Text suffix
+            ScoreboardConfig config
     ) {
-        ScoreboardEntryTemplate.Prepared prepared = ScoreboardEntryTemplate.prepare(
-                prefix,
-                playerName,
-                includePlayerName,
-                suffix
-        );
-        if (prepared == null) {
-            MutableText original = Text.empty().append(prefix == null ? Text.empty() : prefix);
-            if (includePlayerName) {
-                original.append(Text.literal(playerName));
-            }
-            return original.append(suffix == null ? Text.empty() : suffix);
+        Text owner = Text.literal(playerName).formatted(team.getColor());
+        try {
+            ScoreboardEntryTemplate.Prepared prepared = ScoreboardComponentTranslationSupport.prepare(
+                    objective,
+                    team.getPrefix(),
+                    owner,
+                    config.enabled_translate_player_name,
+                    translate_allinone$isProtectedPlayerName(playerName),
+                    team.getSuffix()
+            );
+            return ScoreboardComponentTranslationSupport.resolve(prepared, config);
+        } catch (RuntimeException error) {
+            LOGGER.warn(
+                    "Failed to prepare scoreboard Text entry; preserving original entry. ownerLength={}",
+                    playerName == null ? 0 : playerName.length(),
+                    error
+            );
+            return Text.empty()
+                    .append(team.getPrefix())
+                    .append(owner)
+                    .append(team.getSuffix());
         }
-
-        ScoreboardTextCache cache = ScoreboardTextCache.getInstance();
-        LookupResult lookupResult = cache.lookupOrQueue(prepared.translationTemplateKey());
-        TranslationStatus status = lookupResult.status();
-        String translatedTemplate = lookupResult.translation();
-
-        if (status == TranslationStatus.TRANSLATED) {
-            return prepared.renderTranslated(translatedTemplate);
-        }
-
-        Text originalTextObject = prepared.renderOriginal();
-
-        if (status == TranslationStatus.ERROR) {
-            String errorMessage = lookupResult.errorMessage();
-            if (translate_allinone$isMissingKeyIssue(errorMessage)) {
-                return AnimationManager.getAnimatedStyledText(originalTextObject, prepared.translationTemplateKey(), true);
-            }
-            MutableText errorText = Text.translatable(
-                    SCOREBOARD_TRANSLATION_ERROR_KEY,
-                    TranslationErrorTextSupport.localizeReason(errorMessage)
-            ).formatted(Formatting.RED);
-            return errorText;
-        }
-
-        return AnimationManager.getAnimatedStyledText(originalTextObject, prepared.translationTemplateKey(), false);
     }
 
     @Unique
-    private static Set<String> translate_allinone$collectScoreboardTranslationKeys(
+    private static List<ScoreboardEntryTemplate.Prepared> translate_allinone$collectScoreboardPreparedEntries(
             ScoreboardObjective objective,
             ScoreboardConfig config
     ) {
         if (objective == null || config == null || !config.enabled_translate_prefix_and_suffix_name) {
-            return Set.of();
+            return List.of();
         }
 
         Scoreboard scoreboard = objective.getScoreboard();
         if (scoreboard == null) {
-            return Set.of();
+            return List.of();
         }
 
         Comparator<ScoreboardEntry> comparator = InGameHudAccessor.getScoreboardEntryComparator();
-        Set<String> keys = new LinkedHashSet<>();
+        List<ScoreboardEntryTemplate.Prepared> entries = new ArrayList<>();
         scoreboard.getScoreboardEntries(objective).stream()
                 .filter(score -> !score.hidden())
                 .sorted(comparator)
@@ -128,17 +96,20 @@ public class InGameHudMixin {
                         return;
                     }
 
-                    ScoreboardEntryTemplate.Prepared prepared = ScoreboardEntryTemplate.prepare(
+                    Text owner = Text.literal(scoreboardEntry.owner()).formatted(team.getColor());
+                    ScoreboardEntryTemplate.Prepared prepared = ScoreboardComponentTranslationSupport.prepare(
+                            objective,
                             team.getPrefix(),
-                            scoreboardEntry.owner(),
+                            owner,
                             config.enabled_translate_player_name,
+                            translate_allinone$isProtectedPlayerName(scoreboardEntry.owner()),
                             team.getSuffix()
                     );
-                    if (prepared != null && !prepared.translationTemplateKey().isBlank()) {
-                        keys.add(prepared.translationTemplateKey());
+                    if (prepared != null) {
+                        entries.add(prepared);
                     }
                 });
-        return keys;
+        return List.copyOf(entries);
     }
 
     @Unique
@@ -146,48 +117,65 @@ public class InGameHudMixin {
             ScoreboardObjective objective,
             ScoreboardConfig config
     ) {
-        boolean isRefreshPressed = config != null
-                && config.keybinding != null
-                && KeybindingManager.isPressed(config.keybinding.refreshBinding);
-
-        synchronized (translate_allinone$refreshedScoreboardKeysThisHold) {
-            if (!isRefreshPressed) {
-                translate_allinone$refreshedScoreboardKeysThisHold.clear();
-                return;
-            }
-        }
-
-        Set<String> currentKeys = translate_allinone$collectScoreboardTranslationKeys(objective, config);
-        if (currentKeys.isEmpty()) {
+        if (!ScoreboardTranslationInputSupport.isRefreshPressed(config)) {
             return;
         }
 
-        Set<String> keysToRefresh = new LinkedHashSet<>();
-        synchronized (translate_allinone$refreshedScoreboardKeysThisHold) {
-            for (String key : currentKeys) {
-                if (translate_allinone$refreshedScoreboardKeysThisHold.add(key)) {
-                    keysToRefresh.add(key);
-                }
-            }
+        List<ScoreboardEntryTemplate.Prepared> currentEntries;
+        try {
+            currentEntries = translate_allinone$collectScoreboardPreparedEntries(objective, config);
+        } catch (RuntimeException error) {
+            LOGGER.warn("Failed to prepare current scoreboard entries for refresh.", error);
+            return;
         }
-
-        if (keysToRefresh.isEmpty()) {
+        if (currentEntries.isEmpty()) {
             return;
         }
 
-        int refreshedCount = ScoreboardTextCache.getInstance().forceRefresh(keysToRefresh);
+        List<ScoreboardEntryTemplate.Prepared> entriesToRefresh = new ArrayList<>();
+        for (ScoreboardEntryTemplate.Prepared prepared : currentEntries) {
+            Set<String> identities = ScoreboardComponentTranslationSupport.refreshIdentities(
+                    prepared,
+                    config.target_language
+            );
+            boolean unseen = false;
+            for (String identity : identities) {
+                unseen |= ScoreboardTranslationInputSupport.claimRefreshIdentity(identity);
+            }
+            if (unseen) {
+                entriesToRefresh.add(prepared);
+            }
+        }
+
+        if (entriesToRefresh.isEmpty()) {
+            return;
+        }
+
+        int refreshedCount = ScoreboardComponentTranslationSupport.forceRefresh(
+                entriesToRefresh,
+                config.target_language
+        );
         if (refreshedCount > 0) {
             LOGGER.info("Force-refreshed {} current scoreboard translation key(s).", refreshedCount);
         }
     }
 
     @Unique
-    private static boolean translate_allinone$isMissingKeyIssue(String errorMessage) {
-        if (errorMessage == null || errorMessage.isEmpty()) {
+    private static boolean translate_allinone$isProtectedPlayerName(String owner) {
+        if (owner == null || owner.isEmpty() || owner.length() > 16) {
             return false;
         }
-        String lower = errorMessage.toLowerCase(Locale.ROOT);
-        return lower.contains(MISSING_KEY_HINT) || lower.contains(KEY_MISMATCH_HINT);
+        for (int index = 0; index < owner.length(); index++) {
+            char character = owner.charAt(index);
+            boolean allowed = character == '_'
+                    || (character >= 'a' && character <= 'z')
+                    || (character >= 'A' && character <= 'Z')
+                    || (character >= '0' && character <= '9');
+            if (!allowed) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Inject(
@@ -200,39 +188,21 @@ public class InGameHudMixin {
             ScoreboardConfig config = Translate_AllinOne.getConfig().scoreboardTranslate;
             if (config == null || !config.enabled) {
                 translate_allinone$scoreboardReplacements.set(null);
-                synchronized (translate_allinone$refreshedScoreboardKeysThisHold) {
-                    translate_allinone$refreshedScoreboardKeysThisHold.clear();
-                }
+                ScoreboardComponentTranslationSupport.reset();
+                ScoreboardTranslationInputSupport.reset();
                 return;
             }
 
+            ScoreboardComponentTranslationSupport.beginObjective(objective);
             translate_allinone$maybeForceRefreshCurrentScoreboard(objective, config);
-
-            boolean isKeyPressed = config.keybinding != null && KeybindingManager.isPressed(config.keybinding.binding);
-            boolean shouldShowOriginal = false;
-            ScoreboardConfig.KeybindingMode keybindingMode = config.keybinding == null || config.keybinding.mode == null
-                    ? ScoreboardConfig.KeybindingMode.DISABLED
-                    : config.keybinding.mode;
-
-            switch (keybindingMode) {
-                case HOLD_TO_TRANSLATE:
-                    if (!isKeyPressed) shouldShowOriginal = true;
-                    break;
-                case HOLD_TO_SEE_ORIGINAL:
-                    if (isKeyPressed) shouldShowOriginal = true;
-                    break;
-                case DISABLED:
-                    break;
-            }
-
-            if (shouldShowOriginal) {
+            if (ScoreboardTranslationInputSupport.shouldShowOriginal(config)) {
                 translate_allinone$scoreboardReplacements.set(null);
                 return;
             }
 
             Scoreboard scoreboard = objective.getScoreboard();
             Comparator<ScoreboardEntry> comparator = InGameHudAccessor.getScoreboardEntryComparator();
-            Map<String, Text> replacements = new HashMap<>();
+            Map<AbstractTeam, Map<String, Text>> replacements = new IdentityHashMap<>();
 
             scoreboard.getScoreboardEntries(objective).stream()
                     .filter(score -> !score.hidden())
@@ -241,16 +211,15 @@ public class InGameHudMixin {
                     .forEach(scoreboardEntry -> {
                         Team team = scoreboard.getScoreHolderTeam(scoreboardEntry.owner());
                         Text plainOwnerName = Text.literal(scoreboardEntry.owner());
-                        String originalDecoratedNameKey = Team.decorateName(team, plainOwnerName).getString();
 
                         Text newName;
                         if (team != null) {
                             if (config.enabled_translate_prefix_and_suffix_name) {
-                                newName = translate_allinone$processEntryForTranslation(
-                                        team.getPrefix(),
+                                newName = translate_allinone$processEntryForComponent(
+                                        objective,
+                                        team,
                                         scoreboardEntry.owner(),
-                                        config.enabled_translate_player_name,
-                                        team.getSuffix()
+                                        config
                                 );
                             } else {
                                 MutableText originalName = Text.empty().append(team.getPrefix());
@@ -262,7 +231,9 @@ public class InGameHudMixin {
                         } else {
                             newName = config.enabled_translate_player_name ? plainOwnerName : Text.empty();
                         }
-                        replacements.put(originalDecoratedNameKey, newName);
+                        replacements
+                                .computeIfAbsent(team, ignored -> new HashMap<>())
+                                .put(scoreboardEntry.owner(), newName);
                     });
 
             translate_allinone$scoreboardReplacements.set(replacements);
@@ -282,12 +253,13 @@ public class InGameHudMixin {
     )
     private MutableText redirectDecoratedSidebarName(AbstractTeam team, Text name) {
         MutableText decoratedName = Team.decorateName(team, name);
-        Map<String, Text> replacements = translate_allinone$scoreboardReplacements.get();
+        Map<AbstractTeam, Map<String, Text>> replacements = translate_allinone$scoreboardReplacements.get();
         if (replacements == null) {
             return decoratedName;
         }
 
-        Text replacement = replacements.get(decoratedName.getString());
+        Map<String, Text> teamReplacements = replacements.get(team);
+        Text replacement = teamReplacements == null ? null : teamReplacements.get(name.getString());
         return replacement == null ? decoratedName : replacement.copy();
     }
 

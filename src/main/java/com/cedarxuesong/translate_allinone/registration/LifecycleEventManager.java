@@ -9,6 +9,7 @@ import com.cedarxuesong.translate_allinone.utils.cache.ItemTemplateCache;
 import com.cedarxuesong.translate_allinone.utils.cache.WynntilsTaskTrackerTextCache;
 import com.cedarxuesong.translate_allinone.utils.translate.ItemTranslateManager;
 import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardTranslateManager;
+import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardTranslationInputSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTextDebugCopySupport;
 import com.cedarxuesong.translate_allinone.utils.translate.WynnDialogueTranslateManager;
 import com.cedarxuesong.translate_allinone.utils.translate.WynnDialogueTranslationSupport;
@@ -74,6 +75,11 @@ public class LifecycleEventManager {
                 UpdateCheckManager.tryNotifyInChat(client);
                 WynnDialogueTranslationSupport.tick();
             }
+            ScoreboardTranslationInputSupport.tick(
+                    Translate_AllinOne.getConfig() == null
+                            ? null
+                            : Translate_AllinOne.getConfig().scoreboardTranslate
+            );
             TooltipTextDebugCopySupport.tick(client);
         });
     }
