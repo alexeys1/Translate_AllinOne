@@ -6,9 +6,11 @@ import com.google.gson.GsonBuilder;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -22,6 +24,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 public final class WynntilsTaskTrackerTextCache {
+    private static final String CACHE_DIRECTORY_NAME = "translate_cache";
     private static final String CACHE_LABEL = "wynncraft_quest_translate_cache.json";
 
 
@@ -76,12 +79,13 @@ public final class WynntilsTaskTrackerTextCache {
         runtimeState.resetForLoad();
         persistence.resetForLoad();
 
-        if (!Files.exists(cacheFilePath)) {
+        Path loadPath = resolveLoadPath();
+        if (!Files.isRegularFile(loadPath)) {
             Translate_AllinOne.LOGGER.info("{} file not found, a new one will be created upon saving.", CACHE_LABEL);
             return;
         }
 
-        try (var reader = Files.newBufferedReader(cacheFilePath, StandardCharsets.UTF_8)) {
+        try (var reader = Files.newBufferedReader(loadPath, StandardCharsets.UTF_8)) {
             @SuppressWarnings("unchecked")
             Map<String, String> loaded = GSON.fromJson(reader, ConcurrentHashMap.class);
             if (loaded != null) {
@@ -91,6 +95,7 @@ public final class WynntilsTaskTrackerTextCache {
                     }
                 });
             }
+            migrateLegacyCache(loadPath);
             Translate_AllinOne.LOGGER.info(
                     "Successfully loaded {} {} entries.",
                     runtimeState.templateCache().size(),
@@ -231,7 +236,50 @@ public final class WynntilsTaskTrackerTextCache {
         return FabricLoader.getInstance()
                 .getConfigDir()
                 .resolve(Translate_AllinOne.MOD_ID)
+                .resolve(CACHE_DIRECTORY_NAME)
                 .resolve(CACHE_FILE_NAME);
+    }
+
+    private Path resolveLoadPath() {
+        if (Files.isRegularFile(cacheFilePath)) {
+            return cacheFilePath;
+        }
+
+        Path cacheDirectory = cacheFilePath.getParent();
+        if (cacheDirectory == null || cacheDirectory.getFileName() == null
+                || !CACHE_DIRECTORY_NAME.equals(cacheDirectory.getFileName().toString())) {
+            return cacheFilePath;
+        }
+
+        Path configDirectory = cacheDirectory.getParent();
+        if (configDirectory == null) {
+            return cacheFilePath;
+        }
+        Path legacyPath = configDirectory.resolve(CACHE_FILE_NAME);
+        return Files.isRegularFile(legacyPath) ? legacyPath : cacheFilePath;
+    }
+
+    private void migrateLegacyCache(Path loadPath) {
+        if (cacheFilePath.equals(loadPath)) {
+            return;
+        }
+
+        try {
+            Files.createDirectories(cacheFilePath.getParent());
+            try {
+                Files.move(loadPath, cacheFilePath, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException ignored) {
+                Files.move(loadPath, cacheFilePath);
+            }
+            Translate_AllinOne.LOGGER.info("Migrated legacy Wynn quest cache from {} to {}.", loadPath, cacheFilePath);
+        } catch (IOException e) {
+            Translate_AllinOne.LOGGER.warn(
+                    "Loaded legacy Wynn quest cache from {} but could not migrate it to {}.",
+                    loadPath,
+                    cacheFilePath,
+                    e
+            );
+        }
     }
 
     private static final class Holder {

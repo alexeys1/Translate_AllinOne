@@ -6,9 +6,11 @@ import com.google.gson.GsonBuilder;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +23,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 public final class WynnDialogueTextCache {
+    private static final String CACHE_DIRECTORY_NAME = "translate_cache";
     private static final String CACHE_LABEL = "wynncraft_dialogue_translate_cache.json";
     private static final String LEGACY_CACHE_LABEL = "wynn_dialogue_translate_cache.json";
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
@@ -90,13 +93,7 @@ public final class WynnDialogueTextCache {
                     }
                 });
             }
-            if (!cacheFilePath.equals(loadPath)) {
-                Translate_AllinOne.LOGGER.info(
-                        "Loaded legacy Wynn dialogue cache from {}. Future saves will use {}.",
-                        loadPath.getFileName(),
-                        cacheFilePath.getFileName()
-                );
-            }
+            migrateLegacyCache(loadPath);
             Translate_AllinOne.LOGGER.info(
                     "Successfully loaded {} {} entries.",
                     runtimeState.templateCache().size(),
@@ -241,19 +238,59 @@ public final class WynnDialogueTextCache {
         return FabricLoader.getInstance()
                 .getConfigDir()
                 .resolve(Translate_AllinOne.MOD_ID)
+                .resolve(CACHE_DIRECTORY_NAME)
                 .resolve(CACHE_LABEL);
     }
 
     private Path resolveLoadPath() {
-        if (Files.exists(cacheFilePath)) {
+        if (Files.isRegularFile(cacheFilePath)) {
             return cacheFilePath;
         }
 
-        Path legacyPath = cacheFilePath.resolveSibling(LEGACY_CACHE_LABEL);
-        if (Files.exists(legacyPath)) {
+        Path oldCachePath = resolveLegacyCachePath(CACHE_LABEL);
+        if (oldCachePath != null && Files.isRegularFile(oldCachePath)) {
+            return oldCachePath;
+        }
+
+        Path legacyPath = resolveLegacyCachePath(LEGACY_CACHE_LABEL);
+        if (legacyPath != null && Files.isRegularFile(legacyPath)) {
             return legacyPath;
         }
         return cacheFilePath;
+    }
+
+    private Path resolveLegacyCachePath(String fileName) {
+        Path cacheDirectory = cacheFilePath.getParent();
+        if (cacheDirectory == null || cacheDirectory.getFileName() == null
+                || !CACHE_DIRECTORY_NAME.equals(cacheDirectory.getFileName().toString())) {
+            return null;
+        }
+
+        Path configDirectory = cacheDirectory.getParent();
+        return configDirectory == null ? null : configDirectory.resolve(fileName);
+    }
+
+    private void migrateLegacyCache(Path loadPath) {
+        if (cacheFilePath.equals(loadPath)) {
+            return;
+        }
+
+        try {
+            Files.createDirectories(cacheFilePath.getParent());
+            try {
+                Files.move(loadPath, cacheFilePath, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException ignored) {
+                Files.move(loadPath, cacheFilePath);
+            }
+            Translate_AllinOne.LOGGER.info("Migrated legacy Wynn dialogue cache from {} to {}.", loadPath, cacheFilePath);
+        } catch (IOException e) {
+            Translate_AllinOne.LOGGER.warn(
+                    "Loaded legacy Wynn dialogue cache from {} but could not migrate it to {}.",
+                    loadPath,
+                    cacheFilePath,
+                    e
+            );
+        }
     }
 
     private static final class Holder {
