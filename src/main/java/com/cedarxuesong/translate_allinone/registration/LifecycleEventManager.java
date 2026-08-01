@@ -15,6 +15,7 @@ import com.cedarxuesong.translate_allinone.utils.translate.ComponentRenderTransl
 import com.cedarxuesong.translate_allinone.utils.translate.ContinuousSignTranslationCoordinator;
 import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardTranslationInputSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTextDebugCopySupport;
+import com.cedarxuesong.translate_allinone.utils.translate.TextDisplayTranslationSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.WynnDialogueTranslateManager;
 import com.cedarxuesong.translate_allinone.utils.translate.WynnDialogueTranslationSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.WynntilsTaskTrackerTranslateManager;
@@ -53,6 +54,7 @@ public class LifecycleEventManager {
             ComponentTranslationRuntime.beginSession();
             BookTranslationSupport.resetSession();
             ContinuousSignTranslationCoordinator.reset();
+            TextDisplayTranslationSupport.resetSession();
             awaitingReadinessCheck = true;
             LOGGER.info("Player joining world, awaiting client readiness for translation...");
 
@@ -102,6 +104,7 @@ public class LifecycleEventManager {
             ComponentTranslationRuntime.endSession();
             BookTranslationSupport.resetSession();
             ContinuousSignTranslationCoordinator.reset();
+            TextDisplayTranslationSupport.resetSession();
             LOGGER.info("Player has disconnected. Translation readiness reset.");
             stopTranslationManagers();
             saveCaches();
