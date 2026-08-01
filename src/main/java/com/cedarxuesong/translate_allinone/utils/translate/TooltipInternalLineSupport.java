@@ -58,6 +58,10 @@ public final class TooltipInternalLineSupport {
     }
 
     public static List<Text> appendStatusLineIfNeeded(
+    public static Text createAnimatedPendingStatusLine(String animationKey) {
+        return AnimationManager.getAnimatedStyledText(createTranslatingStatusText(), animationKey, false);
+    }
+
             List<Text> tooltip,
             TooltipTranslationSupport.TooltipProcessingResult processedTooltip,
             String animationKey
