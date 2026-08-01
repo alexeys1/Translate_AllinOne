@@ -4,6 +4,7 @@ import com.cedarxuesong.translate_allinone.utils.config.pojos.ApiProviderProfile
 import com.cedarxuesong.translate_allinone.utils.TranslateExceptionUtils;
 import com.cedarxuesong.translate_allinone.utils.TranslateStringUtils;
 import com.cedarxuesong.translate_allinone.utils.llmapi.LLM;
+import com.cedarxuesong.translate_allinone.utils.llmapi.LLMApiException;
 import com.cedarxuesong.translate_allinone.utils.llmapi.LlmCompletion;
 import com.cedarxuesong.translate_allinone.utils.llmapi.ProviderSettings;
 import com.cedarxuesong.translate_allinone.utils.llmapi.StructuredOutputSpec;
@@ -13,28 +14,33 @@ import net.minecraft.text.Text;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
+import java.util.regex.Pattern;
 
 public final class ComponentTranslationClient {
-    private static final int MAX_RESPONSE_ATTEMPTS = 2;
+    private static final int MAX_RESPONSE_ATTEMPTS = 3;
+    private static final int MAX_PROVIDER_ATTEMPTS = 2;
+    private static final long RETRY_DELAY_MILLIS = 250;
     private static final int MAX_CORRECTION_REASON_CHARS = 480;
-    private static final String PROTOCOL_CONTRACT = "Component translation protocol contract:\n"
-            + "1) Output exactly one JSON object with only protocol and translations fields.\n"
-            + "2) protocol must be taio-component-v1.\n"
-            + "3) translations must contain exactly the requested ids, with string values only.\n"
-            + "4) Do not add, remove, rename, or duplicate ids.\n"
-            + "5) Do not output Component JSON, JSON Pointer operations, Markdown, or explanations.\n"
-            + "6) Read all requested items before translating. If item context contains batch_item, previous_item, or next_item, use those neighboring source texts only to resolve terminology and sentence meaning; never merge items and never return fewer or extra ids.\n"
-            + "7) Keep each item's semantic content together. Do not translate separate requested items as unrelated isolated fragments merely because their source text is short.";
+    private static final Pattern LEGACY_FORMATTING_CODE_PATTERN = Pattern.compile("\\x{00A7}[0-9A-FK-ORa-fk-or]");
+    private static final Pattern LEGACY_FORMATTING_RUN_PATTERN = Pattern.compile("(?:\\x{00A7}[0-9A-FK-ORa-fk-or])+");
+    private static final String PROTOCOL_CONTRACT = "Return exactly one JSON object in this shape: "
+            + "{\"protocol\":\"taio-component-v1\",\"translations\":{\"requested-id\":\"translated text\"}}. "
+            + "translations must be an object, not an array. Return exactly the requested ids, once each, with string values only. "
+            + "No Component JSON, JSON Pointer operations, Markdown, explanations, or extra fields. "
+            + "Read all items before translating; context is only for meaning, never for merging items.";
     private static final String COHERENT_PARAGRAPH_CONTRACT = "\n"
-            + "8) Each tooltip_paragraph item is one complete paragraph assembled from wrapped UI lines.\n"
-            + "9) Translate each paragraph item as one coherent paragraph after reading all of it; never translate it line-by-line, tag-by-tag, or clause-by-clause in isolation.\n"
-            + "10) Natural target-language word order has priority over source line, fragment, and styled-span boundaries. This replaces any earlier generic instruction not to reorder them.\n"
-            + "11) Style tags are semantic style classes. The translation of text inside a source <sN> span must keep that same style id even when target-language word order moves the span. Never assign style ids by output position.\n"
-            + "12) Preserve every non-style placeholder exactly. Use every <sN> style id from this paragraph and never invent a new id. Style spans must be flat, balanced, and must not be nested.\n"
-            + "13) Equivalent source styles may reuse the same id. You may merge or reopen that id around translated semantic spans when natural target-language word order requires it.\n"
-            + "14) A tooltip_paragraph request contains exactly one paragraph item.";
+            + "tooltip_paragraph contains one wrapped paragraph: translate it coherently, not line-by-line or tag-by-tag. "
+            + "Natural target-language order may cross source spans. Preserve every non-style placeholder exactly. "
+            + "<sN> is a semantic style: use every source id, invent none, and keep tags flat and balanced.";
+    private static final String PROTECTED_TOKEN_CONTRACT = "\n"
+            + "Each __TAIO_PROTECTED_TOKEN_N__ identifier represents one complete legacy formatting run and must appear exactly once; never rename, remove, duplicate, or merge it. "
+            + "Use only these identifiers for protected formatting. Never output literal Minecraft formatting codes.";
 
     private final ComponentResponseParser parser;
     private final ComponentTranslationValidator validator;
@@ -98,6 +104,8 @@ public final class ComponentTranslationClient {
         }
 
         ComponentTranslationRequest request = ComponentTranslationRequest.fromDocument(document, targetLanguage);
+        ProtectedTokenMask protectedTokenMask = ProtectedTokenMask.forRequest(document.route(), request);
+        request = protectedTokenMask.mask(request);
         List<OpenAIRequest.Message> messages = buildMessages(document.route(), request, providerProfile);
         ProviderSettings settings = ProviderSettings.fromProviderProfile(providerProfile).withStructuredOutputEnabled();
         LLM llm = new LLM(settings);
@@ -120,6 +128,7 @@ public final class ComponentTranslationClient {
                 llm,
                 responseSchema,
                 requestContext,
+                protectedTokenMask,
                 1
         ).thenApply(response -> {
             long elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000L;
@@ -152,29 +161,22 @@ public final class ComponentTranslationClient {
             LLM llm,
             StructuredOutputSpec responseSchema,
             String requestContext,
+            ProtectedTokenMask protectedTokenMask,
             int attempt
     ) {
-        return llm.getCompletion(
+        return requestCompletion(
+                document,
                 messages,
+                llm,
                 requestContext,
-                (structuredOutput, fallback) -> {
-                    if (structuredOutput) {
-                        ComponentTranslationMetrics.record(
-                                document,
-                                ComponentTranslationMetrics.Outcome.PROVIDER_STRUCTURED_OUTPUT
-                        );
-                    }
-                    if (fallback) {
-                        ComponentTranslationMetrics.record(
-                                document,
-                                ComponentTranslationMetrics.Outcome.PROVIDER_FALLBACK_OUTPUT
-                        );
-                    }
-                },
-                responseSchema
+                responseSchema,
+                1
         ).thenCompose(completion -> {
-            String rawResponse = completion.content();
+            String providerResponse = completion.content();
+            String rawResponse = providerResponse;
             try {
+                protectedTokenMask.rejectUnexpectedRawFormattingCodes(providerResponse);
+                rawResponse = protectedTokenMask.restore(providerResponse);
                 if (completion.wasTruncated()) {
                     throw new ComponentJsonException(
                             ComponentJsonException.Kind.RESPONSE,
@@ -217,15 +219,68 @@ public final class ComponentTranslationClient {
                     return CompletableFuture.failedFuture(cause);
                 }
 
-                return requestValidResponse(
+                return retryAfterDelay(() -> requestValidResponse(
                         document,
                         buildCorrectionMessages(messages, cause),
                         llm,
                         responseSchema,
                         requestContext,
+                        protectedTokenMask,
                         attempt + 1
-                );
+                ));
             }
+        });
+    }
+
+    private CompletableFuture<LlmCompletion> requestCompletion(
+            ComponentTranslationDocument document,
+            List<OpenAIRequest.Message> messages,
+            LLM llm,
+            String requestContext,
+            StructuredOutputSpec responseSchema,
+            int attempt
+    ) {
+        return llm.getCompletion(
+                messages,
+                requestContext,
+                (structuredOutput, fallback) -> {
+                    if (structuredOutput) {
+                        ComponentTranslationMetrics.record(
+                                document,
+                                ComponentTranslationMetrics.Outcome.PROVIDER_STRUCTURED_OUTPUT
+                        );
+                    }
+                    if (fallback) {
+                        ComponentTranslationMetrics.record(
+                                document,
+                                ComponentTranslationMetrics.Outcome.PROVIDER_FALLBACK_OUTPUT
+                        );
+                    }
+                },
+                responseSchema
+        ).exceptionallyCompose(error -> {
+            Throwable cause = TranslateExceptionUtils.unwrapThrowable(error);
+            if (attempt >= MAX_PROVIDER_ATTEMPTS || !isRetryableProviderFailure(cause)) {
+                return CompletableFuture.failedFuture(cause);
+            }
+
+            ComponentTranslationDebugLogger.error(
+                    document.route(),
+                    "provider request failed route={} attempt={}/{} reason={}, retrying after {}ms",
+                    document.route().wireName(),
+                    attempt,
+                    MAX_PROVIDER_ATTEMPTS,
+                    cause.getMessage(),
+                    RETRY_DELAY_MILLIS
+            );
+            return retryAfterDelay(() -> requestCompletion(
+                    document,
+                    messages,
+                    llm,
+                    requestContext,
+                    responseSchema,
+                    attempt + 1
+            ));
         });
     }
 
@@ -239,6 +294,32 @@ public final class ComponentTranslationClient {
         };
     }
 
+    private static boolean isRetryableProviderFailure(Throwable error) {
+        if (!(error instanceof LLMApiException) || error.getMessage() == null) {
+            return false;
+        }
+
+        String message = error.getMessage().toLowerCase(java.util.Locale.ROOT);
+        return message.contains("408")
+                || message.contains("429")
+                || message.contains("500")
+                || message.contains("502")
+                || message.contains("503")
+                || message.contains("504")
+                || message.contains("connection")
+                || message.contains("rate limit")
+                || message.contains("temporarily")
+                || message.contains("timeout");
+    }
+
+    private static <T> CompletableFuture<T> retryAfterDelay(Supplier<CompletableFuture<T>> operation) {
+        return CompletableFuture.runAsync(
+                        () -> { },
+                        CompletableFuture.delayedExecutor(RETRY_DELAY_MILLIS, TimeUnit.MILLISECONDS)
+                )
+                .thenCompose(ignored -> operation.get());
+    }
+
     static List<OpenAIRequest.Message> buildCorrectionMessages(
             List<OpenAIRequest.Message> previousMessages,
             Throwable validationError
@@ -247,6 +328,7 @@ public final class ComponentTranslationClient {
         String reason = validationError == null || validationError.getMessage() == null
                 ? "the response did not satisfy the required JSON response contract"
                 : TranslateStringUtils.truncate(validationError.getMessage(), MAX_CORRECTION_REASON_CHARS);
+        reason = LEGACY_FORMATTING_CODE_PATTERN.matcher(reason).replaceAll("[formatting-code]");
         messages.add(new OpenAIRequest.Message(
                 "user",
                 "Your previous component translation response was rejected. Reason: " + reason + "\n"
@@ -274,9 +356,13 @@ public final class ComponentTranslationClient {
                 resolvedPrompt,
                 providerProfile.activeSystemPromptSuffix()
         );
-        String protocolContract = route == ComponentTranslationRoute.TOOLTIP_PARAGRAPH
-                ? PROTOCOL_CONTRACT + COHERENT_PARAGRAPH_CONTRACT
-                : PROTOCOL_CONTRACT;
+        String protocolContract = PROTOCOL_CONTRACT;
+        if (isTooltipRoute(route) && containsProtectedTokenIdentifier(request)) {
+            protocolContract += PROTECTED_TOKEN_CONTRACT;
+        }
+        if (route == ComponentTranslationRoute.TOOLTIP_PARAGRAPH) {
+            protocolContract += COHERENT_PARAGRAPH_CONTRACT;
+        }
         String systemPrompt = withSuffix + "\n\n" + protocolContract;
         return PromptMessageBuilder.buildMessages(
                 systemPrompt,
@@ -287,10 +373,100 @@ public final class ComponentTranslationClient {
         );
     }
 
+    private static boolean containsProtectedTokenIdentifier(ComponentTranslationRequest request) {
+        return request.items().stream()
+                .anyMatch(item -> item.text().contains("__TAIO_PROTECTED_TOKEN_"));
+    }
+
+    private static boolean isTooltipRoute(ComponentTranslationRoute route) {
+        return route == ComponentTranslationRoute.TOOLTIP_LINE
+                || route == ComponentTranslationRoute.TOOLTIP_STRUCTURED
+                || route == ComponentTranslationRoute.TOOLTIP_PARAGRAPH;
+    }
+
     public record TranslationResult(
             Text component,
             ComponentTranslationResponse response
     ) {
+    }
+
+    static final class ProtectedTokenMask {
+        private static final ProtectedTokenMask NONE = new ProtectedTokenMask(Map.of());
+
+        private final Map<String, String> replacements;
+
+        private ProtectedTokenMask(Map<String, String> replacements) {
+            this.replacements = Map.copyOf(replacements);
+        }
+
+        static ProtectedTokenMask forRequest(
+                ComponentTranslationRoute route,
+                ComponentTranslationRequest request
+        ) {
+            if (!ComponentTranslationClient.isTooltipRoute(route)) {
+                return NONE;
+            }
+
+            LinkedHashMap<String, String> replacements = new LinkedHashMap<>();
+            int[] index = {0};
+            for (ComponentTranslationRequest.Item item : request.items()) {
+                var matcher = LEGACY_FORMATTING_RUN_PATTERN.matcher(item.text());
+                while (matcher.find()) {
+                    replacements.put(
+                            protectedTokenIdentifier(index[0]++),
+                            matcher.group()
+                    );
+                }
+            }
+            return replacements.isEmpty() ? NONE : new ProtectedTokenMask(replacements);
+        }
+
+        ComponentTranslationRequest mask(ComponentTranslationRequest request) {
+            if (replacements.isEmpty()) {
+                return request;
+            }
+
+            List<ComponentTranslationRequest.Item> items = new ArrayList<>(request.items().size());
+            int[] index = {0};
+            for (ComponentTranslationRequest.Item item : request.items()) {
+                StringBuilder maskedText = new StringBuilder(item.text().length());
+                int previousEnd = 0;
+                var matcher = LEGACY_FORMATTING_RUN_PATTERN.matcher(item.text());
+                while (matcher.find()) {
+                    maskedText.append(item.text(), previousEnd, matcher.start());
+                    maskedText.append(protectedTokenIdentifier(index[0]++));
+                    previousEnd = matcher.end();
+                }
+                maskedText.append(item.text(), previousEnd, item.text().length());
+                items.add(new ComponentTranslationRequest.Item(item.id(), maskedText.toString(), item.context()));
+            }
+            return new ComponentTranslationRequest(request.protocol(), request.targetLanguage(), items);
+        }
+
+        String restore(String response) {
+            String restored = response;
+            for (Map.Entry<String, String> replacement : replacements.entrySet()) {
+                restored = restored.replace(replacement.getKey(), replacement.getValue());
+            }
+            return restored;
+        }
+
+        void rejectUnexpectedRawFormattingCodes(String response) {
+            if (replacements.isEmpty() || response == null) {
+                return;
+            }
+            var matcher = LEGACY_FORMATTING_CODE_PATTERN.matcher(response);
+            if (matcher.find()) {
+                throw new ComponentJsonException(
+                        ComponentJsonException.Kind.VALIDATION,
+                        "Provider response contains an unmasked Minecraft formatting code: " + matcher.group()
+                );
+            }
+        }
+
+        private static String protectedTokenIdentifier(int index) {
+            return "__TAIO_PROTECTED_TOKEN_" + index + "__";
+        }
     }
 
     private static void recordResponseFailure(
