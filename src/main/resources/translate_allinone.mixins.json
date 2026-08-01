@@ -22,6 +22,7 @@
     "mixinAdvancement.AdvancementWidgetMixin",
     "mixinBook.BookScreenMixin",
     "mixinEntity.EntityRendererMixin",
+    "mixinSign.AbstractSignBlockEntityRendererMixin",
     "mixinWynntils.ActivityNameFunctionMixin",
     "mixinWynntils.ActivityTaskFunctionMixin",
     "mixinWynntils.ActivityTypeFunctionMixin",

@@ -12,6 +12,7 @@ import com.cedarxuesong.translate_allinone.utils.translate.ItemTranslateManager;
 import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardTranslateManager;
 import com.cedarxuesong.translate_allinone.utils.translate.BookTranslationSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.ComponentRenderTranslationSupport;
+import com.cedarxuesong.translate_allinone.utils.translate.ContinuousSignTranslationCoordinator;
 import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardTranslationInputSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTextDebugCopySupport;
 import com.cedarxuesong.translate_allinone.utils.translate.WynnDialogueTranslateManager;
@@ -51,6 +52,7 @@ public class LifecycleEventManager {
             resetReadinessState();
             ComponentTranslationRuntime.beginSession();
             BookTranslationSupport.resetSession();
+            ContinuousSignTranslationCoordinator.reset();
             awaitingReadinessCheck = true;
             LOGGER.info("Player joining world, awaiting client readiness for translation...");
 
@@ -78,6 +80,7 @@ public class LifecycleEventManager {
             if (isReadyForTranslation) {
                 UpdateCheckManager.tryNotifyInChat(client);
                 WynnDialogueTranslationSupport.tick();
+                ContinuousSignTranslationCoordinator.tick();
             }
             ScoreboardTranslationInputSupport.tick(
                     Translate_AllinOne.getConfig() == null
@@ -98,6 +101,7 @@ public class LifecycleEventManager {
             resetReadinessState();
             ComponentTranslationRuntime.endSession();
             BookTranslationSupport.resetSession();
+            ContinuousSignTranslationCoordinator.reset();
             LOGGER.info("Player has disconnected. Translation readiness reset.");
             stopTranslationManagers();
             saveCaches();
