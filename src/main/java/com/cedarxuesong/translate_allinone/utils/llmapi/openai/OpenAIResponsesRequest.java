@@ -3,6 +3,7 @@ package com.cedarxuesong.translate_allinone.utils.llmapi.openai;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * 代表发送到 OpenAI Responses API 的请求体。
@@ -97,9 +98,19 @@ public class OpenAIResponsesRequest {
 
     public static class Format {
         public String type;
+        public String name;
+        public Map<String, Object> schema;
+        public boolean strict;
 
         public Format(String type) {
             this.type = type;
+        }
+
+        public Format(String schemaName, Map<String, Object> schema) {
+            this.type = "json_schema";
+            this.name = schemaName;
+            this.schema = schema;
+            this.strict = true;
         }
     }
 }

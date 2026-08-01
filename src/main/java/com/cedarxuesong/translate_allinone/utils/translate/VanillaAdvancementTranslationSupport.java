@@ -1,40 +1,33 @@
 package com.cedarxuesong.translate_allinone.utils.translate;
 
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
-import com.cedarxuesong.translate_allinone.utils.AnimationManager;
-import com.cedarxuesong.translate_allinone.utils.cache.CacheStats;
-import com.cedarxuesong.translate_allinone.utils.cache.ItemTemplateCache;
-import com.cedarxuesong.translate_allinone.utils.cache.LookupResult;
-import com.cedarxuesong.translate_allinone.utils.cache.TranslationStatus;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationApplier;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationDocument;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationMetrics;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRoute;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRuntime;
 import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
-import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
+import com.cedarxuesong.translate_allinone.utils.config.pojos.OtherTranslationsConfig;
 import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
-import com.cedarxuesong.translate_allinone.utils.text.StylePreserver;
-import com.cedarxuesong.translate_allinone.utils.text.TemplateProcessor;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.advancements.DisplayInfo;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.ComponentUtils;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 
 public final class VanillaAdvancementTranslationSupport {
     private static final String VANILLA_NAMESPACE = "minecraft";
     private static final String ADVANCEMENT_STATUS_ANIMATION_KEY = "advancement-tooltip-status";
     private static final AtomicBoolean UNEXPECTED_FAILURE_LOGGED = new AtomicBoolean(false);
-    private static final long REFRESH_NOTICE_DURATION_MILLIS = 1500L;
     private static final long REFRESH_HOLD_RELEASE_GRACE_MILLIS = 250L;
     private static final Set<String> refreshedKeysThisHold = new HashSet<>();
     private static volatile boolean refreshHoldActive = false;
     private static volatile long refreshHoldGraceExpiresAtMillis = 0L;
-    private static volatile int refreshNoticeAdvancementSignature = 0;
-    private static volatile long refreshNoticeExpiresAtMillis = 0L;
 
     private VanillaAdvancementTranslationSupport() {
     }
@@ -66,28 +59,20 @@ public final class VanillaAdvancementTranslationSupport {
     ) {
     }
 
-    private record HoveredAdvancementStatus(Component statusLine, Component errorStatusLine) {
-    }
-
     public static HoveredAdvancementText translateHoveredText(AdvancementHolder holder, DisplayInfo display) {
         Component originalTitle = display == null ? null : display.getTitle();
         Component styledDescription = styleDescription(display, display == null ? null : display.getDescription());
-        List<Component> hoveredTexts = new ArrayList<>(2);
-        hoveredTexts.add(originalTitle);
-        hoveredTexts.add(styledDescription);
-        Set<String> translationTemplateKeys = collectTranslationTemplateKeys(holder, hoveredTexts);
-
-        maybeForceRefreshAdvancementKeys(currentItemConfig(), translationTemplateKeys);
-        boolean showRefreshNotice = shouldShowRefreshNotice(translationTemplateKeys);
-        Component translatedTitle = translateComponent(holder, originalTitle, "title", true, false);
-        Component translatedDescription = translateComponent(holder, styledDescription, "description", true, false);
-        HoveredAdvancementStatus status = buildHoveredAdvancementStatus(currentItemConfig(), translationTemplateKeys);
+        ComponentAttempt title = translateComponentAttempt(holder, originalTitle, "title", true);
+        ComponentAttempt description = translateComponentAttempt(holder, styledDescription, "description", true);
+        String errorMessage = !title.errorMessage().isBlank() ? title.errorMessage() : description.errorMessage();
         return new HoveredAdvancementText(
-                translatedTitle,
-                translatedDescription,
-                status.statusLine(),
-                status.errorStatusLine(),
-                showRefreshNotice
+                title.component(),
+                description.component(),
+                title.pending() || description.pending()
+                        ? TooltipInternalLineSupport.createAnimatedPendingStatusLine(ADVANCEMENT_STATUS_ANIMATION_KEY)
+                        : null,
+                errorMessage.isBlank() ? null : TooltipInternalLineSupport.createErrorStatusLine(errorMessage),
+                false
         );
     }
 
@@ -100,8 +85,7 @@ public final class VanillaAdvancementTranslationSupport {
             DisplayInfo display,
             Component originalDescription
     ) {
-        Component styledDescription = styleDescription(display, originalDescription);
-        return translateComponent(holder, styledDescription, "description", false);
+        return translateComponent(holder, styleDescription(display, originalDescription), "description", false);
     }
 
     public static Component translateHoveredDescription(
@@ -109,8 +93,7 @@ public final class VanillaAdvancementTranslationSupport {
             DisplayInfo display,
             Component originalDescription
     ) {
-        Component styledDescription = styleDescription(display, originalDescription);
-        return translateComponent(holder, styledDescription, "description", true);
+        return translateComponent(holder, styleDescription(display, originalDescription), "description", true);
     }
 
     private static Component translateComponent(
@@ -119,114 +102,127 @@ public final class VanillaAdvancementTranslationSupport {
             String fieldName,
             boolean queueIfMissing
     ) {
-        return translateComponent(holder, originalText, fieldName, queueIfMissing, true);
+        return translateComponentAttempt(holder, originalText, fieldName, queueIfMissing).component();
     }
 
-    private static Component translateComponent(
+    private static ComponentAttempt translateComponentAttempt(
             AdvancementHolder holder,
             Component originalText,
             String fieldName,
-            boolean queueIfMissing,
-            boolean allowForceRefresh
+            boolean queueIfMissing
     ) {
-        if (originalText == null || originalText.getString().trim().isEmpty()) {
-            return originalText;
-        }
-        if (!isVanillaAdvancement(holder)) {
-            return originalText;
+        if (originalText == null || originalText.getString().trim().isEmpty() || !isVanillaAdvancement(holder)) {
+            return new ComponentAttempt(originalText, false, "");
         }
 
-        ItemTranslateConfig config = currentItemConfig();
+        OtherTranslationsConfig config = currentOtherTranslationsConfig();
         if (!isAdvancementTranslationFeatureEnabled(config)) {
-            return originalText;
+            return new ComponentAttempt(originalText, false, "");
         }
 
         try {
-            StylePreserver.ExtractionResult styleResult = StylePreserver.extractAndMarkWithTags(originalText);
-            TemplateProcessor.TemplateExtractionResult templateResult = TemplateProcessor.extract(styleResult.markedText);
-            String translationTemplateKey = templateResult.template();
-            if (translationTemplateKey == null || translationTemplateKey.isBlank()) {
-                return originalText;
+            ComponentTranslationDocument document = ComponentTranslationRuntime.prepare(
+                    materializeComponentText(originalText),
+                    ComponentTranslationRoute.ADVANCEMENT,
+                    "advancement:" + fieldName,
+                    "advancement"
+            );
+            if (document.units().isEmpty()) {
+                return new ComponentAttempt(originalText, false, "");
             }
 
-            if (queueIfMissing && allowForceRefresh) {
-                maybeForceRefreshAdvancementKeys(config, Set.of(translationTemplateKey));
-            }
-
+            boolean refreshRequested = queueIfMissing && maybeForceRefreshAdvancementDocument(config, document);
             if (!shouldRenderTranslatedAdvancement(config)) {
-                return originalText;
-            }
-
-            LookupResult lookupResult = queueIfMissing
-                    ? ItemTemplateCache.getInstance().lookupOrQueue(translationTemplateKey)
-                    : ItemTemplateCache.getInstance().peek(translationTemplateKey);
-            TranslationStatus status = lookupResult.status();
-            if (status == TranslationStatus.TRANSLATED) {
-                String translatedTemplate = lookupResult.translation();
-                if (translatedTemplate == null || translatedTemplate.isBlank()) {
-                    return originalText;
+                if (refreshRequested) {
+                    queueRefreshedAdvancementDocument(document, config, "advancement:" + holder.id() + ":" + fieldName);
                 }
-                String reassembledTranslated = TemplateProcessor.reassemble(translatedTemplate, templateResult.values());
-                return StylePreserver.reapplyStylesFromTags(reassembledTranslated, styleResult.styleMap, true);
+                return new ComponentAttempt(originalText, false, "");
             }
 
-            String animationKey = "advancement:" + holder.id() + ":" + fieldName;
-            if (status == TranslationStatus.PENDING || status == TranslationStatus.IN_PROGRESS) {
-                return AnimationManager.getAnimatedStyledText(originalText, animationKey, false);
-            }
-            if (status == TranslationStatus.ERROR) {
-                return AnimationManager.getAnimatedStyledText(originalText, animationKey, true);
-            }
+            ComponentTranslationApplier applier = new ComponentTranslationApplier();
+            ComponentTranslationRuntime.Resolution<Component> resolution = ComponentTranslationRuntime.resolve(
+                    document,
+                    config.target_language,
+                    null,
+                    () -> null,
+                    response -> {
+                        long startedAt = System.nanoTime();
+                        Component translated = applier.apply(document, response);
+                        ComponentTranslationMetrics.recordNanos(
+                                ComponentTranslationRoute.ADVANCEMENT,
+                                ComponentTranslationMetrics.Timing.APPLY,
+                                System.nanoTime() - startedAt
+                        );
+                        return translated;
+                    },
+                    "advancement:" + holder.id() + ":" + fieldName,
+                    queueIfMissing
+            );
+            return new ComponentAttempt(
+                    resolution.value() == null ? originalText : resolution.value(),
+                    resolution.state() == ComponentTranslationRuntime.State.PENDING,
+                    resolution.state() == ComponentTranslationRuntime.State.FAILED ? resolution.errorMessage() : ""
+            );
         } catch (RuntimeException e) {
             if (UNEXPECTED_FAILURE_LOGGED.compareAndSet(false, true)) {
-                Translate_AllinOne.LOGGER.error("Failed to translate vanilla advancement text.", e);
+                Translate_AllinOne.LOGGER.error("Failed to translate vanilla advancement Component text.", e);
             }
+            return new ComponentAttempt(originalText, false, e.getMessage());
         }
-
-        return originalText;
     }
 
-    private static void maybeForceRefreshAdvancementKeys(ItemTranslateConfig config, Set<String> translationTemplateKeys) {
-        if (!isAdvancementTranslationFeatureEnabled(config)
-                || translationTemplateKeys == null
-                || translationTemplateKeys.isEmpty()) {
-            return;
+    private record ComponentAttempt(Component component, boolean pending, String errorMessage) {
+        private ComponentAttempt {
+            errorMessage = errorMessage == null ? "" : errorMessage;
         }
+    }
+
+    static Component materializeComponentText(Component originalText) {
+        MutableComponent materialized = Component.empty();
+        originalText.visit((style, text) -> {
+            if (text != null && !text.isEmpty()) {
+                materialized.append(Component.literal(text).setStyle(style == null ? Style.EMPTY : style));
+            }
+            return Optional.empty();
+        }, Style.EMPTY);
+        return materialized;
+    }
+
+    private static boolean maybeForceRefreshAdvancementDocument(
+            OtherTranslationsConfig config,
+            ComponentTranslationDocument document
+    ) {
         if (config == null || config.keybinding == null || config.keybinding.refreshBinding == null) {
-            return;
+            return false;
         }
-
-        boolean isRefreshPressed = KeybindingManager.isPressed(config.keybinding.refreshBinding);
         long now = System.currentTimeMillis();
-        if (!updateRefreshHoldState(isRefreshPressed, now)) {
-            return;
+        if (!updateRefreshHoldState(KeybindingManager.isPressed(config.keybinding.refreshBinding), now)) {
+            return false;
         }
 
-        List<String> keysToRefresh = new ArrayList<>();
+        String cacheKey = ComponentTranslationRuntime.cacheKey(document, config.target_language);
         synchronized (refreshedKeysThisHold) {
-            for (String translationTemplateKey : translationTemplateKeys) {
-                if (translationTemplateKey == null || translationTemplateKey.isBlank()) {
-                    continue;
-                }
-                if (refreshedKeysThisHold.add(translationTemplateKey)) {
-                    keysToRefresh.add(translationTemplateKey);
-                }
+            if (!refreshedKeysThisHold.add(cacheKey)) {
+                return false;
             }
         }
-        if (keysToRefresh.isEmpty()) {
-            return;
-        }
+        return ComponentTranslationRuntime.forceRefresh(document, config.target_language);
+    }
 
-        int refreshedCount = ItemTemplateCache.getInstance().forceRefresh(keysToRefresh);
-        if (refreshedCount > 0) {
-            TooltipTemplateRuntime.registerForceRefreshCompatBypass(keysToRefresh);
-            refreshNoticeAdvancementSignature = computeTranslationTemplateKeysSignature(translationTemplateKeys);
-            refreshNoticeExpiresAtMillis = now + REFRESH_NOTICE_DURATION_MILLIS;
-            Translate_AllinOne.LOGGER.info(
-                    "Force-refreshed {} vanilla advancement translation key(s).",
-                    refreshedCount
-            );
-        }
+    private static void queueRefreshedAdvancementDocument(
+            ComponentTranslationDocument document,
+            OtherTranslationsConfig config,
+            String requestContext
+    ) {
+        ComponentTranslationRuntime.resolve(
+                document,
+                config.target_language,
+                null,
+                () -> null,
+                response -> null,
+                requestContext,
+                true
+        );
     }
 
     private static boolean updateRefreshHoldState(boolean isRefreshPressed, long now) {
@@ -235,141 +231,15 @@ public final class VanillaAdvancementTranslationSupport {
             refreshHoldGraceExpiresAtMillis = now + REFRESH_HOLD_RELEASE_GRACE_MILLIS;
             return true;
         }
-
         if (refreshHoldActive && now <= refreshHoldGraceExpiresAtMillis) {
             return true;
         }
-
-        clearRefreshHoldState();
-        return false;
-    }
-
-    private static void clearRefreshHoldState() {
         refreshHoldActive = false;
         refreshHoldGraceExpiresAtMillis = 0L;
         synchronized (refreshedKeysThisHold) {
             refreshedKeysThisHold.clear();
         }
-    }
-
-    private static boolean shouldShowRefreshNotice(Set<String> translationTemplateKeys) {
-        long expiresAt = refreshNoticeExpiresAtMillis;
-        if (expiresAt <= 0L || System.currentTimeMillis() > expiresAt) {
-            return false;
-        }
-
-        if (translationTemplateKeys == null || translationTemplateKeys.isEmpty()) {
-            return false;
-        }
-        return computeTranslationTemplateKeysSignature(translationTemplateKeys) == refreshNoticeAdvancementSignature;
-    }
-
-    private static int computeTranslationTemplateKeysSignature(Set<String> translationTemplateKeys) {
-        int hash = 1;
-        List<String> orderedKeys = new ArrayList<>(translationTemplateKeys.size());
-        for (String translationTemplateKey : translationTemplateKeys) {
-            orderedKeys.add(translationTemplateKey == null ? "" : translationTemplateKey);
-        }
-        Collections.sort(orderedKeys);
-        for (String translationTemplateKey : orderedKeys) {
-            hash = 31 * hash + translationTemplateKey.hashCode();
-        }
-        return 31 * hash + translationTemplateKeys.size();
-    }
-
-    private static HoveredAdvancementStatus buildHoveredAdvancementStatus(
-            ItemTranslateConfig config,
-            Set<String> translationTemplateKeys
-    ) {
-        if (!shouldRenderTranslatedAdvancement(config)
-                || translationTemplateKeys == null
-                || translationTemplateKeys.isEmpty()) {
-            return new HoveredAdvancementStatus(null, null);
-        }
-
-        ItemTemplateCache cache = ItemTemplateCache.getInstance();
-        boolean pending = false;
-        boolean missingKeyIssue = false;
-        String errorMessage = "";
-        int translatableLines = 0;
-        for (String translationTemplateKey : translationTemplateKeys) {
-            if (translationTemplateKey == null || translationTemplateKey.isBlank()) {
-                continue;
-            }
-
-            translatableLines++;
-            LookupResult lookupResult = cache.peek(translationTemplateKey);
-            if (lookupResult.status() == TranslationStatus.NOT_CACHED) {
-                lookupResult = cache.lookupOrQueue(translationTemplateKey);
-            }
-
-            TranslationStatus status = lookupResult.status();
-            if (status == TranslationStatus.PENDING || status == TranslationStatus.IN_PROGRESS) {
-                pending = true;
-            } else if (status == TranslationStatus.ERROR) {
-                String lookupErrorMessage = lookupResult.errorMessage();
-                if (TooltipInternalLineSupport.isMissingKeyIssue(lookupErrorMessage)) {
-                    pending = true;
-                    missingKeyIssue = true;
-                } else if (errorMessage.isBlank()) {
-                    errorMessage = lookupErrorMessage;
-                }
-            }
-        }
-
-        TooltipTranslationSupport.TooltipProcessingResult processedTooltip =
-                new TooltipTranslationSupport.TooltipProcessingResult(
-                        List.of(),
-                        translatableLines,
-                        pending,
-                        missingKeyIssue,
-                        errorMessage
-                );
-        CacheStats stats = cache.getCacheStats();
-        Component statusLine = TooltipInternalLineSupport.shouldShowStatusLine(processedTooltip, stats)
-                ? TooltipInternalLineSupport.createStatusLine(stats, missingKeyIssue, ADVANCEMENT_STATUS_ANIMATION_KEY)
-                : null;
-        Component errorStatusLine = TooltipInternalLineSupport.shouldShowErrorStatusLine(processedTooltip)
-                ? TooltipInternalLineSupport.createErrorStatusLine(processedTooltip.errorMessage())
-                : null;
-        return new HoveredAdvancementStatus(statusLine, errorStatusLine);
-    }
-
-    private static Set<String> collectTranslationTemplateKeys(AdvancementHolder holder, List<Component> texts) {
-        if (!isVanillaAdvancement(holder) || texts == null || texts.isEmpty()) {
-            return Set.of();
-        }
-
-        ItemTranslateConfig config = currentItemConfig();
-        if (!isAdvancementTranslationFeatureEnabled(config)) {
-            return Set.of();
-        }
-
-        LinkedHashSet<String> translationTemplateKeys = new LinkedHashSet<>();
-        for (Component text : texts) {
-            String translationTemplateKey = extractTranslationTemplateKey(text);
-            if (translationTemplateKey != null && !translationTemplateKey.isBlank()) {
-                translationTemplateKeys.add(translationTemplateKey);
-            }
-        }
-        return translationTemplateKeys.isEmpty() ? Set.of() : Collections.unmodifiableSet(translationTemplateKeys);
-    }
-
-    private static String extractTranslationTemplateKey(Component text) {
-        if (text == null || text.getString().trim().isEmpty()) {
-            return "";
-        }
-
-        try {
-            StylePreserver.ExtractionResult styleResult = StylePreserver.extractAndMarkWithTags(text);
-            TemplateProcessor.TemplateExtractionResult templateResult = TemplateProcessor.extract(styleResult.markedText);
-            return templateResult.template();
-        } catch (RuntimeException e) {
-            if (UNEXPECTED_FAILURE_LOGGED.compareAndSet(false, true)) {
-                Translate_AllinOne.LOGGER.error("Failed to collect vanilla advancement translation key.", e);
-            }
-            return "";
-        }
+        return false;
     }
 
     private static Component styleDescription(DisplayInfo display, Component originalDescription) {
@@ -382,25 +252,17 @@ public final class VanillaAdvancementTranslationSupport {
         return originalDescription;
     }
 
-    private static boolean isAdvancementTranslationFeatureEnabled(ItemTranslateConfig config) {
-        return config != null && config.enabled_translate_vanilla_advancements;
+    private static boolean isAdvancementTranslationFeatureEnabled(OtherTranslationsConfig config) {
+        return config != null && config.enabled && config.enabled_translate_vanilla_advancements;
     }
 
-    private static ItemTranslateConfig currentItemConfig() {
+    private static OtherTranslationsConfig currentOtherTranslationsConfig() {
         ModConfig config = Translate_AllinOne.getConfig();
-        return config == null ? null : config.itemTranslate;
+        return config == null ? null : config.otherTranslations;
     }
 
-    private static boolean shouldRenderTranslatedAdvancement(ItemTranslateConfig config) {
-        if (config == null || !config.enabled_translate_vanilla_advancements) {
-            return false;
-        }
-
-        ItemTranslateConfig.KeybindingMode mode = config.keybinding == null || config.keybinding.mode == null
-                ? ItemTranslateConfig.KeybindingMode.DISABLED
-                : config.keybinding.mode;
-        boolean keyPressed = config.keybinding != null
-                && KeybindingManager.isPressed(config.keybinding.binding);
-        return !TooltipTranslationSupport.shouldShowOriginal(mode, keyPressed);
+    private static boolean shouldRenderTranslatedAdvancement(OtherTranslationsConfig config) {
+        return isAdvancementTranslationFeatureEnabled(config)
+                && ComponentRenderTranslationSupport.shouldRenderTranslated(config);
     }
 }

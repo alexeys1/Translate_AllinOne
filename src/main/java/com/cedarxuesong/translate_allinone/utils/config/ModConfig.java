@@ -5,6 +5,7 @@ import com.cedarxuesong.translate_allinone.utils.config.pojos.CacheBackupConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.DebugConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.DictionaryConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
+import com.cedarxuesong.translate_allinone.utils.config.pojos.OtherTranslationsConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ProviderManagerConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ScoreboardConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.WynnCraftConfig;
@@ -19,6 +20,8 @@ public class ModConfig {
 
     @SerializedName(value = "scoreboardTranslate", alternate = {"scoreboardConfig", "ScoreboardConfig"})
     public ScoreboardConfig scoreboardTranslate = new ScoreboardConfig();
+
+    public OtherTranslationsConfig otherTranslations = new OtherTranslationsConfig();
 
     public WynnCraftConfig wynnCraft = new WynnCraftConfig();
 
