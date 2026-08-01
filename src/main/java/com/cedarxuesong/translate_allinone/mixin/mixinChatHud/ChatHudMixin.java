@@ -46,10 +46,13 @@ public abstract class ChatHudMixin {
                 }
 
                 UUID messageId = UUID.randomUUID();
-                ChatOutputTranslateManager.logInterceptedMessage(messageId, message, plainText, config.chatTranslate.output.auto_translate);
+                boolean autoTranslate = config.chatTranslate.output.auto_translate
+                        || (config.chatTranslate.output.skyblock_npc_auto_translate
+                        && ChatOutputTranslateManager.isSkyblockNpcMessage(message));
+                ChatOutputTranslateManager.logInterceptedMessage(messageId, message, plainText, autoTranslate);
                 MessageUtils.putTrackedMessage(messageId, message);
 
-                if (config.chatTranslate.output.auto_translate) {
+                if (autoTranslate) {
                     queueAutoTranslateCommand(messageId);
                     return message;
                 } else {
