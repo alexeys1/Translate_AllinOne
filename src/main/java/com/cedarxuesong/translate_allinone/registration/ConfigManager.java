@@ -295,10 +295,6 @@ public class ConfigManager {
                 256,
                 16_384
         );
-        // Keep the pre-component advancement renderer in sync until its
-        // 1.21.11 display hook is migrated to OtherTranslationsConfig.
-        configToUse.itemTranslate.enabled_translate_vanilla_advancements =
-                configToUse.otherTranslations.enabled_translate_vanilla_advancements;
         if (configToUse.itemTranslate.debug == null) {
             configToUse.itemTranslate.debug = new ItemTranslateConfig.DebugConfig();
         }
@@ -316,10 +312,6 @@ public class ConfigManager {
         }
         if (configToUse.scoreboardTranslate.keybinding.refreshBinding == null) {
             configToUse.scoreboardTranslate.keybinding.refreshBinding = new InputBindingConfig();
-        }
-        if (configToUse.scoreboardTranslate.external_custom_scoreboard_mode == null) {
-            configToUse.scoreboardTranslate.external_custom_scoreboard_mode =
-                    ScoreboardConfig.ExternalCustomScoreboardMode.DISABLED;
         }
         if (configToUse.scoreboardTranslate.debug == null) {
             configToUse.scoreboardTranslate.debug = new ScoreboardConfig.DebugConfig();

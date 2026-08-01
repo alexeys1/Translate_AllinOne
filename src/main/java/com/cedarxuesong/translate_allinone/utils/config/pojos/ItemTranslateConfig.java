@@ -6,10 +6,6 @@ public class ItemTranslateConfig {
     public boolean enabled = false;
     public boolean enabled_translate_item_custom_name = false;
     public boolean enabled_translate_item_lore = false;
-    /**
-     * Temporary legacy bridge for the pre-component advancement renderer.
-     * The final runtime migration will move this setting to OtherTranslationsConfig and remove the alias.
-     */
     public boolean enabled_translate_vanilla_advancements = false;
     public int max_concurrent_requests = 2;
     public int requests_per_minute = 60;
