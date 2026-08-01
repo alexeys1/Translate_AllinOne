@@ -3,6 +3,8 @@ package com.cedarxuesong.translate_allinone.utils.translate;
 import com.cedarxuesong.translate_allinone.utils.AnimationManager;
 import com.cedarxuesong.translate_allinone.utils.cache.CacheStats;
 import com.cedarxuesong.translate_allinone.utils.cache.ItemTemplateCache;
+import com.cedarxuesong.translate_allinone.utils.cache.component.ComponentCacheModule;
+import com.cedarxuesong.translate_allinone.utils.cache.component.ComponentTranslationStoreRegistry;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
@@ -19,6 +21,21 @@ public final class TooltipInternalLineSupport {
     private static final String ERROR_STATUS_KEY = "text.translate_allinone.item.tooltip_translation_error";
 
     private TooltipInternalLineSupport() {
+    }
+
+    public static CacheStats getItemCacheStats() {
+        CacheStats componentStats = ComponentTranslationStoreRegistry.getInstance()
+                .forModule(ComponentCacheModule.ITEM)
+                .getCacheStats();
+        CacheStats legacyStats = ItemTemplateCache.getInstance().getCacheStats();
+        return combineItemCacheStats(componentStats, legacyStats);
+    }
+
+    static CacheStats combineItemCacheStats(CacheStats componentStats, CacheStats legacyStats) {
+        return new CacheStats(
+                componentStats.translated() + legacyStats.translated(),
+                componentStats.total() + legacyStats.total()
+        );
     }
 
     public static Text createStatusLine(
@@ -41,6 +58,10 @@ public final class TooltipInternalLineSupport {
         return Text.translatable(ERROR_STATUS_KEY, TranslationErrorTextSupport.localizeReason(errorMessage)).formatted(Formatting.RED);
     }
 
+    public static Text createAnimatedPendingStatusLine(String animationKey) {
+        return AnimationManager.getAnimatedStyledText(createTranslatingStatusText(), animationKey, false);
+    }
+
     public static boolean shouldShowStatusLine(
             TooltipTranslationSupport.TooltipProcessingResult processedTooltip,
             CacheStats stats
@@ -58,10 +79,6 @@ public final class TooltipInternalLineSupport {
     }
 
     public static List<Text> appendStatusLineIfNeeded(
-    public static Text createAnimatedPendingStatusLine(String animationKey) {
-        return AnimationManager.getAnimatedStyledText(createTranslatingStatusText(), animationKey, false);
-    }
-
             List<Text> tooltip,
             TooltipTranslationSupport.TooltipProcessingResult processedTooltip,
             String animationKey
@@ -70,7 +87,7 @@ public final class TooltipInternalLineSupport {
             return null;
         }
 
-        CacheStats stats = ItemTemplateCache.getInstance().getCacheStats();
+        CacheStats stats = getItemCacheStats();
         boolean showStatusLine = shouldShowStatusLine(processedTooltip, stats);
         boolean showErrorStatusLine = shouldShowErrorStatusLine(processedTooltip);
         if (!showStatusLine && !showErrorStatusLine) {
