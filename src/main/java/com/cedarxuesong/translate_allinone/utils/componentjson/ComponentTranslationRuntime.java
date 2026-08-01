@@ -164,6 +164,14 @@ public final class ComponentTranslationRuntime {
             boolean queueIfMissing
     ) {
         if (document == null || targetLanguage == null || targetLanguage.isBlank() || renderer == null) {
+            ComponentTranslationDebugLogger.error(
+                    document == null ? null : document.route(),
+                    "incomplete request: route={} targetLanguagePresent={} rendererPresent={} context={}",
+                    document == null || document.route() == null ? "" : document.route().wireName(),
+                    targetLanguage != null && !targetLanguage.isBlank(),
+                    renderer != null,
+                    requestContext == null ? "" : requestContext
+            );
             return new Resolution<>(State.INELIGIBLE, null, "", "Incomplete Component request");
         }
         if (document.units().isEmpty()) {
@@ -179,6 +187,14 @@ public final class ComponentTranslationRuntime {
             ComponentTranslationMetrics.record(
                     document,
                     ComponentTranslationMetrics.Outcome.FALLBACK_ORIGINAL
+            );
+            ComponentTranslationDebugLogger.error(
+                    document.route(),
+                    "request preparation failed: route={} context={} reason={}",
+                    document.route().wireName(),
+                    requestContext == null ? "" : requestContext,
+                    e.getMessage(),
+                    e
             );
             return new Resolution<>(State.INELIGIBLE, null, "", e.getMessage());
         }
@@ -262,6 +278,15 @@ public final class ComponentTranslationRuntime {
             ComponentTranslationMetrics.record(
                     document,
                     ComponentTranslationMetrics.Outcome.FALLBACK_ORIGINAL
+            );
+            ComponentTranslationDebugLogger.error(
+                    document.route(),
+                    "cache lookup failed: route={} context={} key={} reason={}",
+                    document.route().wireName(),
+                    requestContext == null ? "" : requestContext,
+                    request.identity().key(),
+                    e.getMessage(),
+                    e
             );
             return new Resolution<>(State.INELIGIBLE, null, request.identity().key(), e.getMessage());
         } finally {
