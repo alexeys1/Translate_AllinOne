@@ -13,4 +13,4 @@ public interface InGameHudAccessor {
     static Comparator<PlayerScoreEntry> getScoreboardEntryComparator() {
         throw new AssertionError();
     }
-} 
+}

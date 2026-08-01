@@ -1,24 +1,44 @@
 package com.cedarxuesong.translate_allinone.utils.translate;
 
-import com.cedarxuesong.translate_allinone.utils.text.StylePreserver;
-import com.cedarxuesong.translate_allinone.utils.text.TemplateProcessor;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentDocumentBuilder;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentDynamicTemplate;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentJsonCodec;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTextUnit;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationApplier;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationDocument;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationPolicy;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationResponse;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRoute;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import java.util.List;
+import java.util.Set;
 import net.minecraft.network.chat.Component;
 
 public final class ScoreboardEntryTemplate {
-    public static final String PLAYER_NAME_TOKEN = "<taio-player-name>";
+    public static final String POLICY_VERSION = "scoreboard";
+    private static final String OWNER_POINTER_PREFIX = "/extra/1";
+    private static final ComponentTranslationApplier APPLIER = new ComponentTranslationApplier();
 
     public record Prepared(
-            String translationTemplateKey,
-            List<String> templateValues,
-            String playerName
+            Component original,
+            ComponentTranslationDocument document,
+            ComponentDynamicTemplate template
     ) {
-        public Component renderOriginal() {
-            return render(translationTemplateKey, templateValues, playerName);
+        public Prepared {
+            original = original == null ? Component.empty() : original.copy();
         }
 
-        public Component renderTranslated(String translatedTemplate) {
-            return render(translatedTemplate, templateValues, playerName);
+        public Component renderOriginal() {
+            return original.copy();
+        }
+
+        public Component renderTranslated(ComponentTranslationResponse response) {
+            if (document == null) {
+                throw new IllegalStateException("Scoreboard Component document is unavailable.");
+            }
+            Component translated = APPLIER.apply(document, response);
+            return template == null ? translated : template.restore(translated);
         }
     }
 
@@ -27,67 +47,72 @@ public final class ScoreboardEntryTemplate {
 
     public static Prepared prepare(
             Component prefix,
-            String playerName,
-            boolean includePlayerName,
+            Component owner,
+            boolean translateOwner,
+            boolean protectOwner,
             Component suffix
     ) {
-        String prefixLegacy = toLegacyText(prefix);
-        String suffixLegacy = toLegacyText(suffix);
-        if (prefixLegacy.isEmpty() && suffixLegacy.isEmpty()) {
-            return null;
-        }
-
-        StringBuilder source = new StringBuilder(prefixLegacy);
-        if (includePlayerName) {
-            source.append("\u00a7r").append(PLAYER_NAME_TOKEN);
-        }
-        if (!suffixLegacy.isEmpty()) {
-            source.append("\u00a7r").append(suffixLegacy);
-        }
-
-        TemplateProcessor.TemplateExtractionResult extractionResult = TemplateProcessor.extract(source.toString());
+        Component original = prepareComponentSource(copyOrEmpty(prefix), copyOrEmpty(owner), copyOrEmpty(suffix));
+        boolean ownerIsPassthrough = protectOwner || !translateOwner;
+        String ownerText = owner == null ? "" : owner.getString();
+        ComponentDynamicTemplate template = ComponentDynamicTemplate.prepare(
+                original,
+                ownerIsPassthrough && !ownerText.isBlank() ? Set.of(ownerText) : Set.of()
+        );
         return new Prepared(
-                extractionResult.template(),
-                List.copyOf(extractionResult.values()),
-                includePlayerName ? normalizedPlayerName(playerName) : ""
+                original,
+                prepareDocument(template.templateComponent(), translateOwner, protectOwner),
+                template
         );
     }
 
-    public static boolean preservesPlayerNameToken(String sourceTemplate, String translatedTemplate) {
-        return countPlayerNameTokens(sourceTemplate) == countPlayerNameTokens(translatedTemplate);
-    }
+    private static ComponentTranslationDocument prepareDocument(
+            Component sourceComponent,
+            boolean translateOwner,
+            boolean protectOwner
+    ) {
+        ComponentTranslationPolicy policy = ComponentTranslationPolicy.forRoute(ComponentTranslationRoute.SCOREBOARD)
+                .withContext("scoreboard_entry")
+                .withSemanticSetting("route_policy", POLICY_VERSION)
+                .withSemanticSetting("layout", "prefix-owner-suffix")
+                .withSemanticSetting("translate_prefix_suffix", "true")
+                .withSemanticSetting("translate_owner", Boolean.toString(translateOwner))
+                .withSemanticSetting("owner_protected", Boolean.toString(protectOwner));
+        ComponentTranslationDocument extracted = new ComponentDocumentBuilder().build(sourceComponent, policy);
+        if (translateOwner && !protectOwner) {
+            return extracted;
+        }
 
-    private static Component render(String template, List<String> templateValues, String playerName) {
-        String reassembled = TemplateProcessor.reassemble(
-                template == null ? "" : template,
-                templateValues == null ? List.of() : templateValues
+        List<ComponentTextUnit> filteredUnits = extracted.units().stream()
+                .filter(unit -> !isOwnerPointer(unit.jsonPointer()))
+                .toList();
+        return new ComponentTranslationDocument(
+                extracted.protocol(),
+                extracted.policyVersion(),
+                extracted.route(),
+                extracted.sourceJson(),
+                filteredUnits,
+                extracted.semanticSettings()
         );
-        return StylePreserver.fromLegacyText(reassembled.replace(PLAYER_NAME_TOKEN, normalizedPlayerName(playerName)));
     }
 
-    private static String toLegacyText(Component text) {
-        if (text == null || text.getString().trim().isEmpty()) {
-            return "";
-        }
-        StylePreserver.ExtractionResult styleResult = StylePreserver.extractAndMark(text);
-        return StylePreserver.toLegacyTemplate(styleResult.markedText, styleResult.styleMap);
+    private static Component prepareComponentSource(Component prefix, Component owner, Component suffix) {
+        JsonObject source = new JsonObject();
+        source.addProperty("text", "");
+        JsonArray segments = new JsonArray();
+        segments.add(ComponentJsonCodec.encode(prefix));
+        segments.add(ComponentJsonCodec.encode(owner));
+        segments.add(ComponentJsonCodec.encode(suffix));
+        source.add("extra", segments);
+        return ComponentJsonCodec.decode(source);
     }
 
-    private static int countPlayerNameTokens(String text) {
-        if (text == null || text.isEmpty()) {
-            return 0;
-        }
-
-        int count = 0;
-        int start = 0;
-        while ((start = text.indexOf(PLAYER_NAME_TOKEN, start)) >= 0) {
-            count++;
-            start += PLAYER_NAME_TOKEN.length();
-        }
-        return count;
+    private static boolean isOwnerPointer(String pointer) {
+        return OWNER_POINTER_PREFIX.equals(pointer)
+                || (pointer != null && pointer.startsWith(OWNER_POINTER_PREFIX + "/"));
     }
 
-    private static String normalizedPlayerName(String playerName) {
-        return playerName == null ? "" : playerName;
+    private static Component copyOrEmpty(Component component) {
+        return component == null ? Component.empty() : component.copy();
     }
 }
