@@ -23,6 +23,7 @@ public final class ModelSettingsMutationSupport {
             double chatTemperature,
             double itemTemperature,
             double scoreboardTemperature,
+            double otherTranslationsTemperature,
             double wynntilsTaskTrackerTemperature,
             double wynnNpcDialogueTemperature,
             String keepAliveTime,
@@ -47,6 +48,7 @@ public final class ModelSettingsMutationSupport {
         settings.chat_temperature = chatTemperature;
         settings.item_temperature = itemTemperature;
         settings.scoreboard_temperature = scoreboardTemperature;
+        settings.other_translations_temperature = otherTranslationsTemperature;
         settings.wynntils_task_tracker_temperature = wynntilsTaskTrackerTemperature;
         settings.wynn_npc_dialogue_temperature = wynnNpcDialogueTemperature;
         settings.keep_alive_time = keepAliveTime;

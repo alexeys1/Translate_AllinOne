@@ -6,6 +6,7 @@ public enum ConfigSection {
     CHAT_INPUT("chat_input"),
     ITEM("item"),
     SCOREBOARD("scoreboard"),
+    OTHER_TRANSLATIONS("other_translations"),
     WYNNCRAFT("wynncraft"),
     DICTIONARY("dictionary"),
     CACHE("cache"),
