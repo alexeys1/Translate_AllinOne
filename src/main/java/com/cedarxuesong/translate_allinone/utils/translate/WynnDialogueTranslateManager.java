@@ -431,15 +431,7 @@ public final class WynnDialogueTranslateManager {
     }
 
     private String buildSystemPrompt(String targetLanguage, String suffix, java.util.Map<String, String> overrides) {
-        String basePrompt = "Translate WynnCraft NPC dialogue into " + targetLanguage
-                + ". Output valid JSON only, keys unchanged.\n"
-                + "\n"
-                + "Rules:\n"
-                + "1) Natural " + targetLanguage + ", keep original meaning and paragraph breaks. No mixed-language.\n"
-                + "2) Do not translate: place names (Ragni, Troms), character names, [bracketed] items.\n"
-                + "3) Poetic lines: use rhythmic " + targetLanguage + ".\n"
-                + "4) Preserve exactly: § codes, {tokens}, %s %d %f, URLs, numbers, <...>, <s0> </s0>, \\n, \\t, zalgo text.\n"
-                + "5) If unsure, keep original. No extra text.";
+        String basePrompt = PromptMessageBuilder.getDefaultPrompt("wynn_npc_dialogue", targetLanguage);
         String resolved = PromptMessageBuilder.applyPromptOverride("wynn_npc_dialogue", basePrompt, overrides, targetLanguage);
         return PromptMessageBuilder.appendSystemPromptSuffix(resolved, suffix);
     }

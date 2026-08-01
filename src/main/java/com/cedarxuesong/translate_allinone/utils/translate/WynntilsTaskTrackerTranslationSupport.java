@@ -10,6 +10,7 @@ import com.cedarxuesong.translate_allinone.utils.config.ProviderRouteResolver;
 import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.WynnCraftConfig;
 import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
+import com.cedarxuesong.translate_allinone.utils.text.LegacyComponentTextCodec;
 import com.cedarxuesong.translate_allinone.utils.text.StylePreserver;
 import com.cedarxuesong.translate_allinone.utils.text.TemplateProcessor;
 import java.util.ArrayList;
@@ -18,11 +19,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
-import net.minecraft.network.chat.TextColor;
 public final class WynntilsTaskTrackerTranslationSupport {
     private static final Set<String> refreshedTrackerKeysThisHold = new HashSet<>();
     private static final WynnSharedDictionaryService SHARED_DICTIONARY_SERVICE = WynnSharedDictionaryService.getInstance();
@@ -108,7 +107,7 @@ public final class WynntilsTaskTrackerTranslationSupport {
                     reassembledTranslated,
                     styleResult.styleMap,
                     true);
-            return toLegacyStringPreservingResets(translatedTextObject);
+            return LegacyComponentTextCodec.encode(translatedTextObject);
         }
 
         if (lookupResult.status() == TranslationStatus.PENDING
@@ -117,7 +116,7 @@ public final class WynntilsTaskTrackerTranslationSupport {
                     originalTextObject,
                     translationTemplateKey,
                     false);
-            return toLegacyStringPreservingResets(animatedText);
+            return LegacyComponentTextCodec.encode(animatedText);
         }
 
         if (lookupResult.status() == TranslationStatus.ERROR) {
@@ -315,7 +314,7 @@ public final class WynntilsTaskTrackerTranslationSupport {
 
         Style primaryStyle = resolvePrimaryStyle(originalTextObject);
         Component translatedTextObject = Component.literal(translation).setStyle(primaryStyle);
-        return toLegacyStringPreservingResets(translatedTextObject);
+        return LegacyComponentTextCodec.encode(translatedTextObject);
     }
 
     private static Style resolvePrimaryStyle(Component sourceText) {
@@ -395,74 +394,4 @@ public final class WynntilsTaskTrackerTranslationSupport {
         return AnimationManager.stripFormatting(value).replaceAll("\\s+", " ").trim();
     }
 
-    private static String toLegacyStringPreservingResets(Component text) {
-        if (text == null) {
-            return "";
-        }
-
-        StringBuilder builder = new StringBuilder();
-        final Style[] previousStyle = {null};
-        text.visit((style, string) -> {
-            if (string == null || string.isEmpty()) {
-                return Optional.empty();
-            }
-
-            Style currentStyle = style == null ? Style.EMPTY : style;
-            if (previousStyle[0] == null) {
-                appendLegacyStyleCodes(builder, currentStyle, false);
-            } else if (!Objects.equals(previousStyle[0], currentStyle)) {
-                appendLegacyStyleCodes(builder, currentStyle, previousStyle[0] != null && !previousStyle[0].isEmpty());
-            }
-
-            builder.append(string);
-            previousStyle[0] = currentStyle;
-            return Optional.empty();
-        }, Style.EMPTY);
-        return builder.toString();
-    }
-
-    private static void appendLegacyStyleCodes(StringBuilder builder, Style style, boolean resetBeforeStyle) {
-        if (style == null || style.isEmpty()) {
-            if (resetBeforeStyle) {
-                builder.append("§r");
-            }
-            return;
-        }
-
-        if (resetBeforeStyle) {
-            builder.append("§r");
-        }
-
-        if (style.getColor() != null) {
-            boolean appendedFormattingColor = false;
-            for (ChatFormatting formatting : ChatFormatting.values()) {
-                TextColor formattingColor = TextColor.fromLegacyFormat(formatting);
-                if (formattingColor != null && formattingColor.getValue() == style.getColor().getValue()) {
-                    builder.append(formatting);
-                    appendedFormattingColor = true;
-                    break;
-                }
-            }
-            if (!appendedFormattingColor) {
-                builder.append("§").append(toWynntilsHexColor(style.getColor()));
-            }
-        }
-        if (style.isBold()) builder.append("§l");
-        if (style.isItalic()) builder.append("§o");
-        if (style.isUnderlined()) builder.append("§n");
-        if (style.isStrikethrough()) builder.append("§m");
-        if (style.isObfuscated()) builder.append("§k");
-    }
-
-    private static String toWynntilsHexColor(TextColor textColor) {
-        if (textColor == null) {
-            return "";
-        }
-
-        int rgb = textColor.getValue();
-        int r = (rgb >> 16) & 0xFF;
-        int g = (rgb >> 8) & 0xFF;
-        int b = rgb & 0xFF;
-        return String.format("#%02x%02x%02xff", r, g, b);
-    }
 }

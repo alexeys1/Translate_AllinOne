@@ -8,6 +8,10 @@ final class WynnDialogueQueuePolicy {
         return shouldRequestTranslations && !overlaySource;
     }
 
+    static boolean shouldProcessOverlayOptions(boolean overlayDialogueActive, boolean hasConfiguredRoute) {
+        return overlayDialogueActive && hasConfiguredRoute;
+    }
+
     static long resolveOverlayChangedAt(boolean sameDialogue, long previousChangedAt, long now) {
         if (sameDialogue && previousChangedAt > 0L) {
             return previousChangedAt;
