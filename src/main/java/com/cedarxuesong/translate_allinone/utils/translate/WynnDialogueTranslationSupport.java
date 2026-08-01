@@ -230,7 +230,9 @@ public final class WynnDialogueTranslationSupport {
             return;
         }
 
-        if (raw.length() < MIN_OVERLAY_RAW_LENGTH) {
+        WynnDialogueFontExtractor.FontExtractionResult fontResult = WynnDialogueFontExtractor.extract(message);
+        boolean fontPath = fontResult.matched();
+        if (raw.length() < MIN_OVERLAY_RAW_LENGTH && !fontPath) {
             throttledDevLog(
                     "overlay_raw_too_short",
                     DEBUG_OVERLAY_LOG_THROTTLE_MILLIS,
@@ -248,7 +250,6 @@ public final class WynnDialogueTranslationSupport {
         if (!shouldTranslateOptions) {
             clearOverlayChoiceOptionsTracking();
         }
-        boolean fontPath = WynnDialogueFontExtractor.extract(message).matched();
         throttledDevLog(
                 "overlay_observed",
                 DEBUG_OVERLAY_LOG_THROTTLE_MILLIS,
@@ -259,7 +260,7 @@ public final class WynnDialogueTranslationSupport {
                 describeForLog(raw),
                 describeForLog(readableText)
         );
-        OverlayReadableParse readableParse = tryFontBasedOverlayParse(message, readableText, readableSegments, shouldTranslateOptions);
+        OverlayReadableParse readableParse = tryFontBasedOverlayParse(fontResult, readableText, shouldTranslateOptions);
         if (readableParse == null) {
             fontPath = false;
             readableParse = parseReadableOverlayText(
@@ -301,7 +302,7 @@ public final class WynnDialogueTranslationSupport {
             );
         }
         String npcName = readableParse.npcName();
-        String dialogue = readableParse.dialogue();
+        String dialogue = prepareOverlayDialogueForComparison(readableParse.dialogue(), fontPath);
         String preparedDialogue = prepareDialogueValue(dialogue);
         boolean sameDialogue = isLikelySameOverlayDialogue(preparedDialogue);
         if (!sameDialogue) {
@@ -311,7 +312,7 @@ public final class WynnDialogueTranslationSupport {
             lastOverlayQueuedOptionsSignature = "";
             clearOverlayChoiceOptionsTracking();
         }
-        dialogue = cleanOverlayDialogueText(dialogue, sameDialogue);
+        dialogue = normalizeOverlayDialogueForCandidate(dialogue, fontPath, sameDialogue);
         if (dialogue.isBlank()) {
             throttledDevLog(
                     "overlay_empty_dialogue",
@@ -1048,30 +1049,36 @@ public final class WynnDialogueTranslationSupport {
             return;
         }
 
-        if (!overlayDialogueActive || candidate.dialogue().length() < MIN_OVERLAY_DIALOGUE_LENGTH || !hasConfiguredRoute()) {
-            return;
-        }
-
-        long now = System.currentTimeMillis();
-        if (!WynnDialogueQueuePolicy.hasMetOverlayStableDelay(lastOverlayChangedAt, now, OVERLAY_STABLE_DELAY_MILLIS)) {
-            return;
-        }
-        if (now - lastOverlayQueuedAt < OVERLAY_QUEUE_THROTTLE_MILLIS) {
-            return;
-        }
-        if (!looksLikeCompleteOverlayDialogue(candidate.dialogue())) {
+        boolean hasConfiguredRoute = hasConfiguredRoute();
+        if (!WynnDialogueQueuePolicy.shouldProcessOverlayOptions(overlayDialogueActive, hasConfiguredRoute)) {
             throttledDevLog(
-                    "overlay_queue_incomplete_sentence",
+                    "overlay_queue_not_ready",
                     DEBUG_OVERLAY_LOG_THROTTLE_MILLIS,
-                    "overlay_queue_skipped reason=incomplete_sentence dialogue=\"{}\"",
-                    describeForLog(candidate.dialogue())
+                    "overlay_queue_skipped active={} hasRoute={}",
+                    overlayDialogueActive,
+                    hasConfiguredRoute
             );
             return;
         }
 
+        long now = System.currentTimeMillis();
         boolean queuedAny = false;
-        if (!overlayDialogueQueued) {
-            if (queueDialogueTranslationIfPossible(candidate.dialogue(), true)) {
+        if (candidate.dialogue().length() >= MIN_OVERLAY_DIALOGUE_LENGTH
+                && WynnDialogueQueuePolicy.hasMetOverlayStableDelay(
+                lastOverlayChangedAt,
+                now,
+                OVERLAY_STABLE_DELAY_MILLIS
+        )
+                && now - lastOverlayQueuedAt >= OVERLAY_QUEUE_THROTTLE_MILLIS) {
+            if (!looksLikeCompleteOverlayDialogue(candidate.dialogue())) {
+                throttledDevLog(
+                        "overlay_queue_incomplete_sentence",
+                        DEBUG_OVERLAY_LOG_THROTTLE_MILLIS,
+                        "overlay_queue_skipped reason=incomplete_sentence dialogue=\"{}\"",
+                        describeForLog(candidate.dialogue())
+                );
+            } else if (!overlayDialogueQueued
+                    && queueDialogueTranslationIfPossible(candidate.dialogue(), true)) {
                 overlayDialogueQueued = true;
                 queuedAny = true;
                 throttledDevLog(
@@ -1633,6 +1640,18 @@ public final class WynnDialogueTranslationSupport {
         return cleaned;
     }
 
+    private static String prepareOverlayDialogueForComparison(String dialogue, boolean fontPath) {
+        return cleanOverlayDialogueText(dialogue, fontPath);
+    }
+
+    private static String normalizeOverlayDialogueForCandidate(
+            String preparedDialogue,
+            boolean fontPath,
+            boolean sameDialogue
+    ) {
+        return fontPath ? preparedDialogue : cleanOverlayDialogueText(preparedDialogue, sameDialogue);
+    }
+
     private static boolean looksLikeEarlyOverlayFragment(String dialogue) {
         if (dialogue == null || dialogue.isBlank()) {
             return false;
@@ -1940,29 +1959,31 @@ public final class WynnDialogueTranslationSupport {
         return String.join("\n", displayLines);
     }
 
+    static OverlayReadableParse resolveFontChoiceOnlyOverlayParseForTest(
+            String extractedNpcName,
+            String optionsText,
+            String currentNpcName,
+            String currentDialogue
+    ) {
+        return resolveFontChoiceOnlyOverlayParse(
+                extractedNpcName,
+                optionsText,
+                new DialogueCandidate(1L, "", currentNpcName, currentDialogue, true, "", ""),
+                "font",
+                -1
+        );
+    }
+
     private static OverlayReadableParse tryFontBasedOverlayParse(
-            Text message,
+            WynnDialogueFontExtractor.FontExtractionResult fontResult,
             String readableText,
-            List<String> readableSegments,
             boolean shouldTranslateOptions
     ) {
-        WynnDialogueFontExtractor.FontExtractionResult fontResult = WynnDialogueFontExtractor.extract(message);
         if (!fontResult.matched()) {
             return null;
         }
 
-        String body = fontResult.dialogue();
-        if (body.isBlank()) {
-            return null;
-        }
-
         String npcName = normalizeDisplayText(fontResult.npcName());
-        String dialogue = normalizeDisplayText(body);
-
-        if (dialogue.length() < MIN_OVERLAY_DIALOGUE_LENGTH) {
-            return null;
-        }
-
         String optionsText = "";
         if (shouldTranslateOptions) {
             optionsText = normalizeOverlayChoiceOptionsText(fontResult.optionsText(), false);
@@ -1970,6 +1991,16 @@ public final class WynnDialogueTranslationSupport {
 
         String mode = resolveFontOverlayMode(readableText);
         int promptIndex = findOverlayPromptIndex(readableText);
+        String dialogue = normalizeDisplayText(fontResult.dialogue());
+        if (dialogue.length() < MIN_OVERLAY_DIALOGUE_LENGTH) {
+            return resolveFontChoiceOnlyOverlayParse(
+                    npcName,
+                    optionsText,
+                    currentCandidate,
+                    mode,
+                    promptIndex
+            );
+        }
 
         throttledDevLog(
                 "overlay_font_matched",
@@ -2138,6 +2169,37 @@ public final class WynnDialogueTranslationSupport {
             return inferredPayloadParse;
         }
         return OverlayReadableParse.rejected(true, "choice_dialogue_prefix_missing");
+    }
+
+    private static OverlayReadableParse resolveFontChoiceOnlyOverlayParse(
+            String extractedNpcName,
+            String optionsText,
+            DialogueCandidate existingCandidate,
+            String mode,
+            int promptIndex
+    ) {
+        if (optionsText == null || optionsText.isBlank()
+                || existingCandidate == null
+                || !existingCandidate.overlaySource()
+                || existingCandidate.dialogue() == null
+                || existingCandidate.dialogue().length() < MIN_OVERLAY_DIALOGUE_LENGTH) {
+            return null;
+        }
+
+        String currentNpcName = normalizeDisplayText(existingCandidate.npcName());
+        String npcName = normalizeDisplayText(extractedNpcName);
+        if (!npcName.isBlank() && !npcName.equals(currentNpcName)) {
+            return null;
+        }
+
+        return OverlayReadableParse.matched(
+                mode + "::choice_only",
+                promptIndex,
+                true,
+                currentNpcName,
+                existingCandidate.dialogue(),
+                optionsText
+        );
     }
 
     private static boolean shouldKeepExistingDialogueForInferredChoicePayload(
@@ -3066,6 +3128,14 @@ public final class WynnDialogueTranslationSupport {
             String optionsText
     ) {
         return stabilizeOverlayChoiceOptionsText(npcName, dialogue, optionsText);
+    }
+
+    static String normalizeFontOverlayDialogueForTest(String dialogue, boolean sameDialogue) {
+        return normalizeOverlayDialogueForCandidate(
+                prepareOverlayDialogueForComparison(dialogue, true),
+                true,
+                sameDialogue
+        );
     }
 
     static String chooseOverlayChoiceOptionsDisplayTextForTest(String previousText, String nextText) {
