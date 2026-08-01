@@ -6,6 +6,7 @@ import com.cedarxuesong.translate_allinone.utils.cache.CacheStats;
 import com.cedarxuesong.translate_allinone.utils.cache.ItemTemplateCache;
 import com.cedarxuesong.translate_allinone.utils.cache.WynnDialogueTextCache;
 import com.cedarxuesong.translate_allinone.utils.cache.WynntilsTaskTrackerTextCache;
+import com.cedarxuesong.translate_allinone.utils.cache.SkyblockNpcTranslationCache;
 import com.cedarxuesong.translate_allinone.utils.cache.component.ComponentCacheModule;
 import com.cedarxuesong.translate_allinone.utils.cache.component.ComponentTranslationStoreRegistry;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationDebugLogger;
@@ -77,6 +78,16 @@ public final class ConfigSectionContentSupport {
                 toggleAdder.add(x, y, width, translator.t("label.enabled"), () -> output.enabled, value -> output.enabled = value, translator.t("desc.chat_output_enabled"));
                 y += ROW_STEP;
                 toggleAdder.add(x, y, width, translator.t("label.auto_translate"), () -> output.auto_translate, value -> output.auto_translate = value, tooltip(translator, "label.auto_translate"));
+                y += ROW_STEP;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.skyblock_npc_auto_translate"),
+                        () -> output.skyblock_npc_auto_translate,
+                        value -> output.skyblock_npc_auto_translate = value,
+                        translator.t("desc.skyblock_npc_auto_translate")
+                );
                 y += ROW_STEP;
                 toggleAdder.add(x, y, width, translator.t("label.streaming"), () -> output.streaming_response, value -> output.streaming_response = value, translator.t("desc.chat_output_streaming"));
                 y += ROW_STEP;
@@ -1156,6 +1167,7 @@ public final class ConfigSectionContentSupport {
                         .getCacheStats();
                 CacheStats dialogueStats = WynnDialogueTextCache.getInstance().getCacheStats();
                 CacheStats taskTrackerStats = WynntilsTaskTrackerTextCache.getInstance().getCacheStats();
+                CacheStats skyblockNpcStats = SkyblockNpcTranslationCache.getInstance().getCacheStats();
 
                 int statsStart = y;
                 textFieldRowAdder.add(
@@ -1179,6 +1191,20 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.cache_entries_scoreboard"),
                         64,
                         translator.t("value.cache_entries", scoreboardStats.translated()).getString(),
+                        Component.empty(),
+                        value -> {
+                        },
+                        value -> true,
+                        false
+                );
+                y += ROW_STEP;
+                textFieldRowAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.cache_entries_skyblock_npc"),
+                        64,
+                        translator.t("value.cache_entries", skyblockNpcStats.translated()).getString(),
                         Component.empty(),
                         value -> {
                         },

@@ -3,6 +3,8 @@ package com.cedarxuesong.translate_allinone.utils.translate;
 import com.cedarxuesong.translate_allinone.utils.AnimationManager;
 import com.cedarxuesong.translate_allinone.utils.cache.CacheStats;
 import com.cedarxuesong.translate_allinone.utils.cache.ItemTemplateCache;
+import com.cedarxuesong.translate_allinone.utils.cache.component.ComponentCacheModule;
+import com.cedarxuesong.translate_allinone.utils.cache.component.ComponentTranslationStoreRegistry;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -18,6 +20,21 @@ public final class TooltipInternalLineSupport {
     private static final String ERROR_STATUS_KEY = "text.translate_allinone.item.tooltip_translation_error";
 
     private TooltipInternalLineSupport() {
+    }
+
+    public static CacheStats getItemCacheStats() {
+        CacheStats componentStats = ComponentTranslationStoreRegistry.getInstance()
+                .forModule(ComponentCacheModule.ITEM)
+                .getCacheStats();
+        CacheStats legacyStats = ItemTemplateCache.getInstance().getCacheStats();
+        return combineItemCacheStats(componentStats, legacyStats);
+    }
+
+    static CacheStats combineItemCacheStats(CacheStats componentStats, CacheStats legacyStats) {
+        return new CacheStats(
+                componentStats.translated() + legacyStats.translated(),
+                componentStats.total() + legacyStats.total()
+        );
     }
 
     public static Component createStatusLine(
@@ -69,7 +86,7 @@ public final class TooltipInternalLineSupport {
             return null;
         }
 
-        CacheStats stats = ItemTemplateCache.getInstance().getCacheStats();
+        CacheStats stats = getItemCacheStats();
         boolean showStatusLine = shouldShowStatusLine(processedTooltip, stats);
         boolean showErrorStatusLine = shouldShowErrorStatusLine(processedTooltip);
         if (!showStatusLine && !showErrorStatusLine) {

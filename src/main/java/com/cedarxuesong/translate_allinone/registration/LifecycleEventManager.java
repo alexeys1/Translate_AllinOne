@@ -4,6 +4,7 @@ import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.utils.cache.ItemTemplateCache;
 import com.cedarxuesong.translate_allinone.utils.cache.WynnDialogueTextCache;
 import com.cedarxuesong.translate_allinone.utils.cache.WynntilsTaskTrackerTextCache;
+import com.cedarxuesong.translate_allinone.utils.cache.SkyblockNpcTranslationCache;
 import com.cedarxuesong.translate_allinone.utils.cache.component.ComponentTranslationStoreRegistry;
 import com.cedarxuesong.translate_allinone.utils.cache.component.ComponentCacheMigrationManager;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRuntime;
@@ -122,6 +123,7 @@ public class LifecycleEventManager {
     private static void loadCachesAndStartTranslationManagers() {
         ComponentTranslationStoreRegistry.getInstance().load();
         ComponentCacheMigrationManager.migrateLegacyCaches(ComponentTranslationStoreRegistry.getInstance());
+        SkyblockNpcTranslationCache.getInstance().load();
         ItemTemplateCache.getInstance().load();
         WynnDialogueTextCache.getInstance().load();
         WynnDialogueTranslateManager.getInstance().start();
@@ -131,6 +133,7 @@ public class LifecycleEventManager {
 
     private static void saveCaches() {
         ComponentTranslationStoreRegistry.getInstance().save();
+        SkyblockNpcTranslationCache.getInstance().save();
         ItemTemplateCache.getInstance().save();
         WynnDialogueTextCache.getInstance().save();
         WynntilsTaskTrackerTextCache.getInstance().save();

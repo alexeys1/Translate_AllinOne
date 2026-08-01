@@ -12,6 +12,7 @@ import java.util.regex.Pattern;
 
 public final class ComponentTranslationValidator {
     private static final Pattern STYLE_TAG_PATTERN = Pattern.compile("</?s(\\d+)>");
+    private static final Pattern LEGACY_FORMATTING_CODE_PATTERN = Pattern.compile("\\x{00A7}[0-9A-FK-ORa-fk-or]");
     private static final int MAX_PARAGRAPH_STYLE_SPLITS_PER_SOURCE_SPAN = 4;
     private final ComponentJsonLimits limits;
 
@@ -101,10 +102,15 @@ public final class ComponentTranslationValidator {
                     }
                 }
             }
+            Map<String, Integer> expectedTokens = unit.protectedTokens();
+            if (isTooltipRoute(document.route())) {
+                expectedTokens = withoutLegacyFormattingCodes(expectedTokens);
+                actualTokens = withoutLegacyFormattingCodes(actualTokens);
+            }
             if (document.route() == ComponentTranslationRoute.TOOLTIP_PARAGRAPH) {
-                validateParagraphProtectedTokens(unit, actualTokens);
-            } else if (!unit.protectedTokens().equals(actualTokens)) {
-                throwProtectedTokenMismatch(unit.id(), unit.protectedTokens(), actualTokens);
+                validateParagraphProtectedTokens(unit, expectedTokens, actualTokens);
+            } else if (!expectedTokens.equals(actualTokens)) {
+                throwProtectedTokenMismatch(unit.id(), expectedTokens, actualTokens);
             }
             validateFlatStyleTags(unit.sourceText(), translation, unit.id());
             if (document.route() == ComponentTranslationRoute.TOOLTIP_PARAGRAPH) {
@@ -116,9 +122,10 @@ public final class ComponentTranslationValidator {
 
     private static void validateParagraphProtectedTokens(
             ComponentTextUnit unit,
+            Map<String, Integer> expectedTokens,
             Map<String, Integer> actualTokens
     ) {
-        Map<String, Integer> expectedNonStyleTokens = withoutStyleTags(unit.protectedTokens());
+        Map<String, Integer> expectedNonStyleTokens = withoutStyleTags(expectedTokens);
         Map<String, Integer> actualNonStyleTokens = withoutStyleTags(actualTokens);
         if (!expectedNonStyleTokens.equals(actualNonStyleTokens)) {
             throwProtectedTokenMismatch(unit.id(), expectedNonStyleTokens, actualNonStyleTokens);
@@ -168,6 +175,25 @@ public final class ComponentTranslationValidator {
             }
         }
         return result;
+    }
+
+    private static Map<String, Integer> withoutLegacyFormattingCodes(Map<String, Integer> tokens) {
+        Map<String, Integer> result = new TreeMap<>();
+        if (tokens == null || tokens.isEmpty()) {
+            return result;
+        }
+        for (Map.Entry<String, Integer> entry : tokens.entrySet()) {
+            if (entry.getKey() == null || !LEGACY_FORMATTING_CODE_PATTERN.matcher(entry.getKey()).matches()) {
+                result.put(entry.getKey(), entry.getValue());
+            }
+        }
+        return result;
+    }
+
+    private static boolean isTooltipRoute(ComponentTranslationRoute route) {
+        return route == ComponentTranslationRoute.TOOLTIP_LINE
+                || route == ComponentTranslationRoute.TOOLTIP_STRUCTURED
+                || route == ComponentTranslationRoute.TOOLTIP_PARAGRAPH;
     }
 
     private static boolean isStyleTag(String token) {

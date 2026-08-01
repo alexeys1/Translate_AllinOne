@@ -2003,7 +2003,7 @@ public class ModConfigScreen extends Screen {
     }
 
     private void openCacheDirectory() {
-        Path cacheDirectory = CacheBackupManager.getCacheDirectory();
+        Path cacheDirectory = CacheBackupManager.getComponentCacheDirectory();
         try {
             Files.createDirectories(cacheDirectory);
             Util.getPlatform().openUri(cacheDirectory.toUri());

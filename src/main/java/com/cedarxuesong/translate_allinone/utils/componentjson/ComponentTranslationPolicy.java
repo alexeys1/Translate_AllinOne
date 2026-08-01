@@ -1,6 +1,7 @@
 package com.cedarxuesong.translate_allinone.utils.componentjson;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -12,14 +13,15 @@ import java.util.regex.Pattern;
 
 public final class ComponentTranslationPolicy {
     public static final int CURRENT_VERSION = 1;
+    private static final Pattern STYLE_TAG_PATTERN = Pattern.compile("</?s\\d+>");
     private static final List<Pattern> PROTECTED_TOKEN_PATTERNS = List.of(
             Pattern.compile("%(?:\\d+\\$)?[-#+ 0,(<]*\\d*(?:\\.\\d+)?[sdf]"),
             Pattern.compile("\\{[A-Za-z][A-Za-z0-9_.:-]*}"),
             Pattern.compile("(?i)\\bhttps?://[^\\s<>{}\\[\\]]+"),
-            Pattern.compile("§[0-9A-FK-ORa-fk-or]"),
+            Pattern.compile("\\x{00A7}[0-9A-FK-ORa-fk-or]"),
             Pattern.compile("<taio-player-name>"),
-            Pattern.compile("</?s\\d+>"),
-            Pattern.compile("(?<![\\p{L}\\p{N}_])-?\\d+(?:[.,]\\d+)?(?:\\s?(?:%|ms|s|min|h|d|px|秒|分钟|小时|天|格|级|点|次|个|块|米))?")
+            STYLE_TAG_PATTERN,
+            Pattern.compile("(?<![\\x{00A7}\\p{L}\\p{N}_])-?\\d+(?:[.,]\\d+)?(?:\\s?(?:%|ms|s|min|h|d|px|秒|分钟|小时|天|格|级|点|次|个|块|米))?")
     );
 
     private final ComponentTranslationRoute route;
@@ -113,6 +115,41 @@ public final class ComponentTranslationPolicy {
         return Collections.unmodifiableMap(new TreeMap<>(tokens));
     }
 
+    static List<ProtectedTokenSpan> protectedTokenSpans(String text) {
+        if (text == null || text.isEmpty()) {
+            return List.of();
+        }
+
+        List<ProtectedTokenCandidate> candidates = new ArrayList<>();
+        for (int patternIndex = 0; patternIndex < PROTECTED_TOKEN_PATTERNS.size(); patternIndex++) {
+            Pattern pattern = PROTECTED_TOKEN_PATTERNS.get(patternIndex);
+            Matcher matcher = pattern.matcher(text);
+            while (matcher.find()) {
+                candidates.add(new ProtectedTokenCandidate(
+                        matcher.start(),
+                        matcher.end(),
+                        patternIndex,
+                        pattern == STYLE_TAG_PATTERN
+                ));
+            }
+        }
+        candidates.sort(Comparator
+                .comparingInt(ProtectedTokenCandidate::start)
+                .thenComparingInt(ProtectedTokenCandidate::patternIndex)
+                .thenComparingInt(ProtectedTokenCandidate::end));
+
+        List<ProtectedTokenSpan> spans = new ArrayList<>();
+        int consumedUntil = 0;
+        for (ProtectedTokenCandidate candidate : candidates) {
+            if (candidate.start() < consumedUntil) {
+                continue;
+            }
+            spans.add(new ProtectedTokenSpan(candidate.start(), candidate.end(), candidate.styleTag()));
+            consumedUntil = candidate.end();
+        }
+        return List.copyOf(spans);
+    }
+
     public Map<String, String> semanticSettings() {
         Map<String, String> settings = new TreeMap<>();
         settings.put("literal_scope", "root_and_extra");
@@ -133,5 +170,11 @@ public final class ComponentTranslationPolicy {
                 || (codePoint >= 0xE000 && codePoint <= 0xF8FF)
                 || (codePoint >= 0xF0000 && codePoint <= 0xFFFFD)
                 || (codePoint >= 0x100000 && codePoint <= 0x10FFFD);
+    }
+
+    static record ProtectedTokenSpan(int start, int end, boolean styleTag) {
+    }
+
+    private record ProtectedTokenCandidate(int start, int end, int patternIndex, boolean styleTag) {
     }
 }

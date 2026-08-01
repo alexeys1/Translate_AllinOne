@@ -109,7 +109,6 @@ public final class PromptMessageBuilder {
                     + "2) Name tags must stay short. Text displays may use natural sentence order, but do not add line breaks.\n"
                     + "3) Keep an uncertain span unchanged. No Markdown, explanations, or extra fields.";
             case "chat_output" -> "Translate a received Minecraft chat message into " + targetLanguage + ".\n"
-                    + "Return only the JSON response required by the request.\n"
                     + "Rules:\n"
                     + "1) Preserve speaker names, server commands, item ids, URLs, numbers, and uncertain proper nouns.\n"
                     + "2) Preserve exactly: Minecraft formatting codes, every <sN> tag, {dN}/{gN}, %s/%d/%f, \\n, and \\t.\n"
