@@ -20,6 +20,7 @@
     "mixinAdvancement.AdvancementTabMixin",
     "mixinAdvancement.AdvancementToastMixin",
     "mixinAdvancement.AdvancementWidgetMixin",
+    "mixinBook.BookScreenMixin",
     "mixinEntity.EntityRendererMixin",
     "mixinWynntils.ActivityNameFunctionMixin",
     "mixinWynntils.ActivityTaskFunctionMixin",
