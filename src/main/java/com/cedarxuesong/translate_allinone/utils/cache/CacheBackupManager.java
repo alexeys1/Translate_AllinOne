@@ -84,61 +84,68 @@ public final class CacheBackupManager {
         }
 
         synchronized (BACKUP_LOCK) {
+            cleanupBackupDirectories();
             Instant now = Instant.now();
             Duration backupInterval = getBackupInterval();
             try {
-            List<Path> cacheFiles = listCurrentCacheFiles();
-            if (cacheFiles.isEmpty()) {
-                return;
-            }
-
-            BackupDirectorySummary latestBackup = latestBackupDirectory();
-            if (latestBackup != null && Duration.between(latestBackup.backupTime(), now).compareTo(backupInterval) < 0) {
-                return;
-            }
-
-            Path backupDirectory = BACKUP_ROOT.resolve(BACKUP_TIME_FORMATTER.format(LocalDateTime.ofInstant(now, BACKUP_ZONE)));
-            ensureManagedBackupDirectory(backupDirectory);
-            JsonArray manifestFiles = new JsonArray();
-            for (Path sourceFile : cacheFiles) {
-                Path relativePath = CACHE_ROOT.relativize(sourceFile);
-                if (relativePath.getNameCount() == 1) {
-                    relativePath = Path.of("old_translate_cache").resolve(relativePath);
+                List<Path> cacheFiles = listCurrentCacheFiles();
+                if (cacheFiles.isEmpty()) {
+                    return;
                 }
-                Path backupFilePath = backupDirectory.resolve(relativePath);
-                Files.createDirectories(backupFilePath.getParent());
-                Files.copy(sourceFile, backupFilePath, StandardCopyOption.REPLACE_EXISTING);
-                JsonObject manifestEntry = new JsonObject();
-                manifestEntry.addProperty("relative_path", relativePath.toString().replace('\\', '/'));
-                manifestEntry.addProperty("sha256", sha256(sourceFile));
-                manifestEntry.addProperty("size", Files.size(sourceFile));
-                manifestFiles.add(manifestEntry);
-            }
-            JsonObject manifest = new JsonObject();
-            manifest.addProperty("created_at", now.toString());
-            manifest.add("files", manifestFiles);
-            try (var writer = Files.newBufferedWriter(backupDirectory.resolve(BACKUP_MANIFEST_FILE_NAME), StandardCharsets.UTF_8)) {
-                GSON.toJson(manifest, writer);
-            }
-            markManagedBackupDirectory(backupDirectory);
 
-            Translate_AllinOne.LOGGER.info(
-                    "Created passive cache snapshot at {} with {} file(s), triggered by {} cache file {}.",
-                    backupDirectory,
-                    cacheFiles.size(),
-                    cacheTypeLabel,
-                    cacheFilePath.getFileName()
-            );
+                BackupDirectorySummary latestBackup = latestBackupDirectory();
+                if (latestBackup != null && Duration.between(latestBackup.backupTime(), now).compareTo(backupInterval) < 0) {
+                    return;
+                }
 
-            cleanupBackupDirectories();
+                Path backupDirectory = BACKUP_ROOT.resolve(BACKUP_TIME_FORMATTER.format(LocalDateTime.ofInstant(now, BACKUP_ZONE)));
+                ensureManagedBackupDirectory(backupDirectory);
+                JsonArray manifestFiles = new JsonArray();
+                for (Path sourceFile : cacheFiles) {
+                    Path relativePath = CACHE_ROOT.relativize(sourceFile);
+                    if (relativePath.getNameCount() == 1) {
+                        relativePath = Path.of("old_translate_cache").resolve(relativePath);
+                    }
+                    Path backupFilePath = backupDirectory.resolve(relativePath);
+                    Files.createDirectories(backupFilePath.getParent());
+                    Files.copy(sourceFile, backupFilePath, StandardCopyOption.REPLACE_EXISTING);
+                    JsonObject manifestEntry = new JsonObject();
+                    manifestEntry.addProperty("relative_path", relativePath.toString().replace('\\', '/'));
+                    manifestEntry.addProperty("sha256", sha256(sourceFile));
+                    manifestEntry.addProperty("size", Files.size(sourceFile));
+                    manifestFiles.add(manifestEntry);
+                }
+                JsonObject manifest = new JsonObject();
+                manifest.addProperty("created_at", now.toString());
+                manifest.add("files", manifestFiles);
+                try (var writer = Files.newBufferedWriter(backupDirectory.resolve(BACKUP_MANIFEST_FILE_NAME), StandardCharsets.UTF_8)) {
+                    GSON.toJson(manifest, writer);
+                }
+                markManagedBackupDirectory(backupDirectory);
+
+                Translate_AllinOne.LOGGER.info(
+                        "Created passive cache snapshot at {} with {} file(s), triggered by {} cache file {}.",
+                        backupDirectory,
+                        cacheFiles.size(),
+                        cacheTypeLabel,
+                        cacheFilePath.getFileName()
+                );
+
+                cleanupBackupDirectories();
             } catch (IOException e) {
-            Translate_AllinOne.LOGGER.warn(
-                    "Failed to create passive cache snapshot triggered by {} cache file {}.",
-                    cacheTypeLabel,
-                    cacheFilePath,
-                    e
-            );
+                Translate_AllinOne.LOGGER.warn(
+                        "Failed to create passive cache snapshot triggered by {} cache file {}.",
+                        cacheTypeLabel,
+                        cacheFilePath,
+                        e
+                );
             }
+        }
+    }
+
+    public static void enforceBackupLimit() {
+        synchronized (BACKUP_LOCK) {
+            cleanupBackupDirectories();
         }
     }
 
@@ -179,7 +186,7 @@ public final class CacheBackupManager {
         return backups.isEmpty() ? null : backups.get(0);
     }
 
-    private static void cleanupBackupDirectories() throws IOException {
+    private static void cleanupBackupDirectories() {
         List<BackupDirectorySummary> backups = new ArrayList<>(listManagedBackupDirectories());
         int maxBackupDirectories = getMaxBackupDirectories();
         if (backups.size() <= maxBackupDirectories) {
@@ -189,8 +196,10 @@ public final class CacheBackupManager {
         backups.sort(Comparator.comparing(BackupDirectorySummary::backupTime).reversed());
         for (int index = maxBackupDirectories; index < backups.size(); index++) {
             Path candidate = BACKUP_ROOT.resolve(backups.get(index).directoryName());
-            if (Files.isRegularFile(candidate.resolve(BACKUP_MANIFEST_FILE_NAME))) {
+            try {
                 deleteBackupDirectory(candidate);
+            } catch (IOException e) {
+                Translate_AllinOne.LOGGER.warn("Failed to remove obsolete cache backup directory {}", candidate, e);
             }
         }
     }
