@@ -63,10 +63,11 @@ public class ChatOutputTranslateManager {
     private static final Pattern STYLE_TAG_PATTERN = Pattern.compile("<s(\\d+)>(.*?)</s\\1>", Pattern.DOTALL);
     private static final Pattern CHAT_IGNORABLE_PLACEHOLDER_PATTERN = Pattern.compile("\\{c(\\d+)}");
     private static final String SKYBLOCK_NPC_FORMATTED_UNIT = "(?:§[0-9a-fk-or]|[^§\\r\\n])";
+    private static final String SKYBLOCK_NPC_NAME_TOKEN = "[\\p{L}\\p{N}_.'-]+";
     private static final Pattern SKYBLOCK_NPC_CHAT_PATTERN = Pattern.compile(
-            "^(?:\\[CHAT\\] )?(?:§r)?§e\\[NPC\\] (?:§r)?§[0-9a-f]"
-                    + "[\\p{L}\\p{N}_'-]+(?: [\\p{L}\\p{N}_'-]+){0,3}"
-                    + "(?:§r)?§f: (?:(?:§r)?§f)?"
+            "^(?:\\[CHAT\\] )?(?:§r)?(?:§e)?\\[NPC\\] (?:§r)?(?:§[0-9a-f])"
+                    + SKYBLOCK_NPC_NAME_TOKEN + "(?: " + SKYBLOCK_NPC_NAME_TOKEN + ")*"
+                    + "(?:§r)?(?:§f)?: (?:(?:§r)?§f)?"
                     + "(?<body>" + SKYBLOCK_NPC_FORMATTED_UNIT + "+?)(?:§[0-9a-fk-or])*"
                     + "(?:\\s+\\[T\\])?$"
     );
