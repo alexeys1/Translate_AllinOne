@@ -865,7 +865,9 @@ final class TooltipStructuredCaptureSupport {
         if (isGenericMeasuredValue(normalizedValue)) {
             return StructuredLineKind.MEASURED_VALUE;
         }
-        if (allowWordPhraseValue && isWordPhraseValue(normalizedValue)) {
+        if (allowWordPhraseValue
+                && containsLetter(normalizedLabel)
+                && isWordPhraseValue(normalizedValue)) {
             return StructuredLineKind.WORD_VALUE;
         }
         if (isSelectedLikeLabel(normalizedLabel) && isWordPhraseValue(normalizedValue)) {
@@ -1638,7 +1640,13 @@ final class TooltipStructuredCaptureSupport {
         }
 
         boolean allowsLineFallback() {
-            return failureDisposition == ComponentTranslationRuntime.FailureDisposition.TERMINAL_CONTENT_FAILURE;
+            if (failureDisposition == ComponentTranslationRuntime.FailureDisposition.TERMINAL_CONTENT_FAILURE) {
+                return true;
+            }
+            return failureDisposition == ComponentTranslationRuntime.FailureDisposition.INELIGIBLE
+                    && lineResult != null
+                    && lineResult.translatedLine() != null
+                    && TooltipComponentTranslationSupport.hasTranslatableText(lineResult.translatedLine().getString());
         }
     }
 
