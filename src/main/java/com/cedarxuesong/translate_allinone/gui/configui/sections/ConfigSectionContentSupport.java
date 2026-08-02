@@ -1202,20 +1202,6 @@ public final class ConfigSectionContentSupport {
                         x,
                         y,
                         width,
-                        translator.t("label.cache_entries_skyblock_npc"),
-                        64,
-                        translator.t("value.cache_entries", skyblockNpcStats.translated()).getString(),
-                        Component.empty(),
-                        value -> {
-                        },
-                        value -> true,
-                        false
-                );
-                y += ROW_STEP;
-                textFieldRowAdder.add(
-                        x,
-                        y,
-                        width,
                         translator.t("label.cache_entries_sign"),
                         64,
                         translator.t("value.cache_entries", signStats.translated()).getString(),
@@ -1247,6 +1233,20 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.cache_entries_book"),
                         64,
                         translator.t("value.cache_entries", bookStats.translated()).getString(),
+                        Component.empty(),
+                        value -> {
+                        },
+                        value -> true,
+                        false
+                );
+                y += ROW_STEP;
+                textFieldRowAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.cache_entries_skyblock_npc"),
+                        64,
+                        translator.t("value.cache_entries", skyblockNpcStats.translated()).getString(),
                         Component.empty(),
                         value -> {
                         },
