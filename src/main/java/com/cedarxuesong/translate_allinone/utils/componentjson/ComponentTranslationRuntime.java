@@ -2,6 +2,7 @@ package com.cedarxuesong.translate_allinone.utils.componentjson;
 
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.registration.LifecycleEventManager;
+import com.cedarxuesong.translate_allinone.utils.TranslateExceptionUtils;
 import com.cedarxuesong.translate_allinone.utils.cache.component.ComponentTranslationStore;
 import com.cedarxuesong.translate_allinone.utils.cache.component.ComponentTranslationStoreRegistry;
 import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
@@ -35,6 +36,14 @@ public final class ComponentTranslationRuntime {
     private static final ComponentTranslationClient CLIENT = new ComponentTranslationClient();
     private static final Map<DispatchRoute, DispatchState> DISPATCH = createDispatchStates();
     private static final Map<String, FailureState> FAILURES = new ConcurrentHashMap<>();
+    private static final Map<String, Long> FALLBACK_GENERATIONS = Collections.synchronizedMap(
+            new LinkedHashMap<>(64, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, Long> eldest) {
+                    return size() > DOCUMENT_CACHE_LIMIT;
+                }
+            }
+    );
     private static final AtomicLong SESSION_EPOCH = new AtomicLong();
     private static final Object WORK_LOCK = new Object();
     private static final Map<String, TranslationWork> WORKS = new LinkedHashMap<>();
@@ -161,7 +170,7 @@ public final class ComponentTranslationRuntime {
             Supplier<T> legacyLookup,
             Function<ComponentTranslationResponse, T> renderer,
             String requestContext,
-        boolean queueIfMissing
+            boolean queueIfMissing
     ) {
         if (document == null || targetLanguage == null || targetLanguage.isBlank() || renderer == null) {
             ComponentTranslationDebugLogger.error(
@@ -235,6 +244,21 @@ public final class ComponentTranslationRuntime {
                             error.getMessage(),
                             error
                     );
+                    if (isTooltipLegacyCompatibilityRoute(document.route())) {
+                        FailureState failure = new FailureState(
+                                resolvedFailureMessage(error),
+                                System.currentTimeMillis() + FAILURE_COOLDOWN_MILLIS,
+                                FailureDisposition.TERMINAL_CONTENT_FAILURE
+                        );
+                        FAILURES.put(request.identity().key(), failure);
+                        return new Resolution<>(
+                                State.FAILED,
+                                null,
+                                request.identity().key(),
+                                failure.message(),
+                                failure.disposition()
+                        );
+                    }
                 }
             }
             if (document.route() == ComponentTranslationRoute.ENTITY_NAME) {
@@ -288,7 +312,13 @@ public final class ComponentTranslationRuntime {
                     e.getMessage(),
                     e
             );
-            return new Resolution<>(State.INELIGIBLE, null, request.identity().key(), e.getMessage());
+            return new Resolution<>(
+                    State.INELIGIBLE,
+                    null,
+                    request.identity().key(),
+                    e.getMessage(),
+                    FailureDisposition.INFRASTRUCTURE_FAILURE
+            );
         } finally {
             ComponentTranslationMetrics.recordNanos(
                     document.route(),
@@ -298,16 +328,35 @@ public final class ComponentTranslationRuntime {
         }
 
         if (isTooltipLegacyCompatibilityRoute(document.route()) && legacyLookup != null) {
-            T legacyValue = legacyLookup.get();
-            if (legacyValue != null) {
-                ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.LEGACY_HIT);
-                ComponentTranslationDebugLogger.flow(
+            try {
+                T legacyValue = legacyLookup.get();
+                if (legacyValue != null) {
+                    ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.LEGACY_HIT);
+                    ComponentTranslationDebugLogger.flow(
+                            document.route(),
+                            "resolve route={} state=LEGACY_HIT key={}",
+                            document.route().wireName(),
+                            legacyKey == null ? request.identity().key() : legacyKey
+                    );
+                    return new Resolution<>(State.LEGACY_HIT, legacyValue, request.identity().key(), "");
+                }
+            } catch (RuntimeException error) {
+                ComponentTranslationDebugLogger.error(
                         document.route(),
-                        "resolve route={} state=LEGACY_HIT key={}",
+                        "legacy cache lookup failed: route={} context={} key={} reason={}",
                         document.route().wireName(),
-                        legacyKey == null ? request.identity().key() : legacyKey
+                        requestContext == null ? "" : requestContext,
+                        legacyKey == null ? request.identity().key() : legacyKey,
+                        error.getMessage(),
+                        error
                 );
-                return new Resolution<>(State.LEGACY_HIT, legacyValue, request.identity().key(), "");
+                return new Resolution<>(
+                        State.FAILED,
+                        null,
+                        request.identity().key(),
+                        error.getMessage(),
+                        FailureDisposition.INFRASTRUCTURE_FAILURE
+                );
             }
         }
 
@@ -317,7 +366,8 @@ public final class ComponentTranslationRuntime {
                     State.FAILED,
                     null,
                     request.identity().key(),
-                    "Component cache is write-protected for this session."
+                    "Component cache is write-protected for this session.",
+                    FailureDisposition.INFRASTRUCTURE_FAILURE
             );
         }
 
@@ -333,9 +383,18 @@ public final class ComponentTranslationRuntime {
                     document.route().wireName(),
                     request.identity().key()
             );
-            return new Resolution<>(State.FAILED, null, request.identity().key(), failure.message());
+            return new Resolution<>(
+                    State.FAILED,
+                    null,
+                    request.identity().key(),
+                    failure.message(),
+                    failure.disposition()
+            );
         }
         if (!queueIfMissing) {
+            if (hasActiveWork(request.identity().key())) {
+                return new Resolution<>(State.PENDING, null, request.identity().key(), "");
+            }
             ComponentTranslationDebugLogger.flow(
                     document.route(),
                     "resolve route={} state=MISS queue=false key={}",
@@ -351,7 +410,13 @@ public final class ComponentTranslationRuntime {
                     document.route().wireName(),
                     request.identity().key()
             );
-            return new Resolution<>(State.PENDING, null, request.identity().key(), "");
+            return new Resolution<>(
+                    State.PENDING,
+                    null,
+                    request.identity().key(),
+                    "",
+                    FailureDisposition.INFRASTRUCTURE_FAILURE
+            );
         }
         boolean queued = queue(request, requestContext);
         ComponentTranslationDebugLogger.flow(
@@ -371,6 +436,7 @@ public final class ComponentTranslationRuntime {
         ComponentTranslationPreparedRequest request = preparedRequest(document, targetLanguage);
         String key = request.identity().key();
         FAILURES.remove(key);
+        clearFallbackGeneration(key);
         ENTITY_TEMPLATE_SEEDS.remove(key);
         boolean refreshRequested = requestRefresh(key);
         boolean removed = store(document.route()).remove(request);
@@ -394,8 +460,15 @@ public final class ComponentTranslationRuntime {
         clearRuntimeState();
     }
 
+    public static long providerConfigurationChanged() {
+        long epoch = SESSION_EPOCH.incrementAndGet();
+        clearRuntimeState();
+        return epoch;
+    }
+
     private static void clearRuntimeState() {
         FAILURES.clear();
+        FALLBACK_GENERATIONS.clear();
         DOCUMENTS.clear();
         PREPARED_REQUESTS.clear();
         ENTITY_TEMPLATE_SEEDS.clear();
@@ -414,6 +487,24 @@ public final class ComponentTranslationRuntime {
 
     public static String cacheKey(ComponentTranslationDocument document, String targetLanguage) {
         return preparedRequest(document, targetLanguage).identity().key();
+    }
+
+    public static boolean claimFallbackGeneration(String primaryCacheKey) {
+        if (primaryCacheKey == null || primaryCacheKey.isBlank() || !LifecycleEventManager.isReadyForTranslation) {
+            return true;
+        }
+        long epoch = SESSION_EPOCH.get();
+        synchronized (FALLBACK_GENERATIONS) {
+            Long previousEpoch = FALLBACK_GENERATIONS.put(primaryCacheKey, epoch);
+            return previousEpoch == null || previousEpoch != epoch;
+        }
+    }
+
+    public static void clearFallbackGeneration(String primaryCacheKey) {
+        if (primaryCacheKey == null || primaryCacheKey.isBlank()) {
+            return;
+        }
+        FALLBACK_GENERATIONS.remove(primaryCacheKey);
     }
 
     private static boolean queue(
@@ -561,7 +652,13 @@ public final class ComponentTranslationRuntime {
                     batch.requests().size(),
                     first.cacheKey()
             );
-            failBatch(route, batch, "No routed model selected", null);
+            failBatch(
+                    route,
+                    batch,
+                    "No routed model selected",
+                    null,
+                    FailureDisposition.INFRASTRUCTURE_FAILURE
+            );
             return;
         }
 
@@ -582,7 +679,7 @@ public final class ComponentTranslationRuntime {
                     batchContext
             ).whenComplete((result, error) -> {
                 if (error != null) {
-                    failBatch(route, batch, error.getMessage(), error);
+                    failBatch(route, batch, error.getMessage(), error, classifyFailure(error));
                     return;
                 }
                 try {
@@ -592,17 +689,23 @@ public final class ComponentTranslationRuntime {
                         try {
                             completeRequest(request, splitResponses.get(index), batch.requests().size());
                         } catch (RuntimeException e) {
-                            recordRequestFailure(request, e.getMessage(), e);
+                            recordRequestFailure(request, e.getMessage(), e, classifyFailure(e));
                         }
                     }
                 } catch (RuntimeException e) {
-                    failBatch(route, batch, e.getMessage(), e);
+                    failBatch(
+                            route,
+                            batch,
+                            e.getMessage(),
+                            e,
+                            FailureDisposition.TERMINAL_CONTENT_FAILURE
+                    );
                     return;
                 }
                 finishRequest(route, batch);
             });
         } catch (RuntimeException e) {
-            failBatch(route, batch, e.getMessage(), e);
+            failBatch(route, batch, e.getMessage(), e, FailureDisposition.TERMINAL_CONTENT_FAILURE);
         }
     }
 
@@ -613,7 +716,13 @@ public final class ComponentTranslationRuntime {
             ApiProviderProfile provider
     ) {
         if (batch.requests().size() != 1) {
-            failBatch(route, batch, "Tooltip paragraph batch must contain one document", null);
+            failBatch(
+                    route,
+                    batch,
+                    "Tooltip paragraph batch must contain one document",
+                    null,
+                    FailureDisposition.INFRASTRUCTURE_FAILURE
+            );
             return;
         }
         try {
@@ -624,18 +733,18 @@ public final class ComponentTranslationRuntime {
                     request.requestContext()
             ).whenComplete((result, error) -> {
                 if (error != null) {
-                    failBatch(route, batch, error.getMessage(), error);
+                    failBatch(route, batch, error.getMessage(), error, classifyFailure(error));
                     return;
                 }
                 try {
                     completeRequest(request, result, 1);
                 } catch (RuntimeException e) {
-                    recordRequestFailure(request, e.getMessage(), e);
+                    recordRequestFailure(request, e.getMessage(), e, classifyFailure(e));
                 }
                 finishRequest(route, batch);
             });
         } catch (RuntimeException e) {
-            failBatch(route, batch, e.getMessage(), e);
+            failBatch(route, batch, e.getMessage(), e, classifyFailure(e));
         }
     }
 
@@ -677,24 +786,40 @@ public final class ComponentTranslationRuntime {
         );
     }
 
-    private static void failBatch(DispatchRoute route, PendingBatch batch, String message, Throwable error) {
+    private static void failBatch(
+            DispatchRoute route,
+            PendingBatch batch,
+            String message,
+            Throwable error,
+            FailureDisposition disposition
+    ) {
         for (PendingRequest request : batch.requests()) {
-            recordRequestFailure(request, message, error);
+            recordRequestFailure(request, message, error, disposition);
         }
         finishRequest(route, batch);
     }
 
-    private static void recordRequestFailure(PendingRequest request, String message, Throwable error) {
+    private static void recordRequestFailure(
+            PendingRequest request,
+            String message,
+            Throwable error,
+            FailureDisposition disposition
+    ) {
         failWork(request.cacheKey(), request.epoch());
         if (request.epoch() == SESSION_EPOCH.get()) {
             String resolvedMessage = message == null || message.isBlank() ? "Component translation failed" : message;
             FAILURES.put(
                     request.cacheKey(),
-                    new FailureState(resolvedMessage, System.currentTimeMillis() + FAILURE_COOLDOWN_MILLIS)
+                    new FailureState(
+                            resolvedMessage,
+                            System.currentTimeMillis() + FAILURE_COOLDOWN_MILLIS,
+                            disposition == null ? FailureDisposition.INFRASTRUCTURE_FAILURE : disposition
+                    )
             );
+            Throwable cause = error == null ? null : TranslateExceptionUtils.unwrapThrowable(error);
             ComponentTranslationMetrics.record(
                     request.document(),
-                    error instanceof ComponentJsonException
+                    cause instanceof ComponentJsonException
                             ? ComponentTranslationMetrics.Outcome.RESPONSE_REJECTED
                             : ComponentTranslationMetrics.Outcome.PROVIDER_FAILURE
             );
@@ -738,6 +863,20 @@ public final class ComponentTranslationRuntime {
         }
         FAILURES.remove(key, failure);
         return null;
+    }
+
+    private static FailureDisposition classifyFailure(Throwable error) {
+        Throwable cause = TranslateExceptionUtils.unwrapThrowable(error);
+        return cause instanceof ComponentJsonException
+                ? FailureDisposition.TERMINAL_CONTENT_FAILURE
+                : FailureDisposition.INFRASTRUCTURE_FAILURE;
+    }
+
+    private static String resolvedFailureMessage(Throwable error) {
+        if (error == null || error.getMessage() == null || error.getMessage().isBlank()) {
+            return error == null ? "Component translation failed" : error.getClass().getSimpleName();
+        }
+        return error.getMessage();
     }
 
     private static int maxConcurrency(DispatchRoute route) {
@@ -867,6 +1006,13 @@ public final class ComponentTranslationRuntime {
         }
     }
 
+    private static boolean hasActiveWork(String cacheKey) {
+        synchronized (WORK_LOCK) {
+            TranslationWork work = WORKS.get(cacheKey);
+            return work != null && work.epoch() == SESSION_EPOCH.get();
+        }
+    }
+
     private static boolean markEntityTemplateSeeded(String fullCacheKey) {
         synchronized (ENTITY_TEMPLATE_SEEDS) {
             return ENTITY_TEMPLATE_SEEDS.put(fullCacheKey, Boolean.TRUE) == null;
@@ -931,11 +1077,43 @@ public final class ComponentTranslationRuntime {
         private static final ComponentTranslationStoreRegistry INSTANCE = ComponentTranslationStoreRegistry.getInstance();
     }
 
-    public record Resolution<T>(State state, T value, String cacheKey, String errorMessage) {
+    public record Resolution<T>(
+            State state,
+            T value,
+            String cacheKey,
+            String errorMessage,
+            FailureDisposition failureDisposition
+    ) {
+        public Resolution(State state, T value, String cacheKey, String errorMessage) {
+            this(state, value, cacheKey, errorMessage, defaultDisposition(state));
+        }
+
         public Resolution {
             cacheKey = cacheKey == null ? "" : cacheKey;
             errorMessage = errorMessage == null ? "" : errorMessage;
+            failureDisposition = failureDisposition == null ? defaultDisposition(state) : failureDisposition;
         }
+
+        public boolean allowsTooltipFallback() {
+            return failureDisposition == FailureDisposition.TERMINAL_CONTENT_FAILURE;
+        }
+
+        private static FailureDisposition defaultDisposition(State state) {
+            if (state == State.FAILED) {
+                return FailureDisposition.TERMINAL_CONTENT_FAILURE;
+            }
+            if (state == State.INELIGIBLE) {
+                return FailureDisposition.INELIGIBLE;
+            }
+            return FailureDisposition.NONE;
+        }
+    }
+
+    public enum FailureDisposition {
+        NONE,
+        TERMINAL_CONTENT_FAILURE,
+        INFRASTRUCTURE_FAILURE,
+        INELIGIBLE
     }
 
     public enum State {
@@ -1049,6 +1227,10 @@ public final class ComponentTranslationRuntime {
         }
     }
 
-    private record FailureState(String message, long expiresAtMillis) {
+    private record FailureState(
+            String message,
+            long expiresAtMillis,
+            FailureDisposition disposition
+    ) {
     }
 }
