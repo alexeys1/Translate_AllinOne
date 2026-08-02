@@ -323,13 +323,17 @@ final class TooltipTemplateRuntime {
             return renderLocalDictionaryTranslation(preparedTemplate, localEvaluation.lookupResult().translation());
         }
 
+        if (shouldBypassCompatibilityFallback(preparedTemplate.translationTemplateKey())) {
+            return null;
+        }
+
         CachedTranslationFormat currentFormat = preparedTemplate.useTagStylePreservation()
                 ? CachedTranslationFormat.TAGGED
                 : CachedTranslationFormat.LEGACY;
         ItemTemplateCache cache = ItemTemplateCache.getInstance();
         LookupResult currentLookup = cache.peek(preparedTemplate.translationTemplateKey());
-        Text current = renderPeekedTranslation(preparedTemplate, currentLookup, currentFormat);
-        if (current != null || shouldBypassCompatibilityFallback(preparedTemplate.translationTemplateKey())) {
+            Text current = renderPeekedTranslation(preparedTemplate, currentLookup, currentFormat);
+        if (current != null) {
             return current;
         }
 
@@ -1653,7 +1657,7 @@ final class TooltipTemplateRuntime {
         return client == null ? null : client.textRenderer;
     }
 
-    private static boolean shouldBypassCompatibilityFallback(String translationTemplateKey) {
+    static boolean shouldBypassCompatibilityFallback(String translationTemplateKey) {
         if (translationTemplateKey == null || translationTemplateKey.isBlank()) {
             return false;
         }
@@ -1671,7 +1675,7 @@ final class TooltipTemplateRuntime {
         return true;
     }
 
-    private static void clearForceRefreshCompatBypass(String translationTemplateKey) {
+    static void clearForceRefreshCompatBypass(String translationTemplateKey) {
         if (translationTemplateKey == null || translationTemplateKey.isBlank()) {
             return;
         }

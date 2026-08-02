@@ -14,7 +14,9 @@ import com.cedarxuesong.translate_allinone.utils.translate.TooltipTemplateRuntim
 import net.minecraft.text.Text;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 final class TooltipComponentTranslationSupport {
@@ -114,7 +116,7 @@ final class TooltipComponentTranslationSupport {
                     queueIfMissing
             );
             return new LineTranslationAttempt(
-                    toLineResult(prepared.sourceLine(), cacheKey, resolution),
+                    toLineResult(prepared, cacheKey, resolution),
                     resolution.failureDisposition(),
                     resolution.cacheKey(),
                     resolution.state()
@@ -147,9 +149,7 @@ final class TooltipComponentTranslationSupport {
             return 0;
         }
         ComponentTranslationDocument document = preparedDocument.document();
-        String cacheKey = ComponentTranslationRuntime.cacheKey(document, config.target_language);
-        TooltipRefreshNoticeSupport.markComponentRefreshHandled(cacheKey);
-        return ComponentTranslationRuntime.forceRefresh(document, config.target_language) ? 1 : 0;
+        return forceRefreshDocuments(List.of(document), config);
     }
 
     static TooltipParagraphSupport.ParagraphTranslationAttempt translateParagraphBlock(
@@ -239,6 +239,11 @@ final class TooltipComponentTranslationSupport {
                 && resolution.value() != null
                 && !resolution.value().isEmpty();
         if (validCacheHit || validLegacyHit) {
+            if (validCacheHit) {
+                for (String templateKey : collectParagraphForceRefreshTemplateKeys(block)) {
+                    TooltipTemplateRuntime.clearForceRefreshCompatBypass(templateKey);
+                }
+            }
             List<TooltipTranslationSupport.TooltipLineResult> results = resolution.value().stream()
                     .map(line -> new TooltipTranslationSupport.TooltipLineResult(line, false, false))
                     .toList();
@@ -278,13 +283,43 @@ final class TooltipComponentTranslationSupport {
         if (block == null || block.preparedLines() == null || config == null) {
             return 0;
         }
+        ComponentTranslationRuntime.clearFallbackGeneration(paragraphFallbackGenerationKey(block));
+        List<ComponentTranslationDocument> documents = new ArrayList<>();
         ComponentTranslationBundle bundle = prepareParagraphBundle(block, config);
-        if (bundle == null) {
-            return 0;
+        if (bundle != null) {
+            documents.add(bundle.cacheDocument());
         }
-        String cacheKey = ComponentTranslationRuntime.cacheKey(bundle.cacheDocument(), config.target_language);
-        TooltipRefreshNoticeSupport.markComponentRefreshHandled(cacheKey);
-        return ComponentTranslationRuntime.forceRefresh(bundle.cacheDocument(), config.target_language) ? 1 : 0;
+        for (int index = 0; index < block.preparedLines().size(); index++) {
+            PreparedLineDocument preparedDocument = prepareLineDocument(
+                    block.preparedLines().get(index),
+                    ComponentTranslationRoute.TOOLTIP_LINE,
+                    paragraphLineFallbackContext(index),
+                    PARAGRAPH_LINE_FALLBACK_POLICY,
+                    config
+            );
+            if (preparedDocument != null) {
+                documents.add(preparedDocument.document());
+            }
+        }
+        return forceRefreshDocuments(documents, config);
+    }
+
+    static Set<String> collectParagraphForceRefreshTemplateKeys(TooltipParagraphBlock block) {
+        LinkedHashSet<String> templateKeys = new LinkedHashSet<>();
+        if (block == null) {
+            return templateKeys;
+        }
+        if (block.paragraphTemplate() != null) {
+            addTemplateKey(templateKeys, block.paragraphTemplate().translationTemplateKey());
+        }
+        if (block.preparedLines() != null) {
+            for (PreparedTooltipTemplate preparedLine : block.preparedLines()) {
+                if (preparedLine != null) {
+                    addTemplateKey(templateKeys, preparedLine.translationTemplateKey());
+                }
+            }
+        }
+        return templateKeys;
     }
 
     private static PreparedLineDocument prepareLineDocument(
@@ -337,19 +372,53 @@ final class TooltipComponentTranslationSupport {
         return bundle.cacheDocument().units().isEmpty() ? null : bundle;
     }
 
+    private static int forceRefreshDocuments(
+            List<ComponentTranslationDocument> documents,
+            ItemTranslateConfig config
+    ) {
+        if (documents == null || documents.isEmpty() || config == null) {
+            return 0;
+        }
+        List<ComponentTranslationDocument> refreshDocuments = new ArrayList<>(documents.size());
+        for (ComponentTranslationDocument document : documents) {
+            if (document == null) {
+                continue;
+            }
+            String cacheKey = ComponentTranslationRuntime.cacheKey(document, config.target_language);
+            TooltipRefreshNoticeSupport.markComponentRefreshHandled(cacheKey);
+            refreshDocuments.add(document);
+        }
+        int refreshed = 0;
+        for (ComponentTranslationDocument document : refreshDocuments) {
+            if (ComponentTranslationRuntime.forceRefresh(document, config.target_language)) {
+                refreshed++;
+            }
+        }
+        return refreshed;
+    }
+
+    private static void addTemplateKey(Set<String> templateKeys, String templateKey) {
+        if (templateKey != null && !templateKey.isBlank()) {
+            templateKeys.add(templateKey);
+        }
+    }
+
     private static TooltipTranslationSupport.TooltipLineResult toLineResult(
-            Text original,
+            PreparedTooltipTemplate prepared,
             String cacheKey,
             ComponentTranslationRuntime.Resolution<Text> resolution
     ) {
         if ((resolution.state() == ComponentTranslationRuntime.State.CACHE_HIT
                 || resolution.state() == ComponentTranslationRuntime.State.LEGACY_HIT)
                 && resolution.value() != null) {
+            if (resolution.state() == ComponentTranslationRuntime.State.CACHE_HIT && prepared != null) {
+                TooltipTemplateRuntime.clearForceRefreshCompatBypass(prepared.translationTemplateKey());
+            }
             return new TooltipTranslationSupport.TooltipLineResult(resolution.value(), false, false);
         }
         if (resolution.state() == ComponentTranslationRuntime.State.PENDING) {
             return new TooltipTranslationSupport.TooltipLineResult(
-                    AnimationManager.getAnimatedStyledText(original, cacheKey, false),
+                    AnimationManager.getAnimatedStyledText(prepared.sourceLine(), cacheKey, false),
                     true,
                     false
             );
@@ -357,13 +426,13 @@ final class TooltipComponentTranslationSupport {
         if (resolution.state() == ComponentTranslationRuntime.State.FAILED
                 || resolution.state() == ComponentTranslationRuntime.State.INELIGIBLE) {
             return new TooltipTranslationSupport.TooltipLineResult(
-                    original,
+                    prepared.sourceLine(),
                     false,
                     false,
                     resolution.errorMessage()
             );
         }
-        return new TooltipTranslationSupport.TooltipLineResult(original, false, false);
+        return new TooltipTranslationSupport.TooltipLineResult(prepared.sourceLine(), false, false);
     }
 
     private static TooltipTranslationSupport.TooltipLineResult failedLineResult(
@@ -557,8 +626,7 @@ final class TooltipComponentTranslationSupport {
         }
 
         boolean isReusableCacheHit() {
-            return (state == ComponentTranslationRuntime.State.CACHE_HIT
-                    || state == ComponentTranslationRuntime.State.LEGACY_HIT)
+            return state == ComponentTranslationRuntime.State.CACHE_HIT
                     && lineResult != null
                     && !lineResult.pending()
                     && lineResult.errorMessage().isBlank();

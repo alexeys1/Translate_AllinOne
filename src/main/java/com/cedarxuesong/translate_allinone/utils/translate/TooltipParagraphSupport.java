@@ -124,6 +124,11 @@ final class TooltipParagraphSupport {
         if (block == null || block.paragraphTemplate() == null) {
             return null;
         }
+        if (TooltipTemplateRuntime.shouldBypassCompatibilityFallback(
+                block.paragraphTemplate().translationTemplateKey()
+        )) {
+            return null;
+        }
         LookupResult lookup = ItemTemplateCache.getInstance().peek(
                 block.paragraphTemplate().translationTemplateKey()
         );
