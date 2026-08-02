@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipRoutePlanner.TooltipPlan;
@@ -57,6 +58,7 @@ public final class TooltipRefreshNoticeSupport {
             ItemTranslateConfig config
     ) {
         boolean hasKeysToRefresh = keysToRefresh != null && !keysToRefresh.isEmpty();
+        Set<String> refreshTemplateKeys = collectRefreshTemplateKeys(tooltipPlan, keysToRefresh);
 
         boolean isRefreshPressed = config != null
                 && config.keybinding != null
@@ -77,11 +79,9 @@ public final class TooltipRefreshNoticeSupport {
             }
         }
 
-        int legacyRefreshedCount = ItemTemplateCache.getInstance().forceRefresh(keysToRefresh);
+        TooltipTemplateRuntime.registerForceRefreshCompatBypass(refreshTemplateKeys);
+        int legacyRefreshedCount = ItemTemplateCache.getInstance().forceRefresh(refreshTemplateKeys);
         int componentRefreshedCount = TooltipTranslationSupport.forceRefreshComponentCaches(tooltipPlan, config);
-        if (legacyRefreshedCount > 0) {
-            TooltipTemplateRuntime.registerForceRefreshCompatBypass(keysToRefresh);
-        }
         if (legacyRefreshedCount > 0 || componentRefreshedCount > 0) {
             refreshNoticeTooltipSignature = tooltipSignature;
             refreshNoticeExpiresAtMillis = now + REFRESH_NOTICE_DURATION_MILLIS;
@@ -206,6 +206,30 @@ public final class TooltipRefreshNoticeSupport {
         synchronized (refreshedComponentKeysThisHold) {
             return refreshedComponentKeysThisHold.add(cacheKey);
         }
+    }
+
+    static Set<String> collectRefreshTemplateKeys(TooltipPlan tooltipPlan, Set<String> keysToRefresh) {
+        LinkedHashSet<String> refreshTemplateKeys = new LinkedHashSet<>();
+        if (keysToRefresh != null) {
+            for (String key : keysToRefresh) {
+                if (key != null && !key.isBlank()) {
+                    refreshTemplateKeys.add(key);
+                }
+            }
+        }
+        if (tooltipPlan == null || tooltipPlan.segments() == null) {
+            return refreshTemplateKeys;
+        }
+
+        for (TooltipRoutePlanner.TooltipRouteSegment segment : tooltipPlan.segments()) {
+            if (segment == null || segment.kind() != TooltipRoutePlanner.TooltipRouteKind.PARAGRAPH_BLOCK) {
+                continue;
+            }
+            refreshTemplateKeys.addAll(
+                    TooltipComponentTranslationSupport.collectParagraphForceRefreshTemplateKeys(segment.paragraphBlock())
+            );
+        }
+        return refreshTemplateKeys;
     }
 
     static void markComponentRefreshHandled(String cacheKey) {
