@@ -29,7 +29,7 @@ import net.minecraft.text.Text;
 
 public final class ComponentTranslationRuntime {
     private static final int DOCUMENT_CACHE_LIMIT = 512;
-    private static final long FAILURE_COOLDOWN_MILLIS = 30_000L;
+    private static final long INFRASTRUCTURE_FAILURE_COOLDOWN_MILLIS = 30_000L;
     private static final long ITEM_BATCH_COLLECT_DELAY_MILLIS = 10L;
     private static final long REQUEST_RATE_WINDOW_MILLIS = TimeUnit.MINUTES.toMillis(1);
     private static final int OTHER_TRANSLATIONS_REQUESTS_PER_MINUTE = 60;
@@ -247,7 +247,11 @@ public final class ComponentTranslationRuntime {
                     if (isTooltipLegacyCompatibilityRoute(document.route())) {
                         FailureState failure = new FailureState(
                                 resolvedFailureMessage(error),
-                                System.currentTimeMillis() + FAILURE_COOLDOWN_MILLIS,
+                                failureExpiresAtMillis(
+                                        document.route(),
+                                        FailureDisposition.TERMINAL_CONTENT_FAILURE,
+                                        System.currentTimeMillis()
+                                ),
                                 FailureDisposition.TERMINAL_CONTENT_FAILURE
                         );
                         FAILURES.put(request.identity().key(), failure);
@@ -435,13 +439,13 @@ public final class ComponentTranslationRuntime {
         }
         ComponentTranslationPreparedRequest request = preparedRequest(document, targetLanguage);
         String key = request.identity().key();
-        FAILURES.remove(key);
-        clearFallbackGeneration(key);
+        boolean failureRemoved = FAILURES.remove(key) != null;
+        boolean fallbackGenerationRemoved = clearFallbackGeneration(key);
         ENTITY_TEMPLATE_SEEDS.remove(key);
         boolean refreshRequested = requestRefresh(key);
         boolean removed = store(document.route()).remove(request);
         boolean templateRemoved = store(document.route()).removeEntityTemplate(request);
-        return removed || templateRemoved || refreshRequested;
+        return removed || templateRemoved || refreshRequested || failureRemoved || fallbackGenerationRemoved;
     }
 
     public static long beginSession() {
@@ -500,11 +504,11 @@ public final class ComponentTranslationRuntime {
         }
     }
 
-    public static void clearFallbackGeneration(String primaryCacheKey) {
+    public static boolean clearFallbackGeneration(String primaryCacheKey) {
         if (primaryCacheKey == null || primaryCacheKey.isBlank()) {
-            return;
+            return false;
         }
-        FALLBACK_GENERATIONS.remove(primaryCacheKey);
+        return FALLBACK_GENERATIONS.remove(primaryCacheKey) != null;
     }
 
     private static boolean queue(
@@ -812,7 +816,11 @@ public final class ComponentTranslationRuntime {
                     request.cacheKey(),
                     new FailureState(
                             resolvedMessage,
-                            System.currentTimeMillis() + FAILURE_COOLDOWN_MILLIS,
+                            failureExpiresAtMillis(
+                                    request.document().route(),
+                                    disposition,
+                                    System.currentTimeMillis()
+                            ),
                             disposition == null ? FailureDisposition.INFRASTRUCTURE_FAILURE : disposition
                     )
             );
@@ -863,6 +871,17 @@ public final class ComponentTranslationRuntime {
         }
         FAILURES.remove(key, failure);
         return null;
+    }
+
+    static long failureExpiresAtMillis(
+            ComponentTranslationRoute route,
+            FailureDisposition disposition,
+            long nowMillis
+    ) {
+        return isTooltipLegacyCompatibilityRoute(route)
+                && disposition == FailureDisposition.TERMINAL_CONTENT_FAILURE
+                ? Long.MAX_VALUE
+                : nowMillis + INFRASTRUCTURE_FAILURE_COOLDOWN_MILLIS;
     }
 
     private static FailureDisposition classifyFailure(Throwable error) {
