@@ -126,6 +126,12 @@ final class TooltipStructuredCaptureSupport {
         int refreshed = 0;
         StructuredLineMatch structuredLine = matchStructuredLine(splitNodes, useTagStylePreservation);
         if (structuredLine != null) {
+            refreshed += forceRefreshStructuredFallbackLine(
+                    line,
+                    useTagStylePreservation,
+                    structuredLine.translationTemplateKeys(),
+                    config
+            );
             if (!TooltipTemplateRuntime.hasLocalDictionaryTranslation(structuredLine.labelTranslationText())) {
                 refreshed += TooltipComponentTranslationSupport.forceRefreshPreparedLine(
                         TooltipTemplateRuntime.prepareTemplate(
@@ -158,6 +164,12 @@ final class TooltipStructuredCaptureSupport {
         if (enchantList == null || enchantList.entries().isEmpty()) {
             return 0;
         }
+        refreshed += forceRefreshStructuredFallbackLine(
+                line,
+                useTagStylePreservation,
+                enchantList.translationTemplateKeys(),
+                config
+        );
         for (int index = 0; index < enchantList.entries().size(); index++) {
             EnchantListEntry entry = enchantList.entries().get(index);
             if (entry == null || TooltipTemplateRuntime.hasLocalDictionaryTranslation(entry.nameTranslationText())) {
@@ -172,6 +184,30 @@ final class TooltipStructuredCaptureSupport {
             );
         }
         return refreshed;
+    }
+
+    private static int forceRefreshStructuredFallbackLine(
+            Component line,
+            boolean useTagStylePreservation,
+            Set<String> translationTemplateKeys,
+            ItemTranslateConfig config
+    ) {
+        String generationKey = translationTemplateKeys == null
+                ? ""
+                : String.join("|", translationTemplateKeys);
+        ComponentTranslationRuntime.clearFallbackGeneration(
+                "tooltip:structured:fallback:" + generationKey
+        );
+        if (TooltipTemplateRuntime.hasLocalDictionaryTranslation(line)) {
+            return 0;
+        }
+        return TooltipComponentTranslationSupport.forceRefreshPreparedLine(
+                TooltipTemplateRuntime.prepareTemplate(line, useTagStylePreservation),
+                ComponentTranslationRoute.TOOLTIP_LINE,
+                "tooltip:structured:fallback",
+                "line-v2",
+                config
+        );
     }
 
     private static StructuredTooltipLineResult translateLabelValueStructuredLineComponent(
@@ -741,7 +777,12 @@ final class TooltipStructuredCaptureSupport {
         } else {
             disposition = ComponentTranslationRuntime.FailureDisposition.NONE;
         }
-        return new TooltipComponentTranslationSupport.LineTranslationAttempt(result, disposition, "");
+        ComponentTranslationRuntime.State state = result != null && result.errorMessage().isBlank()
+                ? ComponentTranslationRuntime.State.LEGACY_HIT
+                : disposition == ComponentTranslationRuntime.FailureDisposition.TERMINAL_CONTENT_FAILURE
+                ? ComponentTranslationRuntime.State.FAILED
+                : ComponentTranslationRuntime.State.INELIGIBLE;
+        return new TooltipComponentTranslationSupport.LineTranslationAttempt(result, disposition, "", state);
     }
 
     private static StructuredTooltipLineResult failedComponentStructuredLine(
