@@ -18,6 +18,8 @@ import net.minecraft.network.chat.Component;
 
 final class TooltipComponentTranslationSupport {
     private static final Pattern TEMPLATE_CONTROL_TOKEN = Pattern.compile("</?s\\d+>|\\{[dg]\\d+}");
+    private static final String PARAGRAPH_LINE_FALLBACK_CONTEXT_PREFIX = "tooltip:paragraph:fallback:";
+    private static final String PARAGRAPH_LINE_FALLBACK_POLICY = "paragraph-line-fallback-v1";
 
     private TooltipComponentTranslationSupport() {
     }
@@ -44,7 +46,8 @@ final class TooltipComponentTranslationSupport {
             return new LineTranslationAttempt(
                     null,
                     ComponentTranslationRuntime.FailureDisposition.INELIGIBLE,
-                    ""
+                    "",
+                    ComponentTranslationRuntime.State.INELIGIBLE
             );
         }
         PreparedLineDocument preparedDocument;
@@ -60,14 +63,16 @@ final class TooltipComponentTranslationSupport {
                             error
                     ),
                     ComponentTranslationRuntime.FailureDisposition.TERMINAL_CONTENT_FAILURE,
-                    ""
+                    "",
+                    ComponentTranslationRuntime.State.FAILED
             );
         }
         if (preparedDocument == null) {
             return new LineTranslationAttempt(
                     null,
                     ComponentTranslationRuntime.FailureDisposition.INELIGIBLE,
-                    ""
+                    "",
+                    ComponentTranslationRuntime.State.INELIGIBLE
             );
         }
         ComponentTranslationDocument document = preparedDocument.document();
@@ -108,7 +113,8 @@ final class TooltipComponentTranslationSupport {
             return new LineTranslationAttempt(
                     toLineResult(prepared.sourceLine(), cacheKey, resolution),
                     resolution.failureDisposition(),
-                    resolution.cacheKey()
+                    resolution.cacheKey(),
+                    resolution.state()
             );
         } catch (RuntimeException error) {
             return new LineTranslationAttempt(
@@ -120,7 +126,8 @@ final class TooltipComponentTranslationSupport {
                             error
                     ),
                     ComponentTranslationRuntime.FailureDisposition.INFRASTRUCTURE_FAILURE,
-                    ""
+                    "",
+                    ComponentTranslationRuntime.State.FAILED
             );
         }
     }
@@ -150,6 +157,18 @@ final class TooltipComponentTranslationSupport {
             return null;
         }
         ComponentTranslationBundle bundle;
+        TooltipParagraphSupport.ParagraphTranslationAttempt cachedFallback = readCompleteParagraphLineFallback(
+                block,
+                config
+        );
+        if (cachedFallback != null) {
+            ComponentTranslationDebugLogger.flow(
+                    ComponentTranslationRoute.TOOLTIP_PARAGRAPH,
+                    "tooltip paragraph fallback state=CACHE_HIT lines={}",
+                    block.preparedLines().size()
+            );
+            return cachedFallback;
+        }
         try {
             bundle = prepareParagraphBundle(block, config);
         } catch (RuntimeException error) {
@@ -376,13 +395,22 @@ final class TooltipComponentTranslationSupport {
                     TooltipParagraphSupport.buildParagraphLocalDictionaryLookupSource(block),
                     220
             );
-            ComponentTranslationDebugLogger.error(
-                    ComponentTranslationRoute.TOOLTIP_PARAGRAPH,
-                    "tooltip paragraph failed; using line fallback: source=\"{}\" reason={}",
-                    source,
-                    reason,
-                    error
-            );
+            if (error == null) {
+                ComponentTranslationDebugLogger.error(
+                        ComponentTranslationRoute.TOOLTIP_PARAGRAPH,
+                        "tooltip paragraph failed; using line fallback: source=\"{}\" reason={}",
+                        source,
+                        reason
+                );
+            } else {
+                ComponentTranslationDebugLogger.error(
+                        ComponentTranslationRoute.TOOLTIP_PARAGRAPH,
+                        "tooltip paragraph failed; using line fallback: source=\"{}\" reason={}",
+                        source,
+                        reason,
+                        error
+                );
+            }
         }
 
         List<TooltipTranslationSupport.TooltipLineResult> lineResults = new ArrayList<>(block.preparedLines().size());
@@ -393,8 +421,8 @@ final class TooltipComponentTranslationSupport {
             LineTranslationAttempt lineAttempt = translatePreparedLineAttempt(
                     preparedLine,
                     ComponentTranslationRoute.TOOLTIP_LINE,
-                    "tooltip:paragraph:fallback:" + index,
-                    "paragraph-line-fallback-v1",
+                    paragraphLineFallbackContext(index),
+                    PARAGRAPH_LINE_FALLBACK_POLICY,
                     config,
                     queueIfMissing
             );
@@ -414,6 +442,28 @@ final class TooltipComponentTranslationSupport {
             lineResults.add(lineResult);
         }
         return new TooltipParagraphSupport.ParagraphTranslationAttempt(lineResults, pending, missingKeyIssue);
+    }
+
+    private static TooltipParagraphSupport.ParagraphTranslationAttempt readCompleteParagraphLineFallback(
+            TooltipParagraphBlock block,
+            ItemTranslateConfig config
+    ) {
+        List<TooltipTranslationSupport.TooltipLineResult> lineResults = new ArrayList<>(block.preparedLines().size());
+        for (int index = 0; index < block.preparedLines().size(); index++) {
+            LineTranslationAttempt attempt = translatePreparedLineAttempt(
+                    block.preparedLines().get(index),
+                    ComponentTranslationRoute.TOOLTIP_LINE,
+                    paragraphLineFallbackContext(index),
+                    PARAGRAPH_LINE_FALLBACK_POLICY,
+                    config,
+                    false
+            );
+            if (!attempt.isReusableCacheHit()) {
+                return null;
+            }
+            lineResults.add(attempt.lineResult());
+        }
+        return new TooltipParagraphSupport.ParagraphTranslationAttempt(lineResults, false, false);
     }
 
     private static TooltipParagraphSupport.ParagraphTranslationAttempt originalParagraphAttempt(
@@ -450,6 +500,10 @@ final class TooltipComponentTranslationSupport {
         return "tooltip:paragraph:fallback:" + (key == null ? "" : key);
     }
 
+    private static String paragraphLineFallbackContext(int index) {
+        return PARAGRAPH_LINE_FALLBACK_CONTEXT_PREFIX + index;
+    }
+
     private static String describeError(RuntimeException error) {
         if (error == null || error.getMessage() == null || error.getMessage().isBlank()) {
             return error == null ? "unknown error" : error.getClass().getSimpleName();
@@ -478,17 +532,27 @@ final class TooltipComponentTranslationSupport {
     record LineTranslationAttempt(
             TooltipTranslationSupport.TooltipLineResult lineResult,
             ComponentTranslationRuntime.FailureDisposition failureDisposition,
-            String cacheKey
+            String cacheKey,
+            ComponentTranslationRuntime.State state
     ) {
         LineTranslationAttempt {
             failureDisposition = failureDisposition == null
                     ? ComponentTranslationRuntime.FailureDisposition.INELIGIBLE
                     : failureDisposition;
             cacheKey = cacheKey == null ? "" : cacheKey;
+            state = state == null ? ComponentTranslationRuntime.State.INELIGIBLE : state;
         }
 
         boolean allowsFallback() {
             return failureDisposition == ComponentTranslationRuntime.FailureDisposition.TERMINAL_CONTENT_FAILURE;
+        }
+
+        boolean isReusableCacheHit() {
+            return (state == ComponentTranslationRuntime.State.CACHE_HIT
+                    || state == ComponentTranslationRuntime.State.LEGACY_HIT)
+                    && lineResult != null
+                    && !lineResult.pending()
+                    && lineResult.errorMessage().isBlank();
         }
     }
 }
