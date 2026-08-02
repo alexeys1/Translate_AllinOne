@@ -471,7 +471,31 @@ public final class TooltipTranslationSupport {
                 );
             }
 
-            if (structuredLineResult != null) {
+            if (structuredLineResult != null && structuredLineResult.allowsLineFallback()) {
+                PreparedTooltipTemplate preparedTemplate = segment.preparedTemplate();
+                if (preparedTemplate == null) {
+                    preparedTemplate = TooltipTemplateRuntime.prepareTemplate(
+                            segment.candidate().line(),
+                            useTagStylePreservation
+                    );
+                }
+                boolean queueIfMissing = com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRuntime
+                        .claimFallbackGeneration(structuredLineResult.fallbackGenerationKey());
+                TooltipComponentTranslationSupport.LineTranslationAttempt fallbackAttempt =
+                        TooltipComponentTranslationSupport.translatePreparedLineAttempt(
+                                preparedTemplate,
+                                com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRoute.TOOLTIP_LINE,
+                                "tooltip:structured:fallback",
+                                "line-v2",
+                                config,
+                                queueIfMissing
+                        );
+                lineResult = fallbackAttempt.lineResult() == null
+                        ? structuredLineResult.lineResult()
+                        : fallbackAttempt.lineResult();
+                route = "structured-line-fallback";
+                detail = structuredLineResult.debugSummary();
+            } else if (structuredLineResult != null) {
                 lineResult = structuredLineResult.lineResult();
                 route = "capture";
                 detail = structuredLineResult.debugSummary();

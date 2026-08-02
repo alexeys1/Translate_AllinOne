@@ -3,6 +3,7 @@ package com.cedarxuesong.translate_allinone.utils.translate;
 import com.cedarxuesong.translate_allinone.utils.AnimationManager;
 import com.cedarxuesong.translate_allinone.utils.TranslateStringUtils;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRoute;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRuntime;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.textmatcher.ContentMatcher;
 import com.cedarxuesong.translate_allinone.utils.textmatcher.FlatNode;
@@ -185,18 +186,35 @@ final class TooltipStructuredCaptureSupport {
                 structuredLine.labelTranslationText(),
                 useTagStylePreservation
         );
-        TooltipTranslationSupport.TooltipLineResult labelTranslation =
+        TooltipComponentTranslationSupport.LineTranslationAttempt labelAttempt =
                 TooltipTemplateRuntime.hasLocalDictionaryTranslation(structuredLine.labelTranslationText())
-                        ? TooltipTemplateRuntime.translatePreparedTemplate(labelPrepared)
-                        : TooltipComponentTranslationSupport.translatePreparedLine(
+                        ? localLineAttempt(TooltipTemplateRuntime.translatePreparedTemplate(labelPrepared))
+                        : TooltipComponentTranslationSupport.translatePreparedLineAttempt(
                         labelPrepared,
                         ComponentTranslationRoute.TOOLTIP_STRUCTURED,
                         "tooltip:structured:" + structuredLine.kind().debugName() + ":label",
                         "structured-v2",
-                        config
+                        config,
+                        true
                 );
+        TooltipTranslationSupport.TooltipLineResult labelTranslation = labelAttempt.lineResult();
         if (labelTranslation == null) {
-            return null;
+            return failedComponentStructuredLine(
+                    structuredLine.originalLine(),
+                    structuredLine.translationTemplateKeys(),
+                    buildDetailedDebugSummary(structuredLine),
+                    labelAttempt,
+                    "Structured label is not eligible for Component translation."
+            );
+        }
+        if (labelAttempt.failureDisposition() != ComponentTranslationRuntime.FailureDisposition.NONE) {
+            return failedComponentStructuredLine(
+                    structuredLine.originalLine(),
+                    structuredLine.translationTemplateKeys(),
+                    buildDetailedDebugSummary(structuredLine),
+                    labelAttempt,
+                    labelTranslation.errorMessage()
+            );
         }
 
         TooltipTranslationSupport.TooltipLineResult valueTranslation = null;
@@ -205,17 +223,35 @@ final class TooltipStructuredCaptureSupport {
                     structuredLine.valueTranslationText(),
                     useTagStylePreservation
             );
-            valueTranslation = TooltipTemplateRuntime.hasLocalDictionaryTranslation(structuredLine.valueTranslationText())
-                    ? TooltipTemplateRuntime.translatePreparedTemplate(valuePrepared)
-                    : TooltipComponentTranslationSupport.translatePreparedLine(
+            TooltipComponentTranslationSupport.LineTranslationAttempt valueAttempt =
+                    TooltipTemplateRuntime.hasLocalDictionaryTranslation(structuredLine.valueTranslationText())
+                    ? localLineAttempt(TooltipTemplateRuntime.translatePreparedTemplate(valuePrepared))
+                    : TooltipComponentTranslationSupport.translatePreparedLineAttempt(
                     valuePrepared,
                     ComponentTranslationRoute.TOOLTIP_STRUCTURED,
                     "tooltip:structured:" + structuredLine.kind().debugName() + ":value",
                     "structured-v2",
-                    config
+                    config,
+                    true
             );
+            valueTranslation = valueAttempt.lineResult();
             if (valueTranslation == null) {
-                return null;
+                return failedComponentStructuredLine(
+                        structuredLine.originalLine(),
+                        structuredLine.translationTemplateKeys(),
+                        buildDetailedDebugSummary(structuredLine),
+                        valueAttempt,
+                        "Structured value is not eligible for Component translation."
+                );
+            }
+            if (valueAttempt.failureDisposition() != ComponentTranslationRuntime.FailureDisposition.NONE) {
+                return failedComponentStructuredLine(
+                        structuredLine.originalLine(),
+                        structuredLine.translationTemplateKeys(),
+                        buildDetailedDebugSummary(structuredLine),
+                        valueAttempt,
+                        valueTranslation.errorMessage()
+                );
             }
         }
 
@@ -631,18 +667,35 @@ final class TooltipStructuredCaptureSupport {
                     entry.nameTranslationText(),
                     useTagStylePreservation
             );
-            TooltipTranslationSupport.TooltipLineResult translated =
+            TooltipComponentTranslationSupport.LineTranslationAttempt translatedAttempt =
                     TooltipTemplateRuntime.hasLocalDictionaryTranslation(entry.nameTranslationText())
-                            ? TooltipTemplateRuntime.translatePreparedTemplate(prepared)
-                            : TooltipComponentTranslationSupport.translatePreparedLine(
+                            ? localLineAttempt(TooltipTemplateRuntime.translatePreparedTemplate(prepared))
+                            : TooltipComponentTranslationSupport.translatePreparedLineAttempt(
                             prepared,
                             ComponentTranslationRoute.TOOLTIP_STRUCTURED,
                             "tooltip:structured:enchantment:" + entryIndex,
                             "structured-v2",
-                            config
+                            config,
+                            true
                     );
+            TooltipTranslationSupport.TooltipLineResult translated = translatedAttempt.lineResult();
             if (translated == null) {
-                return null;
+                return failedComponentStructuredLine(
+                        enchantListMatch.originalLine(),
+                        enchantListMatch.translationTemplateKeys(),
+                        buildDebugSummary(enchantListMatch),
+                        translatedAttempt,
+                        "Structured enchantment is not eligible for Component translation."
+                );
+            }
+            if (translatedAttempt.failureDisposition() != ComponentTranslationRuntime.FailureDisposition.NONE) {
+                return failedComponentStructuredLine(
+                        enchantListMatch.originalLine(),
+                        enchantListMatch.translationTemplateKeys(),
+                        buildDebugSummary(enchantListMatch),
+                        translatedAttempt,
+                        translated.errorMessage()
+                );
             }
             if (!translated.errorMessage().isBlank()) {
                 return new StructuredTooltipLineResult(
@@ -677,6 +730,52 @@ final class TooltipStructuredCaptureSupport {
                 new TooltipTranslationSupport.TooltipLineResult(combined, pending, missingKeyIssue),
                 enchantListMatch.translationTemplateKeys(),
                 buildDebugSummary(enchantListMatch)
+        );
+    }
+
+    private static TooltipComponentTranslationSupport.LineTranslationAttempt localLineAttempt(
+            TooltipTranslationSupport.TooltipLineResult result
+    ) {
+        ComponentTranslationRuntime.FailureDisposition disposition;
+        if (result == null) {
+            disposition = ComponentTranslationRuntime.FailureDisposition.INELIGIBLE;
+        } else if (!result.errorMessage().isBlank()) {
+            disposition = ComponentTranslationRuntime.FailureDisposition.TERMINAL_CONTENT_FAILURE;
+        } else {
+            disposition = ComponentTranslationRuntime.FailureDisposition.NONE;
+        }
+        return new TooltipComponentTranslationSupport.LineTranslationAttempt(result, disposition, "");
+    }
+
+    private static StructuredTooltipLineResult failedComponentStructuredLine(
+            Text originalLine,
+            Set<String> translationTemplateKeys,
+            String debugSummary,
+            TooltipComponentTranslationSupport.LineTranslationAttempt attempt,
+            String reason
+    ) {
+        ComponentTranslationRuntime.FailureDisposition disposition = attempt == null
+                ? ComponentTranslationRuntime.FailureDisposition.INELIGIBLE
+                : attempt.failureDisposition();
+        String errorMessage = reason == null ? "" : reason;
+        if (errorMessage.isBlank() && disposition == ComponentTranslationRuntime.FailureDisposition.TERMINAL_CONTENT_FAILURE) {
+            errorMessage = "Structured Component translation failed validation.";
+        }
+        String cacheKey = attempt == null ? "" : attempt.cacheKey();
+        if (cacheKey.isBlank()) {
+            cacheKey = "tooltip:structured:fallback:" + String.join("|", translationTemplateKeys);
+        }
+        return new StructuredTooltipLineResult(
+                new TooltipTranslationSupport.TooltipLineResult(
+                        originalLine == null ? Text.empty() : originalLine,
+                        false,
+                        false,
+                        errorMessage
+                ),
+                translationTemplateKeys,
+                debugSummary,
+                disposition,
+                cacheKey
         );
     }
 
@@ -1468,13 +1567,37 @@ final class TooltipStructuredCaptureSupport {
     record StructuredTooltipLineResult(
             TooltipTranslationSupport.TooltipLineResult lineResult,
             Set<String> translationTemplateKeys,
-            String debugSummary
+            String debugSummary,
+            ComponentTranslationRuntime.FailureDisposition failureDisposition,
+            String fallbackGenerationKey
     ) {
+        StructuredTooltipLineResult(
+                TooltipTranslationSupport.TooltipLineResult lineResult,
+                Set<String> translationTemplateKeys,
+                String debugSummary
+        ) {
+            this(
+                    lineResult,
+                    translationTemplateKeys,
+                    debugSummary,
+                    ComponentTranslationRuntime.FailureDisposition.NONE,
+                    ""
+            );
+        }
+
         StructuredTooltipLineResult {
             translationTemplateKeys = translationTemplateKeys == null
                     ? Set.of()
                     : new LinkedHashSet<>(translationTemplateKeys);
             debugSummary = debugSummary == null ? "" : debugSummary;
+            failureDisposition = failureDisposition == null
+                    ? ComponentTranslationRuntime.FailureDisposition.NONE
+                    : failureDisposition;
+            fallbackGenerationKey = fallbackGenerationKey == null ? "" : fallbackGenerationKey;
+        }
+
+        boolean allowsLineFallback() {
+            return failureDisposition == ComponentTranslationRuntime.FailureDisposition.TERMINAL_CONTENT_FAILURE;
         }
     }
 

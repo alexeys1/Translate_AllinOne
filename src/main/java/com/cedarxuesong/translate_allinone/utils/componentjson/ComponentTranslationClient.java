@@ -23,8 +23,7 @@ import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
 public final class ComponentTranslationClient {
-    private static final int MAX_RESPONSE_ATTEMPTS = 3;
-    private static final int MAX_PROVIDER_ATTEMPTS = 2;
+    private static final int MAX_PROVIDER_CALLS_PER_WORK = 2;
     private static final long RETRY_DELAY_MILLIS = 250;
     private static final int MAX_CORRECTION_REASON_CHARS = 480;
     private static final Pattern LEGACY_FORMATTING_CODE_PATTERN = Pattern.compile("\\x{00A7}[0-9A-FK-ORa-fk-or]");
@@ -121,6 +120,7 @@ public final class ComponentTranslationClient {
                 document.units().size()
         );
         long startedAt = System.nanoTime();
+        AttemptBudget attemptBudget = new AttemptBudget(MAX_PROVIDER_CALLS_PER_WORK);
 
         CompletableFuture<ComponentTranslationResponse> future = requestValidResponse(
                 document,
@@ -129,7 +129,7 @@ public final class ComponentTranslationClient {
                 responseSchema,
                 requestContext,
                 protectedTokenMask,
-                1
+                attemptBudget
         ).thenApply(response -> {
             long elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000L;
             ComponentTranslationDebugLogger.flow(
@@ -162,7 +162,7 @@ public final class ComponentTranslationClient {
             StructuredOutputSpec responseSchema,
             String requestContext,
             ProtectedTokenMask protectedTokenMask,
-            int attempt
+            AttemptBudget attemptBudget
     ) {
         return requestCompletion(
                 document,
@@ -170,8 +170,9 @@ public final class ComponentTranslationClient {
                 llm,
                 requestContext,
                 responseSchema,
-                1
+                attemptBudget
         ).thenCompose(completion -> {
+            int attempt = attemptBudget.attemptsUsed();
             String providerResponse = completion.content();
             String rawResponse = providerResponse;
             try {
@@ -208,14 +209,14 @@ public final class ComponentTranslationClient {
                         "provider response rejected route={} attempt={}/{} finishReason={} reason={} responseBytes={} response={}",
                         document.route().wireName(),
                         attempt,
-                        MAX_RESPONSE_ATTEMPTS,
+                        attemptBudget.maxAttempts(),
                         completion.finishReason(),
                         cause.getMessage(),
                         rawResponse.getBytes(StandardCharsets.UTF_8).length,
                         ComponentTranslationDebugLogger.responsePreview(rawResponse)
                 );
 
-                if (attempt >= MAX_RESPONSE_ATTEMPTS) {
+                if (!attemptBudget.hasRemaining()) {
                     return CompletableFuture.failedFuture(cause);
                 }
 
@@ -226,7 +227,7 @@ public final class ComponentTranslationClient {
                         responseSchema,
                         requestContext,
                         protectedTokenMask,
-                        attempt + 1
+                        attemptBudget
                 ));
             }
         });
@@ -238,8 +239,12 @@ public final class ComponentTranslationClient {
             LLM llm,
             String requestContext,
             StructuredOutputSpec responseSchema,
-            int attempt
+            AttemptBudget attemptBudget
     ) {
+        int attempt = attemptBudget.acquire();
+        if (attempt == 0) {
+            return CompletableFuture.failedFuture(new IllegalStateException("Component provider attempt budget exhausted."));
+        }
         return llm.getCompletion(
                 messages,
                 requestContext,
@@ -260,7 +265,7 @@ public final class ComponentTranslationClient {
                 responseSchema
         ).exceptionallyCompose(error -> {
             Throwable cause = TranslateExceptionUtils.unwrapThrowable(error);
-            if (attempt >= MAX_PROVIDER_ATTEMPTS || !isRetryableProviderFailure(cause)) {
+            if (!attemptBudget.hasRemaining() || !isRetryableProviderFailure(cause)) {
                 return CompletableFuture.failedFuture(cause);
             }
 
@@ -269,7 +274,7 @@ public final class ComponentTranslationClient {
                     "provider request failed route={} attempt={}/{} reason={}, retrying after {}ms",
                     document.route().wireName(),
                     attempt,
-                    MAX_PROVIDER_ATTEMPTS,
+                    attemptBudget.maxAttempts(),
                     cause.getMessage(),
                     RETRY_DELAY_MILLIS
             );
@@ -279,7 +284,7 @@ public final class ComponentTranslationClient {
                     llm,
                     requestContext,
                     responseSchema,
-                    attempt + 1
+                    attemptBudget
             ));
         });
     }
@@ -388,6 +393,38 @@ public final class ComponentTranslationClient {
             Text component,
             ComponentTranslationResponse response
     ) {
+    }
+
+    static final class AttemptBudget {
+        private final int maxAttempts;
+        private int attemptsUsed;
+
+        AttemptBudget(int maxAttempts) {
+            if (maxAttempts < 1) {
+                throw new IllegalArgumentException("Component provider attempt budget must be positive.");
+            }
+            this.maxAttempts = maxAttempts;
+        }
+
+        synchronized int acquire() {
+            if (attemptsUsed >= maxAttempts) {
+                return 0;
+            }
+            attemptsUsed++;
+            return attemptsUsed;
+        }
+
+        synchronized boolean hasRemaining() {
+            return attemptsUsed < maxAttempts;
+        }
+
+        synchronized int attemptsUsed() {
+            return attemptsUsed;
+        }
+
+        int maxAttempts() {
+            return maxAttempts;
+        }
     }
 
     static final class ProtectedTokenMask {
