@@ -177,7 +177,7 @@
   "text.translate_allinone.configscreen.label.cache_entries_total": "Total",
   "text.translate_allinone.configscreen.label.cache_entries_wynn_dialogue": "WynnCraft Dialogue Cache",
   "text.translate_allinone.configscreen.label.cache_entries_wynntils_task_tracker": "Wynntils Task Tracker Cache",
-  "text.translate_allinone.configscreen.label.cache_entries_skyblock_npc": "SkyBlock NPC Cache",
+  "text.translate_allinone.configscreen.label.cache_entries_skyblock_npc": "SkyBlock NPC Chat Cache",
   "text.translate_allinone.configscreen.button.cancel": "CANCEL",
   "text.translate_allinone.configscreen.desc.chat_input_enabled": "Enable translation of outgoing chat messages",
   "text.translate_allinone.configscreen.desc.chat_input_hotkey": "Click to set the keybind for chat input translation",

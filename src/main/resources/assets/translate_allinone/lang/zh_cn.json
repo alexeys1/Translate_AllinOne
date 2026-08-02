@@ -177,7 +177,7 @@
   "text.translate_allinone.configscreen.label.cache_entries_total": "总计",
   "text.translate_allinone.configscreen.label.cache_entries_wynn_dialogue": "WynnCraft 对话缓存",
   "text.translate_allinone.configscreen.label.cache_entries_wynntils_task_tracker": "Wynntils 任务追踪缓存",
-  "text.translate_allinone.configscreen.label.cache_entries_skyblock_npc": "SkyBlock NPC 缓存",
+  "text.translate_allinone.configscreen.label.cache_entries_skyblock_npc": "SkyBlock NPC 对话缓存",
   "text.translate_allinone.configscreen.button.cancel": "取消",
   "text.translate_allinone.configscreen.desc.chat_input_enabled": "启用发送聊天消息的翻译功能",
   "text.translate_allinone.configscreen.desc.chat_input_hotkey": "点击设置聊天输入翻译的快捷键",

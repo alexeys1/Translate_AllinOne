@@ -2,6 +2,7 @@ package com.cedarxuesong.translate_allinone.utils.cache;
 
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.google.gson.reflect.TypeToken;
+import net.fabricmc.loader.api.FabricLoader;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
@@ -13,10 +14,11 @@ import java.util.List;
 import java.util.Map;
 
 public final class SkyblockNpcTranslationCache extends AbstractTranslateCache<List<String>> {
+    private static final String CACHE_DIRECTORY_NAME = "translate_cache";
     private static final String CACHE_FILE_NAME = "skyblock_npc_translate_cache.json";
 
     private SkyblockNpcTranslationCache() {
-        this(resolveDefaultCachePath(CACHE_FILE_NAME), true);
+        this(resolveDefaultCachePath(), true);
     }
 
     SkyblockNpcTranslationCache(Path cacheFilePath) {
@@ -29,6 +31,14 @@ public final class SkyblockNpcTranslationCache extends AbstractTranslateCache<Li
 
     public static SkyblockNpcTranslationCache getInstance() {
         return Holder.INSTANCE;
+    }
+
+    private static Path resolveDefaultCachePath() {
+        return FabricLoader.getInstance()
+                .getConfigDir()
+                .resolve(MOD_ID)
+                .resolve(CACHE_DIRECTORY_NAME)
+                .resolve(CACHE_FILE_NAME);
     }
 
     @Override
