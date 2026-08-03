@@ -3,18 +3,18 @@ package com.cedarxuesong.translate_allinone.utils.componentjson;
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import net.minecraft.text.Text;
 
 public final class ComponentTranslationDebugLogger {
     private static final long THROTTLE_WINDOW_MILLIS = 5_000L;
     private static final int FLOW_LOG_LIMIT = 24;
-    private static final int TEXT_CONTENT_LOG_LIMIT = 12;
     private static final int ENTITY_IDENTITY_LOG_LIMIT = 12;
     private static final int TIMING_LOG_LIMIT = 8;
     private static final int ERROR_LOG_LIMIT = 8;
-    private static final int MAX_TEXT_CONTENT_UNITS = 8;
-    private static final int MAX_TEXT_CONTENT_CHARS_PER_UNIT = 512;
+    private static final int MAX_LOG_TEXT_CHUNK_CHARS = 256;
     private static final int MAX_RESPONSE_PREVIEW_CHARS = 1_024;
     private static final ConcurrentHashMap<String, ThrottleState> THROTTLES = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<String, Long> TEXT_CONTENT_LOG_TIMES = new ConcurrentHashMap<>();
@@ -34,7 +34,7 @@ public final class ComponentTranslationDebugLogger {
         TEXT_CONTENT_LOG_TIMES.clear();
         var itemDebug = config == null || config.itemTranslate == null ? null : config.itemTranslate.debug;
         itemFlowEnabled = itemDebug != null && itemDebug.enabled && itemDebug.log_component_flow;
-        itemTextContentEnabled = itemFlowEnabled && itemDebug.log_component_text_content;
+        itemTextContentEnabled = itemDebug != null && itemDebug.enabled && itemDebug.log_component_text_content;
         itemTimingEnabled = itemDebug != null && itemDebug.enabled && itemDebug.log_component_timing;
         var scoreboardDebug = config == null || config.scoreboardTranslate == null
                 ? null
@@ -77,22 +77,85 @@ public final class ComponentTranslationDebugLogger {
         String deduplicationKey = cacheKey == null || cacheKey.isBlank()
                 ? document.route().wireName() + ':' + Integer.toHexString(document.hashCode())
                 : cacheKey;
-        long now = System.currentTimeMillis();
-        Long previous = TEXT_CONTENT_LOG_TIMES.putIfAbsent(deduplicationKey, now);
-        if (previous != null && now - previous < THROTTLE_WINDOW_MILLIS) {
+        if (!registerTextContentKey(deduplicationKey)) {
             return;
         }
-        TEXT_CONTENT_LOG_TIMES.put(deduplicationKey, now);
-        if (!permit("text-content")) {
+        List<ComponentTextUnit> units = document.units();
+        for (int unitIndex = 0; unitIndex < units.size(); unitIndex++) {
+            ComponentTextUnit unit = units.get(unitIndex);
+            String unitId = unit == null ? "" : unit.id();
+            String sourceText = unit == null ? "" : unit.sourceText();
+            List<String> chunks = splitTextForLog(sourceText);
+            for (int chunkIndex = 0; chunkIndex < chunks.size(); chunkIndex++) {
+                Translate_AllinOne.LOGGER.info(
+                        "[component-text] route={} key={} unit={}/{} id=\"{}\" chunk={}/{} text=\"{}\"",
+                        document.route().wireName(),
+                        deduplicationKey,
+                        unitIndex + 1,
+                        units.size(),
+                        escapeForInlineLog(unitId),
+                        chunkIndex + 1,
+                        chunks.size(),
+                        escapeForInlineLog(chunks.get(chunkIndex))
+                );
+            }
+        }
+    }
+
+    public static void tooltipText(
+            ComponentTranslationRoute route,
+            String context,
+            String marker,
+            Text label
+    ) {
+        tooltipText(route, context, marker, label == null ? List.of() : List.of(label));
+    }
+
+    public static void tooltipText(
+            ComponentTranslationRoute route,
+            String context,
+            String marker,
+            List<Text> labels
+    ) {
+        if (!isTextContentEnabled(route)) {
             return;
         }
-        Translate_AllinOne.LOGGER.info(
-                "[component-text] route={} key={} units={} content={}",
-                document.route().wireName(),
-                deduplicationKey,
-                document.units().size(),
-                formatTextUnits(document.units())
-        );
+        String resolvedContext = context == null ? "" : context;
+        String resolvedMarker = marker == null || marker.isBlank() ? "UNKNOWN" : marker;
+        List<Text> resolvedLabels = labels == null ? List.of() : labels;
+        String deduplicationKey = route.wireName()
+                + ':' + resolvedContext
+                + ':' + resolvedMarker
+                + ':' + Integer.toHexString(tooltipTextIdentity(resolvedLabels).hashCode());
+        if (!registerTextContentKey(deduplicationKey)) {
+            return;
+        }
+        if (resolvedLabels.isEmpty()) {
+            Translate_AllinOne.LOGGER.info(
+                    "[component-text] route={} context={} marker={} labels=0",
+                    route.wireName(),
+                    resolvedContext,
+                    resolvedMarker
+            );
+            return;
+        }
+        for (int labelIndex = 0; labelIndex < resolvedLabels.size(); labelIndex++) {
+            Text label = resolvedLabels.get(labelIndex);
+            List<String> chunks = splitTextForLog(label == null ? "" : label.getString());
+            for (int chunkIndex = 0; chunkIndex < chunks.size(); chunkIndex++) {
+                Translate_AllinOne.LOGGER.info(
+                        "[component-text] route={} context={} marker={} label={}/{} chunk={}/{} text=\"{}\"",
+                        route.wireName(),
+                        resolvedContext,
+                        resolvedMarker,
+                        labelIndex + 1,
+                        resolvedLabels.size(),
+                        chunkIndex + 1,
+                        chunks.size(),
+                        escapeForInlineLog(chunks.get(chunkIndex))
+                );
+            }
+        }
     }
 
     public static void entityIdentityMiss(
@@ -197,9 +260,6 @@ public final class ComponentTranslationDebugLogger {
         if ("timing".equals(category)) {
             return TIMING_LOG_LIMIT;
         }
-        if ("text-content".equals(category)) {
-            return TEXT_CONTENT_LOG_LIMIT;
-        }
         if ("entity-identity".equals(category)) {
             return ENTITY_IDENTITY_LOG_LIMIT;
         }
@@ -252,36 +312,39 @@ public final class ComponentTranslationDebugLogger {
         };
     }
 
-    static String formatTextUnits(List<ComponentTextUnit> units) {
-        if (units == null || units.isEmpty()) {
-            return "[]";
+    private static boolean registerTextContentKey(String deduplicationKey) {
+        long now = System.currentTimeMillis();
+        Long previous = TEXT_CONTENT_LOG_TIMES.putIfAbsent(deduplicationKey, now);
+        if (previous != null && now - previous < THROTTLE_WINDOW_MILLIS) {
+            return false;
         }
-        StringBuilder result = new StringBuilder("[");
-        int limit = Math.min(units.size(), MAX_TEXT_CONTENT_UNITS);
-        for (int index = 0; index < limit; index++) {
-            if (index > 0) {
-                result.append(", ");
-            }
-            ComponentTextUnit unit = units.get(index);
-            result.append("{id=\"")
-                    .append(escapeForInlineLog(unit.id()))
-                    .append("\", text=\"")
-                    .append(previewText(unit.sourceText()))
-                    .append("\"}");
-        }
-        if (units.size() > limit) {
-            result.append(", ...(+").append(units.size() - limit).append(" units)");
-        }
-        return result.append(']').toString();
+        TEXT_CONTENT_LOG_TIMES.put(deduplicationKey, now);
+        return true;
     }
 
-    private static String previewText(String text) {
-        String escaped = escapeForInlineLog(text);
-        if (escaped.length() <= MAX_TEXT_CONTENT_CHARS_PER_UNIT) {
-            return escaped;
+    static List<String> splitTextForLog(String text) {
+        String source = text == null ? "" : text;
+        if (source.isEmpty()) {
+            return List.of("");
         }
-        return escaped.substring(0, MAX_TEXT_CONTENT_CHARS_PER_UNIT)
-                + "...(+" + (escaped.length() - MAX_TEXT_CONTENT_CHARS_PER_UNIT) + " chars)";
+        List<String> chunks = new ArrayList<>((source.length() + MAX_LOG_TEXT_CHUNK_CHARS - 1) / MAX_LOG_TEXT_CHUNK_CHARS);
+        for (int start = 0; start < source.length(); ) {
+            int end = Math.min(start + MAX_LOG_TEXT_CHUNK_CHARS, source.length());
+            if (end < source.length() && Character.isHighSurrogate(source.charAt(end - 1))) {
+                end--;
+            }
+            chunks.add(source.substring(start, end));
+            start = end;
+        }
+        return chunks;
+    }
+
+    private static String tooltipTextIdentity(List<Text> labels) {
+        StringBuilder identity = new StringBuilder();
+        for (Text label : labels) {
+            identity.append(label == null ? "" : label.getString()).append('\u0000');
+        }
+        return identity.toString();
     }
 
     private static String escapeForInlineLog(String value) {
