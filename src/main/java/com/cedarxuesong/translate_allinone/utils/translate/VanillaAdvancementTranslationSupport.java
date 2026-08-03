@@ -66,8 +66,8 @@ public final class VanillaAdvancementTranslationSupport {
         ComponentAttempt description = translateComponentAttempt(holder, styledDescription, "description", true);
         String errorMessage = !title.errorMessage().isBlank() ? title.errorMessage() : description.errorMessage();
         return new HoveredAdvancementText(
-                title.component(),
-                description.component(),
+                displayComponentAttempt(holder, title, "title"),
+                displayComponentAttempt(holder, description, "description"),
                 title.pending() || description.pending()
                         ? TooltipInternalLineSupport.createAnimatedPendingStatusLine(ADVANCEMENT_STATUS_ANIMATION_KEY)
                         : null,
@@ -102,7 +102,26 @@ public final class VanillaAdvancementTranslationSupport {
             String fieldName,
             boolean queueIfMissing
     ) {
-        return translateComponentAttempt(holder, originalText, fieldName, queueIfMissing).component();
+        return displayComponentAttempt(
+                holder,
+                translateComponentAttempt(holder, originalText, fieldName, queueIfMissing),
+                fieldName
+        );
+    }
+
+    private static Component displayComponentAttempt(
+            AdvancementHolder holder,
+            ComponentAttempt attempt,
+            String fieldName
+    ) {
+        if (attempt == null || !attempt.pending()) {
+            return attempt == null ? null : attempt.component();
+        }
+        String holderId = holder == null || holder.id() == null ? "unknown" : holder.id().toString();
+        return ComponentRenderTranslationSupport.animatePending(
+                attempt.component(),
+                "advancement:" + holderId + ":" + fieldName
+        );
     }
 
     private static ComponentAttempt translateComponentAttempt(
