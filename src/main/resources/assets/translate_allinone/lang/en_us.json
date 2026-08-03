@@ -268,7 +268,7 @@
   "text.translate_allinone.configscreen.label.item_dev_log_component_flow": "Log Item Component Flow",
   "text.translate_allinone.configscreen.desc.item_dev_log_component_flow": "Log item Component cache, queue, provider result, and original-component result",
   "text.translate_allinone.configscreen.label.item_dev_log_component_text_content": "Log Item Component Text Content",
-  "text.translate_allinone.configscreen.desc.item_dev_log_component_text_content": "Log source text units for Component requests; this may write in-game text to the log",
+  "text.translate_allinone.configscreen.desc.item_dev_log_component_text_content": "Log full Tooltip labels",
   "text.translate_allinone.configscreen.label.item_dev_log_component_timing": "Log Item Component Timing",
   "text.translate_allinone.configscreen.desc.item_dev_log_component_timing": "Log item Component document build, cache-key, lookup, and apply timings",
   "text.translate_allinone.configscreen.label.other_translations_dev_enabled": "Enable Other Translations Debug",
