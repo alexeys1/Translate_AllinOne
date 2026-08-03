@@ -1,6 +1,7 @@
 package com.cedarxuesong.translate_allinone.registration;
 
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRuntime;
 import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationDebugLogger;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ChatTranslateConfig;
@@ -25,15 +26,21 @@ import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
 import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 
 public class ConfigManager {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     private static ModConfig config;
     private static boolean registered;
+    private static String providerConfigurationFingerprint = "";
+    private static boolean providerConfigurationFingerprintInitialized;
 
     public static synchronized void register() {
         if (registered) {
@@ -42,6 +49,7 @@ public class ConfigManager {
 
         config = loadConfig(resolveConfigPath());
         ComponentTranslationDebugLogger.refresh(config);
+        updateProviderConfigurationFingerprint(false);
         registered = true;
     }
 
@@ -53,6 +61,7 @@ public class ConfigManager {
     public static synchronized void save() {
         ensureRegistered();
         ComponentTranslationDebugLogger.refresh(config);
+        updateProviderConfigurationFingerprint(true);
         writeConfig(resolveConfigPath(), config);
     }
 
@@ -65,12 +74,14 @@ public class ConfigManager {
         ensureRegistered();
         config = normalizeConfig(deepCopy(replacement));
         ComponentTranslationDebugLogger.refresh(config);
+        updateProviderConfigurationFingerprint(true);
     }
 
     public static synchronized void resetToDefaults() {
         ensureRegistered();
         config = normalizeConfig(new ModConfig());
         ComponentTranslationDebugLogger.refresh(config);
+        updateProviderConfigurationFingerprint(true);
     }
 
     public static Path getConfigPath() {
@@ -136,6 +147,32 @@ public class ConfigManager {
     private static void ensureRegistered() {
         if (!registered) {
             throw new IllegalStateException("Config not registered yet!");
+        }
+    }
+
+    private static void updateProviderConfigurationFingerprint(boolean notifyRuntime) {
+        String currentFingerprint = providerConfigurationFingerprint(config);
+        boolean changed = providerConfigurationFingerprintInitialized
+                && !providerConfigurationFingerprint.equals(currentFingerprint);
+        providerConfigurationFingerprint = currentFingerprint;
+        providerConfigurationFingerprintInitialized = true;
+        if (notifyRuntime && changed) {
+            ComponentTranslationRuntime.providerConfigurationChanged();
+        }
+    }
+
+    static String providerConfigurationFingerprint(ModConfig source) {
+        JsonElement providerConfiguration = GSON.toJsonTree(source == null ? null : source.providerManager);
+        if (providerConfiguration.isJsonObject()) {
+            providerConfiguration.getAsJsonObject().remove("api_key_visible");
+        }
+        String serialized = GSON.toJson(providerConfiguration);
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(serialized.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException error) {
+            throw new IllegalStateException("SHA-256 is unavailable.", error);
         }
     }
 

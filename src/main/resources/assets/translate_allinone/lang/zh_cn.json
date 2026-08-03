@@ -268,7 +268,7 @@
   "text.translate_allinone.configscreen.label.item_dev_log_component_flow": "记录物品 Component 流程",
   "text.translate_allinone.configscreen.desc.item_dev_log_component_flow": "记录物品 Component 的缓存、排队、Provider 结果和原始组件结果",
   "text.translate_allinone.configscreen.label.item_dev_log_component_text_content": "记录物品 Component 文本内容",
-  "text.translate_allinone.configscreen.desc.item_dev_log_component_text_content": "记录 Component 请求的原始文本单元；这可能会将游戏内文本写入日志",
+  "text.translate_allinone.configscreen.desc.item_dev_log_component_text_content": "分块记录完整 Tooltip",
   "text.translate_allinone.configscreen.label.item_dev_log_component_timing": "记录物品 Component 耗时",
   "text.translate_allinone.configscreen.desc.item_dev_log_component_timing": "记录物品 Component 文档构建、缓存键、查询和应用耗时",
   "text.translate_allinone.configscreen.label.other_translations_dev_enabled": "启用其他翻译调试",
