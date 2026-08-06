@@ -6,6 +6,9 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.google.gson.Strictness;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonToken;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.IOException;
@@ -24,8 +27,10 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Stream;
 
 public final class CacheBackupManager {
@@ -149,6 +154,42 @@ public final class CacheBackupManager {
         }
     }
 
+    public static List<Path> findVerifiedComponentCacheBackups(Path componentCacheFile) {
+        if (componentCacheFile == null) {
+            return List.of();
+        }
+        Path normalizedCacheFile = componentCacheFile.toAbsolutePath().normalize();
+        Path normalizedCacheRoot = CACHE_ROOT.toAbsolutePath().normalize();
+        if (!normalizedCacheFile.startsWith(normalizedCacheRoot)) {
+            return List.of();
+        }
+        Path relativePath = normalizedCacheRoot.relativize(normalizedCacheFile);
+        String expectedRelativePath = relativePath.toString().replace('\\', '/');
+        List<Path> verified = new ArrayList<>();
+        for (BackupDirectorySummary backup : listManagedBackupDirectories()) {
+            Path backupDirectory = BACKUP_ROOT.resolve(backup.directoryName());
+            Path candidate = backupDirectory.resolve(relativePath);
+            if (!Files.isRegularFile(candidate)) {
+                continue;
+            }
+            try {
+                ManifestEntry manifestEntry = readManifestEntry(backupDirectory, expectedRelativePath);
+                if (manifestEntry != null
+                        && manifestEntry.size() == Files.size(candidate)
+                        && manifestEntry.sha256().equals(sha256(candidate))) {
+                    verified.add(candidate);
+                }
+            } catch (IOException error) {
+                Translate_AllinOne.LOGGER.warn(
+                        "Failed to verify Component cache backup file {}.",
+                        candidate,
+                        error
+                );
+            }
+        }
+        return List.copyOf(verified);
+    }
+
     private static List<Path> listCurrentCacheFiles() throws IOException {
         if (!Files.isDirectory(CACHE_ROOT)) {
             return List.of();
@@ -179,6 +220,116 @@ public final class CacheBackupManager {
         return fileName.endsWith("_cache.json")
                 && !fileName.startsWith("component_v1_")
                 && !"component_v1_translate_cache_v2.json".equals(fileName);
+    }
+
+    private static ManifestEntry readManifestEntry(Path backupDirectory, String expectedRelativePath) throws IOException {
+        Path manifestPath = backupDirectory.resolve(BACKUP_MANIFEST_FILE_NAME);
+        if (!Files.isRegularFile(manifestPath)) {
+            return null;
+        }
+        try (JsonReader reader = new JsonReader(Files.newBufferedReader(manifestPath, StandardCharsets.UTF_8))) {
+            reader.setStrictness(Strictness.STRICT);
+            requireToken(reader, JsonToken.BEGIN_OBJECT, "Cache backup manifest");
+            boolean createdAt = false;
+            List<ManifestEntry> entries = null;
+            Set<String> fields = new HashSet<>();
+            reader.beginObject();
+            while (reader.hasNext()) {
+                String field = reader.nextName();
+                if (!fields.add(field)) {
+                    throw new IOException("Duplicate cache backup manifest field: " + field);
+                }
+                switch (field) {
+                    case "created_at" -> {
+                        requireToken(reader, JsonToken.STRING, field);
+                        reader.nextString();
+                        createdAt = true;
+                    }
+                    case "files" -> entries = readManifestEntries(reader);
+                    default -> throw new IOException("Unknown cache backup manifest field: " + field);
+                }
+            }
+            reader.endObject();
+            if (reader.peek() != JsonToken.END_DOCUMENT) {
+                throw new IOException("Trailing content after cache backup manifest.");
+            }
+            if (!createdAt || entries == null) {
+                throw new IOException("Cache backup manifest is missing required fields.");
+            }
+            return entries.stream()
+                    .filter(entry -> expectedRelativePath.equals(entry.relativePath()))
+                    .findFirst()
+                    .orElse(null);
+        }
+    }
+
+    private static List<ManifestEntry> readManifestEntries(JsonReader reader) throws IOException {
+        requireToken(reader, JsonToken.BEGIN_ARRAY, "Cache backup manifest files");
+        List<ManifestEntry> entries = new ArrayList<>();
+        Set<String> relativePaths = new HashSet<>();
+        reader.beginArray();
+        while (reader.hasNext()) {
+            requireToken(reader, JsonToken.BEGIN_OBJECT, "Cache backup manifest file");
+            String relativePath = null;
+            String hash = null;
+            Long size = null;
+            Set<String> fields = new HashSet<>();
+            reader.beginObject();
+            while (reader.hasNext()) {
+                String field = reader.nextName();
+                if (!fields.add(field)) {
+                    throw new IOException("Duplicate cache backup manifest file field: " + field);
+                }
+                switch (field) {
+                    case "relative_path" -> {
+                        requireToken(reader, JsonToken.STRING, field);
+                        relativePath = reader.nextString();
+                    }
+                    case "sha256" -> {
+                        requireToken(reader, JsonToken.STRING, field);
+                        hash = reader.nextString();
+                    }
+                    case "size" -> {
+                        requireToken(reader, JsonToken.NUMBER, field);
+                        try {
+                            size = reader.nextLong();
+                        } catch (NumberFormatException error) {
+                            throw new IOException("Cache backup manifest file size is invalid.", error);
+                        }
+                    }
+                    default -> throw new IOException("Unknown cache backup manifest file field: " + field);
+                }
+            }
+            reader.endObject();
+            if (relativePath == null || !isSha256(hash) || size == null || size < 0L) {
+                throw new IOException("Cache backup manifest file entry is invalid.");
+            }
+            if (!relativePaths.add(relativePath)) {
+                throw new IOException("Duplicate cache backup manifest relative path: " + relativePath);
+            }
+            entries.add(new ManifestEntry(relativePath, hash, size));
+        }
+        reader.endArray();
+        return entries;
+    }
+
+    private static void requireToken(JsonReader reader, JsonToken expected, String field) throws IOException {
+        if (reader.peek() != expected) {
+            throw new IOException(field + " must be " + expected + ".");
+        }
+    }
+
+    private static boolean isSha256(String value) {
+        if (value == null || value.length() != 71 || !value.startsWith("sha256:")) {
+            return false;
+        }
+        for (int index = 7; index < value.length(); index++) {
+            char current = value.charAt(index);
+            if (!(current >= '0' && current <= '9') && !(current >= 'a' && current <= 'f')) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static BackupDirectorySummary latestBackupDirectory() {
@@ -355,5 +506,8 @@ public final class CacheBackupManager {
             List<String> fileNames,
             long totalBytes
     ) {
+    }
+
+    private record ManifestEntry(String relativePath, String sha256, long size) {
     }
 }

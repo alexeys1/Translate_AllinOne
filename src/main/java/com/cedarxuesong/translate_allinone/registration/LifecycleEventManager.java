@@ -44,6 +44,7 @@ public class LifecycleEventManager {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             LOGGER.info("Game is shutting down, performing final cache save...");
             saveCaches();
+            ComponentTranslationStoreRegistry.getInstance().endSession();
         }));
     }
 
@@ -111,6 +112,7 @@ public class LifecycleEventManager {
             LOGGER.info("Player has disconnected. Translation readiness reset.");
             stopTranslationManagers();
             saveCaches();
+            ComponentTranslationStoreRegistry.getInstance().endSession();
         });
     }
 
