@@ -30,7 +30,6 @@ public final class ComponentCacheMigrationManager {
     private static final String SNAPSHOT_MANIFEST_FILE_NAME = "pre_migration_manifest.json";
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
     private static final List<LegacySource> SOURCES = List.of(
-            new LegacySource("item_translate_cache.json", "item_translate_cache.json", "item"),
             new LegacySource("scoreboard_translate_cache.json", "scoreboard_translate_cache.json", "scoreboard"),
             new LegacySource("other_translations_translate_cache.json", "advancement_translate_cache.json", "advancement")
     );
@@ -64,9 +63,6 @@ public final class ComponentCacheMigrationManager {
         Path sourcePath = root.resolve(source.sourceName());
         Path archivePath = archiveRoot.resolve(source.archiveName());
         try {
-            if ("item_translate_cache.json".equals(source.sourceName())) {
-                return Files.isRegularFile(sourcePath) ? "retained_for_tooltip_compatibility" : "absent";
-            }
             if (Files.isRegularFile(archivePath)) {
                 if (!Files.exists(sourcePath)) {
                     return "archived";

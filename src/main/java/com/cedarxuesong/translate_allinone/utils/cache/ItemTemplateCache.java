@@ -58,6 +58,7 @@ public class ItemTemplateCache {
     ) {}
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
+    private static final String CACHE_DIRECTORY_NAME = "translate_cache";
     private static final String CACHE_FILE_NAME = "item_translate_cache.json";
     private static final Charset CACHE_CHARSET = StandardCharsets.UTF_8;
     private static final long SAVE_DEBOUNCE_MILLIS = 1500L;
@@ -108,9 +109,10 @@ public class ItemTemplateCache {
         persistence.resetForLoad();
         boolean shouldRewriteCacheFile = false;
 
+        migrateLegacyCache();
         if (Files.exists(cacheFilePath)) {
             try {
-                LoadedEntries loadedEntries = loadEntriesWithBestCharset();
+                LoadedEntries loadedEntries = loadEntriesWithBestCharset(cacheFilePath);
                 Map<String, String> loadedCache = loadedEntries.entries();
                 runtimeState.putLoadedEntries(loadedCache);
 
@@ -208,16 +210,16 @@ public class ItemTemplateCache {
         }
     }
 
-    private LoadedEntries loadEntriesWithBestCharset() throws IOException {
+    private LoadedEntries loadEntriesWithBestCharset(Path sourcePath) throws IOException {
         Charset defaultCharset = Charset.defaultCharset();
         if (CACHE_CHARSET.equals(defaultCharset)) {
-            return loadEntriesWithCharset(CACHE_CHARSET);
+            return loadEntriesWithCharset(sourcePath, CACHE_CHARSET);
         }
 
         LoadedEntries utf8Entries = null;
         Exception utf8Failure = null;
         try {
-            utf8Entries = loadEntriesWithCharset(CACHE_CHARSET);
+            utf8Entries = loadEntriesWithCharset(sourcePath, CACHE_CHARSET);
         } catch (IOException | RuntimeException e) {
             utf8Failure = e;
         }
@@ -225,7 +227,7 @@ public class ItemTemplateCache {
         LoadedEntries defaultCharsetEntries = null;
         Exception defaultCharsetFailure = null;
         try {
-            defaultCharsetEntries = loadEntriesWithCharset(defaultCharset);
+            defaultCharsetEntries = loadEntriesWithCharset(sourcePath, defaultCharset);
         } catch (IOException | RuntimeException e) {
             defaultCharsetFailure = e;
         }
@@ -299,13 +301,13 @@ public class ItemTemplateCache {
         return utf8Entries;
     }
 
-    private LoadedEntries loadEntriesWithCharset(Charset charset) throws IOException {
+    private LoadedEntries loadEntriesWithCharset(Path sourcePath, Charset charset) throws IOException {
         Map<String, String> loadedCache = new ConcurrentHashMap<>();
         int duplicateKeyCount = 0;
         int skippedValueCount = 0;
         int replacementCharCount = 0;
 
-        try (JsonReader reader = new JsonReader(Files.newBufferedReader(cacheFilePath, charset))) {
+        try (JsonReader reader = new JsonReader(Files.newBufferedReader(sourcePath, charset))) {
             reader.setStrictness(Strictness.LENIENT);
             JsonToken rootToken = reader.peek();
 
@@ -471,7 +473,58 @@ public class ItemTemplateCache {
     private static Path resolveDefaultCachePath() {
         return FabricLoader.getInstance().getConfigDir()
                 .resolve(Translate_AllinOne.MOD_ID)
+                .resolve(CACHE_DIRECTORY_NAME)
                 .resolve(CACHE_FILE_NAME);
+    }
+
+    private Path resolveLegacyCachePath() {
+        Path cacheDirectory = cacheFilePath.getParent();
+        if (cacheDirectory == null || cacheDirectory.getFileName() == null
+                || !CACHE_DIRECTORY_NAME.equals(cacheDirectory.getFileName().toString())) {
+            return null;
+        }
+
+        Path configDirectory = cacheDirectory.getParent();
+        return configDirectory == null ? null : configDirectory.resolve(CACHE_FILE_NAME);
+    }
+
+    private void migrateLegacyCache() {
+        Path legacyPath = resolveLegacyCachePath();
+        if (legacyPath == null || !Files.isRegularFile(legacyPath)) {
+            return;
+        }
+
+        try {
+            Files.createDirectories(cacheFilePath.getParent());
+            if (!Files.isRegularFile(cacheFilePath)) {
+                CacheFileSaveSupport.replaceWithRetry(legacyPath, cacheFilePath);
+                Translate_AllinOne.LOGGER.info("Migrated legacy item translation cache from {} to {}.", legacyPath, cacheFilePath);
+                return;
+            }
+
+            int cacheEntryCount = loadEntriesWithBestCharset(cacheFilePath).entries().size();
+            int legacyEntryCount = loadEntriesWithBestCharset(legacyPath).entries().size();
+            if (cacheEntryCount > legacyEntryCount) {
+                Files.deleteIfExists(legacyPath);
+                Translate_AllinOne.LOGGER.info(
+                        "Discarded legacy item translation cache {} because {} has more entries ({} > {}).",
+                        legacyPath,
+                        cacheFilePath,
+                        cacheEntryCount,
+                        legacyEntryCount
+                );
+                return;
+            }
+            CacheFileSaveSupport.replaceWithRetry(legacyPath, cacheFilePath);
+            Translate_AllinOne.LOGGER.info("Migrated legacy item translation cache from {} to {}.", legacyPath, cacheFilePath);
+        } catch (IOException e) {
+            Translate_AllinOne.LOGGER.warn(
+                    "Loaded legacy item translation cache from {} but could not migrate it to {}.",
+                    legacyPath,
+                    cacheFilePath,
+                    e
+            );
+        }
     }
 
     private static final class Holder {
