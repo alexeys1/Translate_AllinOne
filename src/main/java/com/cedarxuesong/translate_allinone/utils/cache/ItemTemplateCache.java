@@ -112,7 +112,7 @@ public class ItemTemplateCache {
         migrateLegacyCache();
         if (Files.exists(cacheFilePath)) {
             try {
-                LoadedEntries loadedEntries = loadEntriesWithBestCharset();
+                LoadedEntries loadedEntries = loadEntriesWithBestCharset(cacheFilePath);
                 Map<String, String> loadedCache = loadedEntries.entries();
                 runtimeState.putLoadedEntries(loadedCache);
 
@@ -210,16 +210,16 @@ public class ItemTemplateCache {
         }
     }
 
-    private LoadedEntries loadEntriesWithBestCharset() throws IOException {
+    private LoadedEntries loadEntriesWithBestCharset(Path sourcePath) throws IOException {
         Charset defaultCharset = Charset.defaultCharset();
         if (CACHE_CHARSET.equals(defaultCharset)) {
-            return loadEntriesWithCharset(CACHE_CHARSET);
+            return loadEntriesWithCharset(sourcePath, CACHE_CHARSET);
         }
 
         LoadedEntries utf8Entries = null;
         Exception utf8Failure = null;
         try {
-            utf8Entries = loadEntriesWithCharset(CACHE_CHARSET);
+            utf8Entries = loadEntriesWithCharset(sourcePath, CACHE_CHARSET);
         } catch (IOException | RuntimeException e) {
             utf8Failure = e;
         }
@@ -227,7 +227,7 @@ public class ItemTemplateCache {
         LoadedEntries defaultCharsetEntries = null;
         Exception defaultCharsetFailure = null;
         try {
-            defaultCharsetEntries = loadEntriesWithCharset(defaultCharset);
+            defaultCharsetEntries = loadEntriesWithCharset(sourcePath, defaultCharset);
         } catch (IOException | RuntimeException e) {
             defaultCharsetFailure = e;
         }
@@ -301,13 +301,13 @@ public class ItemTemplateCache {
         return utf8Entries;
     }
 
-    private LoadedEntries loadEntriesWithCharset(Charset charset) throws IOException {
+    private LoadedEntries loadEntriesWithCharset(Path sourcePath, Charset charset) throws IOException {
         Map<String, String> loadedCache = new ConcurrentHashMap<>();
         int duplicateKeyCount = 0;
         int skippedValueCount = 0;
         int replacementCharCount = 0;
 
-        try (JsonReader reader = new JsonReader(Files.newBufferedReader(cacheFilePath, charset))) {
+        try (JsonReader reader = new JsonReader(Files.newBufferedReader(sourcePath, charset))) {
             reader.setStrictness(Strictness.LENIENT);
             JsonToken rootToken = reader.peek();
 
@@ -496,6 +496,26 @@ public class ItemTemplateCache {
 
         try {
             Files.createDirectories(cacheFilePath.getParent());
+            if (!Files.isRegularFile(cacheFilePath)) {
+                CacheFileSaveSupport.replaceWithRetry(legacyPath, cacheFilePath);
+                Translate_AllinOne.LOGGER.info("Migrated legacy item translation cache from {} to {}.", legacyPath, cacheFilePath);
+                return;
+            }
+
+            int cacheEntryCount = loadEntriesWithBestCharset(cacheFilePath).entries().size();
+            int legacyEntryCount = loadEntriesWithBestCharset(legacyPath).entries().size();
+            if (cacheEntryCount > legacyEntryCount) {
+                Files.deleteIfExists(legacyPath);
+                Translate_AllinOne.LOGGER.info(
+                        "Discarded legacy item translation cache {} because {} has more entries ({} > {}).",
+                        legacyPath,
+                        cacheFilePath,
+                        cacheEntryCount,
+                        legacyEntryCount
+                );
+                return;
+            }
+
             CacheFileSaveSupport.replaceWithRetry(legacyPath, cacheFilePath);
             Translate_AllinOne.LOGGER.info("Migrated legacy item translation cache from {} to {}.", legacyPath, cacheFilePath);
         } catch (IOException e) {
