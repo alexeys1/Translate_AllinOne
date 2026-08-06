@@ -104,6 +104,11 @@ public final class WynntilsTaskTrackerTranslateManager {
         }
     }
 
+    public synchronized void cancelPendingTranslations() {
+        stop();
+        cache.clearPendingAndInProgress();
+    }
+
     private void processingLoop() {
         while (!Thread.currentThread().isInterrupted()) {
             List<String> batch = null;
@@ -164,6 +169,9 @@ public final class WynntilsTaskTrackerTranslateManager {
 
     private void requeueErroredItems() {
         try {
+            if (!WynntilsTaskTrackerTranslationSupport.isTrackerTranslationEnabled()) {
+                return;
+            }
             Set<String> erroredKeys = cache.getErroredKeys();
             for (String key : erroredKeys) {
                 cache.requeueFromError(key);

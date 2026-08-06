@@ -168,6 +168,10 @@ public final class WynntilsTaskTrackerTextCache {
         runtimeState.queues().releaseInProgress(keys);
     }
 
+    public synchronized void clearPendingAndInProgress() {
+        runtimeState.queues().clearPendingAndInProgress();
+    }
+
     public synchronized void updateTranslations(Map<String, String> translations) {
         if (translations == null || translations.isEmpty()) {
             return;

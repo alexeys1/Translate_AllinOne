@@ -4,6 +4,7 @@ import com.cedarxuesong.translate_allinone.gui.configui.support.ProviderProfileS
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ProviderManagerConfig;
 import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
@@ -34,6 +35,7 @@ public final class ProviderManagerSectionSupport {
             ProviderListSectionSupport.Style providerListStyle,
             ProviderDetailSectionSupport.Style providerDetailStyle,
             Translator translator,
+            ToggleAdder toggleAdder,
             ProviderDetailSectionSupport.GroupBoxAdder groupBoxAdder,
             ProviderDetailSectionSupport.ProviderTypeLabelProvider providerTypeLabelProvider,
             ProviderListSectionSupport.ActionBlockAdder listActionBlockAdder,
@@ -51,12 +53,33 @@ public final class ProviderManagerSectionSupport {
             BiConsumer<ApiProviderProfile, String> onOpenModelSettings,
             BiConsumer<ApiProviderProfile, String> onRemoveModel,
             Consumer<ApiProviderProfile> onAddModel,
-            Consumer<ApiProviderProfile> onOpenPromptEditor
+            Consumer<ApiProviderProfile> onOpenPromptEditor,
+            Consumer<Boolean> onToggleTranslationEnabled
     ) {
         int workspaceHeight = Math.max(120, viewportHeight - 12);
         int contentY = y + CONTENT_TOP_INSET;
         int contentHeight = Math.max(120, workspaceHeight - CONTENT_TOP_INSET);
         boolean stackedLayout = width < STACKED_LAYOUT_BREAKPOINT;
+
+        int globalTranslationStartY = contentY;
+        toggleAdder.add(
+                x,
+                contentY,
+                width,
+                translator.t("label.global_translation"),
+                providerManager::isTranslationEnabled,
+                onToggleTranslationEnabled,
+                translator.t("desc.global_translation")
+        );
+        addGroupBox(
+                groupBoxAdder,
+                translator.t("group.providers.global"),
+                x,
+                width,
+                globalTranslationStartY,
+                globalTranslationStartY + MIN_CONTENT_HEIGHT
+        );
+        contentY = globalTranslationStartY + MIN_CONTENT_HEIGHT + STACKED_SECTION_GAP;
 
         ProviderProfileSupport.SelectedProvider selected = ProviderProfileSupport.resolveSelectedProvider(
                 providerManager,
@@ -198,6 +221,11 @@ public final class ProviderManagerSectionSupport {
     @FunctionalInterface
     public interface Translator {
         Component t(String key, Object... args);
+    }
+
+    @FunctionalInterface
+    public interface ToggleAdder {
+        void add(int x, int y, int width, Component label, BooleanSupplier getter, Consumer<Boolean> setter, Component tooltip);
     }
 
     public record RenderResult(EditBox providerSearchField, String selectedProviderId, int contentBottomY) {

@@ -9,6 +9,7 @@ public class ProviderManagerConfig {
     public List<ApiProviderProfile> providers = new ArrayList<>();
     public Routes routes = new Routes();
     public Boolean api_key_visible = true;
+    public Boolean translation_enabled = true;
 
     public ProviderManagerConfig() {
         ensureDefaults();
@@ -30,6 +31,9 @@ public class ProviderManagerConfig {
 
         if (api_key_visible == null) {
             api_key_visible = true;
+        }
+        if (translation_enabled == null) {
+            translation_enabled = true;
         }
 
         routes.item = normalizeRouteValue(routes.item);
@@ -60,6 +64,10 @@ public class ProviderManagerConfig {
             }
         }
         return null;
+    }
+
+    public boolean isTranslationEnabled() {
+        return translation_enabled == null || translation_enabled;
     }
 
     public static String composeRouteKey(String providerId, String modelId) {

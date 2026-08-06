@@ -6,6 +6,7 @@ import com.cedarxuesong.translate_allinone.utils.AnimationManager;
 import com.cedarxuesong.translate_allinone.utils.MessageUtils;
 import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
 import com.cedarxuesong.translate_allinone.utils.translate.ChatOutputTranslateManager;
+import com.cedarxuesong.translate_allinone.utils.translate.TranslationFeatureGate;
 import com.cedarxuesong.translate_allinone.utils.translate.WynnDialogueTranslationSupport;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
@@ -29,7 +30,9 @@ public abstract class ChatHudMixin {
 
     @ModifyVariable(method = "addMessage(Lnet/minecraft/network/chat/Component;Lnet/minecraft/network/chat/MessageSignature;Lnet/minecraft/client/multiplayer/chat/GuiMessageSource;Lnet/minecraft/client/multiplayer/chat/GuiMessageTag;)V", at = @At("HEAD"), argsOnly = true)
     private Component onAddMessage(Component message) {
-        if (isModifyingMessage.get() || !LifecycleEventManager.isReadyForTranslation) {
+        if (isModifyingMessage.get()
+                || !LifecycleEventManager.isReadyForTranslation
+                || !TranslationFeatureGate.isEnabled()) {
             return message;
         }
 
