@@ -56,6 +56,8 @@ public final class ComponentTranslationStore {
     private static final long LOAD_RETRY_BASE_MILLIS = 50L;
     private static final int LOAD_RETRY_LIMIT = 3;
     private static final int MAX_MEMORY_ONLY_ENTRIES = 128;
+    private static final String RECOVERY_DIRECTORY_NAME = "corrupt";
+    private static final int MAX_RECOVERY_ARTIFACTS = 5;
     private static final AtomicLong RECOVERY_SEQUENCE = new AtomicLong();
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
 
@@ -652,6 +654,7 @@ public final class ComponentTranslationStore {
             Files.deleteIfExists(backupPath);
             throw new IOException("Component cache corrupt backup hash does not match the original file.");
         }
+        cleanupRecoveryArtifacts();
         return backupPath;
     }
 
@@ -698,6 +701,7 @@ public final class ComponentTranslationStore {
     private void rebuildEmptyCache(Path backupPath, Throwable loadFailure) throws IOException {
         Path isolatedPath = recoveryArtifactPath("corrupt-isolated");
         Files.move(path, isolatedPath);
+        cleanupRecoveryArtifacts();
         entries.clear();
         entityTemplates.clear();
         memoryEntries.clear();
@@ -718,14 +722,72 @@ public final class ComponentTranslationStore {
         );
     }
 
-    private Path recoveryArtifactPath(String kind) {
+    private Path recoveryArtifactPath(String kind) throws IOException {
+        Path cacheDirectory = path.getParent();
+        if (cacheDirectory == null) {
+            throw new IOException("Component cache directory is unavailable.");
+        }
+        Path recoveryDirectory = cacheDirectory.resolve(RECOVERY_DIRECTORY_NAME);
+        Files.createDirectories(recoveryDirectory);
         String fileName = path.getFileName().toString();
         Path candidate;
         do {
             long identifier = System.currentTimeMillis() * 1_000L + RECOVERY_SEQUENCE.incrementAndGet();
-            candidate = path.resolveSibling(fileName + "." + kind + "-" + identifier);
+            candidate = recoveryDirectory.resolve(fileName + "." + kind + "-" + identifier);
         } while (Files.exists(candidate));
         return candidate;
+    }
+
+    private void cleanupRecoveryArtifacts() {
+        Path cacheDirectory = path.getParent();
+        if (cacheDirectory == null) {
+            return;
+        }
+        Path recoveryDirectory = cacheDirectory.resolve(RECOVERY_DIRECTORY_NAME);
+        try (var files = Files.list(recoveryDirectory)) {
+            List<Path> artifacts = files
+                    .filter(Files::isRegularFile)
+                    .filter(ComponentTranslationStore::isRecoveryArtifact)
+                    .sorted(Comparator
+                            .comparingLong(ComponentTranslationStore::recoveryArtifactIdentifier)
+                            .thenComparing(candidate -> candidate.getFileName().toString()))
+                    .toList();
+            for (int index = 0; index < artifacts.size() - MAX_RECOVERY_ARTIFACTS; index++) {
+                Files.deleteIfExists(artifacts.get(index));
+            }
+        } catch (IOException error) {
+            Translate_AllinOne.LOGGER.warn(
+                    "Failed to prune obsolete Component {} cache recovery artifacts under {}.",
+                    module.wireName(),
+                    recoveryDirectory,
+                    error
+            );
+        }
+    }
+
+    private static boolean isRecoveryArtifact(Path candidate) {
+        String fileName = candidate.getFileName().toString();
+        for (ComponentCacheModule cacheModule : ComponentCacheModule.values()) {
+            String backupPrefix = cacheModule.fileName() + ".corrupt-backup-";
+            String isolatedPrefix = cacheModule.fileName() + ".corrupt-isolated-";
+            if (fileName.startsWith(backupPrefix) || fileName.startsWith(isolatedPrefix)) {
+                return recoveryArtifactIdentifier(candidate) >= 0;
+            }
+        }
+        return false;
+    }
+
+    private static long recoveryArtifactIdentifier(Path candidate) {
+        String fileName = candidate.getFileName().toString();
+        int separatorIndex = fileName.lastIndexOf('-');
+        if (separatorIndex < 0 || separatorIndex == fileName.length() - 1) {
+            return -1;
+        }
+        try {
+            return Long.parseLong(fileName.substring(separatorIndex + 1));
+        } catch (NumberFormatException ignored) {
+            return -1;
+        }
     }
 
     private static byte[] fileHash(Path file) throws IOException {

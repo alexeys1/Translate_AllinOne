@@ -127,7 +127,8 @@ public final class VersionUpgradeBackupManager {
         }
         if ("translate_cache".equals(firstSegment)
                 && relativePath.getNameCount() > 1
-                && "migration".equals(relativePath.getName(1).toString())) {
+                && ("migration".equals(relativePath.getName(1).toString())
+                || "corrupt".equals(relativePath.getName(1).toString()))) {
             return false;
         }
 
