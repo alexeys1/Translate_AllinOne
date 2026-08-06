@@ -9,6 +9,7 @@ import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardComponentTr
 import com.cedarxuesong.translate_allinone.utils.translate.ComponentRenderTranslationSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardEntryTemplate;
 import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardTranslationInputSupport;
+import com.cedarxuesong.translate_allinone.utils.translate.TranslationFeatureGate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.spongepowered.asm.mixin.Mixin;
@@ -200,6 +201,12 @@ public class InGameHudMixin {
     )
     private void onRenderScoreboardSidebarHead(GuiGraphicsExtractor drawContext, Objective objective, CallbackInfo ci) {
         try {
+            if (!TranslationFeatureGate.isEnabled()) {
+                translate_allinone$scoreboardReplacements.set(null);
+                ScoreboardComponentTranslationSupport.reset();
+                ScoreboardTranslationInputSupport.reset();
+                return;
+            }
             ScoreboardConfig config = Translate_AllinOne.getConfig().scoreboardTranslate;
             if (config == null || !config.enabled) {
                 translate_allinone$scoreboardReplacements.set(null);

@@ -4,6 +4,7 @@ import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRuntime;
 import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationDebugLogger;
+import com.cedarxuesong.translate_allinone.utils.translate.TranslationFeatureGate;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ChatTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.CacheBackupConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.DebugConfig;
@@ -40,6 +41,8 @@ public class ConfigManager {
     private static boolean registered;
     private static String providerConfigurationFingerprint = "";
     private static boolean providerConfigurationFingerprintInitialized;
+    private static boolean globalTranslationEnabled = true;
+    private static boolean globalTranslationEnabledInitialized;
 
     public static synchronized void register() {
         if (registered) {
@@ -48,6 +51,7 @@ public class ConfigManager {
 
         config = loadConfig(resolveConfigPath());
         ComponentTranslationDebugLogger.refresh(config);
+        updateGlobalTranslationEnabled(false);
         updateProviderConfigurationFingerprint(false);
         registered = true;
     }
@@ -60,6 +64,7 @@ public class ConfigManager {
     public static synchronized void save() {
         ensureRegistered();
         ComponentTranslationDebugLogger.refresh(config);
+        updateGlobalTranslationEnabled(true);
         updateProviderConfigurationFingerprint(true);
         writeConfig(resolveConfigPath(), config);
     }
@@ -73,6 +78,7 @@ public class ConfigManager {
         ensureRegistered();
         config = normalizeConfig(deepCopy(replacement));
         ComponentTranslationDebugLogger.refresh(config);
+        updateGlobalTranslationEnabled(true);
         updateProviderConfigurationFingerprint(true);
     }
 
@@ -80,7 +86,15 @@ public class ConfigManager {
         ensureRegistered();
         config = normalizeConfig(new ModConfig());
         ComponentTranslationDebugLogger.refresh(config);
+        updateGlobalTranslationEnabled(true);
         updateProviderConfigurationFingerprint(true);
+    }
+
+    public static synchronized void setGlobalTranslationEnabled(boolean enabled) {
+        ensureRegistered();
+        config.providerManager.ensureDefaults();
+        config.providerManager.translation_enabled = enabled;
+        updateGlobalTranslationEnabled(true);
     }
 
     public static Path getConfigPath() {
@@ -104,6 +118,7 @@ public class ConfigManager {
         try {
             ModConfig parsedConfig = GSON.fromJson(rawConfig, ModConfig.class);
             boolean shouldRewriteConfig = parsedConfig == null || hasLegacyConfigAliases(rawConfig);
+            boolean missingOtherTranslationsMasterSwitch = shouldRewriteOtherTranslationsMasterSwitch(rawConfig);
             ModConfig loadedConfig = normalizeConfig(parsedConfig);
             boolean migratedLegacyItemDebugConfig = migrateLegacyItemDebugConfig(rawConfig, loadedConfig);
             boolean migratedLegacyItemWynnCompatibilityConfig = ConfigMigrationSupport.hasDeprecatedWynnItemCompatibilityConfig(rawConfig);
@@ -123,7 +138,8 @@ public class ConfigManager {
                     || migratedLegacyWynnTargetLanguageConfig
                     || migratedLegacyVanillaAdvancementConfig
                     || migratedLegacyComponentRoutingConfig
-                    || removedOtherTranslationsRequestsPerMinute) {
+                    || removedOtherTranslationsRequestsPerMinute
+                    || missingOtherTranslationsMasterSwitch) {
                 writeConfigBestEffort(
                         configPath,
                         loadedConfig,
@@ -160,10 +176,24 @@ public class ConfigManager {
         }
     }
 
+    private static void updateGlobalTranslationEnabled(boolean notifyRuntime) {
+        boolean currentEnabled = config != null
+                && config.providerManager != null
+                && config.providerManager.isTranslationEnabled();
+        boolean changed = globalTranslationEnabledInitialized && globalTranslationEnabled != currentEnabled;
+        globalTranslationEnabled = currentEnabled;
+        globalTranslationEnabledInitialized = true;
+        boolean gateChanged = TranslationFeatureGate.update(currentEnabled);
+        if (notifyRuntime && (changed || gateChanged)) {
+            LifecycleEventManager.globalTranslationFeatureChanged(currentEnabled);
+        }
+    }
+
     static String providerConfigurationFingerprint(ModConfig source) {
         JsonElement providerConfiguration = GSON.toJsonTree(source == null ? null : source.providerManager);
         if (providerConfiguration.isJsonObject()) {
             providerConfiguration.getAsJsonObject().remove("api_key_visible");
+            providerConfiguration.getAsJsonObject().remove("translation_enabled");
         }
         String serialized = GSON.toJson(providerConfiguration);
         try {
@@ -489,6 +519,11 @@ public class ConfigManager {
 
     private static boolean removeOtherTranslationsRequestsPerMinute(JsonElement rawConfig) {
         return hasAnyField(getOtherTranslationsObject(rawConfig), "requests_per_minute");
+    }
+
+    private static boolean shouldRewriteOtherTranslationsMasterSwitch(JsonElement rawConfig) {
+        JsonObject otherTranslations = getOtherTranslationsObject(rawConfig);
+        return otherTranslations != null && !hasBooleanField(otherTranslations, "enabled");
     }
 
     private static boolean hasAnyField(JsonObject object, String... names) {

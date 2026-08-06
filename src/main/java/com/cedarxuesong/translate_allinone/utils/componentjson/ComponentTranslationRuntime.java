@@ -8,6 +8,7 @@ import com.cedarxuesong.translate_allinone.utils.cache.component.ComponentTransl
 import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
 import com.cedarxuesong.translate_allinone.utils.config.ProviderRouteResolver;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ApiProviderProfile;
+import com.cedarxuesong.translate_allinone.utils.translate.TranslationFeatureGate;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -182,6 +183,9 @@ public final class ComponentTranslationRuntime {
                     requestContext == null ? "" : requestContext
             );
             return new Resolution<>(State.INELIGIBLE, null, "", "Incomplete Component request");
+        }
+        if (!TranslationFeatureGate.isEnabled()) {
+            return new Resolution<>(State.INELIGIBLE, null, "", "Global translation is disabled");
         }
         if (document.units().isEmpty()) {
             ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.NO_TEXT);
@@ -423,7 +427,10 @@ public final class ComponentTranslationRuntime {
     }
 
     public static boolean forceRefresh(ComponentTranslationDocument document, String targetLanguage) {
-        if (document == null || targetLanguage == null || targetLanguage.isBlank()) {
+        if (!TranslationFeatureGate.isEnabled()
+                || document == null
+                || targetLanguage == null
+                || targetLanguage.isBlank()) {
             return false;
         }
         ComponentTranslationPreparedRequest request = preparedRequest(document, targetLanguage);
@@ -483,6 +490,9 @@ public final class ComponentTranslationRuntime {
     }
 
     public static boolean claimFallbackGeneration(String primaryCacheKey) {
+        if (!TranslationFeatureGate.isEnabled()) {
+            return false;
+        }
         if (primaryCacheKey == null || primaryCacheKey.isBlank() || !LifecycleEventManager.isReadyForTranslation) {
             return true;
         }
@@ -504,6 +514,9 @@ public final class ComponentTranslationRuntime {
             ComponentTranslationPreparedRequest request,
             String requestContext
     ) {
+        if (!TranslationFeatureGate.isEnabled()) {
+            return false;
+        }
         long epoch = SESSION_EPOCH.get();
         String cacheKey = request.identity().key();
         if (!registerQueued(request, requestContext, epoch)) {
@@ -559,6 +572,9 @@ public final class ComponentTranslationRuntime {
     }
 
     private static void drain(DispatchRoute route) {
+        if (!TranslationFeatureGate.isEnabled()) {
+            return;
+        }
         DispatchState state = DISPATCH.get(route);
         while (true) {
             PendingBatch batch;
@@ -628,6 +644,13 @@ public final class ComponentTranslationRuntime {
     }
 
     private static void startRequest(DispatchRoute route, PendingBatch batch) {
+        if (!TranslationFeatureGate.isEnabled()) {
+            for (PendingRequest request : batch.requests()) {
+                failWork(request.cacheKey(), request.epoch());
+            }
+            finishRequest(route, batch);
+            return;
+        }
         PendingRequest first = batch.requests().getFirst();
         ApiProviderProfile provider = ProviderRouteResolver.resolve(
                 Translate_AllinOne.getConfig(),
@@ -1044,7 +1067,10 @@ public final class ComponentTranslationRuntime {
     ) {
         synchronized (WORK_LOCK) {
             TranslationWork work = WORKS.get(request.cacheKey());
-            if (work == null || work.epoch() != request.epoch() || request.epoch() != SESSION_EPOCH.get()) {
+            if (!TranslationFeatureGate.isEnabled()
+                    || work == null
+                    || work.epoch() != request.epoch()
+                    || request.epoch() != SESSION_EPOCH.get()) {
                 return WorkCompletion.STALE;
             }
             if (work.refreshAfterCompletion()) {

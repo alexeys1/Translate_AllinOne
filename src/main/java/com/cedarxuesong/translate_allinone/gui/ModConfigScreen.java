@@ -948,6 +948,7 @@ public class ModConfigScreen extends Screen {
                 PROVIDER_LIST_STYLE,
                 PROVIDER_DETAIL_STYLE,
                 ModConfigScreen::t,
+                this::addToggleAction,
                 this::addGroupBox,
                 this::providerTypeDisplayName,
                 contentActionBlockRegistry::add,
@@ -1010,6 +1011,10 @@ public class ModConfigScreen extends Screen {
                 },
                 profile -> {
                     openPromptEditorWarning(profile);
+                    rebuildActionBlocks();
+                },
+                value -> {
+                    ConfigManager.setGlobalTranslationEnabled(value);
                     rebuildActionBlocks();
                 }
         );

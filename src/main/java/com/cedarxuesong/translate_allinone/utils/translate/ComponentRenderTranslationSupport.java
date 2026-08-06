@@ -30,7 +30,7 @@ public final class ComponentRenderTranslationSupport {
     }
 
     static boolean isFeatureEnabled(OtherTranslationsConfig config, boolean featureEnabled) {
-        return config != null && config.enabled && featureEnabled;
+        return TranslationFeatureGate.isEnabled() && config != null && config.enabled && featureEnabled;
     }
 
     static boolean shouldRenderTranslated(OtherTranslationsConfig config) {
@@ -41,7 +41,7 @@ public final class ComponentRenderTranslationSupport {
     }
 
     static boolean shouldRenderTranslated(OtherTranslationsConfig config, boolean pressed) {
-        if (config == null) {
+        if (!TranslationFeatureGate.isEnabled() || config == null) {
             return false;
         }
         OtherTranslationsConfig.KeybindingMode mode = config.keybinding == null || config.keybinding.mode == null
@@ -80,7 +80,7 @@ public final class ComponentRenderTranslationSupport {
             OtherTranslationsConfig config,
             boolean allowForceRefresh
     ) {
-        if (original == null || config == null) {
+        if (!TranslationFeatureGate.isEnabled() || original == null || config == null) {
             return TranslationResult.original(original, null);
         }
         try {
@@ -121,7 +121,7 @@ public final class ComponentRenderTranslationSupport {
             String policyVersion,
             OtherTranslationsConfig config
     ) {
-        if (original == null || config == null || !isRefreshPressed(config)) {
+        if (!TranslationFeatureGate.isEnabled() || original == null || config == null || !isRefreshPressed(config)) {
             return;
         }
         try {
@@ -140,7 +140,11 @@ public final class ComponentRenderTranslationSupport {
             OtherTranslationsConfig config,
             String requestContext
     ) {
-        if (document == null || document.units().isEmpty() || config == null || !isRefreshPressed(config)) {
+        if (!TranslationFeatureGate.isEnabled()
+                || document == null
+                || document.units().isEmpty()
+                || config == null
+                || !isRefreshPressed(config)) {
             return;
         }
         try {
@@ -172,6 +176,9 @@ public final class ComponentRenderTranslationSupport {
         if (result == null) {
             return Component.empty();
         }
+        if (!TranslationFeatureGate.isEnabled()) {
+            return result.original();
+        }
         return result.state() == ComponentTranslationRuntime.State.PENDING
                 ? animatePending(result.original(), animationKey)
                 : result.displayed();
@@ -180,6 +187,9 @@ public final class ComponentRenderTranslationSupport {
     static Component animatePending(Component original, String animationKey) {
         if (original == null) {
             return Component.empty();
+        }
+        if (!TranslationFeatureGate.isEnabled()) {
+            return original;
         }
         String resolvedKey = animationKey == null || animationKey.isBlank()
                 ? "component-render-pending"
@@ -195,6 +205,10 @@ public final class ComponentRenderTranslationSupport {
     }
 
     public static void tickRefreshState(OtherTranslationsConfig config) {
+        if (!TranslationFeatureGate.isEnabled()) {
+            resetRefreshState();
+            return;
+        }
         boolean pressed = isRefreshPressed(config);
         if (!pressed) {
             synchronized (REFRESHED_KEYS) {
@@ -205,7 +219,7 @@ public final class ComponentRenderTranslationSupport {
     }
 
     static void maybeForceRefresh(ComponentTranslationDocument document, OtherTranslationsConfig config) {
-        if (document == null || config == null || config.keybinding == null) {
+        if (!TranslationFeatureGate.isEnabled() || document == null || config == null || config.keybinding == null) {
             return;
         }
         boolean pressed = isRefreshPressed(config);

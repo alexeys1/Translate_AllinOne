@@ -130,7 +130,10 @@ public final class VanillaAdvancementTranslationSupport {
             String fieldName,
             boolean queueIfMissing
     ) {
-        if (originalText == null || originalText.getString().trim().isEmpty() || !isVanillaAdvancement(holder)) {
+        if (!TranslationFeatureGate.isEnabled()
+                || originalText == null
+                || originalText.getString().trim().isEmpty()
+                || !isVanillaAdvancement(holder)) {
             return new ComponentAttempt(originalText, false, "");
         }
 
@@ -211,7 +214,10 @@ public final class VanillaAdvancementTranslationSupport {
             OtherTranslationsConfig config,
             ComponentTranslationDocument document
     ) {
-        if (config == null || config.keybinding == null || config.keybinding.refreshBinding == null) {
+        if (!TranslationFeatureGate.isEnabled()
+                || config == null
+                || config.keybinding == null
+                || config.keybinding.refreshBinding == null) {
             return false;
         }
         long now = System.currentTimeMillis();
@@ -233,6 +239,9 @@ public final class VanillaAdvancementTranslationSupport {
             OtherTranslationsConfig config,
             String requestContext
     ) {
+        if (!TranslationFeatureGate.isEnabled()) {
+            return;
+        }
         ComponentTranslationRuntime.resolve(
                 document,
                 config.target_language,
@@ -272,7 +281,10 @@ public final class VanillaAdvancementTranslationSupport {
     }
 
     private static boolean isAdvancementTranslationFeatureEnabled(OtherTranslationsConfig config) {
-        return config != null && config.enabled && config.enabled_translate_vanilla_advancements;
+        return TranslationFeatureGate.isEnabled()
+                && config != null
+                && config.enabled
+                && config.enabled_translate_vanilla_advancements;
     }
 
     private static OtherTranslationsConfig currentOtherTranslationsConfig() {

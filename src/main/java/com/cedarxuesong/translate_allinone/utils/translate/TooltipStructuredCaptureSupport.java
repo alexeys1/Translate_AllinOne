@@ -55,6 +55,9 @@ final class TooltipStructuredCaptureSupport {
     }
 
     static StructuredTooltipLineResult tryTranslateStructuredLine(Component line, boolean useTagStylePreservation) {
+        if (!TranslationFeatureGate.isEnabled()) {
+            return null;
+        }
         if (containsEmbeddedLegacyFormattingCodes(line)) {
             return null;
         }
@@ -77,6 +80,9 @@ final class TooltipStructuredCaptureSupport {
             boolean useTagStylePreservation,
             ItemTranslateConfig config
     ) {
+        if (!TranslationFeatureGate.isEnabled()) {
+            return null;
+        }
         if (config != null && TooltipComponentTranslationSupport.isEligibleLine(line, config)) {
             StructuredTooltipLineResult component = tryTranslateStructuredLineComponent(line, useTagStylePreservation, config);
             if (component != null) {
@@ -113,7 +119,8 @@ final class TooltipStructuredCaptureSupport {
             boolean useTagStylePreservation,
             ItemTranslateConfig config
     ) {
-        if (line == null
+        if (!TranslationFeatureGate.isEnabled()
+                || line == null
                 || config == null
                 || containsEmbeddedLegacyFormattingCodes(line)) {
             return 0;
@@ -325,6 +332,9 @@ final class TooltipStructuredCaptureSupport {
     }
 
     static Set<String> collectStructuredTemplateKeys(Component line, boolean useTagStylePreservation) {
+        if (!TranslationFeatureGate.isEnabled()) {
+            return Set.of();
+        }
         if (containsEmbeddedLegacyFormattingCodes(line)) {
             return Set.of();
         }
@@ -344,6 +354,9 @@ final class TooltipStructuredCaptureSupport {
     }
 
     static Set<String> collectRemoteStructuredTemplateKeys(Component line, boolean useTagStylePreservation) {
+        if (!TranslationFeatureGate.isEnabled()) {
+            return Set.of();
+        }
         if (containsEmbeddedLegacyFormattingCodes(line)) {
             return Set.of();
         }
