@@ -26,7 +26,6 @@ import net.fabricmc.loader.api.FabricLoader;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -454,14 +453,13 @@ public class ConfigManager {
 
         try {
             Files.move(tempPath, configPath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (AtomicMoveNotSupportedException e) {
+        } catch (IOException atomicMoveException) {
             try {
                 Files.move(tempPath, configPath, StandardCopyOption.REPLACE_EXISTING);
             } catch (IOException moveException) {
+                moveException.addSuppressed(atomicMoveException);
                 throw new RuntimeException("Failed to replace config file: " + configPath, moveException);
             }
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to replace config file: " + configPath, e);
         }
     }
 
