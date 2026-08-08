@@ -200,10 +200,51 @@ public final class WynnDialogueTranslationSupport {
                 escapeForLog(npcName),
                 escapeForLog(dialogue)
         );
+        if (shouldKeepActiveOverlayCandidate(npcName, dialogue)) {
+            throttledDevLog(
+                    "chat_overlay_preferred",
+                    DEBUG_CHAT_LOG_THROTTLE_MILLIS,
+                    "chat_candidate_ignored reason=active_overlay npc=\"{}\" dialogue=\"{}\"",
+                    describeForLog(npcName),
+                    describeForLog(dialogue)
+            );
+            return;
+        }
         registerCandidate(new DialogueCandidate(System.nanoTime(), pageInfo, npcName, dialogue, false, "", ""));
         queueNpcTranslationIfNeeded(npcName);
         queueDialogueTranslationIfPossible(dialogue, false);
         refreshCurrentDialogueDisplay();
+    }
+
+    private static boolean shouldKeepActiveOverlayCandidate(String npcName, String dialogue) {
+        DialogueCandidate candidate = currentCandidate;
+        PresentedDialogueState presentedState = lastPresentedState;
+        if (!overlayDialogueActive
+                || candidate == null
+                || !candidate.overlaySource()
+                || presentedState == null
+                || System.currentTimeMillis() > presentedState.displayUntilEpochMillis()) {
+            return false;
+        }
+        if (!Objects.equals(
+                normalizeDisplayText(candidate.npcName()),
+                normalizeDisplayText(npcName)
+        )) {
+            return false;
+        }
+
+        String activeDialogue = prepareDialogueValue(candidate.dialogue());
+        String incomingDialogue = prepareDialogueValue(dialogue);
+        if (activeDialogue.isBlank() || incomingDialogue.isBlank()) {
+            return false;
+        }
+        if (Objects.equals(activeDialogue, incomingDialogue)) {
+            return true;
+        }
+        return activeDialogue.length() >= MIN_OVERLAY_DIALOGUE_LENGTH
+                && incomingDialogue.length() >= MIN_OVERLAY_DIALOGUE_LENGTH
+                && (activeDialogue.startsWith(incomingDialogue)
+                || incomingDialogue.startsWith(activeDialogue));
     }
 
     public static void handleOverlayMessage(Text message) {
@@ -287,8 +328,14 @@ public final class WynnDialogueTranslationSupport {
             }
             return;
         }
+        boolean fontOptionsAuthoritative = fontPath && !readableParse.optionsText().isBlank();
         if (shouldTranslateOptions && shouldTreatAsActiveOverlayChoiceFragment(readableParse, readableSegments)) {
-            updateActiveOverlayChoiceOptions(readableParse, readableSegments, sourcePlain);
+            updateActiveOverlayChoiceOptions(
+                    readableParse,
+                    readableSegments,
+                    sourcePlain,
+                    fontOptionsAuthoritative
+            );
             return;
         }
         if ("tail_fallback".equals(readableParse.mode())) {
@@ -302,17 +349,25 @@ public final class WynnDialogueTranslationSupport {
             );
         }
         String npcName = readableParse.npcName();
+        DialogueCandidate previousCandidate = currentCandidate;
         String dialogue = prepareOverlayDialogueForComparison(readableParse.dialogue(), fontPath);
         String preparedDialogue = prepareDialogueValue(dialogue);
         boolean sameDialogue = isLikelySameOverlayDialogue(preparedDialogue);
-        if (!sameDialogue) {
+        boolean sameOverlayNpc = previousCandidate != null
+                && previousCandidate.overlaySource()
+                && Objects.equals(
+                        normalizeDisplayText(previousCandidate.npcName()),
+                        normalizeDisplayText(npcName)
+                );
+        boolean sameOverlayDialogue = sameDialogue && sameOverlayNpc;
+        if (!sameOverlayDialogue) {
             overlayDialogueQueued = false;
             lastOverlayOptionsChangedAt = 0L;
             lastOverlayObservedOptionsSignature = "";
             lastOverlayQueuedOptionsSignature = "";
             clearOverlayChoiceOptionsTracking();
         }
-        dialogue = normalizeOverlayDialogueForCandidate(dialogue, fontPath, sameDialogue);
+        dialogue = normalizeOverlayDialogueForCandidate(dialogue, fontPath, sameOverlayDialogue);
         if (dialogue.isBlank()) {
             throttledDevLog(
                     "overlay_empty_dialogue",
@@ -323,10 +378,9 @@ public final class WynnDialogueTranslationSupport {
             return;
         }
         preparedDialogue = prepareDialogueValue(dialogue);
-        DialogueCandidate previousCandidate = currentCandidate;
         boolean sameCandidate = isSameOverlayDialogueCandidate(previousCandidate, npcName, dialogue);
-        boolean sameDialogueCandidate = sameDialogue && sameCandidate;
-        if (sameDialogue && !sameCandidate && overlayDialogueQueued) {
+        boolean sameDialogueCandidate = sameOverlayDialogue && sameCandidate;
+        if (sameOverlayDialogue && !sameCandidate && overlayDialogueQueued) {
             overlayDialogueQueued = false;
         }
         String optionsText;
@@ -334,7 +388,12 @@ public final class WynnDialogueTranslationSupport {
             String previousOptionsText = sameDialogueCandidate ? previousCandidate.optionsText() : "";
             optionsText = chooseOverlayChoiceOptionsDisplayText(
                     previousOptionsText,
-                    stabilizeOverlayChoiceOptionsText(npcName, dialogue, readableParse.optionsText())
+                    stabilizeOverlayChoiceOptionsText(
+                            npcName,
+                            dialogue,
+                            readableParse.optionsText(),
+                            fontOptionsAuthoritative
+                    )
             );
         } else {
             optionsText = "";
@@ -345,7 +404,11 @@ public final class WynnDialogueTranslationSupport {
         long observedNonce = sameCandidate ? previousCandidate.observedNonce() : System.nanoTime();
         long now = System.currentTimeMillis();
         lastOverlayPreparedDialogue = preparedDialogue;
-        lastOverlayChangedAt = WynnDialogueQueuePolicy.resolveOverlayChangedAt(sameDialogue, lastOverlayChangedAt, now);
+        lastOverlayChangedAt = WynnDialogueQueuePolicy.resolveOverlayChangedAt(
+                sameOverlayDialogue,
+                lastOverlayChangedAt,
+                now
+        );
         if (shouldTranslateOptions) {
             updateOverlayOptionsStability(optionsText, now);
         } else {
@@ -364,7 +427,7 @@ public final class WynnDialogueTranslationSupport {
                 readableParse.promptIndex(),
                 describeForLog(npcName),
                 describeForLog(dialogue),
-                sameDialogue
+                sameOverlayDialogue
         );
         registerCandidate(new DialogueCandidate(observedNonce, "", npcName, dialogue, true, sourcePlain, optionsText));
         queueNpcTranslationIfNeeded(npcName);
@@ -964,6 +1027,41 @@ public final class WynnDialogueTranslationSupport {
 
     static boolean hasPresentedDialogueStateForTest() {
         return lastPresentedState != null;
+    }
+
+    static boolean shouldKeepActiveOverlayCandidateForTest(
+            String activeNpcName,
+            String activeDialogue,
+            String incomingNpcName,
+            String incomingDialogue
+    ) {
+        long displayUntil = System.currentTimeMillis() + WynnDialogueHudRenderer.getDisplayDurationMillis();
+        currentCandidate = new DialogueCandidate(
+                42L,
+                "",
+                activeNpcName,
+                activeDialogue,
+                true,
+                "",
+                ""
+        );
+        lastPresentedState = new PresentedDialogueState(
+                42L,
+                "",
+                activeNpcName,
+                activeNpcName,
+                activeDialogue,
+                activeDialogue,
+                "",
+                "",
+                false,
+                "",
+                displayUntil
+        );
+        overlayDialogueActive = true;
+        boolean result = shouldKeepActiveOverlayCandidate(incomingNpcName, incomingDialogue);
+        overlayDialogueActive = false;
+        return result;
     }
 
     private static boolean shouldDelayShortOverlayFallback(DialogueCandidate candidate, boolean meaningfullyTranslated) {
@@ -1649,6 +1747,12 @@ public final class WynnDialogueTranslationSupport {
             boolean fontPath,
             boolean sameDialogue
     ) {
+        if (fontPath
+                && sameDialogue
+                && preparedDialogue != null
+                && preparedDialogue.length() < lastOverlayPreparedDialogue.length()) {
+            return lastOverlayPreparedDialogue;
+        }
         return fontPath ? preparedDialogue : cleanOverlayDialogueText(preparedDialogue, sameDialogue);
     }
 
@@ -2992,6 +3096,15 @@ public final class WynnDialogueTranslationSupport {
     }
 
     private static synchronized String stabilizeOverlayChoiceOptionsText(String npcName, String dialogue, String optionsText) {
+        return stabilizeOverlayChoiceOptionsText(npcName, dialogue, optionsText, false);
+    }
+
+    private static synchronized String stabilizeOverlayChoiceOptionsText(
+            String npcName,
+            String dialogue,
+            String optionsText,
+            boolean fontOptionsAuthoritative
+    ) {
         String preparedDialogue = prepareDialogueValue(dialogue);
         if (preparedDialogue.isBlank()) {
             return "";
@@ -3001,7 +3114,7 @@ public final class WynnDialogueTranslationSupport {
         if (overlayChoiceOptionsState == null || !overlayChoiceOptionsState.matches(preparedDialogue, npcName)) {
             overlayChoiceOptionsState = new OverlayChoiceOptionsState(preparedDialogue, normalizeDisplayText(npcName));
         }
-        overlayChoiceOptionsState.merge(fragments);
+        overlayChoiceOptionsState.merge(fragments, fontOptionsAuthoritative);
         return overlayChoiceOptionsState.displayText();
     }
 
@@ -3062,7 +3175,8 @@ public final class WynnDialogueTranslationSupport {
     private static void updateActiveOverlayChoiceOptions(
             OverlayReadableParse readableParse,
             List<String> readableSegments,
-            String sourcePlain
+            String sourcePlain,
+            boolean fontOptionsAuthoritative
     ) {
         if (!shouldTranslateNpcOptions()) {
             clearOverlayChoiceOptionsTracking();
@@ -3087,7 +3201,8 @@ public final class WynnDialogueTranslationSupport {
         String stabilizedOptionsText = stabilizeOverlayChoiceOptionsText(
                 candidate.npcName(),
                 candidate.dialogue(),
-                optionsText
+                optionsText,
+                fontOptionsAuthoritative
         );
         String displayOptionsText = chooseOverlayChoiceOptionsDisplayText(candidate.optionsText(), stabilizedOptionsText);
         if (displayOptionsText.isBlank() || Objects.equals(displayOptionsText, candidate.optionsText())) {
@@ -3130,11 +3245,30 @@ public final class WynnDialogueTranslationSupport {
         return stabilizeOverlayChoiceOptionsText(npcName, dialogue, optionsText);
     }
 
+    static synchronized String stabilizeOverlayChoiceOptionsTextForTest(
+            String npcName,
+            String dialogue,
+            String optionsText,
+            boolean fontOptionsAuthoritative
+    ) {
+        return stabilizeOverlayChoiceOptionsText(npcName, dialogue, optionsText, fontOptionsAuthoritative);
+    }
+
     static String normalizeFontOverlayDialogueForTest(String dialogue, boolean sameDialogue) {
         return normalizeOverlayDialogueForCandidate(
                 prepareOverlayDialogueForComparison(dialogue, true),
                 true,
                 sameDialogue
+        );
+    }
+
+    static String stabilizeShorterFontOverlayDialogueForTest(String previousDialogue, String shorterDialogue) {
+        lastOverlayPreparedDialogue = prepareDialogueValue(previousDialogue);
+        String preparedDialogue = prepareOverlayDialogueForComparison(shorterDialogue, true);
+        return normalizeOverlayDialogueForCandidate(
+                preparedDialogue,
+                true,
+                isLikelySameOverlayDialogue(prepareDialogueValue(preparedDialogue))
         );
     }
 
@@ -3498,13 +3632,13 @@ public final class WynnDialogueTranslationSupport {
         if (preparedDialogue == null || preparedDialogue.isBlank() || lastOverlayPreparedDialogue.isBlank()) {
             return false;
         }
-        if (preparedDialogue.length() < lastOverlayPreparedDialogue.length()) {
+        int sharedLength = Math.min(preparedDialogue.length(), lastOverlayPreparedDialogue.length());
+        int prefixLength = Math.min(SAME_DIALOGUE_PREFIX_LENGTH, sharedLength);
+        if (prefixLength < MIN_PREFIX_MATCH_LENGTH) {
             return false;
         }
 
-        String prefix = lastOverlayPreparedDialogue.length() >= SAME_DIALOGUE_PREFIX_LENGTH
-                ? lastOverlayPreparedDialogue.substring(0, SAME_DIALOGUE_PREFIX_LENGTH)
-                : lastOverlayPreparedDialogue;
+        String prefix = lastOverlayPreparedDialogue.substring(0, prefixLength);
         return preparedDialogue.startsWith(prefix);
     }
 
@@ -3601,6 +3735,7 @@ public final class WynnDialogueTranslationSupport {
         private final String dialogueKey;
         private final String npcName;
         private final List<String> lines = new ArrayList<>();
+        private boolean authoritativeSnapshotReceived;
 
         private OverlayChoiceOptionsState(String dialogueKey, String npcName) {
             this.dialogueKey = dialogueKey == null ? "" : dialogueKey;
@@ -3617,7 +3752,7 @@ public final class WynnDialogueTranslationSupport {
                     && matches(prepareDialogueValue(candidate.dialogue()), candidate.npcName());
         }
 
-        private void merge(List<String> fragments) {
+        private void merge(List<String> fragments, boolean fontOptionsAuthoritative) {
             if (fragments == null || fragments.isEmpty()) {
                 return;
             }
@@ -3632,16 +3767,62 @@ public final class WynnDialogueTranslationSupport {
             if (cleanFragments.isEmpty()) {
                 return;
             }
-            if (mergeOrderedFrame(cleanFragments)) {
+            if (fontOptionsAuthoritative) {
+                mergeAuthoritativeFrame(cleanFragments);
+                authoritativeSnapshotReceived = true;
+                return;
+            }
+            if (authoritativeSnapshotReceived) {
+                return;
+            }
+            mergeFallbackFrame(cleanFragments);
+        }
+
+        private void mergeAuthoritativeFrame(List<String> fragments) {
+            if (lines.isEmpty() || fragments.size() > lines.size()) {
+                lines.clear();
+                lines.addAll(fragments);
+                return;
+            }
+            if (fragments.size() < lines.size()) {
                 return;
             }
 
-            for (String cleanFragment : cleanFragments) {
-                merge(cleanFragment);
+            List<String> mergedLines = new ArrayList<>(lines.size());
+            for (int i = 0; i < lines.size(); i++) {
+                String existing = lines.get(i);
+                String fragment = fragments.get(i);
+                int score = overlayChoiceOptionMergeScore(existing, fragment);
+                if (score >= MIN_OVERLAY_CHOICE_MERGE_OVERLAP) {
+                    mergedLines.add(mergeOverlayChoiceOptionText(existing, fragment));
+                    continue;
+                }
+                mergedLines.add(
+                        overlayChoiceOptionLineQuality(fragment) >= overlayChoiceOptionLineQuality(existing)
+                                ? fragment
+                                : existing
+                );
+            }
+
+            String currentText = String.join("\n", lines);
+            String mergedText = String.join("\n", mergedLines);
+            if (overlayChoiceOptionsDisplayQuality(mergedText) >= overlayChoiceOptionsDisplayQuality(currentText)) {
+                lines.clear();
+                lines.addAll(mergedLines);
             }
         }
 
-        private void merge(String fragment) {
+        private void mergeFallbackFrame(List<String> fragments) {
+            if (mergeOrderedFrame(fragments)) {
+                return;
+            }
+
+            for (String fragment : fragments) {
+                mergeFallbackFragment(fragment);
+            }
+        }
+
+        private void mergeFallbackFragment(String fragment) {
             String cleanFragment = cleanOverlayChoiceOptionFragment(fragment);
             if (cleanFragment.isBlank()) {
                 return;
