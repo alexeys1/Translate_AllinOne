@@ -3,6 +3,7 @@ package com.cedarxuesong.translate_allinone.registration;
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.utils.cache.ScoreboardTextCache;
 import com.cedarxuesong.translate_allinone.utils.cache.SkyblockNpcTranslationCache;
+import com.cedarxuesong.translate_allinone.utils.cache.component.ComponentCacheMigrationManager;
 import com.cedarxuesong.translate_allinone.utils.cache.component.ComponentTranslationStoreRegistry;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRuntime;
 import com.cedarxuesong.translate_allinone.utils.cache.WynnDialogueTextCache;
@@ -45,6 +46,7 @@ public class LifecycleEventManager {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             LOGGER.info("Game is shutting down, performing final cache save...");
             saveCaches();
+            ComponentTranslationStoreRegistry.getInstance().endSession();
         }));
     }
 
@@ -108,6 +110,7 @@ public class LifecycleEventManager {
             LOGGER.info("Player has disconnected. Translation readiness reset.");
             stopTranslationManagers();
             saveCaches();
+            ComponentTranslationStoreRegistry.getInstance().endSession();
         });
     }
 
@@ -120,6 +123,7 @@ public class LifecycleEventManager {
     }
 
     private static void loadCachesAndStartTranslationManagers() {
+        ComponentCacheMigrationManager.migrateLegacyCaches(ComponentTranslationStoreRegistry.getInstance());
         ComponentTranslationStoreRegistry.getInstance().load();
         SkyblockNpcTranslationCache.getInstance().load();
         ItemTemplateCache.getInstance().load();

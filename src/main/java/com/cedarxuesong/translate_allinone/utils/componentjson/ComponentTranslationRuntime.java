@@ -364,17 +364,6 @@ public final class ComponentTranslationRuntime {
             }
         }
 
-        if (store(request.document().route()).isWriteProtected()) {
-            ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.FALLBACK_ORIGINAL);
-            return new Resolution<>(
-                    State.FAILED,
-                    null,
-                    request.identity().key(),
-                    "Component cache is write-protected for this session.",
-                    FailureDisposition.INFRASTRUCTURE_FAILURE
-            );
-        }
-
         FailureState failure = activeFailure(request.identity().key());
         if (failure != null) {
             ComponentTranslationMetrics.record(

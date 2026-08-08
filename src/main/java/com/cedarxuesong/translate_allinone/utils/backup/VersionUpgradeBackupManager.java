@@ -125,6 +125,12 @@ public final class VersionUpgradeBackupManager {
         if (EXCLUDED_TOP_LEVEL_DIRECTORIES.contains(firstSegment)) {
             return false;
         }
+        if ("translate_cache".equals(firstSegment)
+                && relativePath.getNameCount() > 1
+                && ("migration".equals(relativePath.getName(1).toString())
+                || "corrupt".equals(relativePath.getName(1).toString()))) {
+            return false;
+        }
 
         String fileName = path.getFileName().toString();
         if (STATE_FILE_NAME.equals(fileName)) {

@@ -46,6 +46,10 @@ public final class ComponentTranslationStoreRegistry {
         stores.values().forEach(ComponentTranslationStore::save);
     }
 
+    public void endSession() {
+        stores.values().forEach(ComponentTranslationStore::endSession);
+    }
+
     public void ensureInitialized() {
         stores.values().forEach(ComponentTranslationStore::ensureInitialized);
     }
