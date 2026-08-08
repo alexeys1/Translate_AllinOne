@@ -119,12 +119,14 @@ public class ConfigManager {
             }
 
             if (shouldRewriteConfig
+            boolean missingOtherTranslationsMasterSwitch = shouldRewriteOtherTranslationsMasterSwitch(rawConfig);
                     || migratedLegacyItemDebugConfig
                     || migratedLegacyItemWynnCompatibilityConfig
                     || migratedLegacyWynnTargetLanguageConfig
                     || migratedLegacyVanillaAdvancementConfig
                     || migratedLegacyComponentRoutingConfig
-                    || removedOtherTranslationsRequestsPerMinute) {
+                    || removedOtherTranslationsRequestsPerMinute
+                    || missingOtherTranslationsMasterSwitch) {
                 writeConfigBestEffort(
                         configPath,
                         loadedConfig,
@@ -517,6 +519,11 @@ public class ConfigManager {
     private static boolean migrateBoolean(JsonObject source, String oldName, Object target, String newName) {
         if (source == null || !source.has(oldName) || !source.get(oldName).isJsonPrimitive()
                 || !source.get(oldName).getAsJsonPrimitive().isBoolean()) {
+    private static boolean shouldRewriteOtherTranslationsMasterSwitch(JsonElement rawConfig) {
+        JsonObject otherTranslations = getOtherTranslationsObject(rawConfig);
+        return otherTranslations != null && !hasBooleanField(otherTranslations, "enabled");
+    }
+
             return false;
         }
         if (source.has(newName)) {

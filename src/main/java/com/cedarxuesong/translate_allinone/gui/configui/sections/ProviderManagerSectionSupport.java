@@ -7,6 +7,7 @@ import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 
 import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 public final class ProviderManagerSectionSupport {
@@ -35,6 +36,7 @@ public final class ProviderManagerSectionSupport {
             ProviderListSectionSupport.Style providerListStyle,
             ProviderDetailSectionSupport.Style providerDetailStyle,
             Translator translator,
+            ToggleAdder toggleAdder,
             ProviderDetailSectionSupport.GroupBoxAdder groupBoxAdder,
             ProviderDetailSectionSupport.ProviderTypeLabelProvider providerTypeLabelProvider,
             ProviderListSectionSupport.ActionBlockAdder listActionBlockAdder,
@@ -52,12 +54,33 @@ public final class ProviderManagerSectionSupport {
             BiConsumer<ApiProviderProfile, String> onOpenModelSettings,
             BiConsumer<ApiProviderProfile, String> onRemoveModel,
             Consumer<ApiProviderProfile> onAddModel,
-            Consumer<ApiProviderProfile> onOpenPromptEditor
+            Consumer<ApiProviderProfile> onOpenPromptEditor,
+            Consumer<Boolean> onToggleTranslationEnabled
     ) {
         int workspaceHeight = Math.max(120, viewportHeight - 12);
         int contentY = y + CONTENT_TOP_INSET;
         int contentHeight = Math.max(120, workspaceHeight - CONTENT_TOP_INSET);
         boolean stackedLayout = width < STACKED_LAYOUT_BREAKPOINT;
+
+        int globalTranslationStartY = contentY;
+        toggleAdder.add(
+                x,
+                contentY,
+                width,
+                translator.t("label.global_translation"),
+                providerManager::isTranslationEnabled,
+                onToggleTranslationEnabled,
+                translator.t("desc.global_translation")
+        );
+        addGroupBox(
+                groupBoxAdder,
+                translator.t("group.providers.global"),
+                x,
+                width,
+                globalTranslationStartY,
+                globalTranslationStartY + MIN_CONTENT_HEIGHT
+        );
+        contentY = globalTranslationStartY + MIN_CONTENT_HEIGHT + STACKED_SECTION_GAP;
 
         ProviderProfileSupport.SelectedProvider selected = ProviderProfileSupport.resolveSelectedProvider(
                 providerManager,
@@ -199,6 +222,11 @@ public final class ProviderManagerSectionSupport {
     @FunctionalInterface
     public interface Translator {
         Text t(String key, Object... args);
+    }
+
+    @FunctionalInterface
+    public interface ToggleAdder {
+        void add(int x, int y, int width, Text label, BooleanSupplier getter, Consumer<Boolean> setter, Text tooltip);
     }
 
     public record RenderResult(TextFieldWidget providerSearchField, String selectedProviderId, int contentBottomY) {

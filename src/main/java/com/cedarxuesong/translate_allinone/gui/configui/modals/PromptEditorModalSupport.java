@@ -20,6 +20,8 @@ public final class PromptEditorModalSupport {
     private static final String ROUTE_CHAT_INPUT_TRANSLATE = "chat_input_translate";
     private static final String ROUTE_WYNN_NPC_DIALOGUE = "wynn_npc_dialogue";
     private static final String ROUTE_WYNNTILS_TASK_TRACKER = "wynntils_task_tracker";
+    private static final String ROUTE_SIGN_BOOK = "sign_book";
+    private static final String ROUTE_ENTITY_TEXT = "entity_text";
 
     private PromptEditorModalSupport() {
     }
@@ -32,6 +34,8 @@ public final class PromptEditorModalSupport {
         defaults.put(ROUTE_CHAT_INPUT_TRANSLATE, "");
         defaults.put(ROUTE_WYNN_NPC_DIALOGUE, "");
         defaults.put(ROUTE_WYNNTILS_TASK_TRACKER, "");
+        defaults.put(ROUTE_SIGN_BOOK, "");
+        defaults.put(ROUTE_ENTITY_TEXT, "");
         return defaults;
     }
 
@@ -56,7 +60,16 @@ public final class PromptEditorModalSupport {
         int fieldWidth = rect.right() - rightX - 20;
 
         Map<String, Text> routeLabels = routeLabels(translator);
-        String[] routeKeys = {ROUTE_ITEM, ROUTE_SCOREBOARD, ROUTE_CHAT_OUTPUT, ROUTE_CHAT_INPUT_TRANSLATE, ROUTE_WYNN_NPC_DIALOGUE, ROUTE_WYNNTILS_TASK_TRACKER};
+        String[] routeKeys = {
+                ROUTE_ITEM,
+                ROUTE_SCOREBOARD,
+                ROUTE_CHAT_OUTPUT,
+                ROUTE_CHAT_INPUT_TRANSLATE,
+                ROUTE_WYNN_NPC_DIALOGUE,
+                ROUTE_WYNNTILS_TASK_TRACKER,
+                ROUTE_SIGN_BOOK,
+                ROUTE_ENTITY_TEXT
+        };
         Map<String, TextFieldWidget> fields = new LinkedHashMap<>();
         int rowY = contentTop;
 
@@ -144,6 +157,8 @@ public final class PromptEditorModalSupport {
         labels.put(ROUTE_CHAT_INPUT_TRANSLATE, translator.t("prompt_editor.route.chat_input_translate"));
         labels.put(ROUTE_WYNN_NPC_DIALOGUE, translator.t("prompt_editor.route.wynn_npc_dialogue"));
         labels.put(ROUTE_WYNNTILS_TASK_TRACKER, translator.t("prompt_editor.route.wynntils_task_tracker"));
+        labels.put(ROUTE_SIGN_BOOK, translator.t("prompt_editor.route.sign_book"));
+        labels.put(ROUTE_ENTITY_TEXT, translator.t("prompt_editor.route.entity_text"));
         return labels;
     }
 

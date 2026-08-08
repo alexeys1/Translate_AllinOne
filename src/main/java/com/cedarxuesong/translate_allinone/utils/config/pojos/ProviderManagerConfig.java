@@ -9,6 +9,7 @@ public class ProviderManagerConfig {
     public List<ApiProviderProfile> providers = new ArrayList<>();
     public Routes routes = new Routes();
     public Boolean api_key_visible = true;
+    public Boolean translation_enabled = true;
 
     public ProviderManagerConfig() {
         ensureDefaults();
@@ -31,6 +32,9 @@ public class ProviderManagerConfig {
         if (api_key_visible == null) {
             api_key_visible = true;
         }
+        if (translation_enabled == null) {
+            translation_enabled = true;
+        }
 
         routes.item = normalizeRouteValue(routes.item);
         routes.scoreboard = normalizeRouteValue(routes.scoreboard);
@@ -47,6 +51,10 @@ public class ProviderManagerConfig {
         }
         routes.chat_input = normalizeRouteValue(routes.chat_input);
         routes.chat_output = normalizeRouteValue(routes.chat_output);
+    }
+
+    public boolean isTranslationEnabled() {
+        return translation_enabled == null || translation_enabled;
     }
 
     public ApiProviderProfile findById(String id) {

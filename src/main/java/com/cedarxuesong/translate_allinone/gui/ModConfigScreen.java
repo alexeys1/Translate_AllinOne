@@ -48,6 +48,7 @@ import com.cedarxuesong.translate_allinone.utils.config.pojos.CustomParameterEnt
 import com.cedarxuesong.translate_allinone.utils.config.pojos.DictionaryConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.InputBindingConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
+import com.cedarxuesong.translate_allinone.utils.config.pojos.OtherTranslationsConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ProviderManagerConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ScoreboardConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.WynnCraftConfig;
@@ -944,6 +945,7 @@ public class ModConfigScreen extends Screen {
                 PROVIDER_LIST_STYLE,
                 PROVIDER_DETAIL_STYLE,
                 ModConfigScreen::t,
+                this::addToggleAction,
                 this::addGroupBox,
                 this::providerTypeDisplayName,
                 contentActionBlockRegistry::add,
@@ -1006,6 +1008,10 @@ public class ModConfigScreen extends Screen {
                 },
                 profile -> {
                     openPromptEditorWarning(profile);
+                    rebuildActionBlocks();
+                },
+                value -> {
+                    ConfigManager.setGlobalTranslationEnabled(value);
                     rebuildActionBlocks();
                 }
         );
@@ -1603,6 +1609,20 @@ public class ModConfigScreen extends Screen {
             return;
         }
 
+        if (target == ConfigSectionContentSupport.HotkeyTarget.OTHER_TRANSLATIONS) {
+            OtherTranslationsConfig.KeybindingConfig keybinding = ensureOtherTranslationsKeybinding(Translate_AllinOne.getConfig());
+            if (hotkeyCaptureTarget == ConfigSectionContentSupport.HotkeyTarget.OTHER_TRANSLATIONS
+                    || hotkeyCaptureTarget == ConfigSectionContentSupport.HotkeyTarget.OTHER_TRANSLATIONS_REFRESH) {
+                hotkeyCaptureTarget = null;
+            }
+
+            KeybindingManager.clear(keybinding.binding);
+            KeybindingManager.clear(keybinding.refreshBinding);
+            setStatus(t("status.hotkey_cleared", sectionLabel(target)), COLOR_STATUS_OK);
+            rebuildActionBlocks();
+            return;
+        }
+
         if (target == ConfigSectionContentSupport.HotkeyTarget.WYNNTILS_TASK_TRACKER) {
             WynnCraftConfig.KeybindingConfig keybinding = ensureWynntilsTaskTrackerKeybinding(Translate_AllinOne.getConfig());
             if (keybinding.binding == null) {
@@ -1671,6 +1691,12 @@ public class ModConfigScreen extends Screen {
                 keybinding.mode = modes[(keybinding.mode.ordinal() + 1) % modes.length];
                 setStatus(t("status.hotkey_mode_changed", sectionLabel(target), modeLabel(keybinding.mode.name())), COLOR_STATUS_OK);
             }
+            case OTHER_TRANSLATIONS -> {
+                OtherTranslationsConfig.KeybindingConfig keybinding = ensureOtherTranslationsKeybinding(config);
+                OtherTranslationsConfig.KeybindingMode[] modes = OtherTranslationsConfig.KeybindingMode.values();
+                keybinding.mode = modes[(keybinding.mode.ordinal() + 1) % modes.length];
+                setStatus(t("status.hotkey_mode_changed", sectionLabel(target), modeLabel(keybinding.mode.name())), COLOR_STATUS_OK);
+            }
             case WYNNTILS_TASK_TRACKER -> {
                 WynnCraftConfig.KeybindingConfig keybinding = ensureWynntilsTaskTrackerKeybinding(config);
                 WynnCraftConfig.KeybindingMode[] modes = WynnCraftConfig.KeybindingMode.values();
@@ -1721,6 +1747,14 @@ public class ModConfigScreen extends Screen {
                 }
                 yield keybinding.refreshBinding;
             }
+            case OTHER_TRANSLATIONS -> {
+                OtherTranslationsConfig.KeybindingConfig keybinding = ensureOtherTranslationsKeybinding(config);
+                yield keybinding.binding;
+            }
+            case OTHER_TRANSLATIONS_REFRESH -> {
+                OtherTranslationsConfig.KeybindingConfig keybinding = ensureOtherTranslationsKeybinding(config);
+                yield keybinding.refreshBinding;
+            }
             case WYNNTILS_TASK_TRACKER -> {
                 WynnCraftConfig.KeybindingConfig keybinding = ensureWynntilsTaskTrackerKeybinding(config);
                 if (keybinding.binding == null) {
@@ -1753,6 +1787,22 @@ public class ModConfigScreen extends Screen {
             config.scoreboardTranslate.keybinding.refreshBinding = new InputBindingConfig();
         }
         return config.scoreboardTranslate.keybinding;
+    }
+
+    private OtherTranslationsConfig.KeybindingConfig ensureOtherTranslationsKeybinding(ModConfig config) {
+        if (config.otherTranslations == null) {
+            config.otherTranslations = new OtherTranslationsConfig();
+        }
+        if (config.otherTranslations.keybinding == null) {
+            config.otherTranslations.keybinding = new OtherTranslationsConfig.KeybindingConfig();
+        }
+        if (config.otherTranslations.keybinding.binding == null) {
+            config.otherTranslations.keybinding.binding = new InputBindingConfig();
+        }
+        if (config.otherTranslations.keybinding.refreshBinding == null) {
+            config.otherTranslations.keybinding.refreshBinding = new InputBindingConfig();
+        }
+        return config.otherTranslations.keybinding;
     }
 
     private WynnCraftConfig.KeybindingConfig ensureWynntilsTaskTrackerKeybinding(ModConfig config) {
@@ -1800,6 +1850,8 @@ public class ModConfigScreen extends Screen {
             case ITEM_REFRESH -> t("section.item");
             case SCOREBOARD -> t("section.scoreboard");
             case SCOREBOARD_REFRESH -> t("section.scoreboard");
+            case OTHER_TRANSLATIONS -> t("section.other_translations");
+            case OTHER_TRANSLATIONS_REFRESH -> t("section.other_translations");
             case WYNNTILS_TASK_TRACKER -> t("section.wynncraft");
             case WYNNTILS_TASK_TRACKER_REFRESH -> t("section.wynncraft");
         };
@@ -1809,6 +1861,7 @@ public class ModConfigScreen extends Screen {
         return switch (target) {
             case ITEM_REFRESH -> t("label.item_refresh_hotkey_binding", bindingLabel);
             case SCOREBOARD_REFRESH -> t("label.scoreboard_refresh_hotkey_binding", bindingLabel);
+            case OTHER_TRANSLATIONS_REFRESH -> t("label.other_translations_refresh_hotkey_binding", bindingLabel);
             case WYNNTILS_TASK_TRACKER_REFRESH -> t("label.item_refresh_hotkey_binding", bindingLabel);
             default -> t("label.hotkey_binding", bindingLabel);
         };
