@@ -132,6 +132,14 @@ public class ChatInputTranslateManager {
             return; // Already translating
         }
 
+        long translationGeneration = mode == TransformMode.TRANSLATE
+                ? TranslationFeatureGate.generation()
+                : -1L;
+        if (!isTransformActive(mode, translationGeneration)) {
+            isTranslating.set(false);
+            return;
+        }
+
         ChatTranslateConfig.ChatInputTranslateConfig inputConfig = Translate_AllinOne.getConfig().chatTranslate.input;
         if (!inputConfig.enabled) {
             isTranslating.set(false);
@@ -149,6 +157,9 @@ public class ChatInputTranslateManager {
         executor.submit(() -> {
             String requestContext = "route=chat_input, mode=" + mode.name().toLowerCase();
             try {
+                if (!isTransformActive(mode, translationGeneration)) {
+                    return;
+                }
                 ApiProviderProfile providerProfile = ProviderRouteResolver.resolve(
                         Translate_AllinOne.getConfig(),
                         ProviderRouteResolver.Route.CHAT_INPUT
@@ -188,9 +199,16 @@ public class ChatInputTranslateManager {
                     final StringBuilder visibleContentBuffer = new StringBuilder();
                     final AtomicBoolean inThinkTag = new AtomicBoolean(false);
 
-                    MinecraftClient.getInstance().execute(() -> chatField.setText("Connecting...")); // Clear field for streaming
+                    MinecraftClient.getInstance().execute(() -> {
+                        if (isTransformActive(mode, translationGeneration)) {
+                            chatField.setText("Connecting...");
+                        }
+                    });
 
                     llm.getStreamingCompletion(apiMessages, requestContext).forEach(chunk -> {
+                        if (!isTransformActive(mode, translationGeneration)) {
+                            return;
+                        }
                         rawResponseBuffer.append(chunk);
 
                         while (true) {
@@ -203,6 +221,9 @@ public class ChatInputTranslateManager {
                                     // Restore the visible content so far
                                     String currentTranslation = visibleContentBuffer.toString().stripLeading();
                                     MinecraftClient.getInstance().execute(() -> {
+                                        if (!isTransformActive(mode, translationGeneration)) {
+                                            return;
+                                        }
                                         chatField.setText(currentTranslation);
                                         chatField.setCursor(currentTranslation.length(), false);
                                     });
@@ -219,7 +240,11 @@ public class ChatInputTranslateManager {
                                     inThinkTag.set(true);
 
                                     // Now display "Thinking..."
-                                    MinecraftClient.getInstance().execute(() -> chatField.setText("Thinking..."));
+                                    MinecraftClient.getInstance().execute(() -> {
+                                        if (isTransformActive(mode, translationGeneration)) {
+                                            chatField.setText("Thinking...");
+                                        }
+                                    });
 
                                     continue; // Check for more tags
                                 } else {
@@ -228,6 +253,9 @@ public class ChatInputTranslateManager {
                                     rawResponseBuffer.setLength(0);
                                     String currentTranslation = visibleContentBuffer.toString().stripLeading();
                                     MinecraftClient.getInstance().execute(() -> {
+                                        if (!isTransformActive(mode, translationGeneration)) {
+                                            return;
+                                        }
                                         chatField.setText(currentTranslation);
                                         chatField.setCursor(currentTranslation.length(), false);
                                     });
@@ -239,22 +267,44 @@ public class ChatInputTranslateManager {
 
                     // Final update after stream is complete, using the accumulated visible content
                     MinecraftClient.getInstance().execute(() -> {
+                        if (!isTransformActive(mode, translationGeneration)) {
+                            return;
+                        }
                         String finalTranslation = visibleContentBuffer.toString().stripLeading();
                         chatField.setText(finalTranslation);
                         chatField.setCursor(finalTranslation.length(), false);
                     });
                 } else {
-                    MinecraftClient.getInstance().execute(() -> chatField.setText(Text.translatable(TRANSLATING_KEY).getString()));
+                    if (!isTransformActive(mode, translationGeneration)) {
+                        return;
+                    }
+                    MinecraftClient.getInstance().execute(() -> {
+                        if (isTransformActive(mode, translationGeneration)) {
+                            chatField.setText(Text.translatable(TRANSLATING_KEY).getString());
+                        }
+                    });
                     String result = llm.getCompletion(apiMessages, requestContext).join();
+                    if (!isTransformActive(mode, translationGeneration)) {
+                        return;
+                    }
                     final String finalTranslation = result.stripLeading();
                     MinecraftClient.getInstance().execute(() -> {
+                        if (!isTransformActive(mode, translationGeneration)) {
+                            return;
+                        }
                         chatField.setText(finalTranslation);
                         chatField.setCursor(finalTranslation.length(), false);
                     });
                 }
             } catch (Exception e) {
+                if (!isTransformActive(mode, translationGeneration)) {
+                    return;
+                }
                 LOGGER.error("[Chat-Input-Translate] Exception during translation. context={}", requestContext, e);
                 MinecraftClient.getInstance().execute(() -> {
+                    if (!isTransformActive(mode, translationGeneration)) {
+                        return;
+                    }
                     Text errorMessage = Text.translatable(TRANSLATION_ERROR_KEY, TranslationErrorTextSupport.localizeReason(e.getMessage())).formatted(Formatting.RED);
                     MinecraftClient.getInstance().inGameHud.getChatHud().addMessage(errorMessage);
                     chatField.setText(originalTextRef.get()); // Restore original on error
@@ -265,6 +315,10 @@ public class ChatInputTranslateManager {
                 originalTextRef.set("");
             }
         });
+    }
+
+    private static boolean isTransformActive(TransformMode mode, long translationGeneration) {
+        return mode != TransformMode.TRANSLATE || TranslationFeatureGate.isActive(translationGeneration);
     }
 
     @NotNull

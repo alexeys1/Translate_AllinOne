@@ -5,6 +5,7 @@ import com.cedarxuesong.translate_allinone.utils.config.pojos.ScoreboardConfig;
 import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardComponentTranslationSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardEntryTemplate;
 import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardTranslationInputSupport;
+import com.cedarxuesong.translate_allinone.utils.translate.TranslationFeatureGate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -185,6 +186,12 @@ public class InGameHudMixin {
     )
     private void onRenderScoreboardSidebarHead(DrawContext drawContext, ScoreboardObjective objective, CallbackInfo ci) {
         try {
+            if (!TranslationFeatureGate.isEnabled()) {
+                translate_allinone$scoreboardReplacements.set(null);
+                ScoreboardComponentTranslationSupport.reset();
+                ScoreboardTranslationInputSupport.reset();
+                return;
+            }
             ScoreboardConfig config = Translate_AllinOne.getConfig().scoreboardTranslate;
             if (config == null || !config.enabled) {
                 translate_allinone$scoreboardReplacements.set(null);

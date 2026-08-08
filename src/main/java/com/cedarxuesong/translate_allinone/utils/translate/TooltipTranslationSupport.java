@@ -120,6 +120,9 @@ public final class TooltipTranslationSupport {
     }
 
     public static TooltipLineResult translateLine(Text line, boolean useTagStylePreservation) {
+        if (!TranslationFeatureGate.isEnabled()) {
+            return new TooltipLineResult(line, false, false);
+        }
         return TooltipTemplateRuntime.translateLine(line, useTagStylePreservation);
     }
 
@@ -128,7 +131,7 @@ public final class TooltipTranslationSupport {
     }
 
     public static Set<String> collectTranslationTemplateKeys(List<Text> tooltip, ItemTranslateConfig config) {
-        if (tooltip == null || tooltip.isEmpty() || config == null || !config.enabled) {
+        if (!TranslationFeatureGate.isEnabled() || tooltip == null || tooltip.isEmpty() || config == null || !config.enabled) {
             return Set.of();
         }
 
@@ -142,7 +145,7 @@ public final class TooltipTranslationSupport {
     }
 
     static Set<String> collectRemoteTranslationTemplateKeys(List<Text> tooltip, ItemTranslateConfig config) {
-        if (tooltip == null || tooltip.isEmpty() || config == null || !config.enabled) {
+        if (!TranslationFeatureGate.isEnabled() || tooltip == null || tooltip.isEmpty() || config == null || !config.enabled) {
             return Set.of();
         }
 
@@ -157,6 +160,9 @@ public final class TooltipTranslationSupport {
     }
 
     static void queueRemoteTranslationTemplateKeys(Set<String> remoteTranslationTemplateKeys) {
+        if (!TranslationFeatureGate.isEnabled()) {
+            return;
+        }
         ItemTemplateCache cache = ItemTemplateCache.getInstance();
         queueRemoteTranslationTemplateKeys(remoteTranslationTemplateKeys, cache::lookupOrQueue);
     }
@@ -165,7 +171,9 @@ public final class TooltipTranslationSupport {
             Set<String> remoteTranslationTemplateKeys,
             Consumer<String> queueKey
     ) {
-        if (remoteTranslationTemplateKeys == null || remoteTranslationTemplateKeys.isEmpty()) {
+        if (!TranslationFeatureGate.isEnabled()
+                || remoteTranslationTemplateKeys == null
+                || remoteTranslationTemplateKeys.isEmpty()) {
             return;
         }
         if (queueKey == null) {
@@ -181,7 +189,8 @@ public final class TooltipTranslationSupport {
     }
 
     static int forceRefreshComponentCaches(TooltipPlan tooltipPlan, ItemTranslateConfig config) {
-        if (tooltipPlan == null
+        if (!TranslationFeatureGate.isEnabled()
+                || tooltipPlan == null
                 || tooltipPlan.segments() == null
                 || tooltipPlan.segments().isEmpty()
                 || config == null) {
@@ -240,6 +249,9 @@ public final class TooltipTranslationSupport {
 
         List<Text> tooltip = TooltipInternalLineSupport.stripInternalGeneratedLines(originalTooltip);
         if (tooltip.isEmpty()) {
+            return new TranslatedTooltipBuildResult(tooltip, false);
+        }
+        if (!TranslationFeatureGate.isEnabled()) {
             return new TranslatedTooltipBuildResult(tooltip, false);
         }
 

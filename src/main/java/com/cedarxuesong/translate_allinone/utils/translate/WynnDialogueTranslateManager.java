@@ -110,6 +110,11 @@ public final class WynnDialogueTranslateManager {
         }
     }
 
+    public synchronized void cancelPendingTranslations() {
+        stop();
+        cache.clearPendingAndInProgress();
+    }
+
     private void processingLoop() {
         while (!Thread.currentThread().isInterrupted()) {
             List<String> batch = null;
@@ -166,7 +171,8 @@ public final class WynnDialogueTranslateManager {
 
     private void requeueErroredItems() {
         try {
-            if (!WynnDialogueTranslationSupport.hasConfiguredRoute()) {
+            if (!WynnDialogueTranslationSupport.isTranslationFeatureEnabled()
+                    || !WynnDialogueTranslationSupport.hasConfiguredRoute()) {
                 return;
             }
 

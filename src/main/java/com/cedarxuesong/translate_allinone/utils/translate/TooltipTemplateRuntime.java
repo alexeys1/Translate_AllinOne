@@ -163,6 +163,9 @@ final class TooltipTemplateRuntime {
     }
 
     static TooltipTranslationSupport.TooltipLineResult translateLine(Text line, boolean useTagStylePreservation) {
+        if (!TranslationFeatureGate.isEnabled()) {
+            return new TooltipTranslationSupport.TooltipLineResult(line, false, false);
+        }
         return translatePreparedTemplate(prepareTemplate(line, useTagStylePreservation));
     }
 
@@ -174,7 +177,7 @@ final class TooltipTemplateRuntime {
     }
 
     static boolean hasLocalDictionaryTranslation(String sourceText) {
-        if (sourceText == null || sourceText.isBlank()) {
+        if (!TranslationFeatureGate.isEnabled() || sourceText == null || sourceText.isBlank()) {
             return false;
         }
         return evaluateLocalDictionaryLookup(sourceText).accepted();
@@ -234,6 +237,9 @@ final class TooltipTemplateRuntime {
             String sourceText,
             Function<String, WynnSharedDictionaryService.LookupResult> lookupFunction
     ) {
+        if (!TranslationFeatureGate.isEnabled()) {
+            return null;
+        }
         LocalDictionaryEvaluation evaluation = evaluateLocalDictionaryLookup(sourceText, lookupFunction);
         if (!evaluation.accepted()) {
             logItemLocalDictionaryEvaluation(currentItemTranslateConfig(), "paragraph", sourceText, evaluation);
@@ -264,6 +270,9 @@ final class TooltipTemplateRuntime {
     }
 
     static TooltipTranslationSupport.TooltipLineResult translatePreparedTemplate(PreparedTooltipTemplate preparedTemplate) {
+        if (!TranslationFeatureGate.isEnabled()) {
+            return new TooltipTranslationSupport.TooltipLineResult(preparedTemplate.sourceLine(), false, false);
+        }
         ResolvedTemplateLookup resolvedLookup = resolveLookup(preparedTemplate);
         LookupResult lookupResult = resolvedLookup.lookupResult();
         TranslationStatus status = lookupResult.status();
@@ -315,7 +324,7 @@ final class TooltipTemplateRuntime {
     }
 
     static Text peekTranslatedPreparedTemplate(PreparedTooltipTemplate preparedTemplate) {
-        if (preparedTemplate == null) {
+        if (!TranslationFeatureGate.isEnabled() || preparedTemplate == null) {
             return null;
         }
         LocalDictionaryEvaluation localEvaluation = evaluateLocalDictionaryLookup(preparedTemplate.sourceLine().getString());

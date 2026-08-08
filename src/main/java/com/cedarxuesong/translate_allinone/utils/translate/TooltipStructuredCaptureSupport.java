@@ -56,6 +56,9 @@ final class TooltipStructuredCaptureSupport {
     }
 
     static StructuredTooltipLineResult tryTranslateStructuredLine(Text line, boolean useTagStylePreservation) {
+        if (!TranslationFeatureGate.isEnabled()) {
+            return null;
+        }
         if (containsEmbeddedLegacyFormattingCodes(line)) {
             return null;
         }
@@ -78,6 +81,9 @@ final class TooltipStructuredCaptureSupport {
             boolean useTagStylePreservation,
             ItemTranslateConfig config
     ) {
+        if (!TranslationFeatureGate.isEnabled()) {
+            return null;
+        }
         if (config != null && TooltipComponentTranslationSupport.isEligibleLine(line, config)) {
             StructuredTooltipLineResult component = tryTranslateStructuredLineComponent(
                     line,
@@ -118,7 +124,10 @@ final class TooltipStructuredCaptureSupport {
             boolean useTagStylePreservation,
             ItemTranslateConfig config
     ) {
-        if (line == null || config == null || containsEmbeddedLegacyFormattingCodes(line)) {
+        if (!TranslationFeatureGate.isEnabled()
+                || line == null
+                || config == null
+                || containsEmbeddedLegacyFormattingCodes(line)) {
             return 0;
         }
         List<FlatNode> splitNodes = splitStructuredNodes(line);
@@ -328,6 +337,9 @@ final class TooltipStructuredCaptureSupport {
     }
 
     static Set<String> collectStructuredTemplateKeys(Text line, boolean useTagStylePreservation) {
+        if (!TranslationFeatureGate.isEnabled()) {
+            return Set.of();
+        }
         if (containsEmbeddedLegacyFormattingCodes(line)) {
             return Set.of();
         }
@@ -347,6 +359,9 @@ final class TooltipStructuredCaptureSupport {
     }
 
     static Set<String> collectRemoteStructuredTemplateKeys(Text line, boolean useTagStylePreservation) {
+        if (!TranslationFeatureGate.isEnabled()) {
+            return Set.of();
+        }
         if (containsEmbeddedLegacyFormattingCodes(line)) {
             return Set.of();
         }

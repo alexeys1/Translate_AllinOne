@@ -51,6 +51,7 @@ public class ChatOutputTranslateManager {
     private static final String CHAT_TRANSLATE_ACTION = "translate";
     private static final String CHAT_RESTORE_ACTION = "restore";
     private static final Map<UUID, ChatHudLine> activeTranslationLines = new ConcurrentHashMap<>();
+    private static final Map<UUID, Long> translationGenerations = new ConcurrentHashMap<>();
     private static final Map<UUID, Integer> lineLocateRetryCounts = new ConcurrentHashMap<>();
     private static ExecutorService translationExecutor;
     private static int currentConcurrentRequests = -1;
@@ -127,6 +128,9 @@ public class ChatOutputTranslateManager {
     }
 
     public static void translate(UUID messageId, Text originalMessage) {
+        if (!TranslationFeatureGate.isEnabled() || messageId == null || originalMessage == null) {
+            return;
+        }
         if (activeTranslationLines.containsKey(messageId)) {
             lineLocateRetryCounts.remove(messageId);
             return; // Already being translated
@@ -209,6 +213,7 @@ public class ChatOutputTranslateManager {
         int scrolledLines = chatHudAccessor.getScrolledLines();
         messages.set(lineIndex, newLine);
         activeTranslationLines.put(messageId, newLine);
+        translationGenerations.put(messageId, TranslationFeatureGate.generation());
         chatHudAccessor.invokeRefresh();
         chatHudAccessor.setScrolledLines(scrolledLines);
 
@@ -218,6 +223,9 @@ public class ChatOutputTranslateManager {
         translationExecutor.submit(() -> {
             String requestContext = "route=chat_output,messageId=" + messageId;
             try {
+                if (!isTranslationActive(messageId)) {
+                    return;
+                }
                 if (finalSkyblockCacheLookup != null
                         && finalSkyblockCacheLookup.status() == TranslationStatus.TRANSLATED
                         && finalCachedPreparedTranslation != null) {
@@ -376,10 +384,16 @@ public class ChatOutputTranslateManager {
     }
 
     private static void updateInProgressChatLine(UUID messageId, Text newContent) {
+        if (!isTranslationActive(messageId)) {
+            return;
+        }
         ChatHudLine lineToUpdate = activeTranslationLines.get(messageId);
         if (lineToUpdate == null) return;
 
         MinecraftClient.getInstance().execute(() -> {
+            if (!isTranslationActive(messageId)) {
+                return;
+            }
             ChatHud chatHud = MinecraftClient.getInstance().inGameHud.getChatHud();
             if (chatHud == null) return;
 
@@ -400,14 +414,21 @@ public class ChatOutputTranslateManager {
     }
 
     private static void updateChatLineWithFinalText(UUID messageId, Text finalContent) {
+        if (!isTranslationActive(messageId)) {
+            return;
+        }
         lineLocateRetryCounts.remove(messageId);
         ChatHudLine lineToUpdate = activeTranslationLines.remove(messageId);
+        translationGenerations.remove(messageId);
         if (lineToUpdate == null) {
             logChatLineMapping(messageId, "final_update_missing_active_line", -1, finalContent);
             return;
         }
 
         MinecraftClient.getInstance().execute(() -> {
+            if (!TranslationFeatureGate.isEnabled()) {
+                return;
+            }
             ChatHud chatHud = MinecraftClient.getInstance().inGameHud.getChatHud();
             if (chatHud == null) return;
 
@@ -513,6 +534,9 @@ public class ChatOutputTranslateManager {
     }
 
     private static boolean scheduleLineLocateRetry(UUID messageId, Text originalMessage) {
+        if (!TranslationFeatureGate.isEnabled()) {
+            return false;
+        }
         int attempt = lineLocateRetryCounts.merge(messageId, 1, Integer::sum);
         if (attempt > MAX_LINE_LOCATE_RETRIES) {
             return false;
@@ -559,10 +583,74 @@ public class ChatOutputTranslateManager {
     }
 
     private static void cacheSkyblockNpcTranslation(String cacheKey, String translation) {
-        if (cacheKey == null || translation == null || translation.isBlank()) {
+        if (!TranslationFeatureGate.isEnabled() || cacheKey == null || translation == null || translation.isBlank()) {
             return;
         }
         SkyblockNpcTranslationCache.getInstance().updateTranslations(Map.of(cacheKey, translation));
+    }
+
+    public static void cancelPendingTranslations() {
+        Map<UUID, ChatHudLine> pendingLines = Map.copyOf(activeTranslationLines);
+        lineLocateRetryCounts.clear();
+        translationGenerations.clear();
+        activeTranslationLines.clear();
+        if (pendingLines.isEmpty()) {
+            return;
+        }
+
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null) {
+            return;
+        }
+        client.execute(() -> restorePendingOriginalLines(pendingLines));
+    }
+
+    private static void restorePendingOriginalLines(Map<UUID, ChatHudLine> pendingLines) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null || client.inGameHud == null) {
+            return;
+        }
+
+        ChatHud chatHud = client.inGameHud.getChatHud();
+        if (chatHud == null) {
+            return;
+        }
+
+        ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
+        List<ChatHudLine> messages = chatHudAccessor.getMessages();
+        int scrolledLines = chatHudAccessor.getScrolledLines();
+        boolean restored = false;
+        for (Map.Entry<UUID, ChatHudLine> entry : pendingLines.entrySet()) {
+            MessageUtils.TrackedChatMessage trackedMessage = MessageUtils.getTrackedChatMessage(entry.getKey());
+            if (trackedMessage == null || trackedMessage.originalMessage() == null) {
+                continue;
+            }
+
+            ChatHudLine pendingLine = entry.getValue();
+            int lineIndex = messages.indexOf(pendingLine);
+            if (lineIndex == -1) {
+                continue;
+            }
+
+            ChatHudLine restoredLine = new ChatHudLine(
+                    pendingLine.creationTick(),
+                    trackedMessage.originalMessage().copy(),
+                    pendingLine.signature(),
+                    pendingLine.indicator()
+            );
+            messages.set(lineIndex, restoredLine);
+            MessageUtils.markShowingOriginal(entry.getKey());
+            restored = true;
+        }
+        if (restored) {
+            chatHudAccessor.invokeRefresh();
+            chatHudAccessor.setScrolledLines(scrolledLines);
+        }
+    }
+
+    private static boolean isTranslationActive(UUID messageId) {
+        Long generation = translationGenerations.get(messageId);
+        return generation != null && TranslationFeatureGate.isActive(generation);
     }
 
     private static Text stripTrailingTranslationMarker(Text message) {

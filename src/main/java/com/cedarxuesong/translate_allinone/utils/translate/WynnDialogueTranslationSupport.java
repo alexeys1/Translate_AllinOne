@@ -87,7 +87,7 @@ public final class WynnDialogueTranslationSupport {
 
     public static boolean isTranslationFeatureEnabled() {
         WynnCraftConfig.NpcDialogueConfig config = getDialogueConfig();
-        return config != null && config.enabled;
+        return TranslationFeatureGate.isEnabled() && config != null && config.enabled;
     }
 
     public static boolean hasConfiguredRoute() {

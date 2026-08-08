@@ -12,6 +12,7 @@ import com.cedarxuesong.translate_allinone.utils.cache.WynntilsTaskTrackerTextCa
 import com.cedarxuesong.translate_allinone.utils.translate.ItemTranslateManager;
 import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardTranslateManager;
 import com.cedarxuesong.translate_allinone.utils.translate.BookTranslationSupport;
+import com.cedarxuesong.translate_allinone.utils.translate.ChatOutputTranslateManager;
 import com.cedarxuesong.translate_allinone.utils.translate.ComponentRenderTranslationSupport;
 import com.cedarxuesong.translate_allinone.utils.translate.ContinuousSignTranslationCoordinator;
 import com.cedarxuesong.translate_allinone.utils.translate.ScoreboardTranslationInputSupport;
@@ -40,6 +41,27 @@ public class LifecycleEventManager {
         registerJoinHandler();
         registerReadinessTickHandler();
         registerDisconnectHandler();
+    }
+
+    public static synchronized void globalTranslationFeatureChanged(boolean enabled) {
+        ComponentTranslationRuntime.providerConfigurationChanged();
+        BookTranslationSupport.resetSession();
+        ContinuousSignTranslationCoordinator.reset();
+        TextDisplayTranslationSupport.resetSession();
+        ScoreboardTranslationInputSupport.reset();
+        WynnDialogueTranslationSupport.resetSession();
+        ChatOutputTranslateManager.cancelPendingTranslations();
+
+        if (!enabled) {
+            WynnDialogueTranslateManager.getInstance().cancelPendingTranslations();
+            WynntilsTaskTrackerTranslateManager.getInstance().cancelPendingTranslations();
+            return;
+        }
+
+        if (isReadyForTranslation) {
+            WynnDialogueTranslateManager.getInstance().start();
+            WynntilsTaskTrackerTranslateManager.getInstance().start();
+        }
     }
 
     private static void registerShutdownHook() {

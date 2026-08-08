@@ -32,7 +32,7 @@ public final class TooltipRefreshNoticeSupport {
     }
 
     public static void maybeForceRefreshCurrentTooltip(List<Text> tooltip, ItemTranslateConfig config) {
-        if (tooltip == null || tooltip.isEmpty() || config == null || !config.enabled) {
+        if (!TranslationFeatureGate.isEnabled() || tooltip == null || tooltip.isEmpty() || config == null || !config.enabled) {
             return;
         }
         List<Text> sanitizedTooltip = TooltipInternalLineSupport.stripInternalGeneratedLines(tooltip);
@@ -57,6 +57,9 @@ public final class TooltipRefreshNoticeSupport {
             Set<String> keysToRefresh,
             ItemTranslateConfig config
     ) {
+        if (!TranslationFeatureGate.isEnabled()) {
+            return;
+        }
         boolean hasKeysToRefresh = keysToRefresh != null && !keysToRefresh.isEmpty();
         Set<String> refreshTemplateKeys = collectRefreshTemplateKeys(tooltipPlan, keysToRefresh);
 
@@ -98,6 +101,9 @@ public final class TooltipRefreshNoticeSupport {
     }
 
     public static void queueRemoteTranslationForCurrentTooltip(List<Text> tooltip, ItemTranslateConfig config, String source) {
+        if (!TranslationFeatureGate.isEnabled()) {
+            return;
+        }
         Set<String> keysToQueue = TooltipTranslationSupport.collectRemoteTranslationTemplateKeys(tooltip, config);
         if (keysToQueue != null && !keysToQueue.isEmpty()) {
             if (source != null && config != null && config.debug.enabled) {

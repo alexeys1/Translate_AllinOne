@@ -45,7 +45,10 @@ final class TooltipComponentTranslationSupport {
             ItemTranslateConfig config,
             boolean queueIfMissing
     ) {
-        if (prepared == null || config == null || !isEligibleLine(prepared.sourceLine(), config)) {
+        if (!TranslationFeatureGate.isEnabled()
+                || prepared == null
+                || config == null
+                || !isEligibleLine(prepared.sourceLine(), config)) {
             logTooltipText(route, context, "INELIGIBLE", prepared);
             return new LineTranslationAttempt(
                     null,
@@ -150,6 +153,9 @@ final class TooltipComponentTranslationSupport {
             String policyVersion,
             ItemTranslateConfig config
     ) {
+        if (!TranslationFeatureGate.isEnabled()) {
+            return 0;
+        }
         PreparedLineDocument preparedDocument = prepareLineDocument(prepared, route, context, policyVersion, config);
         if (preparedDocument == null) {
             return 0;
@@ -162,7 +168,11 @@ final class TooltipComponentTranslationSupport {
             TooltipParagraphBlock block,
             ItemTranslateConfig config
     ) {
-        if (block == null || block.preparedLines() == null || block.preparedLines().isEmpty() || config == null) {
+        if (!TranslationFeatureGate.isEnabled()
+                || block == null
+                || block.preparedLines() == null
+                || block.preparedLines().isEmpty()
+                || config == null) {
             return null;
         }
         ComponentTranslationBundle bundle;
@@ -297,7 +307,7 @@ final class TooltipComponentTranslationSupport {
     }
 
     static int forceRefreshParagraphBlock(TooltipParagraphBlock block, ItemTranslateConfig config) {
-        if (block == null || block.preparedLines() == null || config == null) {
+        if (!TranslationFeatureGate.isEnabled() || block == null || block.preparedLines() == null || config == null) {
             return 0;
         }
         ComponentTranslationRuntime.clearFallbackGeneration(paragraphFallbackGenerationKey(block));
@@ -322,6 +332,9 @@ final class TooltipComponentTranslationSupport {
     }
 
     static Set<String> collectParagraphForceRefreshTemplateKeys(TooltipParagraphBlock block) {
+        if (!TranslationFeatureGate.isEnabled()) {
+            return Set.of();
+        }
         LinkedHashSet<String> templateKeys = new LinkedHashSet<>();
         if (block == null) {
             return templateKeys;

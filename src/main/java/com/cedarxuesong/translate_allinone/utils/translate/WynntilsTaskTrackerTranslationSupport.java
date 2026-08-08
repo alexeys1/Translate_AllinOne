@@ -36,7 +36,7 @@ public final class WynntilsTaskTrackerTranslationSupport {
 
     public static boolean isTrackerTranslationEnabled() {
         WynnCraftConfig.WynntilsTaskTrackerConfig trackerConfig = getTrackerConfig();
-        return hasAnyTranslatedSectionEnabled(trackerConfig);
+        return TranslationFeatureGate.isEnabled() && hasAnyTranslatedSectionEnabled(trackerConfig);
     }
 
     public static String translateTitle(String originalText) {
@@ -168,7 +168,8 @@ public final class WynntilsTaskTrackerTranslationSupport {
 
     public static boolean shouldUsePlainTitleFont() {
         WynnCraftConfig.WynntilsTaskTrackerConfig trackerConfig = getTrackerConfig();
-        return shouldTranslateField(trackerConfig, trackerConfig != null && trackerConfig.translate_title)
+        return TranslationFeatureGate.isEnabled()
+                && shouldTranslateField(trackerConfig, trackerConfig != null && trackerConfig.translate_title)
                 && LifecycleEventManager.isReadyForTranslation
                 && (hasConfiguredRoute() || SHARED_DICTIONARY_SERVICE.hasQuestDictionaryEntries());
     }

@@ -42,6 +42,9 @@ public final class ScoreboardComponentTranslationSupport {
         if (prepared == null || config == null) {
             return Text.empty();
         }
+        if (!TranslationFeatureGate.isEnabled()) {
+            return prepared.renderOriginal();
+        }
         ComponentTranslationRuntime.Resolution<Text> resolution = ComponentTranslationRuntime.resolve(
                 prepared.document(),
                 config.target_language,
@@ -100,7 +103,7 @@ public final class ScoreboardComponentTranslationSupport {
             ScoreboardEntryTemplate.Prepared prepared,
             String targetLanguage
     ) {
-        if (prepared == null) {
+        if (!TranslationFeatureGate.isEnabled() || prepared == null) {
             return Set.of();
         }
         Set<String> result = new LinkedHashSet<>();
@@ -114,7 +117,7 @@ public final class ScoreboardComponentTranslationSupport {
             Iterable<ScoreboardEntryTemplate.Prepared> preparedEntries,
             String targetLanguage
     ) {
-        if (preparedEntries == null) {
+        if (!TranslationFeatureGate.isEnabled() || preparedEntries == null) {
             return 0;
         }
         int refreshed = 0;
