@@ -345,11 +345,32 @@ final class TooltipRoutePlanner {
             TooltipLineCandidate next,
             boolean useTagStylePreservation
     ) {
-        return isParagraphLikeLine(previous)
-                && isParagraphLikeLine(next)
+        if (!isParagraphLikeLine(previous)
+                || endsWithStrongTerminalPunctuation(previous.decision().rawText())) {
+            return false;
+        }
+
+        boolean nextHasStructuredRoute = hasStructuredCaptureRoute(next, useTagStylePreservation);
+        boolean nextIsStructuredParagraphContinuation = nextHasStructuredRoute
+                && isStructuredParagraphContinuation(next);
+        return (isParagraphLikeLine(next) || nextIsStructuredParagraphContinuation)
                 && !hasStructuredCaptureRoute(previous, useTagStylePreservation)
-                && !hasStructuredCaptureRoute(next, useTagStylePreservation)
-                && !endsWithStrongTerminalPunctuation(previous.decision().rawText());
+                && (!nextHasStructuredRoute || nextIsStructuredParagraphContinuation);
+    }
+
+    private static boolean isStructuredParagraphContinuation(TooltipLineCandidate candidate) {
+        if (candidate == null || candidate.decision() == null) {
+            return false;
+        }
+
+        String raw = normalizeTooltipText(candidate.decision().rawText());
+        return !raw.isEmpty()
+                && raw.indexOf(':') < 0
+                && raw.indexOf('：') < 0
+                && containsLetterContent(raw)
+                && containsDigit(raw)
+                && hasMultipleLetterTokens(raw)
+                && endsWithStrongTerminalPunctuation(raw);
     }
 
     private static boolean hasStructuredCaptureRoute(
@@ -832,6 +853,20 @@ final class TooltipRoutePlanner {
             }
         }
         return count;
+    }
+
+    private static boolean hasMultipleLetterTokens(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return false;
+        }
+
+        int count = 0;
+        for (String token : raw.trim().split("\\s+")) {
+            if (containsLetterContent(trimEdgePunctuation(token)) && ++count >= 2) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean isStructuredStatLabelToken(String token) {
