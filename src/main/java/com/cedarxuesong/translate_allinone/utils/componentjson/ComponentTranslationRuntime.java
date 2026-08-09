@@ -9,6 +9,9 @@ import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
 import com.cedarxuesong.translate_allinone.utils.config.ProviderRouteResolver;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.cedarxuesong.translate_allinone.utils.translate.TranslationFeatureGate;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -24,6 +27,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import net.minecraft.network.chat.Component;
@@ -37,6 +41,7 @@ public final class ComponentTranslationRuntime {
     private static final ComponentTranslationClient CLIENT = new ComponentTranslationClient();
     private static final Map<DispatchRoute, DispatchState> DISPATCH = createDispatchStates();
     private static final Map<String, FailureState> FAILURES = new ConcurrentHashMap<>();
+    private static final Map<String, PendingCandidate> PENDING_CANDIDATES = new ConcurrentHashMap<>();
     private static final Map<String, Long> FALLBACK_GENERATIONS = Collections.synchronizedMap(
             new LinkedHashMap<>(64, 0.75f, true) {
                 @Override
@@ -216,24 +221,12 @@ public final class ComponentTranslationRuntime {
         ComponentTranslationStore.Lookup lookup;
         try {
             lookup = store(request.document().route()).lookup(request);
+            T safeCacheValue = null;
+            boolean safeCacheHit = false;
             if (lookup.status() == ComponentTranslationStore.Status.HIT) {
                 try {
-                    T rendered = renderer.apply(lookup.response());
-                    if (document.route() == ComponentTranslationRoute.ENTITY_NAME
-                            && markEntityTemplateSeeded(request.identity().key())) {
-                        store(request.document().route()).put(request, lookup.response());
-                    }
-                    FAILURES.remove(lookup.cacheKey());
-                    ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.CACHE_HIT);
-                    ComponentTranslationDebugLogger.flow(
-                            document.route(),
-                            "resolve route={} state=CACHE_HIT key={}",
-                            document.route().wireName(),
-                            lookup.cacheKey()
-                    );
-
-
-                    return new Resolution<>(State.CACHE_HIT, rendered, lookup.cacheKey(), "");
+                    safeCacheValue = renderer.apply(lookup.response());
+                    safeCacheHit = true;
                 } catch (RuntimeException error) {
                     store(request.document().route()).remove(request);
                     ComponentTranslationMetrics.record(
@@ -242,32 +235,56 @@ public final class ComponentTranslationRuntime {
                     );
                     ComponentTranslationDebugLogger.error(
                             document.route(),
-                            "Component cached response apply failed: route={} key={} reason={}",
+                            "Component cached response apply failed: route={} context={} phase=CACHE_HIT_APPLY key={} candidate={} reason={}",
                             document.route().wireName(),
+                            requestContext == null ? "" : requestContext,
                             lookup.cacheKey(),
+                            candidateHash(lookup.response()),
                             error.getMessage(),
                             error
                     );
-                    if (isTooltipLegacyCompatibilityRoute(document.route())) {
-                        FailureState failure = new FailureState(
-                                resolvedFailureMessage(error),
-                                failureExpiresAtMillis(
-                                        document.route(),
-                                        FailureDisposition.TERMINAL_CONTENT_FAILURE,
-                                        System.currentTimeMillis()
-                                ),
-                                FailureDisposition.TERMINAL_CONTENT_FAILURE
-                        );
-                        FAILURES.put(request.identity().key(), failure);
-                        return new Resolution<>(
-                                State.FAILED,
-                                null,
-                                request.identity().key(),
-                                failure.message(),
-                                failure.disposition()
-                        );
-                    }
                 }
+            }
+            if (document.route() == ComponentTranslationRoute.TOOLTIP_PARAGRAPH
+                    || PENDING_CANDIDATES.containsKey(request.identity().key())) {
+                CandidateApplication<T> candidate = applyPendingCandidate(request, renderer, requestContext);
+                if (candidate.accepted()) {
+                    return new Resolution<>(State.CACHE_HIT, candidate.value(), request.identity().key(), "");
+                }
+                if (candidate.rejected()) {
+                    if (safeCacheHit) {
+                        ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.CACHE_HIT);
+                        return new Resolution<>(State.CACHE_HIT, safeCacheValue, request.identity().key(), "");
+                    }
+                    FailureState failure = new FailureState(
+                            candidate.errorMessage(),
+                            Long.MAX_VALUE,
+                            FailureDisposition.TERMINAL_CONTENT_FAILURE
+                    );
+                    FAILURES.put(request.identity().key(), failure);
+                    return new Resolution<>(
+                            State.FAILED,
+                            null,
+                            request.identity().key(),
+                            failure.message(),
+                            failure.disposition()
+                    );
+                }
+            }
+            if (safeCacheHit) {
+                if (document.route() == ComponentTranslationRoute.ENTITY_NAME
+                        && markEntityTemplateSeeded(request.identity().key())) {
+                    store(request.document().route()).put(request, lookup.response());
+                }
+                FAILURES.remove(lookup.cacheKey());
+                ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.CACHE_HIT);
+                ComponentTranslationDebugLogger.flow(
+                        document.route(),
+                        "resolve route={} state=CACHE_HIT key={}",
+                        document.route().wireName(),
+                        lookup.cacheKey()
+                );
+                return new Resolution<>(State.CACHE_HIT, safeCacheValue, lookup.cacheKey(), "");
             }
             if (document.route() == ComponentTranslationRoute.ENTITY_NAME) {
                 ComponentTranslationStore.Lookup templateLookup = store(request.document().route()).lookupEntityTemplate(request);
@@ -437,11 +454,12 @@ public final class ComponentTranslationRuntime {
         String key = request.identity().key();
         boolean failureRemoved = FAILURES.remove(key) != null;
         boolean fallbackGenerationRemoved = clearFallbackGeneration(key);
+        boolean candidateRemoved = PENDING_CANDIDATES.remove(key) != null;
         ENTITY_TEMPLATE_SEEDS.remove(key);
         boolean refreshRequested = requestRefresh(key);
         boolean removed = store(document.route()).remove(request);
         boolean templateRemoved = store(document.route()).removeEntityTemplate(request);
-        return removed || templateRemoved || refreshRequested || failureRemoved || fallbackGenerationRemoved;
+        return removed || templateRemoved || candidateRemoved || refreshRequested || failureRemoved || fallbackGenerationRemoved;
     }
 
     public static long beginSession() {
@@ -468,6 +486,7 @@ public final class ComponentTranslationRuntime {
 
     private static void clearRuntimeState() {
         FAILURES.clear();
+        PENDING_CANDIDATES.clear();
         FALLBACK_GENERATIONS.clear();
         DOCUMENTS.clear();
         PREPARED_REQUESTS.clear();
@@ -487,6 +506,68 @@ public final class ComponentTranslationRuntime {
 
     public static String cacheKey(ComponentTranslationDocument document, String targetLanguage) {
         return preparedRequest(document, targetLanguage).identity().key();
+    }
+
+    public static <T> T promoteCompatibleResponse(
+            ComponentTranslationDocument currentDocument,
+            ComponentTranslationDocument legacyDocument,
+            String targetLanguage,
+            Function<ComponentTranslationResponse, ComponentTranslationResponse> upgrader,
+            Function<ComponentTranslationResponse, T> renderer,
+            String requestContext
+    ) {
+        if (!TranslationFeatureGate.isEnabled()
+                || currentDocument == null
+                || legacyDocument == null
+                || currentDocument.route() != legacyDocument.route()
+                || targetLanguage == null
+                || targetLanguage.isBlank()
+                || upgrader == null
+                || renderer == null) {
+            return null;
+        }
+        ComponentTranslationPreparedRequest currentRequest = preparedRequest(currentDocument, targetLanguage);
+        ComponentTranslationPreparedRequest legacyRequest = preparedRequest(legacyDocument, targetLanguage);
+        ComponentTranslationStore.Lookup lookup = store(legacyDocument.route()).lookup(legacyRequest);
+        if (lookup.status() != ComponentTranslationStore.Status.HIT) {
+            return null;
+        }
+        String legacyCandidateHash = candidateHash(lookup.response());
+        try {
+            ComponentTranslationResponse promotedResponse = upgrader.apply(lookup.response());
+            T rendered = renderer.apply(promotedResponse);
+            if (!store(currentDocument.route()).put(currentRequest, promotedResponse)) {
+                throw new IllegalStateException("Compatible Component response could not be promoted.");
+            }
+            if (!legacyRequest.identity().key().equals(currentRequest.identity().key())) {
+                store(legacyDocument.route()).remove(legacyRequest);
+            }
+            ComponentTranslationDebugLogger.flow(
+                    currentDocument.route(),
+                    "candidate route={} phase=LEGACY_PROMOTION result=stored oldKey={} key={} oldCandidate={} candidate={} context={}",
+                    currentDocument.route().wireName(),
+                    legacyRequest.identity().key(),
+                    currentRequest.identity().key(),
+                    legacyCandidateHash,
+                    candidateHash(promotedResponse),
+                    requestContext == null ? "" : requestContext
+            );
+            return rendered;
+        } catch (RuntimeException error) {
+            store(legacyDocument.route()).remove(legacyRequest);
+            ComponentTranslationDebugLogger.error(
+                    currentDocument.route(),
+                    "candidate route={} phase=LEGACY_PROMOTION result=rejected oldKey={} key={} oldCandidate={} context={} reason={}",
+                    currentDocument.route().wireName(),
+                    legacyRequest.identity().key(),
+                    currentRequest.identity().key(),
+                    legacyCandidateHash,
+                    requestContext == null ? "" : requestContext,
+                    resolvedFailureMessage(error),
+                    error
+            );
+            return null;
+        }
     }
 
     public static boolean claimFallbackGeneration(String primaryCacheKey) {
@@ -769,6 +850,15 @@ public final class ComponentTranslationRuntime {
             ComponentTranslationResponse response,
             int batchSize
     ) {
+        String candidateHash = candidateHash(response);
+        ComponentTranslationDebugLogger.flow(
+                request.document().route(),
+                "provider route={} phase=PROVIDER_VALIDATED key={} candidate={} epoch={}",
+                request.document().route().wireName(),
+                request.cacheKey(),
+                candidateHash,
+                request.epoch()
+        );
         WorkCompletion completion = completeAndStore(request, response);
         if (!completion.current()) {
             ComponentTranslationMetrics.record(request.document(), ComponentTranslationMetrics.Outcome.STALE_SESSION);
@@ -779,10 +869,24 @@ public final class ComponentTranslationRuntime {
             ComponentTranslationMetrics.record(request.document(), ComponentTranslationMetrics.Outcome.JOB_SUCCESS);
             ComponentTranslationDebugLogger.flow(
                     request.document().route(),
-                    "provider route={} result=discarded_after_refresh batchSize={} key={} epoch={}",
+                    "provider route={} phase=CACHE_COMMIT result=discarded_after_refresh batchSize={} key={} candidate={} epoch={}",
                     request.document().route().wireName(),
                     batchSize,
                     request.cacheKey(),
+                    candidateHash,
+                    request.epoch()
+            );
+            return;
+        }
+        if (completion.staged()) {
+            ComponentTranslationMetrics.record(request.document(), ComponentTranslationMetrics.Outcome.JOB_SUCCESS);
+            ComponentTranslationDebugLogger.flow(
+                    request.document().route(),
+                    "provider route={} phase=CANDIDATE_STAGED result=staged batchSize={} key={} candidate={} epoch={}",
+                    request.document().route().wireName(),
+                    batchSize,
+                    request.cacheKey(),
+                    candidateHash,
                     request.epoch()
             );
             return;
@@ -793,13 +897,112 @@ public final class ComponentTranslationRuntime {
         ComponentTranslationMetrics.record(request.document(), ComponentTranslationMetrics.Outcome.JOB_SUCCESS);
         ComponentTranslationDebugLogger.flow(
                 request.document().route(),
-                "provider route={} result=stored={} batchSize={} key={} epoch={}",
+                "provider route={} phase=CACHE_COMMIT result=stored={} batchSize={} key={} candidate={} epoch={}",
                 request.document().route().wireName(),
                 completion.stored(),
                 batchSize,
                 request.cacheKey(),
+                candidateHash,
                 request.epoch()
         );
+    }
+
+    static String candidateHash(ComponentTranslationResponse response) {
+        if (response == null) {
+            return "sha256:" + "0".repeat(64);
+        }
+        StringBuilder canonical = new StringBuilder(response.protocol());
+        response.translations().entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .forEach(entry -> canonical
+                        .append('\u001f')
+                        .append(entry.getKey())
+                        .append('\u001e')
+                        .append(entry.getValue()));
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(canonical.toString().getBytes(StandardCharsets.UTF_8));
+            StringBuilder value = new StringBuilder("sha256:");
+            for (byte item : digest) {
+                value.append(String.format("%02x", item));
+            }
+            return value.toString();
+        } catch (NoSuchAlgorithmException error) {
+            throw new IllegalStateException("SHA-256 is unavailable.", error);
+        }
+    }
+
+    private static <T> CandidateApplication<T> applyPendingCandidate(
+            ComponentTranslationPreparedRequest request,
+            Function<ComponentTranslationResponse, T> renderer,
+            String requestContext
+    ) {
+        PendingCandidate candidate = PENDING_CANDIDATES.get(request.identity().key());
+        if (candidate == null) {
+            return CandidateApplication.absent();
+        }
+        if (candidate.epoch() != SESSION_EPOCH.get()
+                || !candidate.request().identity().equals(request.identity())) {
+            PENDING_CANDIDATES.remove(request.identity().key(), candidate);
+            return CandidateApplication.absent();
+        }
+        CandidatePromotion<T> promotion = validateAndCommitCandidate(
+                candidate.response(),
+                renderer,
+                () -> store(request.document().route()).put(request, candidate.response())
+        );
+        if (promotion.accepted()) {
+            ComponentTranslationDebugLogger.flow(
+                    request.document().route(),
+                    "candidate route={} phase=RENDER_ACCEPTED key={} candidate={} context={}",
+                    request.document().route().wireName(),
+                    request.identity().key(),
+                    candidate.hash(),
+                    requestContext == null ? candidate.requestContext() : requestContext
+            );
+            PENDING_CANDIDATES.remove(request.identity().key(), candidate);
+            FAILURES.remove(request.identity().key());
+            ComponentTranslationDebugLogger.flow(
+                    request.document().route(),
+                    "candidate route={} phase=CACHE_COMMIT result=stored key={} candidate={}",
+                    request.document().route().wireName(),
+                    request.identity().key(),
+                    candidate.hash()
+            );
+            return CandidateApplication.accepted(promotion.value());
+        }
+        PENDING_CANDIDATES.remove(request.identity().key(), candidate);
+        ComponentTranslationMetrics.record(
+                request.document(),
+                ComponentTranslationMetrics.Outcome.RESPONSE_REJECTED
+        );
+        ComponentTranslationDebugLogger.error(
+                request.document().route(),
+                "candidate route={} phase=RENDER_REJECTED key={} candidate={} context={} reason={}",
+                request.document().route().wireName(),
+                request.identity().key(),
+                candidate.hash(),
+                requestContext == null ? candidate.requestContext() : requestContext,
+                promotion.errorMessage(),
+                promotion.error()
+        );
+        return CandidateApplication.rejected(promotion.errorMessage());
+    }
+
+    static <T> CandidatePromotion<T> validateAndCommitCandidate(
+            ComponentTranslationResponse response,
+            Function<ComponentTranslationResponse, T> renderer,
+            BooleanSupplier commit
+    ) {
+        try {
+            T rendered = renderer.apply(response);
+            if (!commit.getAsBoolean()) {
+                throw new IllegalStateException("Accepted tooltip paragraph candidate could not be committed.");
+            }
+            return CandidatePromotion.accepted(rendered);
+        } catch (RuntimeException error) {
+            return CandidatePromotion.rejected(resolvedFailureMessage(error), error);
+        }
     }
 
     private static void failBatch(
@@ -1075,11 +1278,25 @@ public final class ComponentTranslationRuntime {
             }
             if (work.refreshAfterCompletion()) {
                 WORKS.remove(request.cacheKey());
-                return new WorkCompletion(true, true, false);
+                return new WorkCompletion(true, true, false, false);
+            }
+            if (shouldStageCandidate(request)) {
+                PENDING_CANDIDATES.put(
+                        request.cacheKey(),
+                        new PendingCandidate(
+                                request.prepared(),
+                                response,
+                                request.epoch(),
+                                candidateHash(response),
+                                request.requestContext()
+                        )
+                );
+                WORKS.remove(request.cacheKey());
+                return new WorkCompletion(true, false, false, true);
             }
             boolean stored = store(request.prepared().document().route()).put(request.prepared(), response);
             WORKS.remove(request.cacheKey());
-            return new WorkCompletion(true, false, stored);
+            return new WorkCompletion(true, false, stored, false);
         }
     }
 
@@ -1216,8 +1433,8 @@ public final class ComponentTranslationRuntime {
         }
     }
 
-    private record WorkCompletion(boolean current, boolean refreshAfterCompletion, boolean stored) {
-        private static final WorkCompletion STALE = new WorkCompletion(false, false, false);
+    private record WorkCompletion(boolean current, boolean refreshAfterCompletion, boolean stored, boolean staged) {
+        private static final WorkCompletion STALE = new WorkCompletion(false, false, false, false);
     }
 
     private enum WorkState {
@@ -1266,5 +1483,65 @@ public final class ComponentTranslationRuntime {
             long expiresAtMillis,
             FailureDisposition disposition
     ) {
+    }
+
+    private static boolean shouldStageCandidate(PendingRequest request) {
+        if (request == null || request.document() == null) {
+            return false;
+        }
+        if (request.document().route() == ComponentTranslationRoute.TOOLTIP_PARAGRAPH) {
+            return true;
+        }
+        return request.document().route() == ComponentTranslationRoute.TOOLTIP_LINE
+                && "paragraph-line-fallback-v1".equals(
+                request.document().semanticSettings().get("route_policy")
+        );
+    }
+
+    private record PendingCandidate(
+            ComponentTranslationPreparedRequest request,
+            ComponentTranslationResponse response,
+            long epoch,
+            String hash,
+            String requestContext
+    ) {
+    }
+
+    private record CandidateApplication<T>(
+            boolean present,
+            boolean accepted,
+            T value,
+            String errorMessage
+    ) {
+        private boolean rejected() {
+            return present && !accepted;
+        }
+
+        private static <T> CandidateApplication<T> absent() {
+            return new CandidateApplication<>(false, false, null, "");
+        }
+
+        private static <T> CandidateApplication<T> accepted(T value) {
+            return new CandidateApplication<>(true, true, value, "");
+        }
+
+        private static <T> CandidateApplication<T> rejected(String errorMessage) {
+            return new CandidateApplication<>(true, false, null, errorMessage == null ? "" : errorMessage);
+        }
+    }
+
+    record CandidatePromotion<T>(
+            boolean accepted,
+            T value,
+            String errorMessage,
+            RuntimeException error
+    ) {
+        private static <T> CandidatePromotion<T> accepted(T value) {
+            return new CandidatePromotion<>(true, value, "", null);
+        }
+
+        private static <T> CandidatePromotion<T> rejected(String errorMessage, RuntimeException error) {
+            return new CandidatePromotion<>(false, null, errorMessage == null ? "" : errorMessage, error);
+        }
     }
 }

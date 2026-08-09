@@ -15,11 +15,13 @@ import net.minecraft.network.chat.Component;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class ComponentTranslationClient {
@@ -28,15 +30,24 @@ public final class ComponentTranslationClient {
     private static final int MAX_CORRECTION_REASON_CHARS = 480;
     private static final Pattern LEGACY_FORMATTING_CODE_PATTERN = Pattern.compile("\\x{00A7}[0-9A-FK-ORa-fk-or]");
     private static final Pattern LEGACY_FORMATTING_RUN_PATTERN = Pattern.compile("(?:\\x{00A7}[0-9A-FK-ORa-fk-or])+");
+    private static final Pattern STYLE_TAG_PATTERN = Pattern.compile("<s(\\d+)>");
+    private static final Pattern INLINE_ANCHOR_PATTERN = Pattern.compile("\\{accent\\d+\\.(?:begin|end)}");
     private static final String PROTOCOL_CONTRACT = "Return exactly one JSON object in this shape: "
             + "{\"protocol\":\"taio-component-v1\",\"translations\":{\"requested-id\":\"translated text\"}}. "
             + "translations must be an object, not an array. Return exactly the requested ids, once each, with string values only. "
             + "No Component JSON, JSON Pointer operations, Markdown, explanations, or extra fields. "
             + "Read all items before translating; context is only for meaning, never for merging items.";
     private static final String COHERENT_PARAGRAPH_CONTRACT = "\n"
-            + "tooltip_paragraph contains one wrapped paragraph: translate it coherently, not line-by-line or tag-by-tag. "
-            + "Natural target-language order may cross source spans. Preserve every non-style placeholder exactly. "
-            + "<sN> is a semantic style: use every source id, invent none, and keep tags flat and balanced.";
+            + "tooltip_paragraph contains one complete paragraph with source UI wrapping removed: translate it coherently as one paragraph. "
+            + "Natural target-language order may move protected tokens and semantic anchors. Return exactly one paragraph translation for its requested id. ";
+    private static final String INLINE_ANCHOR_CONTRACT = "Preserve every {valueN} and {glyphN} token exactly once with its original spelling. "
+            + "Keep each {accentN.begin} and {accentN.end} around the translation of the source words they enclose; the pair may move with target-language order. "
+            + "Do not emit sN tags, independent slot translations, raw private-use characters, Minecraft formatting codes, unknown markers, or extra structure.";
+    private static final String LEGACY_PARAGRAPH_STYLE_CONTRACT = "Natural target-language order may cross source spans. Preserve every non-style placeholder exactly. "
+            + "<sN> is a semantic style: use every source id, invent none, and keep tags flat and balanced. "
+            + "Do not omit, merge, or replace a source style id even when its words move in the target language. "
+            + "When slotN translation ids are requested, translate each slot value and keep its {slotN} placeholder inside the matching source <sN> span in paragraph. "
+            + "When a {gN} placeholder directly touches a {slotN} placeholder in the source paragraph, keep it immediately adjacent on the same side and move the pair together.";
     private static final String PROTECTED_TOKEN_CONTRACT = "\n"
             + "Each __TAIO_PROTECTED_TOKEN_N__ identifier represents one complete legacy formatting run and must appear exactly once; never rename, remove, duplicate, or merge it. "
             + "Use only these identifiers for protected formatting. Never output literal Minecraft formatting codes.";
@@ -222,7 +233,7 @@ public final class ComponentTranslationClient {
 
                 return retryAfterDelay(() -> requestValidResponse(
                         document,
-                        buildCorrectionMessages(messages, cause),
+                        buildCorrectionMessages(messages, cause, document.route()),
                         llm,
                         responseSchema,
                         requestContext,
@@ -329,14 +340,27 @@ public final class ComponentTranslationClient {
             List<OpenAIRequest.Message> previousMessages,
             Throwable validationError
     ) {
+        return buildCorrectionMessages(previousMessages, validationError, null);
+    }
+
+    static List<OpenAIRequest.Message> buildCorrectionMessages(
+            List<OpenAIRequest.Message> previousMessages,
+            Throwable validationError,
+            ComponentTranslationRoute route
+    ) {
         List<OpenAIRequest.Message> messages = new ArrayList<>(previousMessages == null ? List.of() : previousMessages);
         String reason = validationError == null || validationError.getMessage() == null
                 ? "the response did not satisfy the required JSON response contract"
                 : TranslateStringUtils.truncate(validationError.getMessage(), MAX_CORRECTION_REASON_CHARS);
         reason = LEGACY_FORMATTING_CODE_PATTERN.matcher(reason).replaceAll("[formatting-code]");
+        String paragraphCorrection = route == ComponentTranslationRoute.TOOLTIP_PARAGRAPH
+                ? "For tooltip_paragraph, restore every required hard token exactly and return one complete coherent paragraph."
+                : "";
         messages.add(new OpenAIRequest.Message(
                 "user",
                 "Your previous component translation response was rejected. Reason: " + reason + "\n"
+                        + paragraphCorrection
+                        + (paragraphCorrection.isEmpty() ? "" : "\n")
                         + "Return one complete replacement response now. Output only the required JSON object; "
                         + "do not explain the error and do not include Markdown."
         ));
@@ -366,7 +390,7 @@ public final class ComponentTranslationClient {
             protocolContract += PROTECTED_TOKEN_CONTRACT;
         }
         if (route == ComponentTranslationRoute.TOOLTIP_PARAGRAPH) {
-            protocolContract += COHERENT_PARAGRAPH_CONTRACT;
+            protocolContract += buildCoherentParagraphContract(request);
         }
         String systemPrompt = withSuffix + "\n\n" + protocolContract;
         return PromptMessageBuilder.buildMessages(
@@ -376,6 +400,45 @@ public final class ComponentTranslationClient {
                 providerProfile.model_id,
                 true
         );
+    }
+
+    private static String buildCoherentParagraphContract(ComponentTranslationRequest request) {
+        if (containsInlineAnchor(request)) {
+            return COHERENT_PARAGRAPH_CONTRACT + INLINE_ANCHOR_CONTRACT;
+        }
+        return COHERENT_PARAGRAPH_CONTRACT
+                + LEGACY_PARAGRAPH_STYLE_CONTRACT
+                + " Required tooltip paragraph style ids for this request are "
+                + paragraphStyleIds(request)
+                + ". Include at least one balanced opening and closing tag pair for every listed id.";
+    }
+
+    private static boolean containsInlineAnchor(ComponentTranslationRequest request) {
+        if (request == null || request.items() == null) {
+            return false;
+        }
+        return request.items().stream()
+                .filter(java.util.Objects::nonNull)
+                .map(ComponentTranslationRequest.Item::text)
+                .filter(java.util.Objects::nonNull)
+                .anyMatch(text -> INLINE_ANCHOR_PATTERN.matcher(text).find());
+    }
+
+    private static String paragraphStyleIds(ComponentTranslationRequest request) {
+        LinkedHashSet<Integer> ids = new LinkedHashSet<>();
+        if (request == null || request.items() == null) {
+            return ids.toString();
+        }
+        for (ComponentTranslationRequest.Item item : request.items()) {
+            if (item == null || item.text() == null) {
+                continue;
+            }
+            Matcher matcher = STYLE_TAG_PATTERN.matcher(item.text());
+            while (matcher.find()) {
+                ids.add(Integer.parseInt(matcher.group(1)));
+            }
+        }
+        return ids.toString();
     }
 
     private static boolean containsProtectedTokenIdentifier(ComponentTranslationRequest request) {
