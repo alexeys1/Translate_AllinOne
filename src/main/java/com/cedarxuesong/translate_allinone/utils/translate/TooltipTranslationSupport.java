@@ -314,7 +314,7 @@ public final class TooltipTranslationSupport {
             return new TranslatedTooltipBuildResult(tooltipWithNotice, false);
         }
 
-        if (!TooltipRecentRenderGuardSupport.shouldSkipDuplicateRender(tooltip, showRefreshNotice)) {
+        if (shouldQueueRemoteTranslationKeys(tooltip, showRefreshNotice)) {
             if (config.debug.enabled) {
                 LOGGER.info(
                         "[ItemDev:llm-enqueue] source=\"{}\" keyCount={}",
@@ -364,6 +364,11 @@ public final class TooltipTranslationSupport {
                     false
             );
         }
+    }
+
+    static boolean shouldQueueRemoteTranslationKeys(List<Text> tooltip, boolean showRefreshNotice) {
+        return !showRefreshNotice
+                && !TooltipRecentRenderGuardSupport.shouldSkipDuplicateRender(tooltip, false);
     }
 
     public static TooltipProcessingResult processTooltipLines(

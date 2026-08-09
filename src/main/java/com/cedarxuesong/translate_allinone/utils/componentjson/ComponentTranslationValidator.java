@@ -13,6 +13,10 @@ import java.util.regex.Pattern;
 public final class ComponentTranslationValidator {
     private static final Pattern STYLE_TAG_PATTERN = Pattern.compile("</?s(\\d+)>");
     private static final Pattern LEGACY_FORMATTING_CODE_PATTERN = Pattern.compile("\\x{00A7}[0-9A-FK-ORa-fk-or]");
+    private static final Pattern INLINE_HARD_TOKEN_PATTERN = Pattern.compile("\\{(?:value|glyph)\\d+}");
+    private static final Pattern INLINE_ANCHOR_TOKEN_PATTERN = Pattern.compile("\\{accent\\d+\\.(?:begin|end)}");
+    private static final Pattern TEMPLATE_MARKER_PATTERN = Pattern.compile("\\{[A-Za-z][A-Za-z0-9_.:-]*}");
+    private static final Pattern ANGLE_TAG_PATTERN = Pattern.compile("<[^>]+>");
     private static final int MAX_PARAGRAPH_STYLE_SPLITS_PER_SOURCE_SPAN = 4;
     private final ComponentJsonLimits limits;
 
@@ -107,17 +111,93 @@ public final class ComponentTranslationValidator {
                 expectedTokens = withoutLegacyFormattingCodes(expectedTokens);
                 actualTokens = withoutLegacyFormattingCodes(actualTokens);
             }
-            if (document.route() == ComponentTranslationRoute.TOOLTIP_PARAGRAPH) {
+            if (isInlineAnchorParagraph(document)) {
+                validateInlineAnchorParagraph(unit, translation);
+            } else if (document.route() == ComponentTranslationRoute.TOOLTIP_PARAGRAPH) {
                 validateParagraphProtectedTokens(unit, expectedTokens, actualTokens);
             } else if (!expectedTokens.equals(actualTokens)) {
                 throwProtectedTokenMismatch(unit.id(), expectedTokens, actualTokens);
             }
-            validateFlatStyleTags(unit.sourceText(), translation, unit.id());
-            if (document.route() == ComponentTranslationRoute.TOOLTIP_PARAGRAPH) {
+            if (!isInlineAnchorParagraph(document)) {
+                validateFlatStyleTags(unit.sourceText(), translation, unit.id());
+            }
+            if (document.route() == ComponentTranslationRoute.TOOLTIP_PARAGRAPH
+                    && !isInlineAnchorParagraph(document)) {
                 validateParagraphStyleCoverage(unit.sourceText(), translation, unit.id());
             }
         }
         return response;
+    }
+
+    private static boolean isInlineAnchorParagraph(ComponentTranslationDocument document) {
+        return document != null
+                && document.route() == ComponentTranslationRoute.TOOLTIP_PARAGRAPH
+                && "inline-anchor-v1".equals(document.semanticSettings().get("style_binding"));
+    }
+
+    private static void validateInlineAnchorParagraph(ComponentTextUnit unit, String translation) {
+        Map<String, Integer> expectedHardTokens = collectTokenCounts(INLINE_HARD_TOKEN_PATTERN, unit.sourceText());
+        Map<String, Integer> actualHardTokens = collectTokenCounts(INLINE_HARD_TOKEN_PATTERN, translation);
+        if (!expectedHardTokens.equals(actualHardTokens)) {
+            throwProtectedTokenMismatch(unit.id(), expectedHardTokens, actualHardTokens);
+        }
+
+        Set<String> knownMarkers = new LinkedHashSet<>(expectedHardTokens.keySet());
+        knownMarkers.addAll(collectTokenCounts(INLINE_ANCHOR_TOKEN_PATTERN, unit.sourceText()).keySet());
+        Matcher markerMatcher = TEMPLATE_MARKER_PATTERN.matcher(translation);
+        while (markerMatcher.find()) {
+            if (!knownMarkers.contains(markerMatcher.group())) {
+                throw validationError(
+                        "Inline paragraph contains an unknown template marker for " + unit.id()
+                                + ": unexpected=" + markerMatcher.group()
+                );
+            }
+        }
+        String markerStripped = TEMPLATE_MARKER_PATTERN.matcher(translation).replaceAll("");
+        if (markerStripped.indexOf('{') >= 0 || markerStripped.indexOf('}') >= 0) {
+            throw validationError(
+                    "Inline paragraph contains an unparsed template delimiter for " + unit.id()
+            );
+        }
+        Matcher angleMatcher = ANGLE_TAG_PATTERN.matcher(translation);
+        if (angleMatcher.find()) {
+            throw validationError(
+                    "Inline paragraph contains an unknown tag for " + unit.id()
+                            + ": unexpected=" + angleMatcher.group()
+            );
+        }
+        if (translation.indexOf('§') >= 0) {
+            throw validationError(
+                    "Inline paragraph contains a literal Minecraft formatting code for " + unit.id()
+            );
+        }
+        for (int offset = 0; offset < translation.length(); ) {
+            int codePoint = translation.codePointAt(offset);
+            int type = Character.getType(codePoint);
+            if (type == Character.PRIVATE_USE || type == Character.UNASSIGNED) {
+                throw validationError(
+                        "Inline paragraph contains an unextracted decorative glyph for " + unit.id()
+                );
+            }
+            if (Character.isISOControl(codePoint) && !Character.isWhitespace(codePoint)) {
+                throw validationError(
+                        "Inline paragraph contains an illegal control character for " + unit.id()
+                );
+            }
+            offset += Character.charCount(codePoint);
+        }
+    }
+
+    private static Map<String, Integer> collectTokenCounts(Pattern pattern, String text) {
+        Map<String, Integer> counts = new TreeMap<>();
+        if (pattern == null || text == null || text.isEmpty()) {
+            return counts;
+        }
+        Matcher matcher = pattern.matcher(text);
+        while (matcher.find()) {
+            counts.merge(matcher.group(), 1, Integer::sum);
+        }
+        return counts;
     }
 
     private static void validateParagraphProtectedTokens(

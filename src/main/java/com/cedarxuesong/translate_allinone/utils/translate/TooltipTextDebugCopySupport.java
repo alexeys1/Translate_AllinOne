@@ -55,6 +55,7 @@ public final class TooltipTextDebugCopySupport {
     private static final Pattern WHITESPACE_PATTERN = Pattern.compile("\\s+");
     private static boolean copyShortcutWasDown;
     private static boolean copySuccessMessageWasSent;
+    private static boolean collectionFailureWasReported;
     private static CopyCandidate lastCopiedCandidate;
     private static String lastCopiedClipboardText = "";
 
@@ -73,7 +74,24 @@ public final class TooltipTextDebugCopySupport {
     }
 
     public static void maybeCopyCurrentTooltip(List<Text> tooltipLines) {
-        maybeCopyEntries(collectDictionaryEntries(tooltipLines), "text.translate_allinone.tooltip_debug.copied");
+        if (!isEnabled()) {
+            resetCopyShortcutState();
+            return;
+        }
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (!isCopyShortcutDown(client)) {
+            resetCopyShortcutState();
+            return;
+        }
+        if (collectionFailureWasReported) {
+            return;
+        }
+        try {
+            maybeCopyEntries(collectDictionaryEntries(tooltipLines), "text.translate_allinone.tooltip_debug.copied");
+        } catch (RuntimeException error) {
+            collectionFailureWasReported = true;
+            Translate_AllinOne.LOGGER.warn("Failed to collect tooltip dictionary debug entries.", error);
+        }
     }
 
     public static void maybeCopyTextEntries(List<TextDebugEntry> entries, String copiedMessageKey) {
@@ -138,6 +156,7 @@ public final class TooltipTextDebugCopySupport {
     private static void resetCopyShortcutState() {
         copyShortcutWasDown = false;
         copySuccessMessageWasSent = false;
+        collectionFailureWasReported = false;
         lastCopiedCandidate = null;
         lastCopiedClipboardText = "";
     }

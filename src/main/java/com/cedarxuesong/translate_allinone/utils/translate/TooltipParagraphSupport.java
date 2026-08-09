@@ -37,9 +37,11 @@ final class TooltipParagraphSupport {
             Pattern.compile("(?i)\\b(by|to|and|of|for|in|on|from|with|the|a|an)\\b");
     private static final Pattern CHINESE_BLOCK_DISTANCE_PATTERN =
             Pattern.compile("(\\d+(?:\\.\\d+)?)个?方块");
-    private static final int MIN_PARAGRAPH_BODY_STYLE_DOMINANT_SCORE = 5;
+    private static final Pattern DYNAMIC_PLACEHOLDER_PATTERN = Pattern.compile("\\{(?:[dg]\\d+|(?:value|glyph)\\d+)}");
+    private static final Pattern ANY_PLACEHOLDER_PATTERN = Pattern.compile("\\{[A-Za-z][A-Za-z0-9_.:-]*}");
+    private static final Pattern ANY_ANGLE_TAG_PATTERN = Pattern.compile("<[^>]+>");
+    private static final int MAX_PARAGRAPH_RENDERED_LINES = 16;
     private static final int MIN_PARAGRAPH_BODY_RUN_SCORE = 1;
-    private static final int MIN_PARAGRAPH_BODY_STYLE_DOMINANCE_PERCENT = 55;
     private static final int MAX_NON_WYNN_MISSING_STYLE_SCORE = 8;
     private static final int MAX_NON_WYNN_TOTAL_MISSING_STYLE_SCORE = 24;
     private static final Logger LOGGER = LoggerFactory.getLogger("Translate_AllinOne/TooltipTranslationSupport");
@@ -51,6 +53,127 @@ final class TooltipParagraphSupport {
             List<TooltipTranslationSupport.TooltipLineResult> lineResults,
             boolean pending,
             boolean missingKeyIssue
+    ) {
+    }
+
+    enum ParagraphRenderStatus {
+        ACCEPTED,
+        REJECTED
+    }
+
+    enum ParagraphRenderStage {
+        INPUT,
+        PLACEHOLDER,
+        STYLE_SEMANTICS,
+        CONTENT_QUALITY,
+        LAYOUT,
+        COMPLETE
+    }
+
+    enum ParagraphRejectReason {
+        NONE,
+        EMPTY_PROVIDER_TEMPLATE,
+        EMPTY_NORMALIZED_TEMPLATE,
+        UNRESOLVED_PLACEHOLDER,
+        PLACEHOLDER_IDENTITY_MISMATCH,
+        UNSAFE_FORMAT,
+        EMPTY_LOCAL_STYLED_TEXT,
+        STYLE_SEMANTICS_REJECTED,
+        CONTENT_QUALITY_REJECTED,
+        MISSING_TARGET_LANGUAGE_SIGNAL,
+        SOURCE_COPY,
+        ABNORMAL_REPETITION,
+        TRUNCATED_CONTENT,
+        EMPTY_STYLED_TEXT,
+        EMPTY_WRAP,
+        EMPTY_WRAP_RESULT,
+        UNSAFE_LAYOUT
+    }
+
+    record ParagraphRenderResult(
+            ParagraphRenderStatus status,
+            ParagraphRenderStage stage,
+            ParagraphRejectReason reason,
+            String detail,
+            List<Text> lines
+    ) {
+        ParagraphRenderResult {
+            status = status == null ? ParagraphRenderStatus.REJECTED : status;
+            stage = stage == null ? ParagraphRenderStage.INPUT : stage;
+            reason = reason == null ? ParagraphRejectReason.NONE : reason;
+            detail = detail == null ? "" : detail;
+            lines = lines == null ? List.of() : List.copyOf(lines);
+        }
+
+        boolean accepted() {
+            return status == ParagraphRenderStatus.ACCEPTED && !lines.isEmpty();
+        }
+
+        String rejectionMessage() {
+            return "Tooltip paragraph candidate rejected stage="
+                    + stage
+                    + " reason="
+                    + reason
+                    + (detail.isBlank() ? "" : " detail=" + detail);
+        }
+
+        static ParagraphRenderResult accepted(List<Text> lines) {
+            return new ParagraphRenderResult(
+                    ParagraphRenderStatus.ACCEPTED,
+                    ParagraphRenderStage.COMPLETE,
+                    ParagraphRejectReason.NONE,
+                    "",
+                    lines
+            );
+        }
+
+        static ParagraphRenderResult rejected(
+                ParagraphRenderStage stage,
+                ParagraphRejectReason reason,
+                String detail
+        ) {
+            return new ParagraphRenderResult(
+                    ParagraphRenderStatus.REJECTED,
+                    stage,
+                    reason,
+                    detail,
+                    List.of()
+            );
+        }
+    }
+
+    private record ParagraphTextRenderResult(
+            Text text,
+            ParagraphRenderStage stage,
+            ParagraphRejectReason reason,
+            String detail
+    ) {
+        private boolean accepted() {
+            return text != null && !text.getString().isBlank();
+        }
+
+        private static ParagraphTextRenderResult accepted(Text text) {
+            return new ParagraphTextRenderResult(
+                    text,
+                    ParagraphRenderStage.COMPLETE,
+                    ParagraphRejectReason.NONE,
+                    ""
+            );
+        }
+
+        private static ParagraphTextRenderResult rejected(
+                ParagraphRenderStage stage,
+                ParagraphRejectReason reason,
+                String detail
+        ) {
+            return new ParagraphTextRenderResult(null, stage, reason, detail);
+        }
+    }
+
+    private record ParagraphQualityIssue(
+            ParagraphRenderStage stage,
+            ParagraphRejectReason reason,
+            String detail
     ) {
     }
 
@@ -154,19 +277,46 @@ final class TooltipParagraphSupport {
             String translatedBlockTemplate,
             ItemTranslateConfig config
     ) {
-        List<TooltipTranslationSupport.TooltipLineResult> rendered = renderTranslatedParagraphBlock(
+        ParagraphRenderResult rendered = renderComponentParagraphTranslationResult(
+                block,
+                translatedBlockTemplate,
+                config
+        );
+        return rendered.accepted() ? rendered.lines() : List.of();
+    }
+
+    static ParagraphRenderResult renderComponentParagraphTranslationResult(
+            TooltipParagraphBlock block,
+            String translatedBlockTemplate,
+            ItemTranslateConfig config
+    ) {
+        return evaluateTranslatedParagraphBlock(
                 block,
                 translatedBlockTemplate,
                 config,
-                false,
+                true,
                 "component-coherent",
                 false,
+                true,
+                false
+        );
+    }
+
+    static ParagraphRenderResult renderSafeBodyComponentParagraphTranslationResult(
+            TooltipParagraphBlock block,
+            String translatedBlockTemplate,
+            ItemTranslateConfig config
+    ) {
+        return evaluateTranslatedParagraphBlock(
+                block,
+                translatedBlockTemplate,
+                config,
+                true,
+                "component-coherent-safe-body",
+                false,
+                true,
                 true
         );
-        if (rendered == null || rendered.isEmpty()) {
-            return List.of();
-        }
-        return rendered.stream().map(TooltipTranslationSupport.TooltipLineResult::translatedLine).toList();
     }
 
     static WynnSharedDictionaryService.LookupResult lookupAcceptedLocalDictionaryTranslation(TooltipParagraphBlock block) {
@@ -225,17 +375,6 @@ final class TooltipParagraphSupport {
         return builder.toString();
     }
 
-    static boolean paragraphRenderDropsTooManyLines(
-            int sourceLineCount,
-            int renderedLineCount,
-            boolean allowCompressedLineCount
-    ) {
-        if (sourceLineCount <= 0 || renderedLineCount < 0) {
-            return false;
-        }
-        return renderedLineCount < minimumAcceptedRenderedLineCount(sourceLineCount, allowCompressedLineCount);
-    }
-
     static Integer findDominantParagraphBodyStyleId(String taggedText, Map<Integer, Style> styleMap) {
         if (taggedText == null || taggedText.isBlank() || styleMap == null || styleMap.isEmpty()) {
             return null;
@@ -250,9 +389,9 @@ final class TooltipParagraphSupport {
     }
 
     static boolean paragraphLooksTooShortForChineseOutput(int sourceLetterCount, int translatedSignalCount) {
-        return sourceLetterCount >= 18
+        return sourceLetterCount >= 24
                 && translatedSignalCount > 0
-                && translatedSignalCount * 7 < sourceLetterCount * 2;
+                && translatedSignalCount * 8 < sourceLetterCount;
     }
 
     static boolean allowsRelaxedParagraphStyleCoverage(
@@ -384,6 +523,34 @@ final class TooltipParagraphSupport {
             boolean trustedLocalDictionary,
             boolean componentCoherent
     ) {
+        ParagraphRenderResult result = evaluateTranslatedParagraphBlock(
+                block,
+                translatedBlockTemplate,
+                config,
+                emitDevLog,
+                devSource,
+                trustedLocalDictionary,
+                componentCoherent,
+                false
+        );
+        if (!result.accepted()) {
+            return null;
+        }
+        return result.lines().stream()
+                .map(line -> new TooltipTranslationSupport.TooltipLineResult(line, false, false))
+                .toList();
+    }
+
+    private static ParagraphRenderResult evaluateTranslatedParagraphBlock(
+            TooltipParagraphBlock block,
+            String translatedBlockTemplate,
+            ItemTranslateConfig config,
+            boolean emitDevLog,
+            String devSource,
+            boolean trustedLocalDictionary,
+            boolean componentCoherent,
+            boolean safeBodyStyleOnly
+    ) {
         if (translatedBlockTemplate == null || translatedBlockTemplate.isBlank()) {
             logParagraphRenderIfDev(
                     config,
@@ -397,7 +564,11 @@ final class TooltipParagraphSupport {
                     "",
                     List.of()
             );
-            return null;
+            return ParagraphRenderResult.rejected(
+                    ParagraphRenderStage.INPUT,
+                    ParagraphRejectReason.EMPTY_PROVIDER_TEMPLATE,
+                    "Cached paragraph template was blank before normalization."
+            );
         }
 
         String normalizedTemplate = normalizeParagraphTranslatedTemplate(translatedBlockTemplate);
@@ -414,21 +585,71 @@ final class TooltipParagraphSupport {
                     "",
                     List.of()
             );
-            return null;
+            return ParagraphRenderResult.rejected(
+                    ParagraphRenderStage.INPUT,
+                    ParagraphRejectReason.EMPTY_NORMALIZED_TEMPLATE,
+                    "Cached paragraph template became blank after whitespace normalization."
+            );
         }
 
-        Text renderedParagraphText = renderTranslatedParagraphText(
+        String placeholderIssue = describeDynamicPlaceholderIdentityIssue(block, normalizedTemplate);
+        if (placeholderIssue != null) {
+            logParagraphRenderIfDev(
+                    config,
+                    emitDevLog,
+                    devSource,
+                    block,
+                    "reject-placeholder-identity",
+                    true,
+                    placeholderIssue,
+                    normalizedTemplate,
+                    "",
+                    List.of()
+            );
+            return ParagraphRenderResult.rejected(
+                    ParagraphRenderStage.PLACEHOLDER,
+                    ParagraphRejectReason.PLACEHOLDER_IDENTITY_MISMATCH,
+                    placeholderIssue
+            );
+        }
+
+        String unsafeFormatIssue = trustedLocalDictionary
+                ? null
+                : describeUnsafeParagraphFormatIssue(block, normalizedTemplate);
+        if (unsafeFormatIssue != null) {
+            logParagraphRenderIfDev(
+                    config,
+                    emitDevLog,
+                    devSource,
+                    block,
+                    "reject-unsafe-format",
+                    true,
+                    unsafeFormatIssue,
+                    normalizedTemplate,
+                    "",
+                    List.of()
+            );
+            return ParagraphRenderResult.rejected(
+                    ParagraphRenderStage.STYLE_SEMANTICS,
+                    ParagraphRejectReason.UNSAFE_FORMAT,
+                    unsafeFormatIssue
+            );
+        }
+
+        ParagraphTextRenderResult textResult = renderTranslatedParagraphText(
                 block,
                 normalizedTemplate,
                 config,
                 emitDevLog,
                 devSource,
                 trustedLocalDictionary,
-                componentCoherent
+                componentCoherent,
+                safeBodyStyleOnly
         );
-        if (renderedParagraphText == null) {
-            return null;
+        if (!textResult.accepted()) {
+            return ParagraphRenderResult.rejected(textResult.stage(), textResult.reason(), textResult.detail());
         }
+        Text renderedParagraphText = textResult.text();
 
         List<Text> wrappedLines = wrapParagraphText(renderedParagraphText, block.paragraphTemplate().wrapWidth());
         if (wrappedLines.isEmpty()) {
@@ -444,15 +665,19 @@ final class TooltipParagraphSupport {
                     renderedParagraphText.getString(),
                     List.of()
             );
-            return null;
+            return ParagraphRenderResult.rejected(
+                    ParagraphRenderStage.LAYOUT,
+                    ParagraphRejectReason.EMPTY_WRAP,
+                    "Local tooltip rewrap returned no visible lines."
+            );
         }
 
-        List<TooltipTranslationSupport.TooltipLineResult> results = new ArrayList<>(wrappedLines.size());
+        List<Text> results = new ArrayList<>(wrappedLines.size());
         for (Text wrappedLine : wrappedLines) {
             if (wrappedLine == null) {
                 continue;
             }
-            results.add(new TooltipTranslationSupport.TooltipLineResult(wrappedLine, false, false));
+            results.add(wrappedLine);
         }
         if (results.isEmpty()) {
             logParagraphRenderIfDev(
@@ -467,32 +692,30 @@ final class TooltipParagraphSupport {
                     renderedParagraphText.getString(),
                     wrappedLines
             );
-            return null;
-        }
-        boolean allowCompressedLineCount = shouldAllowCompressedParagraphLineCount(config);
-        if (paragraphRenderDropsTooManyLines(block.preparedLines().size(), results.size(), allowCompressedLineCount)) {
-            int minimumAcceptedLines = minimumAcceptedRenderedLineCount(
-                    block.preparedLines().size(),
-                    allowCompressedLineCount
+            return ParagraphRenderResult.rejected(
+                    ParagraphRenderStage.LAYOUT,
+                    ParagraphRejectReason.EMPTY_WRAP_RESULT,
+                    "Wrapped paragraph lines were filtered out after reconstruction."
             );
+        }
+        if (results.size() > MAX_PARAGRAPH_RENDERED_LINES) {
             logParagraphRenderIfDev(
                     config,
                     emitDevLog,
                     devSource,
                     block,
-                    "reject-line-loss",
+                    "reject-layout-limit",
                     true,
-                    "Paragraph rewrap would compress too aggressively. sourceLines="
-                            + block.preparedLines().size()
-                            + ", renderedLines="
-                            + results.size()
-                            + ", minimumAcceptedLines="
-                            + minimumAcceptedLines,
+                    "Paragraph rewrap exceeded the visible line limit. renderedLines=" + results.size(),
                     normalizedTemplate,
                     renderedParagraphText.getString(),
                     wrappedLines
             );
-            return null;
+            return ParagraphRenderResult.rejected(
+                    ParagraphRenderStage.LAYOUT,
+                    ParagraphRejectReason.UNSAFE_LAYOUT,
+                    "Paragraph rewrap exceeded the visible line limit. renderedLines=" + results.size()
+            );
         }
 
         logParagraphRenderIfDev(
@@ -507,7 +730,7 @@ final class TooltipParagraphSupport {
                 renderedParagraphText.getString(),
                 wrappedLines
         );
-        return results;
+        return ParagraphRenderResult.accepted(results);
     }
 
     private static int minimumAcceptedRenderedLineCount(int sourceLineCount, boolean allowCompressedLineCount) {
@@ -531,16 +754,43 @@ final class TooltipParagraphSupport {
         return language.contains("chinese") || language.contains("中文") || language.startsWith("zh");
     }
 
-    private static Text renderTranslatedParagraphText(
+    private static ParagraphTextRenderResult renderTranslatedParagraphText(
             TooltipParagraphBlock block,
             String normalizedTemplate,
             ItemTranslateConfig config,
             boolean emitDevLog,
             String devSource,
             boolean trustedLocalDictionary,
-            boolean componentCoherent
+            boolean componentCoherent,
+            boolean safeBodyStyleOnly
     ) {
         PreparedParagraphTemplate paragraphTemplate = block.paragraphTemplate();
+        if (componentCoherent && paragraphTemplate.translationPlan() != null) {
+            ParagraphTranslationPlan.RenderResult planResult = safeBodyStyleOnly
+                    ? paragraphTemplate.translationPlan().renderSafeBody(normalizedTemplate)
+                    : paragraphTemplate.translationPlan().renderStyled(normalizedTemplate);
+            if (!planResult.accepted()) {
+                return ParagraphTextRenderResult.rejected(
+                        ParagraphRenderStage.STYLE_SEMANTICS,
+                        ParagraphRejectReason.STYLE_SEMANTICS_REJECTED,
+                        planResult.rejectionReason()
+                );
+            }
+            ParagraphQualityIssue paragraphQualityIssue = evaluateParagraphQuality(
+                    block,
+                    planResult.component().getString(),
+                    config,
+                    true
+            );
+            if (paragraphQualityIssue != null) {
+                return ParagraphTextRenderResult.rejected(
+                        paragraphQualityIssue.stage(),
+                        paragraphQualityIssue.reason(),
+                        paragraphQualityIssue.detail()
+                );
+            }
+            return ParagraphTextRenderResult.accepted(planResult.component());
+        }
         String reassembledTranslated = TemplateProcessor.reassembleDecorativeGlyphs(
                 TemplateProcessor.reassemble(normalizedTemplate, paragraphTemplate.templateValues()),
                 paragraphTemplate.glyphValues(),
@@ -560,7 +810,7 @@ final class TooltipParagraphSupport {
                 "rendered",
                 reassembledTranslated
         );
-        if (TooltipTemplateRuntime.containsNumericPlaceholder(reassembledTranslated)) {
+        if (ANY_PLACEHOLDER_PATTERN.matcher(reassembledTranslated).find()) {
             logParagraphRenderIfDev(
                     config,
                     emitDevLog,
@@ -568,12 +818,16 @@ final class TooltipParagraphSupport {
                     block,
                     "reject-unresolved-placeholder",
                     true,
-                    "Rendered paragraph still contains unresolved numeric placeholders.",
+                    "Rendered paragraph still contains unresolved placeholders.",
                     normalizedTemplate,
                     reassembledTranslated,
                     List.of()
             );
-            return null;
+            return ParagraphTextRenderResult.rejected(
+                    ParagraphRenderStage.PLACEHOLDER,
+                    ParagraphRejectReason.UNRESOLVED_PLACEHOLDER,
+                    "Rendered paragraph still contains unresolved placeholders."
+            );
         }
 
         if (trustedLocalDictionary && !containsParagraphStyleTags(reassembledTranslated)) {
@@ -591,13 +845,22 @@ final class TooltipParagraphSupport {
                         reassembledTranslated,
                         List.of()
                 );
-                return null;
+                return ParagraphTextRenderResult.rejected(
+                        ParagraphRenderStage.STYLE_SEMANTICS,
+                        ParagraphRejectReason.EMPTY_LOCAL_STYLED_TEXT,
+                        "Local dictionary paragraph rendering produced a blank text."
+                );
             }
-            return localRenderedText;
+            return ParagraphTextRenderResult.accepted(localRenderedText);
         }
 
         if (!trustedLocalDictionary) {
-            String paragraphQualityIssue = describeParagraphQualityIssue(block, reassembledTranslated, config);
+            ParagraphQualityIssue paragraphQualityIssue = evaluateParagraphQuality(
+                    block,
+                    reassembledTranslated,
+                    config,
+                    safeBodyStyleOnly
+            );
             if (paragraphQualityIssue != null) {
                 logParagraphRenderIfDev(
                         config,
@@ -606,12 +869,16 @@ final class TooltipParagraphSupport {
                         block,
                         "reject-low-quality",
                         true,
-                        paragraphQualityIssue,
+                        paragraphQualityIssue.detail(),
                         normalizedTemplate,
                         reassembledTranslated,
                         List.of()
                 );
-                return null;
+                return ParagraphTextRenderResult.rejected(
+                        paragraphQualityIssue.stage(),
+                        paragraphQualityIssue.reason(),
+                        paragraphQualityIssue.detail()
+                );
             }
         }
 
@@ -636,9 +903,13 @@ final class TooltipParagraphSupport {
                     reassembledTranslated,
                     List.of()
             );
-            return null;
+            return ParagraphTextRenderResult.rejected(
+                    ParagraphRenderStage.STYLE_SEMANTICS,
+                    ParagraphRejectReason.EMPTY_STYLED_TEXT,
+                    "Style reapplication produced a blank paragraph text."
+            );
         }
-        return renderedText;
+        return ParagraphTextRenderResult.accepted(renderedText);
     }
 
     private static Text renderTrustedPlainOrLegacyLocalParagraphText(
@@ -1206,10 +1477,9 @@ final class TooltipParagraphSupport {
     }
 
     private static Integer findDominantParagraphBodyStyleId(List<ParagraphTaggedRun> runs, Map<Integer, Style> styleMap) {
-        Map<Integer, Integer> bodyScoreByStyleId = new HashMap<>();
-        int totalBodyScore = 0;
+        Map<Integer, Integer> bodyScoreByStyleId = new LinkedHashMap<>();
         for (ParagraphTaggedRun run : runs) {
-            if (run == null || run.styleId == null) {
+            if (run == null) {
                 continue;
             }
 
@@ -1217,27 +1487,28 @@ final class TooltipParagraphSupport {
             if (bodyScore <= 0) {
                 continue;
             }
-            bodyScoreByStyleId.merge(run.styleId, bodyScore, Integer::sum);
-            totalBodyScore += bodyScore;
+            bodyScoreByStyleId.merge(
+                    run.styleId == null ? Integer.MIN_VALUE : run.styleId,
+                    bodyScore,
+                    Integer::sum
+            );
         }
-        if (totalBodyScore <= 0 || bodyScoreByStyleId.isEmpty()) {
+        if (bodyScoreByStyleId.isEmpty()) {
             return null;
         }
 
-        int dominantStyleId = -1;
-        int dominantStyleScore = 0;
+        Integer dominantStyleId = null;
+        int dominantStyleScore = -1;
         for (Map.Entry<Integer, Integer> entry : bodyScoreByStyleId.entrySet()) {
-            if (entry.getValue() > dominantStyleScore) {
+            if (entry.getValue() > dominantStyleScore
+                    || (entry.getValue() == dominantStyleScore
+                    && dominantStyleId != null
+                    && entry.getKey() < dominantStyleId)) {
                 dominantStyleId = entry.getKey();
                 dominantStyleScore = entry.getValue();
             }
         }
-        if (dominantStyleId < 0
-                || dominantStyleScore < MIN_PARAGRAPH_BODY_STYLE_DOMINANT_SCORE
-                || dominantStyleScore * 100 < totalBodyScore * MIN_PARAGRAPH_BODY_STYLE_DOMINANCE_PERCENT) {
-            return null;
-        }
-        return dominantStyleId;
+        return dominantStyleId != null && dominantStyleId == Integer.MIN_VALUE ? null : dominantStyleId;
     }
 
     private static Integer findCanonicalParagraphStyleId(
@@ -1535,52 +1806,210 @@ final class TooltipParagraphSupport {
             String translatedTemplate,
             ItemTranslateConfig config
     ) {
+        ParagraphQualityIssue issue = evaluateParagraphQuality(block, translatedTemplate, config, false);
+        return issue == null ? null : issue.detail();
+    }
+
+    private static ParagraphQualityIssue evaluateParagraphQuality(
+            TooltipParagraphBlock block,
+            String translatedTemplate,
+            ItemTranslateConfig config,
+            boolean safeBodyStyleOnly
+    ) {
         boolean chineseTargetLanguage = shouldApplyChineseParagraphQualityHeuristics(config);
-        if (!chineseTargetLanguage
-                || translatedTemplate == null
-                || translatedTemplate.isBlank()) {
-            return null;
+        if (translatedTemplate == null || translatedTemplate.isBlank()) {
+            return new ParagraphQualityIssue(
+                    ParagraphRenderStage.CONTENT_QUALITY,
+                    ParagraphRejectReason.CONTENT_QUALITY_REJECTED,
+                    "Rendered paragraph content is empty."
+            );
         }
 
         String visibleText = TooltipRoutePlanner.normalizeTooltipText(stripParagraphStyleTags(translatedTemplate));
-        if (visibleText.isEmpty() || !containsCjk(visibleText)) {
-            return null;
-        }
-
-        String connector = findStandaloneEnglishConnector(visibleText);
-        if (connector != null) {
-            return "Rendered paragraph still contains standalone English connector: " + connector;
+        if (visibleText.isEmpty()) {
+            return new ParagraphQualityIssue(
+                    ParagraphRenderStage.CONTENT_QUALITY,
+                    ParagraphRejectReason.CONTENT_QUALITY_REJECTED,
+                    "Rendered paragraph has no visible target text."
+            );
         }
 
         String styleCoverageIssue = describeParagraphStyleCoverageIssue(block, translatedTemplate);
-        if (styleCoverageIssue != null && !shouldAllowBodyOnlyParagraphStyleFallback(
+        if (styleCoverageIssue != null
+                && !safeBodyStyleOnly
+                && !shouldAllowBodyOnlyParagraphStyleFallback(
                 block,
                 translatedTemplate,
                 chineseTargetLanguage
         )) {
-            return styleCoverageIssue;
+            return new ParagraphQualityIssue(
+                    ParagraphRenderStage.STYLE_SEMANTICS,
+                    ParagraphRejectReason.STYLE_SEMANTICS_REJECTED,
+                    styleCoverageIssue
+            );
         }
 
-        int sourceLetterCount = 0;
-        for (PreparedTooltipTemplate preparedLine : block.preparedLines()) {
-            if (preparedLine == null || preparedLine.sourceLine() == null) {
-                continue;
-            }
-            sourceLetterCount += countAsciiLetters(preparedLine.sourceLine().getString());
+        String sourceText = buildParagraphLocalDictionaryLookupSource(block);
+        int sourceLetterCount = countAsciiLetters(sourceText);
+        if (chineseTargetLanguage && sourceLetterCount >= 8 && !containsCjk(visibleText)) {
+            return new ParagraphQualityIssue(
+                    ParagraphRenderStage.CONTENT_QUALITY,
+                    ParagraphRejectReason.MISSING_TARGET_LANGUAGE_SIGNAL,
+                    "Rendered paragraph has no Chinese target-language signal."
+            );
+        }
+
+        String connector = chineseTargetLanguage && containsCjk(visibleText)
+                ? findStandaloneEnglishConnector(visibleText)
+                : null;
+        if (connector != null) {
+            return new ParagraphQualityIssue(
+                    ParagraphRenderStage.CONTENT_QUALITY,
+                    ParagraphRejectReason.CONTENT_QUALITY_REJECTED,
+                    "Rendered paragraph still contains standalone English connector: " + connector
+            );
+        }
+
+        if (sourceLetterCount >= 8 && normalizedComparableText(sourceText).equals(normalizedComparableText(visibleText))) {
+            return new ParagraphQualityIssue(
+                    ParagraphRenderStage.CONTENT_QUALITY,
+                    ParagraphRejectReason.SOURCE_COPY,
+                    "Rendered paragraph copies the source paragraph without meaningful translation."
+            );
+        }
+
+        if (hasAbnormalParagraphRepetition(visibleText)) {
+            return new ParagraphQualityIssue(
+                    ParagraphRenderStage.CONTENT_QUALITY,
+                    ParagraphRejectReason.ABNORMAL_REPETITION,
+                    "Rendered paragraph contains abnormal repeated content."
+            );
         }
 
         int translatedCjkCount = countCjk(visibleText);
         int translatedSignalCount = countTranslatedSignalUnits(visibleText);
         if (paragraphLooksTooShortForChineseOutput(sourceLetterCount, translatedSignalCount)) {
-            return "Rendered paragraph looks too short for Chinese output (sourceLetters="
-                    + sourceLetterCount
-                    + ", translatedSignal="
-                    + translatedSignalCount
-                    + ", translatedCjk="
-                    + translatedCjkCount
-                    + ").";
+            return new ParagraphQualityIssue(
+                    ParagraphRenderStage.CONTENT_QUALITY,
+                    ParagraphRejectReason.TRUNCATED_CONTENT,
+                    "Rendered paragraph looks truncated (sourceLetters="
+                            + sourceLetterCount
+                            + ", translatedSignal="
+                            + translatedSignalCount
+                            + ", translatedCjk="
+                            + translatedCjkCount
+                            + ")."
+            );
         }
         return null;
+    }
+
+    private static String describeDynamicPlaceholderIdentityIssue(
+            TooltipParagraphBlock block,
+            String translatedTemplate
+    ) {
+        if (block == null || block.paragraphTemplate() == null) {
+            return "Paragraph source template is unavailable for placeholder validation.";
+        }
+        if (block.paragraphTemplate().translationPlan() != null) {
+            return block.paragraphTemplate().translationPlan().describeHardTokenIssue(translatedTemplate);
+        }
+        Map<String, Integer> expected = collectPatternCounts(
+                DYNAMIC_PLACEHOLDER_PATTERN,
+                block.paragraphTemplate().componentTranslationTemplateKey()
+        );
+        Map<String, Integer> actual = collectPatternCounts(DYNAMIC_PLACEHOLDER_PATTERN, translatedTemplate);
+        return expected.equals(actual)
+                ? null
+                : "Dynamic or decorative placeholder identity changed. expected=" + expected + ", actual=" + actual;
+    }
+
+    private static Map<String, Integer> collectPatternCounts(Pattern pattern, String text) {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        if (pattern == null || text == null || text.isEmpty()) {
+            return counts;
+        }
+        Matcher matcher = pattern.matcher(text);
+        while (matcher.find()) {
+            counts.merge(matcher.group(), 1, Integer::sum);
+        }
+        return counts;
+    }
+
+    private static String describeUnsafeParagraphFormatIssue(
+            TooltipParagraphBlock block,
+            String translatedTemplate
+    ) {
+        if (translatedTemplate == null) {
+            return "Paragraph candidate is null.";
+        }
+        if (translatedTemplate.indexOf('§') >= 0) {
+            return "Paragraph candidate contains unsafe literal formatting codes.";
+        }
+        Matcher angleTagMatcher = ANY_ANGLE_TAG_PATTERN.matcher(translatedTemplate);
+        while (angleTagMatcher.find()) {
+            if (!angleTagMatcher.group().matches("</?s\\d+>")) {
+                return "Paragraph candidate contains an unknown tag: " + angleTagMatcher.group();
+            }
+        }
+        Set<Integer> knownStyleIds = block == null || block.paragraphTemplate() == null
+                ? Set.of()
+                : block.paragraphTemplate().styleMap().keySet();
+        Matcher styleMatcher = TooltipTemplateRuntime.STYLE_TAG_ID_PATTERN.matcher(translatedTemplate);
+        Integer activeStyleId = null;
+        while (styleMatcher.find()) {
+            int styleId = Integer.parseInt(styleMatcher.group(1));
+            if (!knownStyleIds.contains(styleId)) {
+                return "Paragraph candidate contains an unknown style id: " + styleId;
+            }
+            boolean closing = translatedTemplate.charAt(styleMatcher.start() + 1) == '/';
+            if (!closing) {
+                if (activeStyleId != null) {
+                    return "Paragraph candidate contains nested style tags.";
+                }
+                activeStyleId = styleId;
+            } else if (!Objects.equals(activeStyleId, styleId)) {
+                return "Paragraph candidate contains an unmatched style tag.";
+            } else {
+                activeStyleId = null;
+            }
+        }
+        return activeStyleId == null ? null : "Paragraph candidate contains an unclosed style tag.";
+    }
+
+    private static String normalizedComparableText(String text) {
+        if (text == null || text.isBlank()) {
+            return "";
+        }
+        StringBuilder normalized = new StringBuilder(text.length());
+        for (int offset = 0; offset < text.length(); ) {
+            int codePoint = text.codePointAt(offset);
+            if (Character.isLetterOrDigit(codePoint) || isCjkCodePoint(codePoint)) {
+                normalized.appendCodePoint(Character.toLowerCase(codePoint));
+            }
+            offset += Character.charCount(codePoint);
+        }
+        return normalized.toString();
+    }
+
+    private static boolean hasAbnormalParagraphRepetition(String text) {
+        String normalized = normalizedComparableText(text);
+        int maximumChunkLength = Math.min(12, normalized.length() / 4);
+        for (int chunkLength = 4; chunkLength <= maximumChunkLength; chunkLength++) {
+            for (int start = 0; start + chunkLength <= normalized.length(); start++) {
+                String chunk = normalized.substring(start, start + chunkLength);
+                int count = 0;
+                int offset = 0;
+                while ((offset = normalized.indexOf(chunk, offset)) >= 0) {
+                    count++;
+                    offset += chunkLength;
+                }
+                if (count >= 4) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static boolean shouldAllowBodyOnlyParagraphStyleFallback(

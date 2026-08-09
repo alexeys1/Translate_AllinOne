@@ -75,7 +75,7 @@ public final class TooltipInternalLineSupport {
     }
 
     public static boolean shouldShowErrorStatusLine(TooltipTranslationSupport.TooltipProcessingResult processedTooltip) {
-        return processedTooltip != null && !processedTooltip.errorMessage().isBlank();
+        return false;
     }
 
     public static List<Text> appendStatusLineIfNeeded(
