@@ -5,23 +5,30 @@ import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslat
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationDebugLogger;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationBundle;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationDocument;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentJsonException;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationMetrics;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationResponse;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRoute;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRuntime;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
+import com.cedarxuesong.translate_allinone.utils.text.StylePreserver;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipRoutePlanner.TooltipParagraphBlock;
 import com.cedarxuesong.translate_allinone.utils.translate.TooltipTemplateRuntime.PreparedTooltipTemplate;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.Style;
 
 final class TooltipComponentTranslationSupport {
     private static final Pattern TEMPLATE_CONTROL_TOKEN = Pattern.compile("</?s\\d+>|\\{[dg]\\d+}");
-    private static final String PARAGRAPH_LINE_FALLBACK_CONTEXT_PREFIX = "tooltip:paragraph:fallback:";
-    private static final String PARAGRAPH_LINE_FALLBACK_POLICY = "paragraph-line-fallback-v1";
+    private static final String RETAINED_PARAGRAPH_LINE_CONTEXT_PREFIX = "tooltip:paragraph:fallback:";
+    private static final String RETAINED_PARAGRAPH_LINE_POLICY = "paragraph-line-fallback-v1";
 
     private TooltipComponentTranslationSupport() {
     }
@@ -42,7 +49,7 @@ final class TooltipComponentTranslationSupport {
             String context,
             String policyVersion,
             ItemTranslateConfig config,
-        boolean queueIfMissing
+            boolean queueIfMissing
     ) {
         if (!TranslationFeatureGate.isEnabled()
                 || prepared == null
@@ -91,13 +98,16 @@ final class TooltipComponentTranslationSupport {
             if (TooltipRefreshNoticeSupport.consumeComponentRefresh(cacheKey, config)) {
                 ComponentTranslationRuntime.forceRefresh(document, targetLanguage);
             }
+            boolean suppressQueue = TooltipRefreshNoticeSupport.shouldSuppressComponentQueue(cacheKey);
 
             ComponentTranslationApplier applier = new ComponentTranslationApplier();
             ComponentTranslationRuntime.Resolution<Component> resolution = ComponentTranslationRuntime.resolve(
                     document,
                     targetLanguage,
                     TooltipTemplateRuntime.buildLegacyCompatibilityKey(prepared.sourceLine()),
-                    () -> TooltipTemplateRuntime.peekTranslatedPreparedTemplate(prepared),
+                    () -> suppressQueue
+                            ? null
+                            : TooltipTemplateRuntime.peekTranslatedPreparedTemplate(prepared),
                     response -> {
                         long startedAt = System.nanoTime();
                         Component translatedTemplate = applier.apply(document, response);
@@ -116,7 +126,7 @@ final class TooltipComponentTranslationSupport {
                         return translated;
                     },
                     context,
-                    queueIfMissing
+                    queueIfMissing && !suppressQueue
             );
             if (resolution.state() == ComponentTranslationRuntime.State.INELIGIBLE) {
                 logTooltipText(route, context, "INELIGIBLE", prepared);
@@ -153,7 +163,20 @@ final class TooltipComponentTranslationSupport {
         if (!TranslationFeatureGate.isEnabled()) {
             return 0;
         }
-        PreparedLineDocument preparedDocument = prepareLineDocument(prepared, route, context, policyVersion, config);
+        PreparedLineDocument preparedDocument;
+        try {
+            preparedDocument = prepareLineDocument(prepared, route, context, policyVersion, config);
+        } catch (RuntimeException error) {
+            ComponentTranslationDebugLogger.error(
+                    route,
+                    "force refresh document preparation failed: route={} context={} reason={}",
+                    route == null ? "" : route.wireName(),
+                    context == null ? "" : context,
+                    describeError(error),
+                    error
+            );
+            return 0;
+        }
         if (preparedDocument == null) {
             return 0;
         }
@@ -173,27 +196,12 @@ final class TooltipComponentTranslationSupport {
             return null;
         }
         ComponentTranslationBundle bundle;
-        TooltipParagraphSupport.ParagraphTranslationAttempt cachedFallback = readCompleteParagraphLineFallback(
-                block,
-                config
-        );
-        if (cachedFallback != null) {
-            ComponentTranslationDebugLogger.flow(
-                    ComponentTranslationRoute.TOOLTIP_PARAGRAPH,
-                    "tooltip paragraph fallback state=CACHE_HIT lines={}",
-                    block.preparedLines().size()
-            );
-            return cachedFallback;
-        }
         try {
             bundle = prepareParagraphBundle(block, config);
         } catch (RuntimeException error) {
-            return translateParagraphLinesIndividually(
+            return originalParagraphAttempt(
                     block,
-                    config,
-                    "Failed to prepare tooltip paragraph Component translation: " + describeError(error),
-                    error,
-                    paragraphFallbackGenerationKey(block)
+                    "Failed to prepare tooltip paragraph Component translation: " + describeError(error)
             );
         }
         if (bundle == null) {
@@ -216,31 +224,41 @@ final class TooltipComponentTranslationSupport {
             if (TooltipRefreshNoticeSupport.consumeComponentRefresh(cacheKey, config)) {
                 ComponentTranslationRuntime.forceRefresh(bundle.cacheDocument(), targetLanguage);
             }
+            boolean suppressQueue = TooltipRefreshNoticeSupport.shouldSuppressComponentQueue(cacheKey);
 
             resolution = ComponentTranslationRuntime.resolve(
                     bundle.cacheDocument(),
                     targetLanguage,
                     block.paragraphTemplate().translationTemplateKey(),
-                    () -> TooltipParagraphSupport.peekLegacyParagraphTranslation(block, config),
+                    () -> {
+                        if (suppressQueue) {
+                            return null;
+                        }
+                        List<Component> promoted = promoteCompatibleParagraphResponse(bundle, block, config);
+                        return promoted != null
+                                ? promoted
+                                : TooltipParagraphSupport.peekLegacyParagraphTranslation(block, config);
+                    },
                     response -> {
                         long startedAt = System.nanoTime();
-                        String translatedTemplate = bundle.coherentParagraphTranslation(response);
-                        List<Component> translated = TooltipParagraphSupport.renderComponentParagraphTranslation(
+                        TooltipParagraphSupport.ParagraphRenderResult renderResult = renderParagraphCandidate(
+                                bundle,
                                 block,
-                                translatedTemplate,
+                                response,
                                 config
                         );
-                        if (translated == null || translated.isEmpty()) {
-                            throw new IllegalArgumentException("Component tooltip paragraph translation was rejected.");
+                        if (!renderResult.accepted()) {
+                            throw new IllegalArgumentException(renderResult.rejectionMessage());
                         }
                         ComponentTranslationMetrics.recordNanos(
                                 ComponentTranslationRoute.TOOLTIP_PARAGRAPH,
                                 ComponentTranslationMetrics.Timing.APPLY,
                                 System.nanoTime() - startedAt
                         );
-                        return translated;
+                        return renderResult.lines();
                     },
-                    "tooltip:paragraph:lines=" + lines.size()
+                    "tooltip:paragraph:lines=" + lines.size(),
+                    !suppressQueue
             );
         } catch (RuntimeException error) {
             return originalParagraphAttempt(
@@ -272,12 +290,16 @@ final class TooltipComponentTranslationSupport {
         }
 
         if (resolution.allowsTooltipFallback()) {
-            return translateParagraphLinesIndividually(
-                    block,
-                    config,
+            ComponentTranslationDebugLogger.flow(
+                    ComponentTranslationRoute.TOOLTIP_PARAGRAPH,
+                    "tooltip paragraph fallback state=ORIGINAL key={} reason={} lines={}",
+                    resolution.cacheKey(),
                     resolution.errorMessage(),
-                    null,
-                    resolution.cacheKey()
+                    lines.size()
+            );
+            return originalParagraphAttempt(
+                    block,
+                    resolution.errorMessage()
             );
         }
 
@@ -300,26 +322,92 @@ final class TooltipComponentTranslationSupport {
         return new TooltipParagraphSupport.ParagraphTranslationAttempt(fallback, pending, false);
     }
 
+    private static TooltipParagraphSupport.ParagraphRenderResult renderParagraphCandidate(
+            ComponentTranslationBundle bundle,
+            TooltipParagraphBlock block,
+            ComponentTranslationResponse response,
+            ItemTranslateConfig config
+    ) {
+        TooltipParagraphSupport.ParagraphRenderResult fullResult;
+        try {
+            fullResult = TooltipParagraphSupport.renderComponentParagraphTranslationResult(
+                    block,
+                    bundle.coherentParagraphTranslation(response),
+                    config
+            );
+        } catch (ComponentJsonException error) {
+            if (error.kind() != ComponentJsonException.Kind.APPLY
+                    && error.kind() != ComponentJsonException.Kind.VALIDATION) {
+                throw error;
+            }
+            fullResult = TooltipParagraphSupport.ParagraphRenderResult.rejected(
+                    TooltipParagraphSupport.ParagraphRenderStage.STYLE_SEMANTICS,
+                    TooltipParagraphSupport.ParagraphRejectReason.STYLE_SEMANTICS_REJECTED,
+                    error.getMessage()
+            );
+        }
+        if (fullResult.accepted()
+                || fullResult.stage() != TooltipParagraphSupport.ParagraphRenderStage.STYLE_SEMANTICS) {
+            return fullResult;
+        }
+        ComponentTranslationDebugLogger.flow(
+                ComponentTranslationRoute.TOOLTIP_PARAGRAPH,
+                "tooltip paragraph fallback state=COHERENT_SAFE_BODY reason={}",
+                fullResult.rejectionMessage()
+        );
+        String safeBodyTemplate = bundle.coherentSafeBodyParagraphTranslation(
+                response,
+                block.paragraphTemplate().bodyStyleId()
+        );
+        return TooltipParagraphSupport.renderSafeBodyComponentParagraphTranslationResult(
+                block,
+                safeBodyTemplate,
+                config
+        );
+    }
+
     static int forceRefreshParagraphBlock(TooltipParagraphBlock block, ItemTranslateConfig config) {
         if (!TranslationFeatureGate.isEnabled() || block == null || block.preparedLines() == null || config == null) {
             return 0;
         }
-        ComponentTranslationRuntime.clearFallbackGeneration(paragraphFallbackGenerationKey(block));
         List<ComponentTranslationDocument> documents = new ArrayList<>();
-        ComponentTranslationBundle bundle = prepareParagraphBundle(block, config);
-        if (bundle != null) {
-            documents.add(bundle.cacheDocument());
+        try {
+            ComponentTranslationBundle bundle = prepareParagraphBundle(block, config);
+            if (bundle != null) {
+                documents.add(bundle.cacheDocument());
+            }
+            ComponentTranslationBundle semanticCompatibilityBundle = prepareSemanticSlotCompatibilityBundle(block);
+            if (semanticCompatibilityBundle != null) {
+                documents.add(semanticCompatibilityBundle.cacheDocument());
+            }
+        } catch (RuntimeException error) {
+            ComponentTranslationDebugLogger.error(
+                    ComponentTranslationRoute.TOOLTIP_PARAGRAPH,
+                    "force refresh paragraph document preparation failed: reason={}",
+                    describeError(error),
+                    error
+            );
         }
         for (int index = 0; index < block.preparedLines().size(); index++) {
-            PreparedLineDocument preparedDocument = prepareLineDocument(
-                    block.preparedLines().get(index),
-                    ComponentTranslationRoute.TOOLTIP_LINE,
-                    paragraphLineFallbackContext(index),
-                    PARAGRAPH_LINE_FALLBACK_POLICY,
-                    config
-            );
-            if (preparedDocument != null) {
-                documents.add(preparedDocument.document());
+            try {
+                PreparedLineDocument preparedDocument = prepareLineDocument(
+                        block.preparedLines().get(index),
+                        ComponentTranslationRoute.TOOLTIP_LINE,
+                        retainedParagraphLineContext(index),
+                        RETAINED_PARAGRAPH_LINE_POLICY,
+                        config
+                );
+                if (preparedDocument != null) {
+                    documents.add(preparedDocument.document());
+                }
+            } catch (RuntimeException error) {
+                ComponentTranslationDebugLogger.error(
+                        ComponentTranslationRoute.TOOLTIP_LINE,
+                        "force refresh retained paragraph line document preparation failed: lineIndex={} reason={}",
+                        index,
+                        describeError(error),
+                        error
+                );
             }
         }
         return forceRefreshDocuments(documents, config);
@@ -387,13 +475,166 @@ final class TooltipComponentTranslationSupport {
             }
             lines.add(prepared.sourceLine());
         }
-        ComponentTranslationBundle bundle = ComponentTranslationBundle.createCoherentParagraph(
-                lines,
+        ParagraphTranslationPlan translationPlan = block.paragraphTemplate().translationPlan();
+        if (translationPlan == null || translationPlan.requestText().isBlank()) {
+            return null;
+        }
+        ComponentTranslationBundle bundle = ComponentTranslationBundle.createInlineAnchoredParagraph(
                 "tooltip:paragraph:coherent",
-                "paragraph-v4",
-                block.paragraphTemplate().componentTranslationTemplateKey()
+                "paragraph-v6",
+                translationPlan.requestText(),
+                translationPlan.hardTokenIds(),
+                translationPlan.accentIds()
         );
         return bundle.cacheDocument().units().isEmpty() ? null : bundle;
+    }
+
+    private static List<Component> promoteCompatibleParagraphResponse(
+            ComponentTranslationBundle currentBundle,
+            TooltipParagraphBlock block,
+            ItemTranslateConfig config
+    ) {
+        if (currentBundle == null
+                || block == null
+                || block.paragraphTemplate() == null
+                || block.paragraphTemplate().translationPlan() == null
+                || block.paragraphTemplate().semanticSlots().isEmpty()
+                || TooltipTemplateRuntime.shouldBypassCompatibilityFallback(
+                block.paragraphTemplate().translationTemplateKey()
+        )) {
+            return null;
+        }
+        ComponentTranslationBundle legacyBundle = prepareSemanticSlotCompatibilityBundle(block);
+        if (legacyBundle == null) {
+            return null;
+        }
+        return ComponentTranslationRuntime.promoteCompatibleResponse(
+                currentBundle.cacheDocument(),
+                legacyBundle.cacheDocument(),
+                config.target_language,
+                response -> new ComponentTranslationResponse(
+                        currentBundle.cacheDocument().protocol(),
+                        Map.of(
+                                "paragraph",
+                                promoteSemanticSlotParagraph(
+                                        block,
+                                        legacyBundle.coherentParagraphTranslation(response)
+                                )
+                        )
+                ),
+                response -> {
+                    TooltipParagraphSupport.ParagraphRenderResult renderResult = renderParagraphCandidate(
+                            currentBundle,
+                            block,
+                            response,
+                            config
+                    );
+                    if (!renderResult.accepted()) {
+                        throw new IllegalArgumentException(renderResult.rejectionMessage());
+                    }
+                    return renderResult.lines();
+                },
+                "tooltip:paragraph:legacy-promotion"
+        );
+    }
+
+    private static ComponentTranslationBundle prepareSemanticSlotCompatibilityBundle(TooltipParagraphBlock block) {
+        if (block == null
+                || block.preparedLines() == null
+                || block.preparedLines().isEmpty()
+                || block.paragraphTemplate() == null
+                || block.paragraphTemplate().semanticSlots().isEmpty()
+                || block.paragraphTemplate().semanticSlotCompatibilityTemplateKey() == null
+                || block.paragraphTemplate().semanticSlotCompatibilityTemplateKey().isBlank()) {
+            return null;
+        }
+        List<Component> lines = block.preparedLines().stream()
+                .map(PreparedTooltipTemplate::sourceLine)
+                .toList();
+        return ComponentTranslationBundle.createCoherentParagraph(
+                lines,
+                "tooltip:paragraph:coherent",
+                "paragraph-v5",
+                block.paragraphTemplate().semanticSlotCompatibilityTemplateKey(),
+                block.paragraphTemplate().semanticSlots().stream()
+                        .map(slot -> new ComponentTranslationBundle.SemanticSlot(
+                                slot.id(),
+                                slot.styleId(),
+                                slot.sourceText()
+                        ))
+                        .toList()
+        );
+    }
+
+    private static String promoteSemanticSlotParagraph(TooltipParagraphBlock block, String legacyParagraph) {
+        if (block == null
+                || block.paragraphTemplate() == null
+                || block.paragraphTemplate().translationPlan() == null
+                || legacyParagraph == null
+                || legacyParagraph.isBlank()) {
+            throw new ComponentJsonException(
+                    ComponentJsonException.Kind.APPLY,
+                    "Semantic-slot paragraph compatibility input is incomplete."
+            );
+        }
+
+        ParagraphTranslationPlan plan = block.paragraphTemplate().translationPlan();
+        Map<Style, List<ParagraphTranslationPlan.AccentAnchor>> anchorsByStyle = new LinkedHashMap<>();
+        for (ParagraphTranslationPlan.AccentAnchor anchor : plan.accentAnchors()) {
+            Style visualStyle = StylePreserver.sanitizeStyleForComparison(anchor.style(), true);
+            anchorsByStyle.computeIfAbsent(visualStyle, ignored -> new ArrayList<>()).add(anchor);
+        }
+
+        Pattern spanPattern = Pattern.compile("<s(\\d+)>(.*?)</s\\1>");
+        Matcher matcher = spanPattern.matcher(legacyParagraph);
+        StringBuilder promoted = new StringBuilder(legacyParagraph.length());
+        Set<String> usedAnchors = new LinkedHashSet<>();
+        while (matcher.find()) {
+            int styleId = Integer.parseInt(matcher.group(1));
+            Style style = block.paragraphTemplate().styleMap().getOrDefault(styleId, Style.EMPTY);
+            List<ParagraphTranslationPlan.AccentAnchor> matchingAnchors = anchorsByStyle.getOrDefault(
+                    StylePreserver.sanitizeStyleForComparison(style, true),
+                    List.of()
+            );
+            String content = matcher.group(2);
+            String replacement = content;
+            if (matchingAnchors.size() == 1
+                    && containsNaturalLanguageText(content)
+                    && usedAnchors.add(matchingAnchors.getFirst().id())) {
+                ParagraphTranslationPlan.AccentAnchor anchor = matchingAnchors.getFirst();
+                replacement = anchor.beginToken() + content + anchor.endToken();
+            }
+            matcher.appendReplacement(promoted, Matcher.quoteReplacement(replacement));
+        }
+        matcher.appendTail(promoted);
+        String withoutLegacyTags = TooltipTemplateRuntime.STYLE_TAG_ID_PATTERN.matcher(promoted).replaceAll("");
+        String withDynamicTokens = replaceLegacyParagraphTokenIds(withoutLegacyTags, Pattern.compile("\\{d(\\d+)}"), "value");
+        return replaceLegacyParagraphTokenIds(withDynamicTokens, Pattern.compile("\\{g(\\d+)}"), "glyph");
+    }
+
+    private static boolean containsNaturalLanguageText(String text) {
+        if (text == null || text.isBlank()) {
+            return false;
+        }
+        for (int offset = 0; offset < text.length(); ) {
+            int codePoint = text.codePointAt(offset);
+            if (Character.isLetter(codePoint)) {
+                return true;
+            }
+            offset += Character.charCount(codePoint);
+        }
+        return false;
+    }
+
+    private static String replaceLegacyParagraphTokenIds(String text, Pattern pattern, String prefix) {
+        Matcher matcher = pattern.matcher(text);
+        StringBuilder replaced = new StringBuilder(text.length());
+        while (matcher.find()) {
+            int index = Integer.parseInt(matcher.group(1)) - 1;
+            matcher.appendReplacement(replaced, Matcher.quoteReplacement("{" + prefix + index + "}"));
+        }
+        matcher.appendTail(replaced);
+        return replaced.toString();
     }
 
     private static int forceRefreshDocuments(
@@ -408,14 +649,34 @@ final class TooltipComponentTranslationSupport {
             if (document == null) {
                 continue;
             }
-            String cacheKey = ComponentTranslationRuntime.cacheKey(document, config.target_language);
-            TooltipRefreshNoticeSupport.markComponentRefreshHandled(cacheKey);
-            refreshDocuments.add(document);
+            try {
+                String cacheKey = ComponentTranslationRuntime.cacheKey(document, config.target_language);
+                TooltipRefreshNoticeSupport.markComponentRefreshHandled(cacheKey);
+                refreshDocuments.add(document);
+            } catch (RuntimeException error) {
+                ComponentTranslationDebugLogger.error(
+                        document.route(),
+                        "force refresh cache key preparation failed: route={} reason={}",
+                        document.route().wireName(),
+                        describeError(error),
+                        error
+                );
+            }
         }
         int refreshed = 0;
         for (ComponentTranslationDocument document : refreshDocuments) {
-            if (ComponentTranslationRuntime.forceRefresh(document, config.target_language)) {
-                refreshed++;
+            try {
+                if (ComponentTranslationRuntime.forceRefresh(document, config.target_language)) {
+                    refreshed++;
+                }
+            } catch (RuntimeException error) {
+                ComponentTranslationDebugLogger.error(
+                        document.route(),
+                        "force refresh cache removal failed: route={} reason={}",
+                        document.route().wireName(),
+                        describeError(error),
+                        error
+                );
             }
         }
         return refreshed;
@@ -511,90 +772,6 @@ final class TooltipComponentTranslationSupport {
         return new TooltipTranslationSupport.TooltipLineResult(original, false, false, reason);
     }
 
-    private static TooltipParagraphSupport.ParagraphTranslationAttempt translateParagraphLinesIndividually(
-            TooltipParagraphBlock block,
-            ItemTranslateConfig config,
-            String reason,
-            Throwable error,
-            String fallbackGenerationKey
-    ) {
-        boolean queueIfMissing = ComponentTranslationRuntime.claimFallbackGeneration(fallbackGenerationKey);
-        if (queueIfMissing) {
-            String source = TooltipTemplateRuntime.truncateForLog(
-                    TooltipParagraphSupport.buildParagraphLocalDictionaryLookupSource(block),
-                    220
-            );
-            if (error == null) {
-                ComponentTranslationDebugLogger.error(
-                        ComponentTranslationRoute.TOOLTIP_PARAGRAPH,
-                        "tooltip paragraph failed; using line fallback: source=\"{}\" reason={}",
-                        source,
-                        reason
-                );
-            } else {
-                ComponentTranslationDebugLogger.error(
-                        ComponentTranslationRoute.TOOLTIP_PARAGRAPH,
-                        "tooltip paragraph failed; using line fallback: source=\"{}\" reason={}",
-                        source,
-                        reason,
-                        error
-                );
-            }
-        }
-
-        List<TooltipTranslationSupport.TooltipLineResult> lineResults = new ArrayList<>(block.preparedLines().size());
-        boolean pending = false;
-        boolean missingKeyIssue = false;
-        for (int index = 0; index < block.preparedLines().size(); index++) {
-            PreparedTooltipTemplate preparedLine = block.preparedLines().get(index);
-            LineTranslationAttempt lineAttempt = translatePreparedLineAttempt(
-                    preparedLine,
-                    ComponentTranslationRoute.TOOLTIP_LINE,
-                    paragraphLineFallbackContext(index),
-                    PARAGRAPH_LINE_FALLBACK_POLICY,
-                    config,
-                    queueIfMissing
-            );
-            TooltipTranslationSupport.TooltipLineResult lineResult = lineAttempt.lineResult();
-            if (lineResult == null) {
-                Component original = preparedLine == null || preparedLine.sourceLine() == null
-                        ? Component.empty()
-                        : preparedLine.sourceLine();
-                lineResult = new TooltipTranslationSupport.TooltipLineResult(original, false, false);
-            }
-            if (lineResult.pending()) {
-                pending = true;
-            }
-            if (lineResult.missingKeyIssue()) {
-                missingKeyIssue = true;
-            }
-            lineResults.add(lineResult);
-        }
-        return new TooltipParagraphSupport.ParagraphTranslationAttempt(lineResults, pending, missingKeyIssue);
-    }
-
-    private static TooltipParagraphSupport.ParagraphTranslationAttempt readCompleteParagraphLineFallback(
-            TooltipParagraphBlock block,
-            ItemTranslateConfig config
-    ) {
-        List<TooltipTranslationSupport.TooltipLineResult> lineResults = new ArrayList<>(block.preparedLines().size());
-        for (int index = 0; index < block.preparedLines().size(); index++) {
-            LineTranslationAttempt attempt = translatePreparedLineAttempt(
-                    block.preparedLines().get(index),
-                    ComponentTranslationRoute.TOOLTIP_LINE,
-                    paragraphLineFallbackContext(index),
-                    PARAGRAPH_LINE_FALLBACK_POLICY,
-                    config,
-                    false
-            );
-            if (!attempt.isReusableCacheHit()) {
-                return null;
-            }
-            lineResults.add(attempt.lineResult());
-        }
-        return new TooltipParagraphSupport.ParagraphTranslationAttempt(lineResults, false, false);
-    }
-
     private static TooltipParagraphSupport.ParagraphTranslationAttempt originalParagraphAttempt(
             TooltipParagraphBlock block,
             String reason
@@ -618,19 +795,8 @@ final class TooltipComponentTranslationSupport {
         return new TooltipParagraphSupport.ParagraphTranslationAttempt(results, false, false);
     }
 
-    private static String paragraphFallbackGenerationKey(TooltipParagraphBlock block) {
-        if (block == null || block.paragraphTemplate() == null) {
-            return "tooltip:paragraph:fallback";
-        }
-        String key = block.paragraphTemplate().componentTranslationTemplateKey();
-        if (key == null || key.isBlank()) {
-            key = block.paragraphTemplate().translationTemplateKey();
-        }
-        return "tooltip:paragraph:fallback:" + (key == null ? "" : key);
-    }
-
-    private static String paragraphLineFallbackContext(int index) {
-        return PARAGRAPH_LINE_FALLBACK_CONTEXT_PREFIX + index;
+    private static String retainedParagraphLineContext(int index) {
+        return RETAINED_PARAGRAPH_LINE_CONTEXT_PREFIX + index;
     }
 
     private static String describeError(RuntimeException error) {

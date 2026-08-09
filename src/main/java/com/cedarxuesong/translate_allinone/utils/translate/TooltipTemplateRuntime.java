@@ -8,6 +8,7 @@ import com.cedarxuesong.translate_allinone.utils.cache.TranslationStatus;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationMetrics;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationPolicy;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRoute;
+import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentJsonException;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.text.StylePreserver;
 import com.cedarxuesong.translate_allinone.utils.text.TemplateProcessor;
@@ -23,17 +24,20 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.FontDescription;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
+import net.minecraft.network.chat.TextColor;
 import net.minecraft.resources.Identifier;
 
 final class TooltipTemplateRuntime {
@@ -45,6 +49,10 @@ final class TooltipTemplateRuntime {
     static final Pattern STYLE_TAG_ID_PATTERN = Pattern.compile("</?s(\\d+)>");
     private static final Pattern NUMERIC_PLACEHOLDER_ID_PATTERN = Pattern.compile("\\{d(\\d+)}");
     private static final Pattern GLYPH_PLACEHOLDER_ID_PATTERN = Pattern.compile("\\{g(\\d+)}");
+    private static final Pattern PARAGRAPH_SOURCE_PLACEHOLDER_PATTERN = Pattern.compile("\\{([dg])(\\d+)}");
+    private static final List<String> PARAGRAPH_DYNAMIC_SUFFIXES = List.of(
+            "分钟", "小时", "min", "ms", "px", "%", "s", "h", "d", "秒", "天", "格", "级", "点", "次", "个", "块", "米"
+    );
     private static final Pattern LEGACY_FORMATTING_CODE_PATTERN = Pattern.compile("§.");
     private static final Pattern ENGLISH_WORD_PATTERN = Pattern.compile("[A-Za-z]+(?:'[A-Za-z]+)?");
     private static final Logger LOGGER = LoggerFactory.getLogger("Translate_AllinOne/TooltipTranslationSupport");
@@ -117,7 +125,36 @@ final class TooltipTemplateRuntime {
             List<String> glyphValues,
             Integer bodyStyleId,
             int wrapWidth,
-            List<Integer> lineEndStyleIds
+            List<Integer> lineEndStyleIds,
+            List<ParagraphSemanticSlot> semanticSlots,
+            String semanticSlotCompatibilityTemplateKey,
+            ParagraphTranslationPlan translationPlan
+    ) {
+        String legacyComponentTranslationTemplateKey() {
+            String legacy = semanticSlotCompatibilityTemplateKey;
+            for (ParagraphSemanticSlot slot : semanticSlots) {
+                String styledPlaceholder = "<s" + slot.styleId() + ">" + slot.placeholder() + "</s" + slot.styleId() + ">";
+                String styledSource = "<s" + slot.styleId() + ">" + slot.sourceText() + "</s" + slot.styleId() + ">";
+                legacy = legacy.replace(styledPlaceholder, styledSource);
+            }
+            return legacy;
+        }
+    }
+
+    record ParagraphSemanticSlot(
+            String id,
+            int styleId,
+            String sourceText
+    ) {
+        String placeholder() {
+            return "{" + id + "}";
+        }
+    }
+
+    private record ParagraphSemanticPlan(
+            String template,
+            Integer bodyStyleId,
+            List<ParagraphSemanticSlot> slots
     ) {
     }
 
@@ -350,7 +387,7 @@ final class TooltipTemplateRuntime {
         ItemTemplateCache cache = ItemTemplateCache.getInstance();
         LookupResult currentLookup = cache.peek(preparedTemplate.translationTemplateKey());
         Component current = renderPeekedTranslation(preparedTemplate, currentLookup, currentFormat);
-        if (current != null || shouldBypassCompatibilityFallback(preparedTemplate.translationTemplateKey())) {
+        if (current != null) {
             return current;
         }
 
@@ -387,10 +424,11 @@ final class TooltipTemplateRuntime {
     }
 
     static PreparedTooltipTemplate prepareTemplate(Component line, boolean useTagStylePreservation) {
-        boolean resolvedUseTagStylePreservation = shouldUseTagStylePreservation(line, useTagStylePreservation);
+        Component normalizedLine = normalizeInlineFormattingCodes(line);
+        boolean resolvedUseTagStylePreservation = shouldUseTagStylePreservation(normalizedLine, useTagStylePreservation);
         StylePreserver.ExtractionResult styleResult = resolvedUseTagStylePreservation
-                ? StylePreserver.extractAndMarkWithTags(line)
-                : StylePreserver.extractAndMark(line);
+                ? StylePreserver.extractAndMarkWithTags(normalizedLine)
+                : StylePreserver.extractAndMark(normalizedLine);
         TemplateProcessor.TemplateExtractionResult templateResult = TemplateProcessor.extract(styleResult.markedText);
         String unicodeTemplate = templateResult.template();
         TemplateProcessor.DecorativeGlyphExtractionResult glyphResult = resolvedUseTagStylePreservation
@@ -398,7 +436,7 @@ final class TooltipTemplateRuntime {
                 unicodeTemplate,
                 styleId -> {
                     Style style = styleResult.styleMap.get(styleId);
-                    return style != null && style.getFont() != null;
+                    return hasCustomFont(style);
                 }
         )
                 : new TemplateProcessor.DecorativeGlyphExtractionResult(unicodeTemplate, List.of());
@@ -432,6 +470,7 @@ final class TooltipTemplateRuntime {
             return null;
         }
 
+        String legacyTemplateKey = combinePreparedParagraphTemplateKey(preparedLines);
         Map<Integer, Style> combinedStyleMap = new HashMap<>();
         List<String> combinedTemplateValues = new ArrayList<>();
         List<String> combinedGlyphValues = new ArrayList<>();
@@ -441,13 +480,17 @@ final class TooltipTemplateRuntime {
         int nextNumericId = 0;
         int nextGlyphId = 0;
 
-        for (PreparedTooltipTemplate preparedLine : preparedLines) {
+        for (PreparedTooltipTemplate originalPreparedLine : preparedLines) {
+            PreparedTooltipTemplate preparedLine = originalPreparedLine == null
+                    || originalPreparedLine.useTagStylePreservation()
+                    ? originalPreparedLine
+                    : prepareComponentTemplate(originalPreparedLine);
             if (preparedLine == null || preparedLine.normalizedTemplate() == null || preparedLine.normalizedTemplate().isBlank()) {
                 continue;
             }
 
             if (combinedTemplateKey.length() > 0) {
-                combinedTemplateKey.append(' ');
+                appendParagraphSemanticBoundary(combinedTemplateKey, preparedLine.normalizedTemplate());
             }
             combinedTemplateKey.append(remapParagraphTemplateIds(
                     preparedLine.normalizedTemplate(),
@@ -460,7 +503,15 @@ final class TooltipTemplateRuntime {
                 combinedStyleMap.put(entry.getKey() + nextStyleId, entry.getValue());
             }
             combinedTemplateValues.addAll(preparedLine.templateResult().values());
-            combinedGlyphValues.addAll(preparedLine.glyphResult().values());
+            for (String glyphValue : preparedLine.glyphResult().values()) {
+                combinedGlyphValues.add(remapPatternIds(
+                        glyphValue,
+                        STYLE_TAG_ID_PATTERN,
+                        "s",
+                        nextStyleId,
+                        true
+                ));
+            }
 
             int lineStyleCount = countStyleIds(preparedLine.styleResult().styleMap);
             nextStyleId += lineStyleCount;
@@ -476,18 +527,531 @@ final class TooltipTemplateRuntime {
             return null;
         }
 
-        String legacyTemplateKey = combinedTemplateKey.toString();
-        String componentTemplateKey = canonicalizeParagraphStyleIds(legacyTemplateKey, combinedStyleMap);
-        return new PreparedParagraphTemplate(
-                legacyTemplateKey,
+        String componentTemplateKey = canonicalizeParagraphStyleIds(combinedTemplateKey.toString(), combinedStyleMap);
+        List<String> canonicalGlyphValues = combinedGlyphValues.stream()
+                .map(value -> canonicalizeParagraphGlyphStyles(value, componentTemplateKey, combinedStyleMap))
+                .toList();
+        Integer bodyStyleId = TooltipParagraphSupport.findDominantParagraphBodyStyleId(
+                componentTemplateKey,
+                combinedStyleMap
+        );
+        ParagraphSemanticPlan semanticPlan = buildParagraphSemanticPlan(componentTemplateKey, bodyStyleId);
+        int wrapWidth = computeParagraphWrapWidth(preparedLines);
+        ParagraphTranslationPlan translationPlan = buildParagraphTranslationPlan(
+                preparedLines.stream().map(PreparedTooltipTemplate::sourceLine).toList(),
                 componentTemplateKey,
                 combinedStyleMap,
                 combinedTemplateValues,
-                combinedGlyphValues,
-                TooltipParagraphSupport.findDominantParagraphBodyStyleId(componentTemplateKey, combinedStyleMap),
-                computeParagraphWrapWidth(preparedLines),
-                lineEndStyleIds
+                canonicalGlyphValues,
+                semanticPlan.bodyStyleId(),
+                wrapWidth
         );
+        return new PreparedParagraphTemplate(
+                legacyTemplateKey,
+                translationPlan.requestText(),
+                combinedStyleMap,
+                combinedTemplateValues,
+                canonicalGlyphValues,
+                semanticPlan.bodyStyleId(),
+                wrapWidth,
+                lineEndStyleIds,
+                semanticPlan.slots(),
+                semanticPlan.template(),
+                translationPlan
+        );
+    }
+
+    private static String combinePreparedParagraphTemplateKey(List<PreparedTooltipTemplate> preparedLines) {
+        StringBuilder combined = new StringBuilder();
+        int nextStyleId = 0;
+        int nextNumericId = 0;
+        int nextGlyphId = 0;
+        for (PreparedTooltipTemplate preparedLine : preparedLines) {
+            if (preparedLine == null || preparedLine.normalizedTemplate() == null || preparedLine.normalizedTemplate().isBlank()) {
+                continue;
+            }
+            if (!combined.isEmpty()) {
+                appendParagraphSemanticBoundary(combined, preparedLine.normalizedTemplate());
+            }
+            combined.append(remapParagraphTemplateIds(
+                    preparedLine.normalizedTemplate(),
+                    nextStyleId,
+                    nextNumericId,
+                    nextGlyphId
+            ));
+            nextStyleId += countStyleIds(preparedLine.styleResult().styleMap);
+            nextNumericId += preparedLine.templateResult().values().size();
+            nextGlyphId += preparedLine.glyphResult().values().size();
+        }
+        return combined.toString();
+    }
+
+    private static Component normalizeInlineFormattingCodes(Component line) {
+        if (line == null || line.getString().indexOf('§') < 0) {
+            return line == null ? Component.empty() : line;
+        }
+        MutableComponent normalized = Component.empty();
+        line.visit((style, text) -> {
+            appendInlineFormattedRuns(normalized, style, text);
+            return Optional.empty();
+        }, Style.EMPTY);
+        return normalized;
+    }
+
+    private static void appendInlineFormattedRuns(MutableComponent target, Style inheritedStyle, String text) {
+        if (text == null || text.isEmpty()) {
+            return;
+        }
+        Style activeStyle = inheritedStyle == null ? Style.EMPTY : inheritedStyle;
+        StringBuilder visible = new StringBuilder();
+        for (int index = 0; index < text.length(); index++) {
+            char current = text.charAt(index);
+            if (current != '§' || index + 1 >= text.length()) {
+                visible.append(current);
+                continue;
+            }
+            ChatFormatting formatting = ChatFormatting.getByCode(Character.toLowerCase(text.charAt(index + 1)));
+            if (formatting == null) {
+                visible.append(current);
+                continue;
+            }
+            appendStyledText(target, visible, activeStyle);
+            activeStyle = formatting == ChatFormatting.RESET || TextColor.fromLegacyFormat(formatting) != null
+                    ? Style.EMPTY.applyFormat(formatting)
+                    : activeStyle.applyFormat(formatting);
+            index++;
+        }
+        appendStyledText(target, visible, activeStyle);
+    }
+
+    private static void appendStyledText(MutableComponent target, StringBuilder text, Style style) {
+        if (text.isEmpty()) {
+            return;
+        }
+        target.append(Component.literal(text.toString()).setStyle(style == null ? Style.EMPTY : style));
+        text.setLength(0);
+    }
+
+    private static ParagraphSemanticPlan buildParagraphSemanticPlan(String template, Integer preferredBodyStyleId) {
+        if (template == null || template.isBlank()) {
+            return new ParagraphSemanticPlan("", preferredBodyStyleId, List.of());
+        }
+        Integer bodyStyleId = preferredBodyStyleId;
+
+        Pattern styledSpanPattern = Pattern.compile("<s(\\d+)>(.*?)</s\\1>");
+        Matcher matcher = styledSpanPattern.matcher(template);
+        StringBuilder rebuilt = new StringBuilder(template.length());
+        List<ParagraphSemanticSlot> slots = new ArrayList<>();
+        while (matcher.find()) {
+            int styleId = Integer.parseInt(matcher.group(1));
+            String content = matcher.group(2);
+            if (Objects.equals(styleId, bodyStyleId) || !containsSemanticSlotText(content)) {
+                matcher.appendReplacement(rebuilt, Matcher.quoteReplacement(matcher.group()));
+                continue;
+            }
+            ParagraphSemanticSlot slot = new ParagraphSemanticSlot("slot" + slots.size(), styleId, content);
+            slots.add(slot);
+            String replacement = "<s" + styleId + ">" + slot.placeholder() + "</s" + styleId + ">";
+            matcher.appendReplacement(rebuilt, Matcher.quoteReplacement(replacement));
+        }
+        matcher.appendTail(rebuilt);
+        return new ParagraphSemanticPlan(rebuilt.toString(), bodyStyleId, List.copyOf(slots));
+    }
+
+    private static ParagraphTranslationPlan buildParagraphTranslationPlan(
+            List<Component> sourceLines,
+            String canonicalTemplate,
+            Map<Integer, Style> styleMap,
+            List<String> dynamicValues,
+            List<String> glyphValues,
+            Integer bodyStyleId,
+            int wrapWidth
+    ) {
+        if (canonicalTemplate == null || canonicalTemplate.isBlank()) {
+            throw new ComponentJsonException(
+                    ComponentJsonException.Kind.DOCUMENT,
+                    "Coherent paragraph normalized source is empty."
+            );
+        }
+        String unsafeSourceIssue = describeUnsafeParagraphSource(canonicalTemplate);
+        if (unsafeSourceIssue != null) {
+            throw new ComponentJsonException(ComponentJsonException.Kind.DOCUMENT, unsafeSourceIssue);
+        }
+
+        Style bodyStyle = bodyStyleId == null
+                ? Style.EMPTY
+                : styleMap.getOrDefault(bodyStyleId, Style.EMPTY);
+        List<ParagraphTranslationPlan.StyledRun> runs = new ArrayList<>();
+        Map<String, Component> hardTokens = new LinkedHashMap<>();
+        for (ParagraphSourceRun sourceRun : parseParagraphSourceRuns(canonicalTemplate)) {
+            appendParagraphPlanRuns(
+                    runs,
+                    hardTokens,
+                    sourceRun,
+                    styleMap,
+                    dynamicValues,
+                    glyphValues,
+                    bodyStyle
+            );
+        }
+        runs = mergeEquivalentParagraphPlanRuns(runs, bodyStyle);
+
+        StringBuilder request = new StringBuilder(canonicalTemplate.length());
+        List<ParagraphTranslationPlan.AccentAnchor> anchors = new ArrayList<>();
+        for (int index = 0; index < runs.size(); ) {
+            ParagraphTranslationPlan.StyledRun run = runs.get(index);
+            if (run.type() != ParagraphTranslationPlan.RunType.ACCENT) {
+                request.append(run.token().isEmpty() ? run.sourceText() : run.token());
+                index++;
+                continue;
+            }
+
+            int end = index + 1;
+            StringBuilder anchoredSource = new StringBuilder(run.sourceText());
+            while (end < runs.size()) {
+                ParagraphTranslationPlan.StyledRun next = runs.get(end);
+                if (next.type() == ParagraphTranslationPlan.RunType.ACCENT
+                        && equivalentNaturalLanguageStyle(run.style(), next.style())) {
+                    anchoredSource.append(next.sourceText());
+                    end++;
+                    continue;
+                }
+                if (next.type() == ParagraphTranslationPlan.RunType.GLYPH
+                        || next.type() == ParagraphTranslationPlan.RunType.DYNAMIC) {
+                    anchoredSource.append(next.token());
+                    end++;
+                    continue;
+                }
+                break;
+            }
+            ParagraphTranslationPlan.AccentAnchor anchor = new ParagraphTranslationPlan.AccentAnchor(
+                    "accent" + anchors.size(),
+                    anchoredSource.toString(),
+                    run.style()
+            );
+            anchors.add(anchor);
+            request.append(anchor.beginToken()).append(anchoredSource).append(anchor.endToken());
+            index = end;
+        }
+
+        String requestText = normalizeParagraphRequestWhitespace(request.toString());
+        String hardTopology = runs.stream()
+                .filter(run -> run.type() == ParagraphTranslationPlan.RunType.DYNAMIC
+                        || run.type() == ParagraphTranslationPlan.RunType.GLYPH)
+                .map(run -> run.type().name().toLowerCase(Locale.ROOT) + ':' + run.token())
+                .reduce((left, right) -> left + ',' + right)
+                .orElse("");
+        String accentTopology = anchors.stream()
+                .map(ParagraphTranslationPlan.AccentAnchor::id)
+                .reduce((left, right) -> left + ',' + right)
+                .orElse("");
+        String stableIdentity = ParagraphTranslationPlan.INLINE_ANCHOR_STRATEGY
+                + '\n' + requestText
+                + '\n' + hardTopology
+                + '\n' + accentTopology;
+        return new ParagraphTranslationPlan(
+                sourceLines,
+                runs,
+                requestText,
+                bodyStyle,
+                hardTokens,
+                anchors,
+                stableIdentity,
+                ParagraphTranslationPlan.INLINE_ANCHOR_STRATEGY,
+                wrapWidth
+        );
+    }
+
+    private static void appendParagraphPlanRuns(
+            List<ParagraphTranslationPlan.StyledRun> runs,
+            Map<String, Component> hardTokens,
+            ParagraphSourceRun sourceRun,
+            Map<Integer, Style> styleMap,
+            List<String> dynamicValues,
+            List<String> glyphValues,
+            Style bodyStyle
+    ) {
+        Style sourceStyle = sourceRun.styleId() == null
+                ? bodyStyle
+                : styleMap.getOrDefault(sourceRun.styleId(), Style.EMPTY);
+        Matcher placeholderMatcher = PARAGRAPH_SOURCE_PLACEHOLDER_PATTERN.matcher(sourceRun.content());
+        int previousEnd = 0;
+        while (placeholderMatcher.find()) {
+            boolean dynamic = "d".equals(placeholderMatcher.group(1));
+            int visibleStart = dynamic
+                    ? paragraphDynamicValueStart(sourceRun.content(), placeholderMatcher.start(), previousEnd)
+                    : placeholderMatcher.start();
+            int visibleEnd = dynamic
+                    ? paragraphDynamicValueEnd(sourceRun.content(), placeholderMatcher.end())
+                    : placeholderMatcher.end();
+            appendParagraphNaturalRun(
+                    runs,
+                    sourceRun.content().substring(previousEnd, visibleStart),
+                    sourceStyle,
+                    bodyStyle
+            );
+            int sourceIndex = Integer.parseInt(placeholderMatcher.group(2)) - 1;
+            String token = dynamic ? "{value" + sourceIndex + "}" : "{glyph" + sourceIndex + "}";
+            Component component = dynamic
+                    ? dynamicValueComponent(
+                            dynamicValues,
+                            sourceIndex,
+                            sourceRun.content().substring(visibleStart, placeholderMatcher.start()),
+                            sourceRun.content().substring(placeholderMatcher.end(), visibleEnd),
+                            sourceStyle
+                    )
+                    : glyphValueComponent(glyphValues, sourceIndex, sourceStyle, styleMap);
+            if (sourceIndex < 0 || hardTokens.putIfAbsent(token, component) != null) {
+                throw new ComponentJsonException(
+                        ComponentJsonException.Kind.DOCUMENT,
+                        "Coherent paragraph hard token topology is invalid: " + token
+                );
+            }
+            runs.add(new ParagraphTranslationPlan.StyledRun(
+                    dynamic ? ParagraphTranslationPlan.RunType.DYNAMIC : ParagraphTranslationPlan.RunType.GLYPH,
+                    component.getString(),
+                    component.getStyle(),
+                    token
+            ));
+            previousEnd = visibleEnd;
+        }
+        appendParagraphNaturalRun(
+                runs,
+                sourceRun.content().substring(previousEnd),
+                sourceStyle,
+                bodyStyle
+        );
+    }
+
+    private static void appendParagraphNaturalRun(
+            List<ParagraphTranslationPlan.StyledRun> runs,
+            String text,
+            Style sourceStyle,
+            Style bodyStyle
+    ) {
+        if (text == null || text.isEmpty()) {
+            return;
+        }
+        boolean accent = semanticTextScore(text) > 0
+                && !equivalentNaturalLanguageStyle(sourceStyle, bodyStyle);
+        runs.add(new ParagraphTranslationPlan.StyledRun(
+                accent ? ParagraphTranslationPlan.RunType.ACCENT : ParagraphTranslationPlan.RunType.BODY,
+                text,
+                accent ? sourceStyle : bodyStyle,
+                ""
+        ));
+    }
+
+    private static Component dynamicValueComponent(
+            List<String> values,
+            int index,
+            String prefix,
+            String suffix,
+            Style style
+    ) {
+        if (values == null || index < 0 || index >= values.size()) {
+            throw new ComponentJsonException(
+                    ComponentJsonException.Kind.DOCUMENT,
+                    "Coherent paragraph dynamic value mapping is incomplete: value" + index
+            );
+        }
+        return Component.literal((prefix == null ? "" : prefix) + values.get(index) + (suffix == null ? "" : suffix))
+                .setStyle(style == null ? Style.EMPTY : style);
+    }
+
+    private static int paragraphDynamicValueStart(String text, int placeholderStart, int minimum) {
+        if (text == null || placeholderStart <= minimum || placeholderStart > text.length()) {
+            return placeholderStart;
+        }
+        char previous = text.charAt(placeholderStart - 1);
+        return previous == '+' || previous == '-' ? placeholderStart - 1 : placeholderStart;
+    }
+
+    private static int paragraphDynamicValueEnd(String text, int placeholderEnd) {
+        if (text == null || placeholderEnd < 0 || placeholderEnd >= text.length()) {
+            return placeholderEnd;
+        }
+        int suffixStart = placeholderEnd;
+        int tokenStart = suffixStart;
+        if (Character.isWhitespace(text.charAt(tokenStart))) {
+            tokenStart++;
+        }
+        for (String suffix : PARAGRAPH_DYNAMIC_SUFFIXES) {
+            if (text.startsWith(suffix, tokenStart)
+                    && paragraphDynamicSuffixHasBoundary(text, tokenStart + suffix.length(), suffix)) {
+                return tokenStart + suffix.length();
+            }
+        }
+        return placeholderEnd;
+    }
+
+    private static boolean paragraphDynamicSuffixHasBoundary(String text, int suffixEnd, String suffix) {
+        if (suffix == null || suffix.isEmpty() || suffixEnd >= text.length()) {
+            return true;
+        }
+        int lastCodePoint = suffix.codePointBefore(suffix.length());
+        int nextCodePoint = text.codePointAt(suffixEnd);
+        return !Character.isLetter(lastCodePoint) || !Character.isLetter(nextCodePoint);
+    }
+
+    private static Component glyphValueComponent(
+            List<String> values,
+            int index,
+            Style fallbackStyle,
+            Map<Integer, Style> styleMap
+    ) {
+        if (values == null || index < 0 || index >= values.size()) {
+            throw new ComponentJsonException(
+                    ComponentJsonException.Kind.DOCUMENT,
+                    "Coherent paragraph decorative glyph mapping is incomplete: glyph" + index
+            );
+        }
+        String value = values.get(index);
+        if (STYLE_TAG_ID_PATTERN.matcher(value).find()) {
+            return StylePreserver.reapplyStylesFromTags(value, styleMap, false);
+        }
+        return Component.literal(value).setStyle(fallbackStyle == null ? Style.EMPTY : fallbackStyle);
+    }
+
+    private static List<ParagraphTranslationPlan.StyledRun> mergeEquivalentParagraphPlanRuns(
+            List<ParagraphTranslationPlan.StyledRun> sourceRuns,
+            Style bodyStyle
+    ) {
+        List<ParagraphTranslationPlan.StyledRun> merged = new ArrayList<>();
+        for (ParagraphTranslationPlan.StyledRun run : sourceRuns) {
+            if (run == null || (run.sourceText().isEmpty() && run.token().isEmpty())) {
+                continue;
+            }
+            if (!merged.isEmpty()) {
+                ParagraphTranslationPlan.StyledRun previous = merged.getLast();
+                if (previous.token().isEmpty()
+                        && run.token().isEmpty()
+                        && previous.type() == run.type()
+                        && equivalentNaturalLanguageStyle(previous.style(), run.style())) {
+                    merged.set(
+                            merged.size() - 1,
+                            new ParagraphTranslationPlan.StyledRun(
+                                    previous.type(),
+                                    previous.sourceText() + run.sourceText(),
+                                    previous.style(),
+                                    ""
+                            )
+                    );
+                    continue;
+                }
+            }
+            merged.add(run);
+        }
+
+        for (int index = 1; index + 1 < merged.size(); ) {
+            ParagraphTranslationPlan.StyledRun middle = merged.get(index);
+            ParagraphTranslationPlan.StyledRun previous = merged.get(index - 1);
+            ParagraphTranslationPlan.StyledRun next = merged.get(index + 1);
+            if (middle.type() == ParagraphTranslationPlan.RunType.BODY
+                    && middle.sourceText().isBlank()
+                    && previous.type() == ParagraphTranslationPlan.RunType.ACCENT
+                    && next.type() == ParagraphTranslationPlan.RunType.ACCENT
+                    && equivalentNaturalLanguageStyle(previous.style(), next.style())) {
+                merged.set(
+                        index - 1,
+                        new ParagraphTranslationPlan.StyledRun(
+                                ParagraphTranslationPlan.RunType.ACCENT,
+                                previous.sourceText() + middle.sourceText() + next.sourceText(),
+                                previous.style(),
+                                ""
+                        )
+                );
+                merged.remove(index + 1);
+                merged.remove(index);
+                continue;
+            }
+            index++;
+        }
+        return List.copyOf(merged);
+    }
+
+    private static boolean equivalentNaturalLanguageStyle(Style left, Style right) {
+        return StylePreserver.sanitizeStyleForComparison(left, true)
+                .equals(StylePreserver.sanitizeStyleForComparison(right, true));
+    }
+
+    private static List<ParagraphSourceRun> parseParagraphSourceRuns(String taggedText) {
+        List<ParagraphSourceRun> runs = new ArrayList<>();
+        Matcher matcher = STYLE_TAG_ID_PATTERN.matcher(taggedText);
+        int previousEnd = 0;
+        Integer activeStyleId = null;
+        while (matcher.find()) {
+            if (matcher.start() > previousEnd) {
+                runs.add(new ParagraphSourceRun(activeStyleId, taggedText.substring(previousEnd, matcher.start())));
+            }
+            boolean closing = taggedText.charAt(matcher.start() + 1) == '/';
+            activeStyleId = closing ? null : Integer.parseInt(matcher.group(1));
+            previousEnd = matcher.end();
+        }
+        if (previousEnd < taggedText.length()) {
+            runs.add(new ParagraphSourceRun(activeStyleId, taggedText.substring(previousEnd)));
+        }
+        if (activeStyleId != null) {
+            throw new ComponentJsonException(
+                    ComponentJsonException.Kind.DOCUMENT,
+                    "Coherent paragraph source style tag is not closed."
+            );
+        }
+        return List.copyOf(runs);
+    }
+
+    private static String describeUnsafeParagraphSource(String text) {
+        if (text.indexOf('§') >= 0) {
+            return "Coherent paragraph contains an unparsed Minecraft formatting code.";
+        }
+        for (int offset = 0; offset < text.length(); ) {
+            int codePoint = text.codePointAt(offset);
+            int type = Character.getType(codePoint);
+            if (type == Character.PRIVATE_USE || type == Character.UNASSIGNED) {
+                return "Coherent paragraph contains an unextracted decorative glyph: U+"
+                        + Integer.toHexString(codePoint).toUpperCase(Locale.ROOT) + ".";
+            }
+            if (Character.isISOControl(codePoint) && !Character.isWhitespace(codePoint)) {
+                return "Coherent paragraph contains an illegal control character.";
+            }
+            offset += Character.charCount(codePoint);
+        }
+        return null;
+    }
+
+    private static String normalizeParagraphRequestWhitespace(String text) {
+        if (text == null || text.isBlank()) {
+            return "";
+        }
+        return text.replace("\r\n", " ")
+                .replace('\r', ' ')
+                .replace('\n', ' ')
+                .replaceAll("\\s{2,}", " ")
+                .trim();
+    }
+
+    private record ParagraphSourceRun(Integer styleId, String content) {
+    }
+
+    private static boolean containsSemanticSlotText(String content) {
+        return semanticTextScore(content) > 0;
+    }
+
+    private static int semanticTextScore(String content) {
+        if (content == null || content.isBlank()) {
+            return 0;
+        }
+        String visible = NUMERIC_PLACEHOLDER_ID_PATTERN.matcher(content).replaceAll("");
+        visible = GLYPH_PLACEHOLDER_ID_PATTERN.matcher(visible).replaceAll("");
+        int score = 0;
+        for (int offset = 0; offset < visible.length(); ) {
+            int codePoint = visible.codePointAt(offset);
+            if (Character.isLetter(codePoint)) {
+                score++;
+            }
+            offset += Character.charCount(codePoint);
+        }
+        return score;
     }
 
     static Component renderOriginalPreparedLine(PreparedTooltipTemplate preparedTemplate) {
@@ -1153,7 +1717,7 @@ final class TooltipTemplateRuntime {
         }
 
         Style decorativeSourceStyle = resolveDecorativeGlyphSourceStyle(preparedTemplate);
-        if (decorativeSourceStyle == null || decorativeSourceStyle.getFont() == null) {
+        if (!hasCustomFont(decorativeSourceStyle)) {
             return normalizeDecorativePassthroughText(parsedLegacy);
         }
 
@@ -1194,8 +1758,7 @@ final class TooltipTemplateRuntime {
         if (sourceLine != null) {
             final Style[] sourceResolved = {Style.EMPTY};
             sourceLine.visit((style, string) -> {
-                if (style != null
-                        && style.getFont() != null
+                if (hasCustomFont(style)
                         && string != null
                         && containsDecorativeGlyph(string)) {
                     sourceResolved[0] = style;
@@ -1203,14 +1766,14 @@ final class TooltipTemplateRuntime {
                 }
                 return Optional.empty();
             }, Style.EMPTY);
-            if (sourceResolved[0] != null && sourceResolved[0].getFont() != null) {
+            if (hasCustomFont(sourceResolved[0])) {
                 return sourceResolved[0];
             }
         }
 
         if (preparedTemplate.styleResult() != null && preparedTemplate.styleResult().styleMap != null) {
             for (Style style : preparedTemplate.styleResult().styleMap.values()) {
-                if (style != null && style.getFont() != null) {
+                if (hasCustomFont(style)) {
                     return style;
                 }
             }
@@ -1223,8 +1786,7 @@ final class TooltipTemplateRuntime {
 
         final Style[] resolved = {Style.EMPTY};
         originalText.visit((style, string) -> {
-            if (style != null
-                    && style.getFont() != null
+            if (hasCustomFont(style)
                     && string != null
                     && containsDecorativeGlyph(string)) {
                 resolved[0] = style;
@@ -1232,7 +1794,7 @@ final class TooltipTemplateRuntime {
             }
             return Optional.empty();
         }, Style.EMPTY);
-        if (resolved[0] != null && resolved[0].getFont() != null) {
+        if (hasCustomFont(resolved[0])) {
             return resolved[0];
         }
 
@@ -1514,7 +2076,7 @@ final class TooltipTemplateRuntime {
         }
 
         for (FlatNode node : FlatNode.flatten(line)) {
-            if (node.style() != null && node.style().getFont() != null) {
+            if (hasCustomFont(node.style())) {
                 return true;
             }
 
@@ -1528,6 +2090,12 @@ final class TooltipTemplateRuntime {
 
     static boolean hasCustomFontOrDecorativeGlyph(Component line) {
         return requiresRichStylePreservation(line);
+    }
+
+    private static boolean hasCustomFont(Style style) {
+        return style != null
+                && style.getFont() != null
+                && !FontDescription.DEFAULT.equals(style.getFont());
     }
 
     static boolean hasUnsafeMixedDecorativeLiteral(Component line) {
@@ -1566,6 +2134,54 @@ final class TooltipTemplateRuntime {
         return remapPatternIds(remapped, GLYPH_PLACEHOLDER_ID_PATTERN, "g", glyphOffset, false);
     }
 
+    private static void appendParagraphSemanticBoundary(StringBuilder combined, String nextTemplate) {
+        if (combined == null || combined.isEmpty() || nextTemplate == null || nextTemplate.isEmpty()) {
+            return;
+        }
+        String previousVisible = STYLE_TAG_ID_PATTERN.matcher(combined).replaceAll("");
+        String nextVisible = STYLE_TAG_ID_PATTERN.matcher(nextTemplate).replaceAll("");
+        if (previousVisible.isEmpty() || nextVisible.isEmpty()) {
+            return;
+        }
+        int previousCodePoint = previousVisible.codePointBefore(previousVisible.length());
+        int nextCodePoint = nextVisible.codePointAt(0);
+        if (Character.isWhitespace(previousCodePoint)
+                || Character.isWhitespace(nextCodePoint)
+                || doesNotNeedSemanticBoundaryAfter(previousCodePoint)
+                || doesNotNeedSemanticBoundaryBefore(nextCodePoint)
+                || isCjkCodePoint(previousCodePoint)
+                || isCjkCodePoint(nextCodePoint)) {
+            return;
+        }
+        combined.append(' ');
+    }
+
+    private static boolean doesNotNeedSemanticBoundaryAfter(int codePoint) {
+        int type = Character.getType(codePoint);
+        return type == Character.START_PUNCTUATION
+                || codePoint == '/'
+                || codePoint == '-'
+                || codePoint == '+';
+    }
+
+    private static boolean doesNotNeedSemanticBoundaryBefore(int codePoint) {
+        int type = Character.getType(codePoint);
+        return type == Character.END_PUNCTUATION
+                || type == Character.FINAL_QUOTE_PUNCTUATION
+                || type == Character.OTHER_PUNCTUATION
+                || codePoint == '%'
+                || codePoint == ':'
+                || codePoint == ';';
+    }
+
+    private static boolean isCjkCodePoint(int codePoint) {
+        Character.UnicodeScript script = Character.UnicodeScript.of(codePoint);
+        return script == Character.UnicodeScript.HAN
+                || script == Character.UnicodeScript.HIRAGANA
+                || script == Character.UnicodeScript.KATAKANA
+                || script == Character.UnicodeScript.HANGUL;
+    }
+
     private static String canonicalizeParagraphStyleIds(String template, Map<Integer, Style> styleMap) {
         if (template == null || template.isBlank() || styleMap == null || styleMap.isEmpty()) {
             return template;
@@ -1597,6 +2213,39 @@ final class TooltipTemplateRuntime {
             matcher.appendReplacement(canonical, Matcher.quoteReplacement(replacement));
         }
         matcher.appendTail(canonical);
+        return canonical.toString();
+    }
+
+    private static String canonicalizeParagraphGlyphStyles(
+            String glyphValue,
+            String canonicalTemplate,
+            Map<Integer, Style> styleMap
+    ) {
+        if (glyphValue == null || glyphValue.isEmpty() || styleMap == null || styleMap.isEmpty()) {
+            return glyphValue;
+        }
+        Map<Style, Integer> canonicalIdByStyle = new LinkedHashMap<>();
+        Matcher templateMatcher = STYLE_TAG_ID_PATTERN.matcher(canonicalTemplate == null ? "" : canonicalTemplate);
+        while (templateMatcher.find()) {
+            int styleId = Integer.parseInt(templateMatcher.group(1));
+            Style style = styleMap.get(styleId);
+            if (style != null) {
+                canonicalIdByStyle.putIfAbsent(style, styleId);
+            }
+        }
+        Matcher glyphMatcher = STYLE_TAG_ID_PATTERN.matcher(glyphValue);
+        StringBuilder canonical = new StringBuilder(glyphValue.length());
+        while (glyphMatcher.find()) {
+            int originalId = Integer.parseInt(glyphMatcher.group(1));
+            Style style = styleMap.get(originalId);
+            int canonicalId = style == null
+                    ? originalId
+                    : canonicalIdByStyle.getOrDefault(style, originalId);
+            boolean closing = glyphValue.charAt(glyphMatcher.start() + 1) == '/';
+            String replacement = closing ? "</s" + canonicalId + ">" : "<s" + canonicalId + ">";
+            glyphMatcher.appendReplacement(canonical, Matcher.quoteReplacement(replacement));
+        }
+        glyphMatcher.appendTail(canonical);
         return canonical.toString();
     }
 

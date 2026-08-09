@@ -517,8 +517,7 @@ final class TooltipStructuredCaptureSupport {
                 toText(match.groupNodes("spacing")),
                 labelText,
                 valueText,
-                useTagStylePreservation,
-                false
+                useTagStylePreservation
         );
     }
 
@@ -585,8 +584,7 @@ final class TooltipStructuredCaptureSupport {
                 toText(splitNodes.subList(separatorStart, valueStart)),
                 labelText,
                 valueText,
-                useTagStylePreservation,
-                true
+                useTagStylePreservation
         );
     }
 
@@ -598,10 +596,9 @@ final class TooltipStructuredCaptureSupport {
             Component spacingText,
             Component labelText,
             Component valueText,
-            boolean useTagStylePreservation,
-            boolean allowWordPhraseValue
+            boolean useTagStylePreservation
     ) {
-        StructuredLineKind kind = classifyStructuredLineKind(labelText, valueText, allowWordPhraseValue);
+        StructuredLineKind kind = classifyStructuredLineKind(labelText, valueText);
         if (kind == null) {
             return null;
         }
@@ -854,8 +851,7 @@ final class TooltipStructuredCaptureSupport {
 
     private static StructuredLineKind classifyStructuredLineKind(
             Component labelText,
-            Component valueText,
-            boolean allowWordPhraseValue
+            Component valueText
     ) {
         String normalizedLabel = normalizeLabel(textString(labelText));
         String normalizedValue = normalizeValue(textString(valueText));
@@ -874,11 +870,6 @@ final class TooltipStructuredCaptureSupport {
         }
         if (isGenericMeasuredValue(normalizedValue)) {
             return StructuredLineKind.MEASURED_VALUE;
-        }
-        if (allowWordPhraseValue
-                && containsLetter(normalizedLabel)
-                && isWordPhraseValue(normalizedValue)) {
-            return StructuredLineKind.WORD_VALUE;
         }
         if (isSelectedLikeLabel(normalizedLabel) && isWordPhraseValue(normalizedValue)) {
             return StructuredLineKind.SELECTED_VALUE;
@@ -1595,7 +1586,6 @@ final class TooltipStructuredCaptureSupport {
         TIMED_VALUE("structured-timed", true),
         PRICE_VALUE("structured-price", true),
         MEASURED_VALUE("structured-measured", true),
-        WORD_VALUE("structured-word-value", true),
         SELECTED_VALUE("structured-selected", true),
         DONATED_STATUS("structured-donated", true),
         WORD_LIST("structured-list", true);

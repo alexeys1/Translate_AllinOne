@@ -22,7 +22,7 @@ public final class TooltipRefreshNoticeSupport {
     private static final long REFRESH_HOLD_RELEASE_GRACE_MILLIS = 250L;
     private static final Logger LOGGER = LoggerFactory.getLogger("Translate_AllinOne/TooltipRefreshNoticeSupport");
     private static final Set<Integer> refreshedTooltipSignaturesThisHold = new HashSet<>();
-    private static final Set<String> refreshedComponentKeysThisHold = new HashSet<>();
+    private static final Set<String> refreshedComponentKeysForNotice = new HashSet<>();
     private static volatile boolean refreshHoldActive = false;
     private static volatile long refreshHoldGraceExpiresAtMillis = 0L;
     private static volatile int refreshNoticeTooltipSignature = 0;
@@ -67,6 +67,7 @@ public final class TooltipRefreshNoticeSupport {
                 && config.keybinding != null
                 && KeybindingManager.isPressed(config.keybinding.refreshBinding);
         long now = System.currentTimeMillis();
+        clearExpiredComponentRefreshKeys(now);
         if (!updateRefreshHoldState(isRefreshPressed, now)) {
             return;
         }
@@ -209,8 +210,22 @@ public final class TooltipRefreshNoticeSupport {
         if (!updateRefreshHoldState(pressed, System.currentTimeMillis())) {
             return false;
         }
-        synchronized (refreshedComponentKeysThisHold) {
-            return refreshedComponentKeysThisHold.add(cacheKey);
+        synchronized (refreshedComponentKeysForNotice) {
+            return refreshedComponentKeysForNotice.add(cacheKey);
+        }
+    }
+
+    static boolean shouldSuppressComponentQueue(String cacheKey) {
+        if (cacheKey == null || cacheKey.isBlank()) {
+            return false;
+        }
+        long now = System.currentTimeMillis();
+        clearExpiredComponentRefreshKeys(now);
+        if (now > refreshNoticeExpiresAtMillis) {
+            return false;
+        }
+        synchronized (refreshedComponentKeysForNotice) {
+            return refreshedComponentKeysForNotice.contains(cacheKey);
         }
     }
 
@@ -242,8 +257,8 @@ public final class TooltipRefreshNoticeSupport {
         if (cacheKey == null || cacheKey.isBlank()) {
             return;
         }
-        synchronized (refreshedComponentKeysThisHold) {
-            refreshedComponentKeysThisHold.add(cacheKey);
+        synchronized (refreshedComponentKeysForNotice) {
+            refreshedComponentKeysForNotice.add(cacheKey);
         }
     }
 
@@ -253,8 +268,14 @@ public final class TooltipRefreshNoticeSupport {
         synchronized (refreshedTooltipSignaturesThisHold) {
             refreshedTooltipSignaturesThisHold.clear();
         }
-        synchronized (refreshedComponentKeysThisHold) {
-            refreshedComponentKeysThisHold.clear();
+    }
+
+    private static void clearExpiredComponentRefreshKeys(long now) {
+        if (now <= refreshNoticeExpiresAtMillis) {
+            return;
+        }
+        synchronized (refreshedComponentKeysForNotice) {
+            refreshedComponentKeysForNotice.clear();
         }
     }
 }
