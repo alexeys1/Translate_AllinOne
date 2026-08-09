@@ -118,50 +118,102 @@ public class TemplateProcessor {
 
         while (matcher.find()) {
             if (matcher.start() > lastEnd) {
-                templateBuffer.append(extractInlineSpacerGlyphRuns(
+                templateBuffer.append(extractDecorativeGlyphRuns(
                         text.substring(lastEnd, matcher.start()),
                         null,
+                        false,
                         values
                 ));
             }
 
             int styleId = Integer.parseInt(matcher.group(1));
             String taggedContent = matcher.group(2);
-            if (!isDecorativeGlyphOnly(taggedContent)
-                    && !(preserveStyleId != null
+            boolean extractWholeRun = isDecorativeGlyphOnly(taggedContent)
+                    || (preserveStyleId != null
                     && preserveStyleId.test(styleId)
-                    && ((isSymbolLikeOnly(taggedContent) && !isAsciiPlainPunctuationOnly(taggedContent))
-                    || isLikelyDecorativeFontToken(taggedContent)))) {
-                String normalizedContent = extractInlineSpacerGlyphRuns(taggedContent, styleId, values);
-                if (!normalizedContent.isEmpty()) {
-                    templateBuffer.append("<s")
-                            .append(styleId)
-                            .append(">")
-                            .append(normalizedContent)
-                            .append("</s")
-                            .append(styleId)
-                            .append(">");
-                }
-                lastEnd = matcher.end();
-                continue;
-            }
-
-            String normalizedValue = normalizeDecorativeGlyphValue(matcher.group());
-            if (normalizedValue == null || normalizedValue.isEmpty()) {
-                lastEnd = matcher.end();
-                continue;
-            }
-
-            values.add(normalizedValue);
-            String placeholder = "{g" + values.size() + "}";
-            templateBuffer.append(placeholder);
+                    && (isSymbolLikeOnly(taggedContent)
+                    || isLikelyDecorativeFontToken(taggedContent)));
+            templateBuffer.append(extractDecorativeGlyphRuns(
+                    taggedContent,
+                    styleId,
+                    extractWholeRun,
+                    values
+            ));
             lastEnd = matcher.end();
         }
 
         if (lastEnd < text.length()) {
-            templateBuffer.append(extractInlineSpacerGlyphRuns(text.substring(lastEnd), null, values));
+            templateBuffer.append(extractDecorativeGlyphRuns(text.substring(lastEnd), null, false, values));
         }
         return new DecorativeGlyphExtractionResult(templateBuffer.toString(), values);
+    }
+
+    private static String extractDecorativeGlyphRuns(
+            String text,
+            Integer styleId,
+            boolean extractWholeRun,
+            List<String> values
+    ) {
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
+        if (extractWholeRun) {
+            return appendDecorativeGlyphValue(text, styleId, values);
+        }
+
+        StringBuilder result = new StringBuilder(text.length());
+        StringBuilder visible = new StringBuilder();
+        StringBuilder decorative = new StringBuilder();
+        for (int offset = 0; offset < text.length(); ) {
+            int codePoint = text.codePointAt(offset);
+            offset += Character.charCount(codePoint);
+            if (isDecorativeGlyphCodePoint(codePoint)) {
+                appendStyledVisibleRun(result, visible, styleId);
+                decorative.appendCodePoint(codePoint);
+            } else {
+                appendDecorativeGlyphRun(result, decorative, styleId, values);
+                visible.appendCodePoint(codePoint);
+            }
+        }
+        appendStyledVisibleRun(result, visible, styleId);
+        appendDecorativeGlyphRun(result, decorative, styleId, values);
+        return result.toString();
+    }
+
+    private static void appendStyledVisibleRun(StringBuilder result, StringBuilder visible, Integer styleId) {
+        if (visible.isEmpty()) {
+            return;
+        }
+        if (styleId == null) {
+            result.append(visible);
+        } else {
+            result.append("<s").append(styleId).append(">")
+                    .append(visible)
+                    .append("</s").append(styleId).append(">");
+        }
+        visible.setLength(0);
+    }
+
+    private static void appendDecorativeGlyphRun(
+            StringBuilder result,
+            StringBuilder decorative,
+            Integer styleId,
+            List<String> values
+    ) {
+        if (decorative.isEmpty()) {
+            return;
+        }
+        result.append(appendDecorativeGlyphValue(decorative.toString(), styleId, values));
+        decorative.setLength(0);
+    }
+
+    private static String appendDecorativeGlyphValue(String value, Integer styleId, List<String> values) {
+        if (value == null || value.isEmpty()) {
+            return "";
+        }
+        String styledValue = styleId == null ? value : "<s" + styleId + ">" + value + "</s" + styleId + ">";
+        values.add(styledValue);
+        return "{g" + values.size() + "}";
     }
 
     public static String reassembleDecorativeGlyphs(String translatedTemplate, List<String> values) {
