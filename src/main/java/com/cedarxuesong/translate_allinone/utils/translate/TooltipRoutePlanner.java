@@ -1,5 +1,6 @@
 package com.cedarxuesong.translate_allinone.utils.translate;
 
+import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ItemTranslateConfig;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -85,21 +86,38 @@ final class TooltipRoutePlanner {
                 continue;
             }
 
-            TooltipParagraphBlock paragraphBlock = buildParagraphBlock(candidates, index, useTagStylePreservation);
-            if (paragraphBlock != null) {
-                Set<String> blockKeys = singleKeySet(paragraphBlock.paragraphTemplate().translationTemplateKey());
-                allTranslationTemplateKeys.addAll(blockKeys);
-                segments.add(new TooltipRouteSegment(
-                        TooltipRouteKind.PARAGRAPH_BLOCK,
-                        index,
-                        paragraphBlock.endExclusive(),
-                        paragraphBlock.preparedLines().size(),
-                        candidate,
-                        paragraphBlock,
-                        null,
-                        blockKeys
-                ));
-                index = paragraphBlock.endExclusive();
+            int paragraphEndExclusive = findParagraphEndExclusive(candidates, index, useTagStylePreservation);
+            if (paragraphEndExclusive > index + 1) {
+                try {
+                    TooltipParagraphBlock paragraphBlock = buildParagraphBlock(
+                            candidates,
+                            index,
+                            paragraphEndExclusive,
+                            useTagStylePreservation
+                    );
+                    Set<String> blockKeys = singleKeySet(paragraphBlock.paragraphTemplate().translationTemplateKey());
+                    allTranslationTemplateKeys.addAll(blockKeys);
+                    segments.add(new TooltipRouteSegment(
+                            TooltipRouteKind.PARAGRAPH_BLOCK,
+                            index,
+                            paragraphBlock.endExclusive(),
+                            paragraphBlock.preparedLines().size(),
+                            candidate,
+                            paragraphBlock,
+                            null,
+                            blockKeys
+                    ));
+                } catch (RuntimeException error) {
+                    Translate_AllinOne.LOGGER.warn(
+                            "Skipping unsafe tooltip paragraph during route planning. startIndex={} endExclusive={} reason={}",
+                            index,
+                            paragraphEndExclusive,
+                            error.getMessage(),
+                            error
+                    );
+                    addPassthroughSegments(segments, candidates, index, paragraphEndExclusive);
+                }
+                index = paragraphEndExclusive;
                 continue;
             }
 
@@ -238,33 +256,15 @@ final class TooltipRoutePlanner {
     private static TooltipParagraphBlock buildParagraphBlock(
             List<TooltipLineCandidate> candidates,
             int startIndex,
+            int endExclusive,
             boolean useTagStylePreservation
     ) {
-        if (!canStartParagraphBlock(candidates, startIndex, useTagStylePreservation)) {
-            return null;
-        }
-
         List<TooltipTemplateRuntime.PreparedTooltipTemplate> preparedLines = new ArrayList<>();
-        preparedLines.add(TooltipTemplateRuntime.prepareTemplate(
-                candidates.get(startIndex).line(),
-                useTagStylePreservation
-        ));
-        int endExclusive = startIndex + 1;
-        while (endExclusive < candidates.size()
-                && canExtendParagraphBlock(
-                candidates.get(endExclusive - 1),
-                candidates.get(endExclusive),
-                useTagStylePreservation
-        )) {
+        for (int index = startIndex; index < endExclusive; index++) {
             preparedLines.add(TooltipTemplateRuntime.prepareTemplate(
-                    candidates.get(endExclusive).line(),
+                    candidates.get(index).line(),
                     useTagStylePreservation
             ));
-            endExclusive++;
-        }
-
-        if (preparedLines.size() <= 1) {
-            return null;
         }
 
         TooltipTemplateRuntime.PreparedParagraphTemplate paragraphTemplate =
@@ -283,6 +283,47 @@ final class TooltipRoutePlanner {
                 List.copyOf(preparedLines),
                 paragraphTemplate
         );
+    }
+
+    private static int findParagraphEndExclusive(
+            List<TooltipLineCandidate> candidates,
+            int startIndex,
+            boolean useTagStylePreservation
+    ) {
+        if (!canStartParagraphBlock(candidates, startIndex, useTagStylePreservation)) {
+            return startIndex + 1;
+        }
+        int endExclusive = startIndex + 1;
+        while (endExclusive < candidates.size()
+                && canExtendParagraphBlock(
+                candidates.get(endExclusive - 1),
+                candidates.get(endExclusive),
+                useTagStylePreservation
+        )) {
+            endExclusive++;
+        }
+        return endExclusive;
+    }
+
+    private static void addPassthroughSegments(
+            List<TooltipRouteSegment> segments,
+            List<TooltipLineCandidate> candidates,
+            int startIndex,
+            int endExclusive
+    ) {
+        for (int index = startIndex; index < endExclusive; index++) {
+            TooltipLineCandidate candidate = candidates.get(index);
+            segments.add(new TooltipRouteSegment(
+                    TooltipRouteKind.PASSTHROUGH,
+                    index,
+                    index + 1,
+                    0,
+                    candidate,
+                    null,
+                    null,
+                    Set.of()
+            ));
+        }
     }
 
     private static boolean canStartParagraphBlock(
