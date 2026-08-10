@@ -20,12 +20,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class ComponentTranslationClient {
-    private static final int MAX_PROVIDER_CALLS_PER_WORK = 2;
+    private static final int MAX_PROVIDER_CALLS_PER_WORK = 3;
     private static final long RETRY_DELAY_MILLIS = 250;
     private static final int MAX_CORRECTION_REASON_CHARS = 480;
     private static final Pattern LEGACY_FORMATTING_CODE_PATTERN = Pattern.compile("\\x{00A7}[0-9A-FK-ORa-fk-or]");
@@ -55,9 +56,17 @@ public final class ComponentTranslationClient {
     private final ComponentResponseParser parser;
     private final ComponentTranslationValidator validator;
     private final ComponentTranslationApplier applier;
+    private final Function<ProviderSettings, CompletionRequester> completionRequesterFactory;
+    private final long retryDelayMillis;
 
     public ComponentTranslationClient() {
-        this(new ComponentResponseParser(), new ComponentTranslationValidator(), new ComponentTranslationApplier());
+        this(
+                new ComponentResponseParser(),
+                new ComponentTranslationValidator(),
+                new ComponentTranslationApplier(),
+                ComponentTranslationClient::createCompletionRequester,
+                RETRY_DELAY_MILLIS
+        );
     }
 
     ComponentTranslationClient(
@@ -65,9 +74,27 @@ public final class ComponentTranslationClient {
             ComponentTranslationValidator validator,
             ComponentTranslationApplier applier
     ) {
+        this(
+                parser,
+                validator,
+                applier,
+                ComponentTranslationClient::createCompletionRequester,
+                RETRY_DELAY_MILLIS
+        );
+    }
+
+    ComponentTranslationClient(
+            ComponentResponseParser parser,
+            ComponentTranslationValidator validator,
+            ComponentTranslationApplier applier,
+            Function<ProviderSettings, CompletionRequester> completionRequesterFactory,
+            long retryDelayMillis
+    ) {
         this.parser = parser;
         this.validator = validator;
         this.applier = applier;
+        this.completionRequesterFactory = completionRequesterFactory;
+        this.retryDelayMillis = Math.max(0L, retryDelayMillis);
     }
 
     public CompletableFuture<Text> translate(
@@ -118,7 +145,7 @@ public final class ComponentTranslationClient {
         request = protectedTokenMask.mask(request);
         List<OpenAIRequest.Message> messages = buildMessages(document.route(), request, providerProfile);
         ProviderSettings settings = ProviderSettings.fromProviderProfile(providerProfile).withStructuredOutputEnabled();
-        LLM llm = new LLM(settings);
+        CompletionRequester completionRequester = completionRequesterFactory.apply(settings);
         StructuredOutputSpec responseSchema = ComponentResponseJsonSchema.forDocument(document);
         ComponentTranslationMetrics.recordValue(
                 document,
@@ -136,7 +163,7 @@ public final class ComponentTranslationClient {
         CompletableFuture<ComponentTranslationResponse> future = requestValidResponse(
                 document,
                 messages,
-                llm,
+                completionRequester,
                 responseSchema,
                 requestContext,
                 protectedTokenMask,
@@ -169,7 +196,7 @@ public final class ComponentTranslationClient {
     private CompletableFuture<ComponentTranslationResponse> requestValidResponse(
             ComponentTranslationDocument document,
             List<OpenAIRequest.Message> messages,
-            LLM llm,
+            CompletionRequester completionRequester,
             StructuredOutputSpec responseSchema,
             String requestContext,
             ProtectedTokenMask protectedTokenMask,
@@ -178,7 +205,7 @@ public final class ComponentTranslationClient {
         return requestCompletion(
                 document,
                 messages,
-                llm,
+                completionRequester,
                 requestContext,
                 responseSchema,
                 attemptBudget
@@ -228,13 +255,13 @@ public final class ComponentTranslationClient {
                 );
 
                 if (!attemptBudget.hasRemaining()) {
-                    return CompletableFuture.failedFuture(cause);
+                    return CompletableFuture.failedFuture(markRetriesExhausted(cause));
                 }
 
                 return retryAfterDelay(() -> requestValidResponse(
                         document,
                         buildCorrectionMessages(messages, cause, document.route()),
-                        llm,
+                        completionRequester,
                         responseSchema,
                         requestContext,
                         protectedTokenMask,
@@ -247,7 +274,7 @@ public final class ComponentTranslationClient {
     private CompletableFuture<LlmCompletion> requestCompletion(
             ComponentTranslationDocument document,
             List<OpenAIRequest.Message> messages,
-            LLM llm,
+            CompletionRequester completionRequester,
             String requestContext,
             StructuredOutputSpec responseSchema,
             AttemptBudget attemptBudget
@@ -256,7 +283,7 @@ public final class ComponentTranslationClient {
         if (attempt == 0) {
             return CompletableFuture.failedFuture(new IllegalStateException("Component provider attempt budget exhausted."));
         }
-        return llm.getCompletion(
+        return completionRequester.request(
                 messages,
                 requestContext,
                 (structuredOutput, fallback) -> {
@@ -292,7 +319,7 @@ public final class ComponentTranslationClient {
             return retryAfterDelay(() -> requestCompletion(
                     document,
                     messages,
-                    llm,
+                    completionRequester,
                     requestContext,
                     responseSchema,
                     attemptBudget
@@ -328,12 +355,23 @@ public final class ComponentTranslationClient {
                 || message.contains("timeout");
     }
 
-    private static <T> CompletableFuture<T> retryAfterDelay(Supplier<CompletableFuture<T>> operation) {
+    private <T> CompletableFuture<T> retryAfterDelay(Supplier<CompletableFuture<T>> operation) {
         return CompletableFuture.runAsync(
                         () -> { },
-                        CompletableFuture.delayedExecutor(RETRY_DELAY_MILLIS, TimeUnit.MILLISECONDS)
+                        CompletableFuture.delayedExecutor(retryDelayMillis, TimeUnit.MILLISECONDS)
                 )
                 .thenCompose(ignored -> operation.get());
+    }
+
+    private static Throwable markRetriesExhausted(Throwable error) {
+        return error instanceof ComponentJsonException componentError
+                ? componentError.withRetriesExhausted()
+                : error;
+    }
+
+    private static CompletionRequester createCompletionRequester(ProviderSettings settings) {
+        LLM llm = new LLM(settings);
+        return llm::getCompletion;
     }
 
     static List<OpenAIRequest.Message> buildCorrectionMessages(
@@ -488,6 +526,16 @@ public final class ComponentTranslationClient {
         int maxAttempts() {
             return maxAttempts;
         }
+    }
+
+    @FunctionalInterface
+    interface CompletionRequester {
+        CompletableFuture<LlmCompletion> request(
+                List<OpenAIRequest.Message> messages,
+                String requestContext,
+                LLM.CompletionObserver observer,
+                StructuredOutputSpec responseSchema
+        );
     }
 
     static final class ProtectedTokenMask {
