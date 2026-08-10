@@ -38,7 +38,10 @@ public final class ComponentTranslationRuntime {
     private static final long ITEM_BATCH_COLLECT_DELAY_MILLIS = 10L;
     private static final long REQUEST_RATE_WINDOW_MILLIS = TimeUnit.MINUTES.toMillis(1);
     private static final int OTHER_TRANSLATIONS_REQUESTS_PER_MINUTE = 60;
-    private static final ComponentTranslationClient CLIENT = new ComponentTranslationClient();
+    private static final ComponentTranslationClient DEFAULT_CLIENT = new ComponentTranslationClient();
+    private static final Supplier<ModConfig> DEFAULT_CONFIG_SUPPLIER = Translate_AllinOne::getConfig;
+    private static volatile ComponentTranslationClient client = DEFAULT_CLIENT;
+    private static volatile Supplier<ModConfig> configSupplier = DEFAULT_CONFIG_SUPPLIER;
     private static final Map<DispatchRoute, DispatchState> DISPATCH = createDispatchStates();
     private static final Map<String, FailureState> FAILURES = new ConcurrentHashMap<>();
     private static final Map<String, PendingCandidate> PENDING_CANDIDATES = new ConcurrentHashMap<>();
@@ -657,11 +660,13 @@ public final class ComponentTranslationRuntime {
             return;
         }
         DispatchState state = DISPATCH.get(route);
+        int concurrencyLimit = maxConcurrency(route);
+        int batchSizeLimit = maxBatchSize(route);
         while (true) {
             PendingBatch batch;
             long rateLimitDelayMillis;
             synchronized (state) {
-                if (state.active.size() >= maxConcurrency(route)) {
+                if (state.active.size() >= concurrencyLimit) {
                     return;
                 }
                 long now = System.currentTimeMillis();
@@ -669,7 +674,7 @@ public final class ComponentTranslationRuntime {
                 if (rateLimitDelayMillis > 0L) {
                     batch = null;
                 } else {
-                    batch = pollBatch(state, maxBatchSize(route));
+                    batch = pollBatch(state, batchSizeLimit);
                     if (batch == null) {
                         return;
                     }
@@ -734,7 +739,7 @@ public final class ComponentTranslationRuntime {
         }
         PendingRequest first = batch.requests().getFirst();
         ApiProviderProfile provider = ProviderRouteResolver.resolve(
-                Translate_AllinOne.getConfig(),
+                configSupplier.get(),
                 switch (route) {
                     case ITEM -> ProviderRouteResolver.Route.ITEM;
                     case OTHER_TRANSLATIONS -> ProviderRouteResolver.Route.OTHER_TRANSLATIONS;
@@ -769,7 +774,7 @@ public final class ComponentTranslationRuntime {
                     batch.requests().stream().map(PendingRequest::document).toList()
             );
             String batchContext = first.requestContext() + "; batch_size=" + batch.requests().size();
-            CLIENT.translateResponse(
+            client.translateResponse(
                     translationBatch.requestDocument(),
                     first.targetLanguage(),
                     provider,
@@ -823,7 +828,7 @@ public final class ComponentTranslationRuntime {
             return;
         }
         try {
-            CLIENT.translateResponse(
+            client.translateResponse(
                     request.document(),
                     request.targetLanguage(),
                     provider,
@@ -1027,6 +1032,31 @@ public final class ComponentTranslationRuntime {
         failWork(request.cacheKey(), request.epoch());
         if (request.epoch() == SESSION_EPOCH.get()) {
             String resolvedMessage = message == null || message.isBlank() ? "Component translation failed" : message;
+            Throwable cause = error == null ? null : TranslateExceptionUtils.unwrapThrowable(error);
+            if (restoresMissAfterRetryExhaustion(cause)) {
+                FAILURES.remove(request.cacheKey());
+                ComponentTranslationMetrics.record(
+                        request.document(),
+                        ComponentTranslationMetrics.Outcome.RESPONSE_REJECTED
+                );
+                ComponentTranslationDebugLogger.flow(
+                        request.document().route(),
+                        "provider route={} result=retry_exhausted state=MISS key={} epoch={} reason={}",
+                        request.document().route().wireName(),
+                        request.cacheKey(),
+                        request.epoch(),
+                        resolvedMessage
+                );
+                ComponentTranslationDebugLogger.error(
+                        request.document().route(),
+                        "route response retries exhausted: route={} context={} state=MISS reason={}",
+                        request.document().route().wireName(),
+                        request.requestContext(),
+                        resolvedMessage,
+                        error
+                );
+                return;
+            }
             FAILURES.put(
                     request.cacheKey(),
                     new FailureState(
@@ -1039,7 +1069,6 @@ public final class ComponentTranslationRuntime {
                             disposition == null ? FailureDisposition.INFRASTRUCTURE_FAILURE : disposition
                     )
             );
-            Throwable cause = error == null ? null : TranslateExceptionUtils.unwrapThrowable(error);
             ComponentTranslationMetrics.record(
                     request.document(),
                     cause instanceof ComponentJsonException
@@ -1066,6 +1095,25 @@ public final class ComponentTranslationRuntime {
             ComponentTranslationMetrics.record(request.document(), ComponentTranslationMetrics.Outcome.STALE_SESSION);
             ComponentTranslationMetrics.record(request.document(), ComponentTranslationMetrics.Outcome.JOB_EXPIRED);
         }
+    }
+
+    static boolean restoresMissAfterRetryExhaustion(Throwable error) {
+        Throwable cause = error == null ? null : TranslateExceptionUtils.unwrapThrowable(error);
+        if (!(cause instanceof ComponentJsonException componentError) || !componentError.retriesExhausted()) {
+            return false;
+        }
+        return switch (componentError.kind()) {
+            case RESPONSE, VALIDATION, LIMIT -> true;
+            case APPLY, CODEC, DOCUMENT -> false;
+        };
+    }
+
+    static void setClientForTests(ComponentTranslationClient testClient) {
+        client = testClient == null ? DEFAULT_CLIENT : testClient;
+    }
+
+    static void setConfigForTests(ModConfig testConfig) {
+        configSupplier = testConfig == null ? DEFAULT_CONFIG_SUPPLIER : () -> testConfig;
     }
 
     private static void finishRequest(DispatchRoute route, PendingBatch batch) {
@@ -1114,7 +1162,7 @@ public final class ComponentTranslationRuntime {
     }
 
     private static int maxConcurrency(DispatchRoute route) {
-        ModConfig config = Translate_AllinOne.getConfig();
+        ModConfig config = configSupplier.get();
         if (config == null) {
             return 1;
         }
@@ -1132,7 +1180,7 @@ public final class ComponentTranslationRuntime {
     }
 
     private static int maxBatchSize(DispatchRoute route) {
-        ModConfig config = Translate_AllinOne.getConfig();
+        ModConfig config = configSupplier.get();
         if (config == null) {
             return 1;
         }
