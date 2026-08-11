@@ -75,7 +75,9 @@ public final class WynnDialogueTranslationSupport {
     private static volatile OverlayChoiceOptionsState overlayChoiceOptionsState;
     private static volatile String lastPresentedPayload = "";
     private static volatile PresentedDialogueState lastPresentedState;
+    private static volatile WynnDialoguePresentation lastPresentation;
     private static final Set<String> refreshedDialogueKeysThisHold = ConcurrentHashMap.newKeySet();
+    private static final WynnDialoguePresentationScheduler PRESENTATION_SCHEDULER = new WynnDialoguePresentationScheduler();
 
     private WynnDialogueTranslationSupport() {
     }
@@ -435,6 +437,7 @@ public final class WynnDialogueTranslationSupport {
     }
 
     public static void tick() {
+        WynnDialogueOverlayController.getInstance().tick();
         retireExpiredPresentationIfNeeded(System.currentTimeMillis());
         if (!canProcessIncomingText()) {
             return;
@@ -446,13 +449,15 @@ public final class WynnDialogueTranslationSupport {
     }
 
     public static void resetSession() {
+        PRESENTATION_SCHEDULER.invalidateSession();
         currentCandidate = null;
         clearOverlayTracking();
         clearOverlayChoiceOptionsTracking();
         lastPresentedPayload = "";
         lastPresentedState = null;
+        lastPresentation = null;
         refreshedDialogueKeysThisHold.clear();
-        WynnDialogueHudRenderer.clear();
+        WynnDialogueOverlayController.getInstance().reset();
     }
 
     public static void onCacheTranslationsUpdated(Map<String, String> translations) {
@@ -461,14 +466,14 @@ public final class WynnDialogueTranslationSupport {
         }
 
         PresentedDialogueState presentedState = lastPresentedState;
-        long capturedNonce = presentedState == null ? 0L : presentedState.observedNonce();
-        Map<String, String> snapshot = Map.copyOf(translations);
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client != null) {
-            client.execute(() -> applyCacheTranslationsToHud(snapshot, capturedNonce));
+        if (presentedState == null) {
             return;
         }
-        applyCacheTranslationsToHud(snapshot, capturedNonce);
+        long capturedNonce = presentedState.observedNonce();
+        Map<String, String> snapshot = Map.copyOf(translations);
+        PRESENTATION_SCHEDULER.executeForCurrentSession(
+                () -> applyCacheTranslationsToPresentation(snapshot, capturedNonce)
+        );
     }
 
     public static String extractTranslatableValue(String cacheKey) {
@@ -518,6 +523,15 @@ public final class WynnDialogueTranslationSupport {
 
     static boolean shouldRequestTranslations(WynnCraftConfig.NpcDialogueConfig config, boolean isKeyPressed) {
         return WynnDialogueDisplayModeSupport.shouldRequestTranslations(config, resolveSharedKeybindingMode(), isKeyPressed);
+    }
+
+    static boolean useHudPresentation() {
+        WynnCraftConfig.NpcDialogueConfig config = getDialogueConfig();
+        return config == null || config.use_hud;
+    }
+
+    static boolean shouldRenderTranslatedNow() {
+        return shouldRenderTranslatedText(getDialogueConfig(), isSharedTranslationHotkeyPressed());
     }
 
     private static WynnCraftConfig.KeybindingMode resolveSharedKeybindingMode() {
@@ -751,18 +765,23 @@ public final class WynnDialogueTranslationSupport {
                 errorMessage = optionsState.errorMessage();
             }
         }
-        WynnDialogueHudRenderer.showDialogue(
+        WynnDialoguePresentation presentation = createPresentation(
+                candidate.observedNonce(),
                 candidate.pageInfo(),
+                candidate.npcName(),
                 translatedNpcName,
                 candidate.dialogue(),
                 displayDialogue,
-                dialoguePending,
-                dialogueState.animationKey(),
+                originalOptionsText,
                 displayOptionsText,
+                dialoguePending,
                 optionsPending,
+                dialogueState.animationKey(),
                 perLineAnimationKeys,
                 errorMessage
         );
+        lastPresentation = presentation;
+        WynnDialogueOverlayController.getInstance().onPresentationUpdated(presentation);
         lastPresentedState = new PresentedDialogueState(
                 candidate.observedNonce(),
                 candidate.pageInfo(),
@@ -822,7 +841,7 @@ public final class WynnDialogueTranslationSupport {
         entries.add(new TooltipTextDebugCopySupport.TextDebugEntry(text, text));
     }
 
-    private static void applyCacheTranslationsToHud(Map<String, String> translations, long capturedNonce) {
+    private static void applyCacheTranslationsToPresentation(Map<String, String> translations, long capturedNonce) {
         PresentedDialogueState stateBeforeRefresh = lastPresentedState;
         if (capturedNonce != 0L
                 && stateBeforeRefresh != null
@@ -932,18 +951,23 @@ public final class WynnDialogueTranslationSupport {
             return;
         }
 
-        WynnDialogueHudRenderer.showDialogue(
+        WynnDialoguePresentation presentation = createPresentation(
+                presentedState.observedNonce(),
                 presentedState.pageInfo(),
+                presentedState.originalNpcName(),
                 updatedNpcName,
                 presentedState.originalDialogue(),
                 updatedDialogue,
-                false,
-                "",
+                presentedState.originalOptionsText(),
                 updatedOptionsText,
+                false,
                 optionsPending,
+                "",
                 perLineAnimationKeys,
                 errorMessage
         );
+        lastPresentation = presentation;
+        WynnDialogueOverlayController.getInstance().onPresentationUpdated(presentation);
         PresentedDialogueState refreshedState = new PresentedDialogueState(
                 presentedState.observedNonce(),
                 presentedState.pageInfo(),
@@ -997,9 +1021,63 @@ public final class WynnDialogueTranslationSupport {
             currentCandidate = null;
         }
 
+        long expiredNonce = presentedState.observedNonce();
         lastPresentedState = null;
+        lastPresentation = null;
         lastPresentedPayload = "";
-        WynnDialogueHudRenderer.clear();
+        WynnDialogueOverlayController.getInstance().presentationExpired(expiredNonce);
+    }
+
+    static WynnDialoguePresentation currentPresentation() {
+        return lastPresentation;
+    }
+
+    private static WynnDialoguePresentation createPresentation(
+            long observedNonce,
+            String pageInfo,
+            String originalNpcName,
+            String displayedNpcName,
+            String originalDialogue,
+            String displayedDialogue,
+            String originalOptionsText,
+            String displayedOptionsText,
+            boolean dialoguePending,
+            boolean optionsPending,
+            String dialogueAnimationKey,
+            List<String> optionAnimationKeys,
+            String errorMessage
+    ) {
+        List<String> originalOptions = splitOptionDisplayLines(originalOptionsText);
+        List<String> displayedOptions = splitOptionDisplayLines(displayedOptionsText);
+        List<WynnDialoguePresentation.OptionPresentation> options = new ArrayList<>();
+        for (int index = 0; index < originalOptions.size(); index++) {
+            String original = originalOptions.get(index);
+            String displayed = index < displayedOptions.size() ? displayedOptions.get(index) : original;
+            String animationKey = optionAnimationKeys != null && index < optionAnimationKeys.size()
+                    ? optionAnimationKeys.get(index)
+                    : "";
+            options.add(new WynnDialoguePresentation.OptionPresentation(
+                    index,
+                    original,
+                    displayed,
+                    optionsPending && !animationKey.isBlank(),
+                    animationKey
+            ));
+        }
+        return new WynnDialoguePresentation(
+                observedNonce,
+                pageInfo,
+                originalNpcName,
+                displayedNpcName,
+                originalDialogue,
+                displayedDialogue,
+                options,
+                dialoguePending,
+                optionsPending,
+                dialogueAnimationKey,
+                optionAnimationKeys,
+                errorMessage
+        );
     }
 
     static void installPresentationStateForTest(long displayUntilEpochMillis, boolean candidateMatchesPresentedState) {
@@ -1775,12 +1853,12 @@ public final class WynnDialogueTranslationSupport {
         };
     }
 
-    private static boolean shouldTranslateNpcNames() {
+    static boolean shouldTranslateNpcNames() {
         WynnCraftConfig.NpcDialogueConfig config = getDialogueConfig();
         return config != null && config.translate_npc_name;
     }
 
-    private static boolean shouldTranslateNpcOptions() {
+    static boolean shouldTranslateNpcOptions() {
         WynnCraftConfig.NpcDialogueConfig config = getDialogueConfig();
         return config != null && config.translate_options;
     }
