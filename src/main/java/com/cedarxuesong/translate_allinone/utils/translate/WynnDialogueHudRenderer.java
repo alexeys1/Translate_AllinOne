@@ -4,7 +4,7 @@ import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.utils.AnimationManager;
 import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.WynnCraftConfig;
-import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
@@ -13,6 +13,7 @@ import net.minecraft.text.MutableText;
 import net.minecraft.text.OrderedText;
 import net.minecraft.text.Style;
 import net.minecraft.text.Text;
+import net.minecraft.util.Identifier;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,6 +21,10 @@ import java.util.Optional;
 import java.util.Objects;
 
 public final class WynnDialogueHudRenderer {
+    private static final Identifier HUD_ELEMENT_ID = Identifier.of(
+            Translate_AllinOne.MOD_ID,
+            "wynn_dialogue_hud"
+    );
     private static final long DISPLAY_DURATION_MILLIS = 10_000L;
     private static final int PADDING = 8;
     private static final int TITLE_GAP = 4;
@@ -64,7 +69,7 @@ public final class WynnDialogueHudRenderer {
         if (initialized) {
             return;
         }
-        HudRenderCallback.EVENT.register(WynnDialogueHudRenderer::render);
+        HudElementRegistry.addLast(HUD_ELEMENT_ID, WynnDialogueHudRenderer::render);
         initialized = true;
     }
 
