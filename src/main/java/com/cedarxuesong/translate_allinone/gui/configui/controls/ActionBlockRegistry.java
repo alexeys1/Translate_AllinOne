@@ -3,6 +3,7 @@ package com.cedarxuesong.translate_allinone.gui.configui.controls;
 import net.minecraft.text.Text;
 
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 public final class ActionBlockRegistry {
@@ -24,6 +25,32 @@ public final class ActionBlockRegistry {
 
     public void add(int x, int y, int width, int height, Text label, Runnable action, Text tooltip) {
         add(x, y, width, height, () -> label, action, defaultColor, defaultHoverColor, defaultTextColor, false, tooltip);
+    }
+
+    public void add(
+            int x,
+            int y,
+            int width,
+            int height,
+            Text label,
+            Runnable action,
+            Text tooltip,
+            BooleanSupplier enabled
+    ) {
+        blocks.add(new ActionBlock(
+                x,
+                y,
+                width,
+                height,
+                () -> label,
+                action,
+                defaultColor,
+                defaultHoverColor,
+                defaultTextColor,
+                false,
+                tooltip,
+                enabled
+        ));
     }
 
     public void add(int x, int y, int width, int height, Supplier<Text> labelSupplier, Runnable action) {

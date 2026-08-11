@@ -249,6 +249,9 @@ public class ConfigManager {
         if (configToUse.wynnCraft.npc_dialogue.hud == null) {
             configToUse.wynnCraft.npc_dialogue.hud = new WynnCraftConfig.HudConfig();
         }
+        if (configToUse.wynnCraft.npc_dialogue.options_hud == null) {
+            configToUse.wynnCraft.npc_dialogue.options_hud = WynnCraftConfig.HudConfig.optionsDefaults();
+        }
         if (configToUse.wynnCraft.npc_dialogue.debug == null) {
             configToUse.wynnCraft.npc_dialogue.debug = new WynnCraftConfig.DebugConfig();
         }
@@ -394,6 +397,21 @@ public class ConfigManager {
         );
         configToUse.wynnCraft.npc_dialogue.hud.y_offset = clamp(
                 configToUse.wynnCraft.npc_dialogue.hud.y_offset,
+                WynnCraftConfig.HudConfig.MIN_Y_OFFSET,
+                WynnCraftConfig.HudConfig.MAX_Y_OFFSET
+        );
+        configToUse.wynnCraft.npc_dialogue.options_hud.scale_percent = clamp(
+                configToUse.wynnCraft.npc_dialogue.options_hud.scale_percent,
+                WynnCraftConfig.HudConfig.MIN_SCALE_PERCENT,
+                WynnCraftConfig.HudConfig.MAX_SCALE_PERCENT
+        );
+        configToUse.wynnCraft.npc_dialogue.options_hud.x_offset = clamp(
+                configToUse.wynnCraft.npc_dialogue.options_hud.x_offset,
+                WynnCraftConfig.HudConfig.MIN_X_OFFSET,
+                WynnCraftConfig.HudConfig.MAX_X_OFFSET
+        );
+        configToUse.wynnCraft.npc_dialogue.options_hud.y_offset = clamp(
+                configToUse.wynnCraft.npc_dialogue.options_hud.y_offset,
                 WynnCraftConfig.HudConfig.MIN_Y_OFFSET,
                 WynnCraftConfig.HudConfig.MAX_Y_OFFSET
         );

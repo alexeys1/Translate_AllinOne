@@ -912,6 +912,15 @@ public final class ConfigSectionContentSupport {
                         x,
                         y,
                         width,
+                        translator.t("label.wynn_npc_dialogue_use_hud"),
+                        () -> wynnCraft.npc_dialogue.use_hud,
+                        value -> wynnCraft.npc_dialogue.use_hud = value
+                , translator.t("desc.wynn_npc_dialogue_use_hud"));
+                y += ROW_STEP;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
                         translator.t("label.translate_wynn_npc_dialogue_npc_name"),
                         () -> wynnCraft.npc_dialogue.translate_npc_name,
                         value -> wynnCraft.npc_dialogue.translate_npc_name = value
@@ -931,8 +940,10 @@ public final class ConfigSectionContentSupport {
                         y,
                         width,
                         translator.t("button.edit_hud"),
-                        openWynnDialogueHudEditorAction
-                , tooltip(translator, "button.edit_hud"));
+                        openWynnDialogueHudEditorAction,
+                        translator.t("desc.edit_hud_mode_only"),
+                        () -> wynnCraft.npc_dialogue.use_hud
+                );
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.wynn_npc_dialogue"), x, width, dialogueStart, y);
 
@@ -1478,7 +1489,11 @@ public final class ConfigSectionContentSupport {
 
     @FunctionalInterface
     public interface ActionAdder {
-        void add(int x, int y, int width, Text label, Runnable action, Text tooltip);
+        void add(int x, int y, int width, Text label, Runnable action, Text tooltip, BooleanSupplier enabled);
+
+        default void add(int x, int y, int width, Text label, Runnable action, Text tooltip) {
+            add(x, y, width, label, action, tooltip, () -> true);
+        }
     }
 
     @FunctionalInterface

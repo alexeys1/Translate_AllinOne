@@ -11,6 +11,7 @@ public class WynnCraftConfig {
 
     public static class NpcDialogueConfig {
         public boolean enabled = false;
+        public boolean use_hud = false;
         public boolean translate_npc_name = true;
         public boolean translate_options = false;
         public boolean log_dialogues_local_hits = false;

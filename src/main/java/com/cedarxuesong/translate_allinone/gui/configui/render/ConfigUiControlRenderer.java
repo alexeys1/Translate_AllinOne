@@ -26,8 +26,14 @@ public final class ConfigUiControlRenderer {
             int borderColor
     ) {
         for (ActionBlock block : blocks) {
-            boolean hovered = block.contains(mouseX, mouseY);
-            context.fill(block.x(), block.y(), block.x() + block.width(), block.y() + block.height(), hovered ? block.hoverColor() : block.color());
+            boolean enabled = block.enabled();
+            boolean hovered = enabled && block.contains(mouseX, mouseY);
+            int background = hovered ? block.hoverColor() : block.color();
+            int textColor = enabled ? block.textColor() : (block.textColor() & 0x00FFFFFF) | 0x70000000;
+            if (!enabled) {
+                background = (background & 0x00FFFFFF) | 0x70000000;
+            }
+            context.fill(block.x(), block.y(), block.x() + block.width(), block.y() + block.height(), background);
             drawOutline(context, block.x(), block.y(), block.width(), block.height(), borderColor);
 
             Text label = trimText(textRenderer, block.label(), Math.max(0, block.width() - 12));
@@ -35,7 +41,7 @@ public final class ConfigUiControlRenderer {
             int textX = block.centered()
                     ? block.x() + (block.width() - textRenderer.getWidth(label)) / 2
                     : block.x() + 6;
-            context.drawText(textRenderer, label, textX, textY, block.textColor(), false);
+            context.drawText(textRenderer, label, textX, textY, textColor, false);
         }
     }
 

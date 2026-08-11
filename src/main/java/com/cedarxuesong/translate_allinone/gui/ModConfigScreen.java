@@ -1509,8 +1509,16 @@ public class ModConfigScreen extends Screen {
         groupBoxes.add(new GroupBox(x, y, width, height, title, GROUP_BOX_STYLE));
     }
 
-    private void addActionRow(int x, int y, int width, Text label, Runnable action, Text tooltip) {
-        contentActionBlockRegistry.add(x, y, width, 20, label, action, tooltip);
+    private void addActionRow(
+            int x,
+            int y,
+            int width,
+            Text label,
+            Runnable action,
+            Text tooltip,
+            BooleanSupplier enabled
+    ) {
+        contentActionBlockRegistry.add(x, y, width, 20, label, action, tooltip, enabled);
     }
 
     private void addTextInputRow(

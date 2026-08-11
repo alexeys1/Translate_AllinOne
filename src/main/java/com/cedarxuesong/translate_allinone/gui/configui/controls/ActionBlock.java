@@ -2,6 +2,7 @@ package com.cedarxuesong.translate_allinone.gui.configui.controls;
 
 import net.minecraft.text.Text;
 
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 public final class ActionBlock {
@@ -16,6 +17,7 @@ public final class ActionBlock {
     private final int textColor;
     private final boolean centered;
     private final Text tooltip;
+    private final BooleanSupplier enabled;
 
     public ActionBlock(
             int x,
@@ -30,6 +32,23 @@ public final class ActionBlock {
             boolean centered,
             Text tooltip
     ) {
+        this(x, y, width, height, labelSupplier, action, color, hoverColor, textColor, centered, tooltip, () -> true);
+    }
+
+    public ActionBlock(
+            int x,
+            int y,
+            int width,
+            int height,
+            Supplier<Text> labelSupplier,
+            Runnable action,
+            int color,
+            int hoverColor,
+            int textColor,
+            boolean centered,
+            Text tooltip,
+            BooleanSupplier enabled
+    ) {
         this.x = x;
         this.y = y;
         this.width = width;
@@ -41,6 +60,7 @@ public final class ActionBlock {
         this.textColor = textColor;
         this.centered = centered;
         this.tooltip = tooltip;
+        this.enabled = enabled == null ? () -> true : enabled;
     }
 
     public int x() {
@@ -64,7 +84,9 @@ public final class ActionBlock {
     }
 
     public void runAction() {
-        action.run();
+        if (enabled()) {
+            action.run();
+        }
     }
 
     public int color() {
@@ -85,6 +107,10 @@ public final class ActionBlock {
 
     public Text tooltip() {
         return tooltip;
+    }
+
+    public boolean enabled() {
+        return enabled.getAsBoolean();
     }
 
     public boolean contains(double mouseX, double mouseY) {
