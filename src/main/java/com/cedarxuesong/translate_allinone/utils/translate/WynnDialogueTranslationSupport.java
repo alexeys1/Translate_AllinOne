@@ -60,6 +60,7 @@ public final class WynnDialogueTranslationSupport {
 
     private static final Map<String, Long> DEBUG_LOG_TIMESTAMPS = new ConcurrentHashMap<>();
     private static final WynnSharedDictionaryService SHARED_DICTIONARY_SERVICE = WynnSharedDictionaryService.getInstance();
+    private static final WynnDialogueFontProgressTrace FONT_PROGRESS_TRACE = new WynnDialogueFontProgressTrace();
 
     private static volatile DialogueCandidate currentCandidate;
     private static volatile String lastOverlayPreparedDialogue = "";
@@ -134,6 +135,7 @@ public final class WynnDialogueTranslationSupport {
 
     public static void traceOverlayEntry(Text message) {
         if (!isDebugEnabled()) {
+            FONT_PROGRESS_TRACE.reset();
             return;
         }
 
@@ -150,6 +152,94 @@ public final class WynnDialogueTranslationSupport {
                 describeForLog(raw),
                 describeForLog(filtered)
         );
+        WynnDialogueTextTemplate template = WynnDialogueTextTemplateParser.parse(message);
+        if (template != null) {
+            traceFontProgress(message, template);
+        }
+    }
+
+    private static void traceFontProgress(Text message, WynnDialogueTextTemplate template) {
+        List<WynnDialogueFontProgressTrace.Event> events = FONT_PROGRESS_TRACE.observe(
+                template.npcName(),
+                template.dialogue()
+        );
+        for (WynnDialogueFontProgressTrace.Event event : events) {
+            if (event.kind() == WynnDialogueFontProgressTrace.EventKind.SUMMARY) {
+                logFontProgressSummary(event);
+                continue;
+            }
+
+            String raw = message == null ? "" : message.getString();
+            String firstFrameStatus = event.firstFrameExtended() ? "false" : "undetermined";
+            devLog(
+                    "font_progress_frame session={} frame={} relation={} firstFrameContainedFullText={} rawUtf16={} rawCodePoints={} dialogueUtf16={} dialogueCodePoints={} longestDialogueUtf16={} npc=\"{}\" first=\"{}\" current=\"{}\" runs={}",
+                    event.sessionId(),
+                    event.frame(),
+                    event.relation(),
+                    firstFrameStatus,
+                    raw.length(),
+                    codePointCount(raw),
+                    event.currentDialogue().length(),
+                    codePointCount(event.currentDialogue()),
+                    event.longestDialogue().length(),
+                    describeForLog(event.npcName()),
+                    describeForLog(event.firstDialogue()),
+                    describeForLog(event.currentDialogue()),
+                    describeFontRuns(template)
+            );
+        }
+    }
+
+    private static void finishFontProgressTrace(String reason) {
+        WynnDialogueFontProgressTrace.Event summary = FONT_PROGRESS_TRACE.finish(reason);
+        if (summary == null) {
+            return;
+        }
+        if (!isDebugEnabled()) {
+            return;
+        }
+        logFontProgressSummary(summary);
+    }
+
+    private static void logFontProgressSummary(WynnDialogueFontProgressTrace.Event event) {
+        devLog(
+                "font_progress_summary session={} frames={} reason={} firstFrameContainedFullText={} firstDialogueUtf16={} longestDialogueUtf16={} npc=\"{}\" first=\"{}\" longest=\"{}\"",
+                event.sessionId(),
+                event.frame() + 1,
+                event.relation(),
+                event.firstFrameExtended() ? "false" : "not_disproven",
+                event.firstDialogue().length(),
+                event.longestDialogue().length(),
+                describeForLog(event.npcName()),
+                describeForLog(event.firstDialogue()),
+                describeForLog(event.longestDialogue())
+        );
+    }
+
+    private static String describeFontRuns(WynnDialogueTextTemplate template) {
+        StringBuilder builder = new StringBuilder("[");
+        int limit = Math.min(template.tokens().size(), 32);
+        for (int index = 0; index < limit; index++) {
+            if (index > 0) {
+                builder.append(", ");
+            }
+            WynnDialogueTextTemplate.TemplateToken token = template.tokens().get(index);
+            builder.append(token.slotType())
+                    .append('[').append(token.slotIndex()).append(']')
+                    .append('@').append(token.font() == null ? "default" : token.font())
+                    .append(" readable=").append(token.readable())
+                    .append(" utf16=").append(token.text().length())
+                    .append(" codePoints=").append(codePointCount(token.text()))
+                    .append(" text=\"").append(describeForLog(token.text())).append('"');
+        }
+        if (template.tokens().size() > limit) {
+            builder.append(", ... totalRuns=").append(template.tokens().size());
+        }
+        return builder.append(']').toString();
+    }
+
+    private static int codePointCount(String value) {
+        return value == null || value.isEmpty() ? 0 : value.codePointCount(0, value.length());
     }
 
     public static void handleChatMessage(Text message) {
@@ -3724,6 +3814,7 @@ public final class WynnDialogueTranslationSupport {
         if (overlayDialogueActive) {
             devLog("overlay_state_cleared");
         }
+        finishFontProgressTrace("overlay_tracking_cleared");
         lastOverlayPreparedDialogue = "";
         overlayDialogueActive = false;
         overlayDialogueQueued = false;
