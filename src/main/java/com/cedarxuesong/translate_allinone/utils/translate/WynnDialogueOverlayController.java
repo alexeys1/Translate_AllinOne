@@ -338,6 +338,8 @@ public final class WynnDialogueOverlayController {
                     } else if (!translationRouteAvailable.getAsBoolean()
                             && !hasMeaningfullyTranslatedContent(currentPresentation)) {
                         rendered = activeTemplate.template().originalText();
+                    } else if (currentResult.outcome() == WynnDialogueInlineRenderResult.Outcome.ANIMATING) {
+                        rendered = currentResult.text();
                     } else {
                         WynnDialogueInlineRenderResult masked = inlinePresenter.renderResult(
                                 activeTemplate.template(),
@@ -399,9 +401,13 @@ public final class WynnDialogueOverlayController {
                 || !canReuseTranslatedPresentation(activeTemplate.template(), lastTranslatedPresentation)) {
             return rejectedRenderResult();
         }
+        WynnDialoguePresentation progressivePresentation = applyQueuedOptionStates(
+                alignPresentation(activeTemplate.template(), lastTranslatedPresentation),
+                currentPresentation
+        );
         return inlinePresenter.renderResult(
                 activeTemplate.template(),
-                alignPresentation(activeTemplate.template(), lastTranslatedPresentation),
+                progressivePresentation,
                 translateName,
                 translateChoices
         );
@@ -626,12 +632,13 @@ public final class WynnDialogueOverlayController {
         for (WynnDialogueTextTemplate.ChoiceSlot choice : choiceSlots) {
             WynnDialoguePresentation.OptionPresentation option = findCompatibleOption(choice, presentation.options());
             if (option == null) {
+                boolean pending = presentation.optionsPending();
                 options.add(new WynnDialoguePresentation.OptionPresentation(
                         choice.index(),
                         choice.readableText(),
                         choice.readableText(),
-                        true,
-                        "option::" + choice.readableText()
+                        pending,
+                        pending ? "option::" + choice.readableText() : ""
                 ));
             } else {
                 options.add(new WynnDialoguePresentation.OptionPresentation(
@@ -659,6 +666,60 @@ public final class WynnDialogueOverlayController {
                 options.stream().map(WynnDialoguePresentation.OptionPresentation::animationKey).toList(),
                 presentation.errorMessage()
         );
+    }
+
+    private static WynnDialoguePresentation applyQueuedOptionStates(
+            WynnDialoguePresentation progressive,
+            WynnDialoguePresentation current
+    ) {
+        if (progressive == null || current == null || !current.optionsPending()) {
+            return progressive;
+        }
+        List<WynnDialoguePresentation.OptionPresentation> options = new ArrayList<>();
+        boolean changed = false;
+        for (WynnDialoguePresentation.OptionPresentation option : progressive.options()) {
+            if (isCompletedOptionTranslation(option)) {
+                options.add(option);
+                continue;
+            }
+            WynnDialoguePresentation.OptionPresentation queued = findCompatiblePendingOption(
+                    option,
+                    current.options()
+            );
+            if (queued == null) {
+                options.add(option);
+                continue;
+            }
+            options.add(new WynnDialoguePresentation.OptionPresentation(
+                    option.index(),
+                    option.originalText(),
+                    option.originalText(),
+                    true,
+                    queued.animationKey()
+            ));
+            changed = true;
+        }
+        return changed ? withOptions(progressive, options) : progressive;
+    }
+
+    private static WynnDialoguePresentation.OptionPresentation findCompatiblePendingOption(
+            WynnDialoguePresentation.OptionPresentation target,
+            List<WynnDialoguePresentation.OptionPresentation> options
+    ) {
+        String source = normalizedSource(target.originalText());
+        WynnDialoguePresentation.OptionPresentation textMatch = null;
+        for (WynnDialoguePresentation.OptionPresentation option : options) {
+            if (!option.pending() || !source.equals(normalizedSource(option.originalText()))) {
+                continue;
+            }
+            if (option.index() == target.index()) {
+                return option;
+            }
+            if (textMatch == null) {
+                textMatch = option;
+            }
+        }
+        return textMatch;
     }
 
     private static WynnDialoguePresentation.OptionPresentation findCompatibleOption(

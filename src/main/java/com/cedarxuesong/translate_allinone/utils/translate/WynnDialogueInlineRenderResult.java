@@ -10,6 +10,7 @@ public record WynnDialogueInlineRenderResult(Text text, Outcome outcome) {
 
     public enum Outcome {
         TRANSLATED,
+        ANIMATING,
         MASKED,
         ORIGINAL,
         REJECTED

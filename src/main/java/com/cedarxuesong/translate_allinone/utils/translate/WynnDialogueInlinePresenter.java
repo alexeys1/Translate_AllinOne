@@ -101,12 +101,14 @@ public final class WynnDialogueInlinePresenter {
             WynnDialoguePresentation presentation,
             Map<SlotKey, SlotAction> actions
     ) {
+        boolean pending = presentation != null && presentation.dialoguePending();
         List<WynnDialogueTextTemplate.BodyLineSlot> writableLines = template.bodyLines().stream()
                 .filter(line -> !line.readableText().isBlank())
                 .toList();
-        if (presentation != null
+        boolean completedTranslation = presentation != null
                 && !presentation.dialoguePending()
-                && meaningfullyDifferent(template.dialogue(), presentation.displayedDialogue())) {
+                && meaningfullyDifferent(template.dialogue(), presentation.displayedDialogue());
+        if (completedTranslation) {
             List<String> wrapped = wrapBody(presentation.displayedDialogue(), writableLines);
             boolean supported = wrapped.stream().anyMatch(value -> !value.isBlank());
             for (int index = 0; supported && index < wrapped.size(); index++) {
@@ -126,7 +128,11 @@ public final class WynnDialogueInlinePresenter {
         for (WynnDialogueTextTemplate.BodyLineSlot line : template.bodyLines()) {
             actions.put(
                     new SlotKey(WynnDialogueTextTemplate.SlotType.BODY, line.index()),
-                    SlotAction.mask()
+                    pending
+                            ? SlotAction.animate()
+                            : completedTranslation
+                            ? SlotAction.mask()
+                            : SlotAction.keep()
             );
         }
     }
@@ -143,6 +149,7 @@ public final class WynnDialogueInlinePresenter {
                 optionsByIndex.put(option.index(), option);
             }
         }
+        boolean animateMissingOptions = presentation != null && presentation.optionsPending();
         for (WynnDialogueTextTemplate.ChoiceSlot choice : template.choices()) {
             SlotKey key = new SlotKey(WynnDialogueTextTemplate.SlotType.CHOICE, choice.index());
             if (!translateOptions) {
@@ -163,7 +170,11 @@ public final class WynnDialogueInlinePresenter {
                     continue;
                 }
             }
-            actions.put(key, SlotAction.keep());
+            if ((option != null && option.pending()) || (option == null && animateMissingOptions)) {
+                actions.put(key, SlotAction.animate());
+            } else {
+                actions.put(key, SlotAction.keep());
+            }
         }
     }
 
@@ -176,6 +187,7 @@ public final class WynnDialogueInlinePresenter {
         Set<SlotKey> rejected = new HashSet<>();
         Map<SlotKey, Integer> originalWidths = originalWidths(template);
         boolean translated = false;
+        boolean animated = false;
         boolean masked = false;
         for (WynnDialogueTextTemplate.TemplateToken token : template.tokens()) {
             SlotKey key = new SlotKey(token.slotType(), token.slotIndex());
@@ -186,6 +198,11 @@ public final class WynnDialogueInlinePresenter {
             }
             if (action.type() == SlotActionType.KEEP) {
                 rebuilt.append(Text.literal(token.text()).setStyle(token.style()));
+                continue;
+            }
+            if (action.type() == SlotActionType.ANIMATE) {
+                rebuilt.append(Text.literal(token.text()).setStyle(WynnDialogueInlinePendingAnimation.mark(token.style())));
+                animated = true;
                 continue;
             }
             if (action.type() == SlotActionType.REPLACE) {
@@ -221,6 +238,8 @@ public final class WynnDialogueInlinePresenter {
         }
         WynnDialogueInlineRenderResult.Outcome outcome = translated
                 ? WynnDialogueInlineRenderResult.Outcome.TRANSLATED
+                : animated
+                ? WynnDialogueInlineRenderResult.Outcome.ANIMATING
                 : masked
                 ? WynnDialogueInlineRenderResult.Outcome.MASKED
                 : WynnDialogueInlineRenderResult.Outcome.ORIGINAL;
@@ -410,6 +429,7 @@ public final class WynnDialogueInlinePresenter {
 
     private enum SlotActionType {
         KEEP,
+        ANIMATE,
         REPLACE,
         MASK
     }
@@ -424,6 +444,10 @@ public final class WynnDialogueInlinePresenter {
 
         private static SlotAction replace(String text) {
             return new SlotAction(SlotActionType.REPLACE, text == null ? "" : text);
+        }
+
+        private static SlotAction animate() {
+            return new SlotAction(SlotActionType.ANIMATE, "");
         }
 
         private static SlotAction mask() {
