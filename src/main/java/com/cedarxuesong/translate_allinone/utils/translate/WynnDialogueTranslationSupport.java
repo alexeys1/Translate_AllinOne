@@ -78,6 +78,7 @@ public final class WynnDialogueTranslationSupport {
     private static volatile PresentedDialogueState lastPresentedState;
     private static volatile WynnDialoguePresentation lastPresentation;
     private static final Set<String> refreshedDialogueKeysThisHold = ConcurrentHashMap.newKeySet();
+    private static final Set<String> forcedRefreshPendingKeys = ConcurrentHashMap.newKeySet();
     private static final WynnDialoguePresentationScheduler PRESENTATION_SCHEDULER = new WynnDialoguePresentationScheduler();
 
     private WynnDialogueTranslationSupport() {
@@ -547,6 +548,7 @@ public final class WynnDialogueTranslationSupport {
         lastPresentedState = null;
         lastPresentation = null;
         refreshedDialogueKeysThisHold.clear();
+        forcedRefreshPendingKeys.clear();
         WynnDialogueOverlayController.getInstance().reset();
     }
 
@@ -601,6 +603,22 @@ public final class WynnDialogueTranslationSupport {
 
     private static WynnDialogueTextCache cache() {
         return WynnDialogueTextCache.getInstance();
+    }
+
+    private static LookupResult forcedRefreshLookup(String cacheKey) {
+        if (cacheKey == null || cacheKey.isBlank() || !forcedRefreshPendingKeys.contains(cacheKey)) {
+            return null;
+        }
+        LookupResult lookup = cache().peek(cacheKey);
+        if (lookup.status() == TranslationStatus.NOT_CACHED) {
+            forcedRefreshPendingKeys.remove(cacheKey);
+            return null;
+        }
+        if (lookup.status() == TranslationStatus.TRANSLATED
+                || lookup.status() == TranslationStatus.ERROR) {
+            forcedRefreshPendingKeys.remove(cacheKey);
+        }
+        return lookup;
     }
 
     static boolean shouldShowOriginal(WynnCraftConfig.KeybindingMode mode, boolean isKeyPressed) {
@@ -1298,6 +1316,8 @@ public final class WynnDialogueTranslationSupport {
 
         int refreshedCount = cache().forceRefresh(refreshKeys);
         if (refreshedCount > 0) {
+            forcedRefreshPendingKeys.addAll(refreshKeys);
+            WynnDialogueOverlayController.getInstance().onForceRefreshStarted(candidate.observedNonce());
             throttledDevLog(
                     "dialogue_force_refresh",
                     DEBUG_HUD_LOG_THROTTLE_MILLIS,
@@ -1657,6 +1677,17 @@ public final class WynnDialogueTranslationSupport {
             return npcName == null ? "" : npcName;
         }
 
+        String cacheKey = buildNpcCacheKey(npcName);
+        LookupResult forcedRefresh = forcedRefreshLookup(cacheKey);
+        if (forcedRefresh != null) {
+            if (forcedRefresh.status() == TranslationStatus.TRANSLATED
+                    && forcedRefresh.translation() != null
+                    && !forcedRefresh.translation().isBlank()) {
+                return restorePlayerPlaceholders(forcedRefresh.translation());
+            }
+            return npcName;
+        }
+
         WynnSharedDictionaryService.LookupResult npcLookup =
                 SHARED_DICTIONARY_SERVICE.lookupPreparedNpc(prepareNpcValue(npcName));
         if (npcLookup.hit()) {
@@ -1666,8 +1697,8 @@ public final class WynnDialogueTranslationSupport {
         throttledDialoguesLocalMissLog("npc", npcName, "resolve_npc", "prepared NPC name was not found in dialogues dictionary");
 
         LookupResult lookup = allowQueue && hasConfiguredRoute()
-                ? cache().lookupOrQueue(buildNpcCacheKey(npcName))
-                : cache().peek(buildNpcCacheKey(npcName));
+                ? cache().lookupOrQueue(cacheKey)
+                : cache().peek(cacheKey);
         if (lookup.status() == TranslationStatus.TRANSLATED
                 && lookup.translation() != null
                 && !lookup.translation().isBlank()) {
@@ -1686,6 +1717,23 @@ public final class WynnDialogueTranslationSupport {
         }
 
         String preparedDialogue = prepareDialogueValue(dialogue);
+        String cacheKey = buildDialogueCacheKey(dialogue);
+        LookupResult forcedRefresh = forcedRefreshLookup(cacheKey);
+        if (forcedRefresh != null) {
+            if (forcedRefresh.status() == TranslationStatus.TRANSLATED
+                    && forcedRefresh.translation() != null
+                    && !forcedRefresh.translation().isBlank()) {
+                return DialogueDisplayState.of(
+                        restorePlayerPlaceholders(forcedRefresh.translation()),
+                        false,
+                        ""
+                );
+            }
+            if (forcedRefresh.status() == TranslationStatus.ERROR) {
+                return DialogueDisplayState.withError(dialogue, forcedRefresh.errorMessage());
+            }
+            return DialogueDisplayState.of(dialogue, true, cacheKey);
+        }
         if (hasMinWordCount(preparedDialogue, MIN_DIALOGUE_DICTIONARY_WORD_COUNT)) {
             WynnSharedDictionaryService.LookupResult exactLookup =
                     SHARED_DICTIONARY_SERVICE.lookupPreparedDialogue(preparedDialogue);
@@ -1713,8 +1761,8 @@ public final class WynnDialogueTranslationSupport {
         }
 
         LookupResult lookup = allowQueue && hasConfiguredRoute()
-                ? cache().lookupOrQueue(buildDialogueCacheKey(dialogue))
-                : cache().peek(buildDialogueCacheKey(dialogue));
+                ? cache().lookupOrQueue(cacheKey)
+                : cache().peek(cacheKey);
         if (lookup.status() == TranslationStatus.TRANSLATED
                 && lookup.translation() != null
                 && !lookup.translation().isBlank()) {
@@ -1723,7 +1771,7 @@ public final class WynnDialogueTranslationSupport {
 
         if (lookup.status() == TranslationStatus.PENDING
                 || lookup.status() == TranslationStatus.IN_PROGRESS) {
-            return DialogueDisplayState.of(dialogue, true, buildDialogueCacheKey(dialogue));
+            return DialogueDisplayState.of(dialogue, true, cacheKey);
         }
 
         if (lookup.status() == TranslationStatus.ERROR) {
@@ -1755,7 +1803,10 @@ public final class WynnDialogueTranslationSupport {
         List<String> perLineAnimationKeys = new ArrayList<>();
         for (String optionLine : optionLines) {
             String optionKey = buildOptionCacheKey(optionLine);
-            LookupResult lookup = allowQueue && hasConfiguredRoute()
+            LookupResult forcedRefresh = forcedRefreshLookup(optionKey);
+            LookupResult lookup = forcedRefresh != null
+                    ? forcedRefresh
+                    : allowQueue && hasConfiguredRoute()
                     ? cache().lookupOrQueue(optionKey)
                     : cache().peek(optionKey);
             if (lookup.status() == TranslationStatus.TRANSLATED
