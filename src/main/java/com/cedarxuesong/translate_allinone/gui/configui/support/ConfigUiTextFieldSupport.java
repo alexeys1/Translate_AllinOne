@@ -42,7 +42,9 @@ public final class ConfigUiTextFieldSupport {
         field.setHint(placeholder);
         field.setEditable(editable);
 
-        registerField.accept(field);
+        if (floating || !modalOpen) {
+            registerField.accept(field);
+        }
         if (floating) {
             floatingEditorFields.add(field);
         } else {
