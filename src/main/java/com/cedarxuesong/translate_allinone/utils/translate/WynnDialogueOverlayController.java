@@ -1066,7 +1066,7 @@ public final class WynnDialogueOverlayController {
             if (client == null || client.gui == null) {
                 return null;
             }
-            return (WynnDialogueInGameHudAccessor) client.gui;
+            return (WynnDialogueInGameHudAccessor) client.gui.hud;
         }
     }
 }
