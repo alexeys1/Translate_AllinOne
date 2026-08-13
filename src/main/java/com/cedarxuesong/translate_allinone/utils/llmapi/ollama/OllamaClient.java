@@ -31,11 +31,7 @@ public class OllamaClient {
         request.stream = false;
         String requestBody = GSON.toJson(request);
 
-        HttpRequest httpRequest = HttpRequest.newBuilder()
-                .uri(URI.create(settings.baseUrl() + "/api/chat"))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                .build();
+        HttpRequest httpRequest = buildRequest(requestBody);
 
         return SHARED_HTTP_CLIENT.sendAsync(httpRequest, HttpResponse.BodyHandlers.ofString())
                 .thenApply(response -> {
@@ -53,11 +49,7 @@ public class OllamaClient {
         request.stream = true;
         String requestBody = GSON.toJson(request);
 
-        HttpRequest httpRequest = HttpRequest.newBuilder()
-                .uri(URI.create(settings.baseUrl() + "/api/chat"))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                .build();
+        HttpRequest httpRequest = buildRequest(requestBody);
 
         try {
             HttpResponse<Stream<String>> response = SHARED_HTTP_CLIENT.send(httpRequest, HttpResponse.BodyHandlers.ofLines());
@@ -78,5 +70,15 @@ public class OllamaClient {
             }
             throw new LLMApiException("请求Ollama流式API时出错", e);
         }
+    }
+
+    private HttpRequest buildRequest(String requestBody) {
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
+                .uri(URI.create(settings.baseUrl()))
+                .header("Content-Type", "application/json");
+        if (settings.apiKey() != null && !settings.apiKey().isBlank()) {
+            builder.header("Authorization", "Bearer " + settings.apiKey());
+        }
+        return builder.POST(HttpRequest.BodyPublishers.ofString(requestBody)).build();
     }
 } 
