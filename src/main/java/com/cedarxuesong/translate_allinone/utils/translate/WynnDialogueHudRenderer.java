@@ -323,7 +323,7 @@ public final class WynnDialogueHudRenderer {
             return;
         }
 
-        if (System.currentTimeMillis() > visibleUntil) {
+        if (shouldExpire(System.currentTimeMillis(), visibleUntil, pending, optionsPending)) {
             clear();
             return;
         }
@@ -394,6 +394,15 @@ public final class WynnDialogueHudRenderer {
             );
             lastRenderedPayload = renderPayload;
         }
+    }
+
+    static boolean shouldExpire(
+            long nowMillis,
+            long visibleUntil,
+            boolean dialoguePending,
+            boolean optionsPending
+    ) {
+        return !dialoguePending && !optionsPending && nowMillis > visibleUntil;
     }
 
     private static DialogueRenderData prepareDialogueRenderData(

@@ -102,7 +102,7 @@ final class CacheRuntimeStateSupport<K, B> {
             templateCache.putAll(acceptedTranslations);
             keyQueueSupport.finishKeys(acceptedTranslations.keySet());
         }
-        finishDeferredRefreshKeys(deferredRefreshKeys);
+        requeueDeferredRefreshKeys(deferredRefreshKeys);
     }
 
     int forceRefresh(Iterable<K> keys) {
@@ -111,6 +111,7 @@ final class CacheRuntimeStateSupport<K, B> {
         }
 
         int refreshedCount = 0;
+        List<K> keysToRequeueNow = new ArrayList<>();
         for (K key : keys) {
             if (key == null) {
                 continue;
@@ -122,8 +123,11 @@ final class CacheRuntimeStateSupport<K, B> {
                 continue;
             }
             refreshAfterInProgress.remove(key);
-            keyQueueSupport.finishKeys(Set.of(key));
+            keysToRequeueNow.add(key);
             refreshedCount++;
+        }
+        for (int index = keysToRequeueNow.size() - 1; index >= 0; index--) {
+            keyQueueSupport.requeueToFront(keysToRequeueNow.get(index));
         }
         return refreshedCount;
     }
@@ -148,12 +152,15 @@ final class CacheRuntimeStateSupport<K, B> {
         return new ListAccess<>(keyQueueSupport, refreshAfterInProgress);
     }
 
-    private void finishDeferredRefreshKeys(List<K> deferredRefreshKeys) {
+    private void requeueDeferredRefreshKeys(List<K> deferredRefreshKeys) {
         if (deferredRefreshKeys == null || deferredRefreshKeys.isEmpty()) {
             return;
         }
 
         keyQueueSupport.finishKeys(deferredRefreshKeys);
+        for (int index = deferredRefreshKeys.size() - 1; index >= 0; index--) {
+            keyQueueSupport.requeueToFront(deferredRefreshKeys.get(index));
+        }
     }
 
     record ListAccess<K, B>(
@@ -203,7 +210,7 @@ final class CacheRuntimeStateSupport<K, B> {
                 }
             }
             keyQueueSupport.releaseInProgress(keys);
-            finishDeferredRefreshKeys(deferredRefreshKeys);
+            requeueDeferredRefreshKeys(deferredRefreshKeys);
         }
 
         void markErrored(Collection<K> failedKeys, String errorMessage, String fallbackErrorMessage) {
@@ -223,15 +230,18 @@ final class CacheRuntimeStateSupport<K, B> {
             if (!erroredKeys.isEmpty()) {
                 keyQueueSupport.markErrored(erroredKeys, errorMessage, fallbackErrorMessage);
             }
-            finishDeferredRefreshKeys(deferredRefreshKeys);
+            requeueDeferredRefreshKeys(deferredRefreshKeys);
         }
 
-        private void finishDeferredRefreshKeys(List<K> deferredRefreshKeys) {
+        private void requeueDeferredRefreshKeys(List<K> deferredRefreshKeys) {
             if (deferredRefreshKeys == null || deferredRefreshKeys.isEmpty()) {
                 return;
             }
 
             keyQueueSupport.finishKeys(deferredRefreshKeys);
+            for (int index = deferredRefreshKeys.size() - 1; index >= 0; index--) {
+                keyQueueSupport.requeueToFront(deferredRefreshKeys.get(index));
+            }
         }
 
         int pendingSize() {
