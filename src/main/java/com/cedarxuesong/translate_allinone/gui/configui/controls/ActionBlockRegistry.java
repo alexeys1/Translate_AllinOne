@@ -1,6 +1,7 @@
 package com.cedarxuesong.translate_allinone.gui.configui.controls;
 
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 import net.minecraft.network.chat.Component;
 
@@ -23,6 +24,32 @@ public final class ActionBlockRegistry {
 
     public void add(int x, int y, int width, int height, Component label, Runnable action, Component tooltip) {
         add(x, y, width, height, () -> label, action, defaultColor, defaultHoverColor, defaultTextColor, false, tooltip);
+    }
+
+    public void add(
+            int x,
+            int y,
+            int width,
+            int height,
+            Component label,
+            Runnable action,
+            Component tooltip,
+            BooleanSupplier enabled
+    ) {
+        blocks.add(new ActionBlock(
+                x,
+                y,
+                width,
+                height,
+                () -> label,
+                action,
+                defaultColor,
+                defaultHoverColor,
+                defaultTextColor,
+                false,
+                tooltip,
+                enabled
+        ));
     }
 
     public void add(int x, int y, int width, int height, Supplier<Component> labelSupplier, Runnable action) {

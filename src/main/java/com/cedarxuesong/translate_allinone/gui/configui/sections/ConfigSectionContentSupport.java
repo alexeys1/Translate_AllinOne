@@ -868,16 +868,26 @@ public final class ConfigSectionContentSupport {
                     wynnCraft.target_language = WynnCraftConfig.DEFAULT_TARGET_LANGUAGE;
                 }
 
-                int dialogueStart = y;
-                toggleAdder.add(
-                        x,
-                        y,
+        int dialogueStart = y;
+        toggleAdder.add(
+                x,
+                y,
                         width,
                         translator.t("label.enabled"),
                         () -> wynnCraft.npc_dialogue.enabled,
                         value -> wynnCraft.npc_dialogue.enabled = value
-                , translator.t("desc.wynn_npc_dialogue_enabled"));
-                y += ROW_STEP;
+        , translator.t("desc.wynn_npc_dialogue_enabled"));
+        y += ROW_STEP;
+        toggleAdder.add(
+                x,
+                y,
+                width,
+                translator.t("label.wynn_npc_dialogue_use_hud"),
+                () -> wynnCraft.npc_dialogue.use_hud,
+                value -> wynnCraft.npc_dialogue.use_hud = value,
+                translator.t("desc.wynn_npc_dialogue_use_hud")
+        );
+        y += ROW_STEP;
                 toggleAdder.add(
                         x,
                         y,
@@ -899,10 +909,12 @@ public final class ConfigSectionContentSupport {
                 actionAdder.add(
                         x,
                         y,
-                        width,
-                        translator.t("button.edit_hud"),
-                        openWynnDialogueHudEditorAction
-                , tooltip(translator, "button.edit_hud"));
+                width,
+                translator.t("button.edit_hud"),
+                openWynnDialogueHudEditorAction,
+                translator.t("desc.edit_hud_mode_only"),
+                () -> wynnCraft.npc_dialogue.use_hud
+        );
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.wynn_npc_dialogue"), x, width, dialogueStart, y);
 
@@ -1462,7 +1474,11 @@ public final class ConfigSectionContentSupport {
 
     @FunctionalInterface
     public interface ActionAdder {
-        void add(int x, int y, int width, Component label, Runnable action, Component tooltip);
+        void add(int x, int y, int width, Component label, Runnable action, Component tooltip, BooleanSupplier enabled);
+
+        default void add(int x, int y, int width, Component label, Runnable action, Component tooltip) {
+            add(x, y, width, label, action, tooltip, () -> true);
+        }
     }
 
     @FunctionalInterface
