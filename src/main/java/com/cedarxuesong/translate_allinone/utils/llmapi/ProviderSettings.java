@@ -54,6 +54,7 @@ public record ProviderSettings(OpenAISettings openAISettings, OllamaSettings oll
             options.putAll(parameters);
             OllamaSettings ollamaSettings = new OllamaSettings(
                     profile.base_url,
+                    profile.api_key,
                     modelId,
                     keepAlive,
                     structuredOutput,
@@ -89,6 +90,7 @@ public record ProviderSettings(OpenAISettings openAISettings, OllamaSettings oll
         if (ollamaSettings != null) {
             return fromOllama(new OllamaSettings(
                     ollamaSettings.baseUrl(),
+                    ollamaSettings.apiKey(),
                     ollamaSettings.modelId(),
                     ollamaSettings.keepAlive(),
                     true,
@@ -190,19 +192,23 @@ public record ProviderSettings(OpenAISettings openAISettings, OllamaSettings oll
      * @param enableStructuredOutputIfAvailable 是否启用结构化输出（如果可用）
      * @param options 额外的模型参数 (例如 temperature, top_p)
      */
-    public static record OllamaSettings(String baseUrl, String modelId, String keepAlive, boolean enableStructuredOutputIfAvailable, Map<String, Object> options) {
+    public static record OllamaSettings(String baseUrl, String apiKey, String modelId, String keepAlive, boolean enableStructuredOutputIfAvailable, Map<String, Object> options) {
+        public OllamaSettings(String baseUrl, String modelId, String keepAlive, boolean enableStructuredOutputIfAvailable, Map<String, Object> options) {
+            this(baseUrl, "", modelId, keepAlive, enableStructuredOutputIfAvailable, options);
+        }
+
         /**
          * 一个不含结构化输出开关的便捷构造函数（默认关闭）。
          */
         public OllamaSettings(String baseUrl, String modelId, String keepAlive, Map<String, Object> options) {
-            this(baseUrl, modelId, keepAlive, false, options);
+            this(baseUrl, "", modelId, keepAlive, false, options);
         }
 
         /**
          * 一个使用默认keepAlive且不含自定义参数的便捷构造函数。
          */
         public OllamaSettings(String baseUrl, String modelId) {
-            this(baseUrl, modelId, "5m", false, null);
+            this(baseUrl, "", modelId, "5m", false, null);
         }
     }
 }
