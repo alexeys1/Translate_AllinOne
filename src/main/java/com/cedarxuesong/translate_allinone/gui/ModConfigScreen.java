@@ -1922,7 +1922,7 @@ public class ModConfigScreen extends Screen {
     }
 
     private Text resolveHoveredTooltip(double mouseX, double mouseY, boolean modalOpen) {
-        if (modalOpen) {
+        if (modalOpen || routeDropdownSlot != null) {
             for (CheckboxBlock checkbox : floatingCheckboxBlocks) {
                 if (checkbox.contains(mouseX, mouseY)) {
                     Text t = checkbox.tooltip();
@@ -1939,6 +1939,11 @@ public class ModConfigScreen extends Screen {
                     }
                 }
             }
+            return null;
+        }
+
+        if (!contentViewport.contains(mouseX, mouseY)) {
+            return null;
         } else {
             for (CheckboxBlock checkbox : checkboxBlocks) {
                 if (checkbox.contains(mouseX, mouseY)) {
@@ -2553,7 +2558,7 @@ public class ModConfigScreen extends Screen {
         }
 
         if (click.button() != 0) {
-            return super.mouseClicked(click, doubled);
+            return isAnyModalOpen() || super.mouseClicked(click, doubled);
         }
 
         double mouseX = click.x();
@@ -2647,6 +2652,12 @@ public class ModConfigScreen extends Screen {
             return true;
         }
 
+        if (routeDropdownSlot != null) {
+            routeDropdownSlot = null;
+            rebuildActionBlocks();
+            return true;
+        }
+
         updateVersionLinkRect();
         if (versionLinkRect.width > 0 && versionLinkRect.height > 0 && versionLinkRect.contains(mouseX, mouseY)) {
             openRepositoryLink();
@@ -2682,7 +2693,7 @@ public class ModConfigScreen extends Screen {
                 rebuildActionBlocks();
                 return true;
             }
-            return super.mouseClicked(click, doubled);
+            return false;
         }
 
         IntSliderBlock selectedSlider = ConfigUiInteractionSupport.pickSlider(sliderBlocks, mouseX, mouseY);
@@ -2723,6 +2734,16 @@ public class ModConfigScreen extends Screen {
 
     @Override
     public boolean mouseDragged(Click click, double deltaX, double deltaY) {
+        if (isAnyModalOpen()) {
+            draggingSlider = null;
+            stopScrollingDrag();
+            return super.mouseDragged(click, deltaX, deltaY);
+        }
+
+        if (routeDropdownSlot != null) {
+            return true;
+        }
+
         if (draggingSlider != null && click.button() == 0) {
             draggingSlider.dragTo(click.x());
             return true;
@@ -2762,6 +2783,16 @@ public class ModConfigScreen extends Screen {
 
     @Override
     public boolean mouseReleased(Click click) {
+        if (isAnyModalOpen()) {
+            draggingSlider = null;
+            stopScrollingDrag();
+            return super.mouseReleased(click);
+        }
+
+        if (routeDropdownSlot != null) {
+            return true;
+        }
+
         if (draggingSlider != null && click.button() == 0) {
             draggingSlider.release();
             draggingSlider = null;
@@ -2827,6 +2858,14 @@ public class ModConfigScreen extends Screen {
 
         long nowMillis = System.currentTimeMillis();
         boolean modalOpen = isAnyModalOpen();
+        UiRect contentClip = contentClipViewport();
+        boolean contentMouseVisible = !modalOpen && contentViewport.contains(mouseX, mouseY);
+        int contentMouseX = contentMouseVisible ? mouseX : Integer.MIN_VALUE;
+        int contentMouseY = contentMouseVisible ? mouseY : Integer.MIN_VALUE;
+        boolean chromeMouseVisible = !modalOpen;
+        int chromeMouseX = chromeMouseVisible ? mouseX : Integer.MIN_VALUE;
+        int chromeMouseY = chromeMouseVisible ? mouseY : Integer.MIN_VALUE;
+
         ConfigUiScreenRenderSupport.renderChrome(
                 context,
                 this.textRenderer,
@@ -2839,18 +2878,18 @@ public class ModConfigScreen extends Screen {
                 selectedSection == ConfigSection.PROVIDERS,
                 SCREEN_RENDER_STYLE
         );
-        renderVersionLink(context, mouseX, mouseY, nowMillis);
+        renderVersionLink(context, chromeMouseX, chromeMouseY, nowMillis);
 
-        ConfigUiControlRenderer.drawActionBlocks(context, this.textRenderer, actionBlocks, mouseX, mouseY, COLOR_BORDER);
+        ConfigUiControlRenderer.drawActionBlocks(context, this.textRenderer, actionBlocks, chromeMouseX, chromeMouseY, COLOR_BORDER);
 
-        ConfigUiDraw.withScissor(context, contentClipViewport(), () -> {
+        ConfigUiDraw.withScissor(context, contentClip, () -> {
             ConfigUiControlRenderer.drawGroupBoxes(context, this.textRenderer, groupBoxes);
-            ConfigUiControlRenderer.drawActionBlocks(context, this.textRenderer, contentActionBlocks, mouseX, mouseY, COLOR_BORDER);
+            ConfigUiControlRenderer.drawActionBlocks(context, this.textRenderer, contentActionBlocks, contentMouseX, contentMouseY, COLOR_BORDER);
             ConfigUiControlRenderer.drawStaticTextRows(context, this.textRenderer, staticTextRows);
-            ConfigUiControlRenderer.drawSliderBlocks(context, sliderBlocks, mouseX, mouseY);
-            ConfigUiControlRenderer.drawCheckboxBlocks(context, this.textRenderer, checkboxBlocks, mouseX, mouseY);
+            ConfigUiControlRenderer.drawSliderBlocks(context, sliderBlocks, contentMouseX, contentMouseY);
+            ConfigUiControlRenderer.drawCheckboxBlocks(context, this.textRenderer, checkboxBlocks, contentMouseX, contentMouseY);
             if (!modalOpen) {
-                super.render(context, mouseX, mouseY, delta);
+                super.render(context, contentMouseX, contentMouseY, delta);
             }
         });
 

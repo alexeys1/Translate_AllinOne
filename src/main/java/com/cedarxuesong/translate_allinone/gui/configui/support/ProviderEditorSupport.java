@@ -49,7 +49,7 @@ public final class ProviderEditorSupport {
         }
 
         String endpoint = switch (profile.type) {
-            case OLLAMA -> "/api/chat";
+            case OLLAMA -> "";
             case OPENAI_RESPONSE -> "/responses";
             case OPENAI_COMPAT -> "/chat/completions";
         };
