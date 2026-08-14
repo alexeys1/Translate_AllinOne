@@ -189,11 +189,11 @@ public final class ContinuousSignTranslationCoordinator {
                     null,
                     () -> null,
                     bundle::apply,
-                    "sign:standalone; pos=" + sign.getFirst().key().pos()
+                    "sign:standalone; pos=" + sign.get(0).key().pos()
             );
             if (resolution.state() == ComponentTranslationRuntime.State.PENDING) {
                 String animationKey = "sign:standalone:"
-                        + (resolution.cacheKey().isBlank() ? sign.getFirst().key().pos() : resolution.cacheKey());
+                        + (resolution.cacheKey().isBlank() ? sign.get(0).key().pos() : resolution.cacheKey());
                 for (FaceCandidate face : sign) {
                     pendingKeys.put(face.key(), animationKey);
                 }
@@ -263,7 +263,7 @@ public final class ContinuousSignTranslationCoordinator {
             int radius,
             boolean filteringEnabled
     ) {
-        Vec3d position = player.getEntityPos();
+        Vec3d position = player.getPos();
         int minChunkX = ((int) Math.floor(position.x - radius)) >> 4;
         int maxChunkX = ((int) Math.floor(position.x + radius)) >> 4;
         int minChunkZ = ((int) Math.floor(position.z - radius)) >> 4;
@@ -384,7 +384,7 @@ public final class ContinuousSignTranslationCoordinator {
             );
             if (resolution.state() == ComponentTranslationRuntime.State.PENDING) {
                 String animationKey = "sign:continuous:"
-                        + (resolution.cacheKey().isBlank() ? group.getFirst().key().pos() : resolution.cacheKey());
+                        + (resolution.cacheKey().isBlank() ? group.get(0).key().pos() : resolution.cacheKey());
                 for (FaceCandidate candidate : group) {
                     pendingKeys.put(candidate.key(), animationKey);
                 }

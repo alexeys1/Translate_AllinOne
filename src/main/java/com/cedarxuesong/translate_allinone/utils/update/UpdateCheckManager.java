@@ -135,8 +135,9 @@ public final class UpdateCheckManager {
                 .setStyle(Style.EMPTY
                         .withColor(Formatting.AQUA)
                         .withUnderline(true)
-                        .withClickEvent(new ClickEvent.OpenUrl(URI.create(latestReleaseUrl)))
-                        .withHoverEvent(new HoverEvent.ShowText(
+                        .withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, latestReleaseUrl))
+                        .withHoverEvent(new HoverEvent(
+                                HoverEvent.Action.SHOW_TEXT,
                                 Text.translatable("text.translate_allinone.update.chat.hover", latestReleaseUrl)
                         )));
 
@@ -213,7 +214,7 @@ public final class UpdateCheckManager {
     }
 
     private static String buildModrinthVersionsApiUrl() {
-        String gameVersion = SharedConstants.getGameVersion().id();
+        String gameVersion = SharedConstants.getGameVersion().getId();
         String loaderFilter = URLEncoder.encode("[\"fabric\"]", StandardCharsets.UTF_8);
         String gameVersionFilter = URLEncoder.encode("[\"" + gameVersion + "\"]", StandardCharsets.UTF_8);
         return MODRINTH_VERSIONS_API_PREFIX

@@ -11,7 +11,7 @@ public final class OpenConfigCommand {
 
     public static int run(CommandContext<FabricClientCommandSource> context) {
         MinecraftClient client = MinecraftClient.getInstance();
-        client.execute(() -> client.setScreen(new ModConfigScreen(null)));
+        client.send(() -> client.setScreen(new ModConfigScreen(null)));
         return 1;
     }
 }

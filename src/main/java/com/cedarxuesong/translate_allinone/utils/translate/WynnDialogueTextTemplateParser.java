@@ -1,7 +1,6 @@
 package com.cedarxuesong.translate_allinone.utils.translate;
 
 import net.minecraft.text.Style;
-import net.minecraft.text.StyleSpriteSource;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
@@ -200,12 +199,12 @@ public final class WynnDialogueTextTemplateParser {
                 return token.style();
             }
         }
-        return indices.isEmpty() ? Style.EMPTY : tokens.get(indices.getFirst()).style();
+        return indices.isEmpty() ? Style.EMPTY : tokens.get(indices.get(0)).style();
     }
 
     private static Identifier resolveFont(Style style) {
-        StyleSpriteSource font = style == null ? null : style.getFont();
-        return font instanceof StyleSpriteSource.Font fontSource ? fontSource.id() : null;
+        Identifier font = style == null ? null : style.getFont();
+        return Style.DEFAULT_FONT_ID.equals(font) ? null : font;
     }
 
     private static boolean isMasked(Style style) {

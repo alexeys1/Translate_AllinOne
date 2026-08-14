@@ -383,7 +383,7 @@ public final class TooltipTranslationContext {
         entries.removeIf(e -> now - e.recordedAt() > RECENT_TRANSLATED_TOOLTIP_STALE_MILLIS || e.signature() == signature);
         entries.add(new RecentTooltipEntry(signature, now));
         while (entries.size() > MAX_RECENT_TOOLTIPS) {
-            entries.removeFirst();
+            entries.remove(0);
         }
     }
 

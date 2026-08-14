@@ -413,7 +413,7 @@ public record ComponentTranslationBundle(
     public String coherentParagraphTranslation(ComponentTranslationResponse response) {
         new ComponentTranslationValidator().validate(cacheDocument, response);
         if (cacheDocument.units().isEmpty()
-                || !COHERENT_PARAGRAPH_ID.equals(cacheDocument.units().getFirst().id())) {
+                || !COHERENT_PARAGRAPH_ID.equals(cacheDocument.units().get(0).id())) {
             throw new ComponentJsonException(
                     ComponentJsonException.Kind.APPLY,
                     "Translation bundle is not a coherent paragraph."
@@ -424,7 +424,7 @@ public record ComponentTranslationBundle(
             return paragraph;
         }
         validateDecorativeGlyphSemanticAnchors(
-                cacheDocument.units().getFirst().sourceText(),
+                cacheDocument.units().get(0).sourceText(),
                 paragraph,
                 semanticSlots
         );
@@ -465,7 +465,7 @@ public record ComponentTranslationBundle(
         }
         if (response != null && !cacheDocument.units().isEmpty()) {
             validateDecorativeGlyphSemanticAnchors(
-                    cacheDocument.units().getFirst().sourceText(),
+                    cacheDocument.units().get(0).sourceText(),
                     response.translations().get(COHERENT_PARAGRAPH_ID),
                     semanticSlots
             );

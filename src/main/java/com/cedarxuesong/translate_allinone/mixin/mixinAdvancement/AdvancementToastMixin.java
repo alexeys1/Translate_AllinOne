@@ -18,7 +18,7 @@ public class AdvancementToastMixin {
     private AdvancementEntry advancement;
 
     @Redirect(
-            method = "draw(Lnet/minecraft/client/gui/DrawContext;Lnet/minecraft/client/font/TextRenderer;J)V",
+            method = "draw(Lnet/minecraft/client/gui/DrawContext;Lnet/minecraft/client/toast/ToastManager;J)Lnet/minecraft/client/toast/Toast$Visibility;",
             at = @At(
                     value = "INVOKE",
                     target = "Lnet/minecraft/advancement/AdvancementDisplay;getTitle()Lnet/minecraft/text/Text;"

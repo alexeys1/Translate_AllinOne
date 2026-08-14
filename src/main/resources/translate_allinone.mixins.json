@@ -3,7 +3,7 @@
   "minVersion": "0.8",
   "refmap": "translate_allinone.refmap.json",
   "package": "com.cedarxuesong.translate_allinone.mixin",
-  "compatibilityLevel": "JAVA_21",
+  "compatibilityLevel": "JAVA_17",
   "mixins": [
   ],
   "client": [
@@ -36,7 +36,8 @@
     "mixinWynnDialogue.WynnDialogueTextDrawerMixin",
     "mixinInGameGui.InGameHudMixin",
     "mixinInGameGui.InGameHudAccessor",
-    "mixinChatScreen.ChatScreenMixin"
+    "mixinChatScreen.ChatScreenMixin",
+    "mixinChatScreen.ScreenCharTypedMixin"
   ],
   "injectors": {
     "defaultRequire": 1

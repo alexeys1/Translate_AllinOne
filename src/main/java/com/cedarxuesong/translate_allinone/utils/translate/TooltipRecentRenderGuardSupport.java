@@ -1,15 +1,14 @@
 package com.cedarxuesong.translate_allinone.utils.translate;
 
 import com.cedarxuesong.translate_allinone.utils.textmatcher.FlatNode;
-import net.minecraft.text.StyleSpriteSource;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
 import java.util.List;
 
 public final class TooltipRecentRenderGuardSupport {
-    private static final StyleSpriteSource.Font WYNNCRAFT_TOOLTIP_FONT =
-            new StyleSpriteSource.Font(Identifier.of("minecraft", "language/wynncraft"));
+    private static final Identifier WYNNCRAFT_TOOLTIP_FONT =
+            Identifier.of("minecraft", "language/wynncraft");
 
     private TooltipRecentRenderGuardSupport() {
     }

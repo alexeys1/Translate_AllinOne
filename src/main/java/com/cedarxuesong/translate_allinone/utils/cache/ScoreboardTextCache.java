@@ -4,7 +4,6 @@ import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonParseException;
-import com.google.gson.Strictness;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 import net.fabricmc.loader.api.FabricLoader;
@@ -273,7 +272,7 @@ public class ScoreboardTextCache {
         int replacementCharCount = 0;
 
         try (JsonReader reader = new JsonReader(Files.newBufferedReader(cacheFilePath, charset))) {
-            reader.setStrictness(Strictness.LENIENT);
+            reader.setLenient(true);
             JsonToken rootToken = reader.peek();
 
             if (rootToken == JsonToken.NULL) {

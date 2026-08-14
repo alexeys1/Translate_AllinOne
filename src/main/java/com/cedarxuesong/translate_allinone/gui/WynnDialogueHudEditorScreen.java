@@ -9,10 +9,8 @@ import com.cedarxuesong.translate_allinone.gui.configui.render.ConfigUiDraw;
 import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.WynnCraftConfig;
 import com.cedarxuesong.translate_allinone.utils.translate.WynnDialogueHudRenderer;
-import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.input.KeyInput;
 import net.minecraft.text.Text;
 
 import java.util.ArrayList;
@@ -69,51 +67,51 @@ public class WynnDialogueHudEditorScreen extends Screen {
     }
 
     @Override
-    public boolean keyPressed(KeyInput input) {
-        return super.keyPressed(input);
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     @Override
-    public boolean mouseClicked(Click click, boolean doubled) {
-        if (click.button() != 0) {
-            return super.mouseClicked(click, doubled);
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (button != 0) {
+            return super.mouseClicked(mouseX, mouseY, button);
         }
 
-        if (ConfigUiInteractionSupport.dispatchActionBlocks(actionBlocks, click.x(), click.y())) {
+        if (ConfigUiInteractionSupport.dispatchActionBlocks(actionBlocks, mouseX, mouseY)) {
             return true;
         }
 
         WynnDialogueHudRenderer.EditorPreviewLayout layout = currentLayout();
-        HudTarget target = targetAt(layout, click.x(), click.y());
+        HudTarget target = targetAt(layout, mouseX, mouseY);
         if (target != null) {
             selectedTarget = target;
             WynnDialogueHudRenderer.EditorPreviewSnapshot snapshot = currentSnapshot(layout, selectedTarget);
             draggingHud = true;
-            dragGrabOffsetX = (int) Math.round(click.x()) - snapshot.x();
-            dragGrabOffsetY = (int) Math.round(click.y()) - snapshot.y();
+            dragGrabOffsetX = (int) Math.round(mouseX) - snapshot.x();
+            dragGrabOffsetY = (int) Math.round(mouseY) - snapshot.y();
             return true;
         }
 
-        return super.mouseClicked(click, doubled);
+        return super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override
-    public boolean mouseDragged(Click click, double deltaX, double deltaY) {
-        if (!draggingHud || click.button() != 0) {
-            return super.mouseDragged(click, deltaX, deltaY);
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+        if (!draggingHud || button != 0) {
+            return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
         }
 
-        moveHudTo(click.x(), click.y());
+        moveHudTo(mouseX, mouseY);
         return true;
     }
 
     @Override
-    public boolean mouseReleased(Click click) {
-        if (draggingHud && click.button() == 0) {
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (draggingHud && button == 0) {
             draggingHud = false;
             return true;
         }
-        return super.mouseReleased(click);
+        return super.mouseReleased(mouseX, mouseY, button);
     }
 
     @Override

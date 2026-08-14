@@ -4,6 +4,7 @@ import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslat
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRuntime;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.OtherTranslationsConfig;
 import net.minecraft.client.gui.screen.ingame.BookScreen;
+import net.minecraft.text.StringVisitable;
 import net.minecraft.text.Text;
 
 public final class BookTranslationSupport {
@@ -89,7 +90,10 @@ public final class BookTranslationSupport {
         if (contents == null || pageIndex < 0 || pageIndex >= contents.getPageCount()) {
             return Text.empty();
         }
-        Text page = contents.getPage(pageIndex);
-        return page == null ? Text.empty() : page;
+        StringVisitable page = contents.getPage(pageIndex);
+        if (page == null) {
+            return Text.empty();
+        }
+        return page instanceof Text text ? text : Text.literal(page.getString());
     }
 }

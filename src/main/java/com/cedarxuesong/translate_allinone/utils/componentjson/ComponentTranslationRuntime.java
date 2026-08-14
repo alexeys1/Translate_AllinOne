@@ -737,7 +737,7 @@ public final class ComponentTranslationRuntime {
             finishRequest(route, batch);
             return;
         }
-        PendingRequest first = batch.requests().getFirst();
+        PendingRequest first = batch.requests().get(0);
         ApiProviderProfile provider = ProviderRouteResolver.resolve(
                 configSupplier.get(),
                 switch (route) {

@@ -15,7 +15,6 @@ import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslat
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
-import com.google.gson.Strictness;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 
@@ -346,7 +345,7 @@ public final class ComponentTranslationStore {
             throw new IOException("Component cache file exceeds the size limit.");
         }
         try (JsonReader reader = new JsonReader(Files.newBufferedReader(file, StandardCharsets.UTF_8))) {
-            reader.setStrictness(Strictness.STRICT);
+            reader.setLenient(false);
             requireToken(reader, JsonToken.BEGIN_OBJECT, "Component cache root");
             Integer schemaVersion = null;
             String cacheModule = null;
@@ -412,7 +411,7 @@ public final class ComponentTranslationStore {
             throw new IOException("Component cache file exceeds the size limit.");
         }
         try (JsonReader reader = new JsonReader(Files.newBufferedReader(file, StandardCharsets.UTF_8))) {
-            reader.setStrictness(Strictness.STRICT);
+            reader.setLenient(false);
             requireToken(reader, JsonToken.BEGIN_OBJECT, "Component cache root");
             Integer schemaVersion = null;
             String cacheModule = null;

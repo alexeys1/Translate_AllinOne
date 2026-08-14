@@ -495,7 +495,7 @@ public final class WynnDialogueOverlayController {
         }
         WynnDialogueTextRendererAccessor accessor = (WynnDialogueTextRendererAccessor) client.textRenderer;
         return WynnDialogueFontFallback.measure(
-                accessor.translate_allinone$getGlyphsProvider(),
+                accessor.translate_allinone$getFontStorageAccessor(),
                 value,
                 style
         );

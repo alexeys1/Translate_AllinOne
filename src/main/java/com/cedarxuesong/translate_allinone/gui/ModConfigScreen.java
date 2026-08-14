@@ -57,12 +57,9 @@ import com.cedarxuesong.translate_allinone.utils.translate.DictionaryFileSelecti
 import com.cedarxuesong.translate_allinone.utils.update.UpdateCheckManager;
 import com.google.gson.Gson;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.client.input.CharInput;
-import net.minecraft.client.input.KeyInput;
 import net.minecraft.text.OrderedText;
 import net.minecraft.text.Text;
 import net.minecraft.util.Util;
@@ -2546,10 +2543,10 @@ public class ModConfigScreen extends Screen {
     }
 
     @Override
-    public boolean mouseClicked(Click click, boolean doubled) {
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (hotkeyCaptureTarget != null) {
             if (hotkeyCaptureTarget != ConfigSectionContentSupport.HotkeyTarget.CHAT_INPUT) {
-                InputBindingConfig captured = KeybindingManager.captureMouseBinding(click.button());
+                InputBindingConfig captured = KeybindingManager.captureMouseBinding(button);
                 if (captured != null) {
                     applyCapturedBinding(captured);
                 }
@@ -2557,12 +2554,9 @@ public class ModConfigScreen extends Screen {
             return true;
         }
 
-        if (click.button() != 0) {
-            return isAnyModalOpen() || super.mouseClicked(click, doubled);
+        if (button != 0) {
+            return isAnyModalOpen() || super.mouseClicked(mouseX, mouseY, button);
         }
-
-        double mouseX = click.x();
-        double mouseY = click.y();
         boolean modalOpen = isAnyModalOpen();
 
         if (modalOpen) {
@@ -2638,7 +2632,7 @@ public class ModConfigScreen extends Screen {
                 return true;
             }
 
-            if (super.mouseClicked(click, doubled)) {
+            if (super.mouseClicked(mouseX, mouseY, button)) {
                 return true;
             }
             return true;
@@ -2664,7 +2658,7 @@ public class ModConfigScreen extends Screen {
             return true;
         }
 
-        if (click.button() == 0) {
+        if (button == 0) {
             UiRect thumb = scrollbarThumbRect();
             if (thumb != null && thumb.contains(mouseX, mouseY)) {
                 startScrollbarDrag();
@@ -2703,7 +2697,7 @@ public class ModConfigScreen extends Screen {
             return true;
         }
 
-        if (super.mouseClicked(click, doubled)) {
+        if (super.mouseClicked(mouseX, mouseY, button)) {
             return true;
         }
 
@@ -2733,32 +2727,32 @@ public class ModConfigScreen extends Screen {
     }
 
     @Override
-    public boolean mouseDragged(Click click, double deltaX, double deltaY) {
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
         if (isAnyModalOpen()) {
             draggingSlider = null;
             stopScrollingDrag();
-            return super.mouseDragged(click, deltaX, deltaY);
+            return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
         }
 
         if (routeDropdownSlot != null) {
             return true;
         }
 
-        if (draggingSlider != null && click.button() == 0) {
-            draggingSlider.dragTo(click.x());
+        if (draggingSlider != null && button == 0) {
+            draggingSlider.dragTo(mouseX);
             return true;
         }
 
-        if (draggingContentScrollbar && click.button() == 0) {
-            int nextOffset = scrollOffsetFromThumbMouseY(click.y());
+        if (draggingContentScrollbar && button == 0) {
+            int nextOffset = scrollOffsetFromThumbMouseY(mouseY);
             if (nextOffset != contentScrollOffset) {
                 applyScrollOffset(nextOffset, true);
             }
             return true;
         }
 
-        if (draggingContentByMouse && click.button() == 0) {
-            double delta = click.y() - contentDragStartMouseY;
+        if (draggingContentByMouse && button == 0) {
+            double delta = mouseY - contentDragStartMouseY;
             double rawOffset = contentDragStartOffset - delta;
             int nextOffset = clampScrollOffset((int) Math.round(rawOffset));
             if (nextOffset != contentScrollOffset) {
@@ -2778,33 +2772,33 @@ public class ModConfigScreen extends Screen {
             return true;
         }
 
-        return super.mouseDragged(click, deltaX, deltaY);
+        return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
     }
 
     @Override
-    public boolean mouseReleased(Click click) {
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
         if (isAnyModalOpen()) {
             draggingSlider = null;
             stopScrollingDrag();
-            return super.mouseReleased(click);
+            return super.mouseReleased(mouseX, mouseY, button);
         }
 
         if (routeDropdownSlot != null) {
             return true;
         }
 
-        if (draggingSlider != null && click.button() == 0) {
+        if (draggingSlider != null && button == 0) {
             draggingSlider.release();
             draggingSlider = null;
             return true;
         }
 
-        if ((draggingContentScrollbar || draggingContentByMouse) && click.button() == 0) {
+        if ((draggingContentScrollbar || draggingContentByMouse) && button == 0) {
             stopScrollingDrag();
             return true;
         }
 
-        return super.mouseReleased(click);
+        return super.mouseReleased(mouseX, mouseY, button);
     }
 
     @Override
@@ -2828,28 +2822,32 @@ public class ModConfigScreen extends Screen {
     }
 
     @Override
-    public boolean keyPressed(KeyInput input) {
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (hotkeyCaptureTarget != null) {
-            if (KeybindingManager.isEscape(input)) {
+            if (KeybindingManager.isEscape(keyCode)) {
                 cancelHotkeyCapture();
                 return true;
             }
 
-            InputBindingConfig captured = KeybindingManager.captureKeyboardBinding(input);
+            InputBindingConfig captured = KeybindingManager.captureKeyboardBinding(keyCode);
             if (captured != null) {
                 applyCapturedBinding(captured);
             }
             return true;
         }
-        return super.keyPressed(input);
+        return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     @Override
-    public boolean charTyped(CharInput input) {
+    public boolean charTyped(char chr, int modifiers) {
         if (hotkeyCaptureTarget != null) {
             return true;
         }
-        return super.charTyped(input);
+        return super.charTyped(chr, modifiers);
+    }
+
+    @Override
+    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
     }
 
     @Override

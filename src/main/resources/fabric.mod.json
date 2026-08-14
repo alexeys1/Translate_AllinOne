@@ -28,11 +28,11 @@
 		"translate_allinone.mixins.json"
 	],
 	"depends": {
-		"fabricloader": ">=0.18.1",
-		"minecraft": "~1.21.11",
-		"java": ">=21",
+		"fabricloader": ">=0.19.3",
+		"minecraft": "~1.20.4",
+		"java": ">=17",
 		"fabric-api": "*",
-		"modmenu": ">=16.0.0"
+		"modmenu": ">=9.2.0"
 	},
   "custom": {
     "modmenu": {

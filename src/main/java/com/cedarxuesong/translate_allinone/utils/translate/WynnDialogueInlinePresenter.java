@@ -383,7 +383,7 @@ public final class WynnDialogueInlinePresenter {
         }
         WynnDialogueTextRendererAccessor accessor = (WynnDialogueTextRendererAccessor) textRenderer;
         return WynnDialogueFontFallback.supports(
-                accessor.translate_allinone$getGlyphsProvider(),
+                accessor.translate_allinone$getFontStorageAccessor(),
                 value,
                 style
         );

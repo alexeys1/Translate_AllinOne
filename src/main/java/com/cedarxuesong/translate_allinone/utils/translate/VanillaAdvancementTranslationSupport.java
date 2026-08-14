@@ -275,8 +275,8 @@ public final class VanillaAdvancementTranslationSupport {
 
     private static Text styleDescription(AdvancementDisplay display, Text originalDescription) {
         if (display != null && originalDescription != null && display.getFrame() != null) {
-            return Texts.withStyle(
-                    originalDescription,
+            return Texts.setStyleIfAbsent(
+                    originalDescription.copy(),
                     Style.EMPTY.withColor(display.getFrame().getTitleFormat())
             );
         }

@@ -461,7 +461,7 @@ public final class WynnDialogueTranslateManager {
         int messageCount = messages == null ? 0 : messages.size();
         String sample = originalKeys == null || originalKeys.isEmpty()
                 ? ""
-                : TranslateStringUtils.truncate(TranslateStringUtils.normalizeWhitespace(WynnDialogueTranslationSupport.extractTranslatableValue(originalKeys.getFirst())), 160);
+                : TranslateStringUtils.truncate(TranslateStringUtils.normalizeWhitespace(WynnDialogueTranslationSupport.extractTranslatableValue(originalKeys.get(0))), 160);
         return "route=wynn_npc_dialogue"
                 + ", provider=" + providerId
                 + ", model=" + modelId

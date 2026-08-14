@@ -112,7 +112,7 @@ public final class ComponentTranslationApplier {
             }
         }
 
-        String last = segments.getLast();
+        String last = segments.get(segments.size() - 1);
         if (parent.isJsonObject()) {
             JsonObject object = parent.getAsJsonObject();
             if (!object.has(last)) {

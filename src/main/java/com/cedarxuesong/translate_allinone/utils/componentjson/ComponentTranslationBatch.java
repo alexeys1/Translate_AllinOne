@@ -25,7 +25,7 @@ public record ComponentTranslationBatch(
             throw new IllegalArgumentException("Component translation batch documents are required.");
         }
 
-        ComponentTranslationDocument first = documents.getFirst();
+        ComponentTranslationDocument first = documents.get(0);
         if (first == null) {
             throw new IllegalArgumentException("Component translation batch contains a null document.");
         }

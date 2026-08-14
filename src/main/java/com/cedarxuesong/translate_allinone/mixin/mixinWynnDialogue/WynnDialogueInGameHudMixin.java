@@ -17,10 +17,11 @@ public abstract class WynnDialogueInGameHudMixin {
     }
 
     @ModifyArg(
-            method = "renderOverlayMessage",
+            method = "render(Lnet/minecraft/client/gui/DrawContext;F)V",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/client/gui/DrawContext;drawTextWithBackground(Lnet/minecraft/client/font/TextRenderer;Lnet/minecraft/text/Text;IIII)V"
+                    target = "Lnet/minecraft/client/gui/DrawContext;drawTextWithShadow(Lnet/minecraft/client/font/TextRenderer;Lnet/minecraft/text/Text;III)I",
+                    ordinal = 0
             ),
             index = 1
     )

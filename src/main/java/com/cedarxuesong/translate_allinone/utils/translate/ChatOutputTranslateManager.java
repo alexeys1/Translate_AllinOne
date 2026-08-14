@@ -805,8 +805,14 @@ public class ChatOutputTranslateManager {
         MutableText toggleButton = Text.literal(" [T]");
         Style toggleStyle = Style.EMPTY
                 .withColor(Formatting.GRAY)
-                .withClickEvent(new ClickEvent.RunCommand("/translate_allinone translatechatline " + messageId + " " + action))
-                .withHoverEvent(new HoverEvent.ShowText(Text.translatable(hoverTranslationKey)));
+                .withClickEvent(new ClickEvent(
+                        ClickEvent.Action.RUN_COMMAND,
+                        "/translate_allinone translatechatline " + messageId + " " + action
+                ))
+                .withHoverEvent(new HoverEvent(
+                        HoverEvent.Action.SHOW_TEXT,
+                        Text.translatable(hoverTranslationKey)
+                ));
         toggleButton.setStyle(toggleStyle);
         root.append(toggleButton);
         return root;

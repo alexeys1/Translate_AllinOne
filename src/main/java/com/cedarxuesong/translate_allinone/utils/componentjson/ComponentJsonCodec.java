@@ -16,10 +16,12 @@ public final class ComponentJsonCodec {
         try {
             return TextCodecs.CODEC
                     .encodeStart(JsonOps.INSTANCE, text)
-                    .getOrThrow(message -> new ComponentJsonException(
-                            ComponentJsonException.Kind.CODEC,
-                            "Failed to encode Text: " + message
-                    ));
+                    .getOrThrow(false, message -> {
+                        throw new ComponentJsonException(
+                                ComponentJsonException.Kind.CODEC,
+                                "Failed to encode Text: " + message
+                        );
+                    });
         } catch (ComponentJsonException e) {
             throw e;
         } catch (RuntimeException e) {
@@ -34,10 +36,12 @@ public final class ComponentJsonCodec {
         try {
             return TextCodecs.CODEC
                     .parse(JsonOps.INSTANCE, json.deepCopy())
-                    .getOrThrow(message -> new ComponentJsonException(
-                            ComponentJsonException.Kind.CODEC,
-                            "Failed to decode Text: " + message
-                    ));
+                    .getOrThrow(false, message -> {
+                        throw new ComponentJsonException(
+                                ComponentJsonException.Kind.CODEC,
+                                "Failed to decode Text: " + message
+                        );
+                    });
         } catch (ComponentJsonException e) {
             throw e;
         } catch (RuntimeException e) {

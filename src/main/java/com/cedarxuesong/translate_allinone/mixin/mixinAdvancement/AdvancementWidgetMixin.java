@@ -39,7 +39,7 @@ public class AdvancementWidgetMixin {
     @Shadow
     @Final
     @Mutable
-    private List<OrderedText> title;
+    private OrderedText title;
 
     @Shadow
     @Final
@@ -87,7 +87,7 @@ public class AdvancementWidgetMixin {
                 .mapToInt(client.textRenderer::getWidth)
                 .max()
                 .orElse(0);
-        int contentWidth = 29 + Math.max(80, titleWidth) + getProgressWidth();
+        int contentWidth = 29 + Math.max(80, titleWidth);
         List<StringVisitable> optimalDescriptionLines = wrapDescription(translatedDescription, contentWidth);
         if (hoveredText.statusLine() != null || hoveredText.errorStatusLine() != null || hoveredText.showRefreshNotice()) {
             List<StringVisitable> descriptionWithNotice = new ArrayList<>();
@@ -113,14 +113,9 @@ public class AdvancementWidgetMixin {
             contentWidth = Math.max(contentWidth, client.textRenderer.getWidth(line));
         }
 
-        title = refreshedTitleLines;
+        title = refreshedTitleLines.isEmpty() ? OrderedText.EMPTY : refreshedTitleLines.get(0);
         description = refreshedDescription;
         width = contentWidth + 3 + 5;
-    }
-
-    @Shadow
-    private int getProgressWidth() {
-        throw new AssertionError();
     }
 
     @Shadow

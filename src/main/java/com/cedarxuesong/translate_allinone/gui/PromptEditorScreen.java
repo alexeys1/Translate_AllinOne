@@ -10,11 +10,8 @@ import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.cedarxuesong.translate_allinone.utils.translate.PromptMessageBuilder;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.input.CharInput;
-import net.minecraft.client.input.KeyInput;
 import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
@@ -238,12 +235,12 @@ public class PromptEditorScreen extends Screen {
     }
 
     @Override
-    public boolean keyPressed(KeyInput input) {
-        if (super.keyPressed(input)) {
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (super.keyPressed(keyCode, scanCode, modifiers)) {
             return true;
         }
 
-        int key = input.key();
+        int key = keyCode;
         boolean ctrl = isCtrlDown();
         boolean shift = isShiftDown();
 
@@ -419,16 +416,12 @@ public class PromptEditorScreen extends Screen {
     }
 
     @Override
-    public boolean charTyped(CharInput input) {
-        if (super.charTyped(input)) {
+    public boolean charTyped(char chr, int modifiers) {
+        if (super.charTyped(chr, modifiers)) {
             return true;
         }
 
-        String str = input.asString();
-        if (str == null || str.isEmpty()) {
-            return false;
-        }
-        char c = str.charAt(0);
+        char c = chr;
         if (c == '§' || c < 0x20) {
             return false;
         }
@@ -451,19 +444,16 @@ public class PromptEditorScreen extends Screen {
     }
 
     @Override
-    public boolean mouseClicked(Click click, boolean doubled) {
-        if (click.button() != 0) {
-            return super.mouseClicked(click, doubled);
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (button != 0) {
+            return super.mouseClicked(mouseX, mouseY, button);
         }
-
-        double mouseX = click.x();
-        double mouseY = click.y();
 
         if (mouseY < TOP_BAR_HEIGHT) {
             if (ConfigUiInteractionSupport.dispatchActionBlocks(actionBlocks, mouseX, mouseY)) {
                 return true;
             }
-            return super.mouseClicked(click, doubled);
+            return super.mouseClicked(mouseX, mouseY, button);
         }
 
         if (mouseX < LEFT_PANEL_WIDTH) {
@@ -477,7 +467,7 @@ public class PromptEditorScreen extends Screen {
                 rebuildActionBlocks();
                 return true;
             }
-            return super.mouseClicked(click, doubled);
+            return super.mouseClicked(mouseX, mouseY, button);
         }
 
         if (mouseX >= (LEFT_PANEL_WIDTH + EDITOR_PADDING + LINE_NUMBER_WIDTH) && mouseX < (LEFT_PANEL_WIDTH + EDITOR_PADDING + LINE_NUMBER_WIDTH) + (this.width - (LEFT_PANEL_WIDTH + EDITOR_PADDING + LINE_NUMBER_WIDTH) - EDITOR_PADDING - 12)) {
@@ -505,17 +495,14 @@ public class PromptEditorScreen extends Screen {
             }
         }
 
-        return super.mouseClicked(click, doubled);
+        return super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override
-    public boolean mouseDragged(Click click, double deltaX, double deltaY) {
-        if (click.button() != 0) {
-            return super.mouseDragged(click, deltaX, deltaY);
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+        if (button != 0) {
+            return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
         }
-
-        double mouseX = click.x();
-        double mouseY = click.y();
 
         if (mouseX >= (LEFT_PANEL_WIDTH + EDITOR_PADDING + LINE_NUMBER_WIDTH)
                 && mouseX < (LEFT_PANEL_WIDTH + EDITOR_PADDING + LINE_NUMBER_WIDTH) + (this.width - (LEFT_PANEL_WIDTH + EDITOR_PADDING + LINE_NUMBER_WIDTH) - EDITOR_PADDING - 12)) {
@@ -533,7 +520,7 @@ public class PromptEditorScreen extends Screen {
                 return true;
             }
         }
-        return super.mouseDragged(click, deltaX, deltaY);
+        return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
     }
 
     @Override

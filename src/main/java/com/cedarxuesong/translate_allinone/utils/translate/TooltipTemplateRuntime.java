@@ -17,7 +17,6 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Style;
-import net.minecraft.text.StyleSpriteSource;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.Formatting;
@@ -88,8 +87,8 @@ final class TooltipTemplateRuntime {
             "you",
             "your"
     );
-    private static final StyleSpriteSource.Font WYNNCRAFT_TOOLTIP_FONT =
-            new StyleSpriteSource.Font(Identifier.of("minecraft", "language/wynncraft"));
+    private static final Identifier WYNNCRAFT_TOOLTIP_FONT =
+            Identifier.of("minecraft", "language/wynncraft");
 
     static boolean isSuspiciousEnglishConnector(String word) {
         return word != null && SUSPICIOUS_ENGLISH_CONNECTORS.contains(word);
@@ -916,7 +915,7 @@ final class TooltipTemplateRuntime {
                 continue;
             }
             if (!merged.isEmpty()) {
-                ParagraphTranslationPlan.StyledRun previous = merged.getLast();
+                ParagraphTranslationPlan.StyledRun previous = merged.get(merged.size() - 1);
                 if (previous.token().isEmpty()
                         && run.token().isEmpty()
                         && previous.type() == run.type()
@@ -2104,7 +2103,7 @@ final class TooltipTemplateRuntime {
     private static boolean hasCustomFont(Style style) {
         return style != null
                 && style.getFont() != null
-                && !StyleSpriteSource.DEFAULT.equals(style.getFont());
+                && !Style.DEFAULT_FONT_ID.equals(style.getFont());
     }
 
     static boolean hasUnsafeMixedDecorativeLiteral(Text line) {

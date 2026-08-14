@@ -284,8 +284,8 @@ public final class WynntilsTaskTrackerTranslationSupport {
                 return Optional.empty();
             }
 
-            if (!runs.isEmpty() && Objects.equals(runs.getLast().style(), style)) {
-                runs.getLast().text().append(string);
+            if (!runs.isEmpty() && Objects.equals(runs.get(runs.size() - 1).style(), style)) {
+                runs.get(runs.size() - 1).text().append(string);
             } else {
                 runs.add(new StyleRun(style, new StringBuilder(string)));
             }

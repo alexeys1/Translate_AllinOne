@@ -7,15 +7,13 @@ import com.cedarxuesong.translate_allinone.gui.configui.render.ConfigUiDraw;
 import com.cedarxuesong.translate_allinone.registration.ConfigManager;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ChatTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
+import com.cedarxuesong.translate_allinone.utils.input.ChatInputInstructionFieldRegistry;
 import com.cedarxuesong.translate_allinone.utils.translate.ChatInputTranslateManager;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ChatScreen;
 import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.client.input.CharInput;
-import net.minecraft.client.input.KeyInput;
 import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 import org.spongepowered.asm.mixin.Mixin;
@@ -191,42 +189,33 @@ public class ChatScreenMixin {
     }
 
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
-    private void onKeyPressed(KeyInput keyInput, CallbackInfoReturnable<Boolean> cir) {
+    private void onKeyPressed(int keyCode, int scanCode, int modifiers, CallbackInfoReturnable<Boolean> cir) {
         ChatInputTranslateManager.PanelAvailability availability = translate_allinone$getPanelAvailability();
 
         if (translate_allinone$isInstructionFieldFocused()) {
             if (!translate_allinone$isInstructionEnabled(availability)) {
                 this.translate_allinone$instructionField.setFocused(false);
             } else {
-                if (translate_allinone$isEnterKey(keyInput)) {
+                if (translate_allinone$isEnterKey(keyCode)) {
                     translate_allinone$applyInstruction();
                     cir.setReturnValue(true);
                     return;
                 }
-                if (this.translate_allinone$instructionField.keyPressed(keyInput)) {
+                if (this.translate_allinone$instructionField.keyPressed(keyCode, scanCode, modifiers)) {
                     cir.setReturnValue(true);
                     return;
                 }
-                if (!KeybindingManager.isEscape(keyInput)) {
+                if (!KeybindingManager.isEscape(keyCode)) {
                     cir.setReturnValue(true);
                     return;
                 }
             }
         }
 
-        if (KeybindingManager.matchesKeyInput(Translate_AllinOne.getConfig().chatTranslate.input.keybinding, keyInput)) {
+        if (KeybindingManager.matchesKeyInput(Translate_AllinOne.getConfig().chatTranslate.input.keybinding, keyCode)) {
             if (availability != ChatInputTranslateManager.PanelAvailability.NO_MODEL) {
                 ChatInputTranslateManager.translate(this.chatField);
             }
-            cir.setReturnValue(true);
-        }
-    }
-
-    @Inject(method = "charTyped", at = @At("HEAD"), cancellable = true, require = 0)
-    private void onCharTyped(CharInput charInput, CallbackInfoReturnable<Boolean> cir) {
-        if (translate_allinone$isInstructionFieldFocused()
-                && translate_allinone$isInstructionEnabled(translate_allinone$getPanelAvailability())) {
-            this.translate_allinone$instructionField.charTyped(charInput);
             cir.setReturnValue(true);
         }
     }
@@ -272,7 +261,7 @@ public class ChatScreenMixin {
     }
 
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
-    private void onMouseClicked(Click click, boolean bl, CallbackInfoReturnable<Boolean> cir) {
+    private void onMouseClicked(double mouseX, double mouseY, int button, CallbackInfoReturnable<Boolean> cir) {
         panelDragging = false;
 
         if (!translate_allinone$isPanelVisible()) {
@@ -281,8 +270,6 @@ public class ChatScreenMixin {
 
         translate_allinone$ensurePanelPosition();
         ChatInputTranslateManager.PanelAvailability availability = translate_allinone$getPanelAvailability();
-        double mouseX = click.x();
-        double mouseY = click.y();
         ChatInputPanelRect panelRect = translate_allinone$panelRect();
         if (panelCollapsed) {
             if (panelRect.contains(mouseX, mouseY)) {
@@ -329,7 +316,7 @@ public class ChatScreenMixin {
         if (inputOuterRect.contains(mouseX, mouseY)) {
             if (this.translate_allinone$instructionField != null && translate_allinone$isInstructionEnabled(availability)) {
                 this.translate_allinone$instructionField.setFocused(true);
-                this.translate_allinone$instructionField.mouseClicked(click, bl);
+                this.translate_allinone$instructionField.mouseClicked(mouseX, mouseY, button);
             } else if (this.translate_allinone$instructionField != null) {
                 this.translate_allinone$instructionField.setFocused(false);
             }
@@ -479,6 +466,7 @@ public class ChatScreenMixin {
                 inputRect.height(),
                 Text.empty()
         );
+        ChatInputInstructionFieldRegistry.register(this.translate_allinone$instructionField);
         this.translate_allinone$instructionField.setMaxLength(INPUT_MAX_LENGTH);
         this.translate_allinone$instructionField.setPlaceholder(Text.translatable("text.translate_allinone.chat_input_panel.instruction_placeholder"));
         this.translate_allinone$instructionField.setText(instructionDraft);
@@ -748,37 +736,8 @@ public class ChatScreenMixin {
     }
 
     @Unique
-    private boolean translate_allinone$isEnterKey(KeyInput keyInput) {
-        Integer keyCode = translate_allinone$extractKeyCode(keyInput);
-        if (keyCode == null) {
-            return false;
-        }
+    private boolean translate_allinone$isEnterKey(int keyCode) {
         return keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER;
-    }
-
-    @Unique
-    private Integer translate_allinone$extractKeyCode(KeyInput keyInput) {
-        if (keyInput == null) {
-            return null;
-        }
-
-        try {
-            Object code = keyInput.getClass().getMethod("keyCode").invoke(keyInput);
-            if (code instanceof Integer i) {
-                return i;
-            }
-        } catch (ReflectiveOperationException ignored) {
-        }
-
-        try {
-            Object code = keyInput.getClass().getMethod("code").invoke(keyInput);
-            if (code instanceof Integer i) {
-                return i;
-            }
-        } catch (ReflectiveOperationException ignored) {
-        }
-
-        return null;
     }
 
     @Unique

@@ -53,7 +53,7 @@ public class AnimationManager {
         for (int offset = 0; offset < plainText.length(); ) {
             int codePoint = plainText.codePointAt(offset);
             float sine = (float) (Math.sin(time / 200.0 + codePointIndex / 5.0) + 1.0) / 2.0f;
-            int color = ColorHelper.lerp(sine, DARK_GREY, LIGHT_GREY);
+            int color = ColorHelper.Argb.lerp(sine, DARK_GREY, LIGHT_GREY);
             animatedText.append(Text.literal(new String(Character.toChars(codePoint)))
                     .setStyle(Style.EMPTY.withColor(TextColor.fromRgb(color))));
             offset += Character.charCount(codePoint);
@@ -117,9 +117,9 @@ public class AnimationManager {
             float baseSine = (float) (Math.sin(time / 200.0 + charIndex.get() / 5.0) + 1.0) / 2.0f;
             float alertSine = (float) (Math.sin(time / 120.0 + charIndex.get() / 2.5) + 1.0) / 2.0f;
 
-            int baseColor = ColorHelper.lerp(baseSine, DARK_GREY, LIGHT_GREY);
-            int alertColor = ColorHelper.lerp(alertSine, DARK_RED, LIGHT_RED);
-            int color = ColorHelper.lerp(alertProgress, baseColor, alertColor);
+            int baseColor = ColorHelper.Argb.lerp(baseSine, DARK_GREY, LIGHT_GREY);
+            int alertColor = ColorHelper.Argb.lerp(alertSine, DARK_RED, LIGHT_RED);
+            int color = ColorHelper.Argb.lerp(alertProgress, baseColor, alertColor);
 
             Style newStyle = resolvedStyle.withColor(TextColor.fromRgb(color));
             animatedText.append(Text.literal(new String(Character.toChars(codePoint))).setStyle(newStyle));

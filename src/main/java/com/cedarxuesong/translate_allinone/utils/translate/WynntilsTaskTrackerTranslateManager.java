@@ -448,7 +448,7 @@ public final class WynntilsTaskTrackerTranslateManager {
         int messageCount = messages == null ? 0 : messages.size();
         String sample = originalTexts == null || originalTexts.isEmpty()
                 ? ""
-                : TranslateStringUtils.truncate(TranslateStringUtils.normalizeWhitespace(originalTexts.getFirst()), 160);
+                : TranslateStringUtils.truncate(TranslateStringUtils.normalizeWhitespace(originalTexts.get(0)), 160);
         return "route=wynntils_task_tracker"
                 + ", provider=" + providerId
                 + ", model=" + modelId

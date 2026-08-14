@@ -10,7 +10,6 @@ import net.minecraft.block.entity.SignBlockEntity;
 import net.minecraft.block.entity.SignText;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.render.block.entity.state.SignBlockEntityRenderState;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.MathHelper;
@@ -25,14 +24,15 @@ public final class SignTranslationSupport {
 
     public static RenderedSignText resolveForRender(
             SignBlockEntity sign,
-            SignBlockEntityRenderState state,
             TextRenderer textRenderer
     ) {
-        if (sign == null || state == null) {
+        if (sign == null) {
             return new RenderedSignText(null, null);
         }
-        SignText stateFront = state.frontText;
-        SignText stateBack = state.backText;
+        SignText stateFront = sign.getFrontText();
+        SignText stateBack = sign.getBackText();
+        boolean filtered = MinecraftClient.getInstance().shouldFilterText();
+        int maxTextWidth = sign.getMaxTextWidth();
         if (ComponentRenderTranslationSupport.isTranslationBlockedByScreen()) {
             return new RenderedSignText(stateFront, stateBack);
         }
@@ -42,7 +42,6 @@ public final class SignTranslationSupport {
         }
         SignText originalFront = sign.getFrontText();
         SignText originalBack = sign.getBackText();
-        boolean filtered = state.filterText;
         if (!ComponentRenderTranslationSupport.shouldRenderTranslated(config)) {
             refreshFaceIfNeeded(sign, originalFront, ContinuousSignTranslationCoordinator.Face.FRONT, filtered, config);
             refreshFaceIfNeeded(sign, originalBack, ContinuousSignTranslationCoordinator.Face.BACK, filtered, config);
@@ -54,7 +53,7 @@ public final class SignTranslationSupport {
                         originalFront,
                         ContinuousSignTranslationCoordinator.Face.FRONT,
                         filtered,
-                        state,
+                        maxTextWidth,
                         textRenderer,
                         config
                 ),
@@ -63,7 +62,7 @@ public final class SignTranslationSupport {
                         originalBack,
                         ContinuousSignTranslationCoordinator.Face.BACK,
                         filtered,
-                        state,
+                        maxTextWidth,
                         textRenderer,
                         config
                 )
@@ -73,20 +72,21 @@ public final class SignTranslationSupport {
     static SignText rebuildSignText(
             SignText original,
             Text[] translated,
-            SignBlockEntityRenderState state,
+            boolean filtered,
+            int maxTextWidth,
             TextRenderer textRenderer
     ) {
         if (original == null || translated == null || translated.length != SIGN_LINE_COUNT) {
             return original;
         }
-        Text[] source = original.getMessages(state.filterText);
+        Text[] source = original.getMessages(filtered);
         if (source == null || source.length != SIGN_LINE_COUNT) {
             return original;
         }
         Text[] guarded = Arrays.copyOf(source, source.length);
         for (int index = 0; index < source.length; index++) {
             Text candidate = translated[index];
-            if (candidate != null && fitsLine(candidate, state, textRenderer)) {
+            if (candidate != null && fitsLine(candidate, maxTextWidth, textRenderer)) {
                 guarded[index] = candidate;
             }
         }
@@ -98,7 +98,7 @@ public final class SignTranslationSupport {
             SignText original,
             ContinuousSignTranslationCoordinator.Face face,
             boolean filtered,
-            SignBlockEntityRenderState state,
+            int maxTextWidth,
             TextRenderer textRenderer,
             OtherTranslationsConfig config
     ) {
@@ -109,14 +109,15 @@ public final class SignTranslationSupport {
                 new ContinuousSignTranslationCoordinator.SignFaceKey(sign.getPos(), face);
         Text[] coordinated = ContinuousSignTranslationCoordinator.translatedLines(key);
         if (coordinated != null) {
-            return rebuildSignText(original, coordinated, state, textRenderer);
+            return rebuildSignText(original, coordinated, filtered, maxTextWidth, textRenderer);
         }
         String coordinatedAnimationKey = ContinuousSignTranslationCoordinator.pendingAnimationKey(key);
         if (coordinatedAnimationKey != null) {
             return rebuildSignText(
                     original,
                     animateLines(original.getMessages(filtered), coordinatedAnimationKey),
-                    state,
+                    filtered,
+                    maxTextWidth,
                     textRenderer
             );
         }
@@ -152,13 +153,14 @@ public final class SignTranslationSupport {
             if (resolution.state() == ComponentTranslationRuntime.State.CACHE_HIT
                     && resolution.value() != null
                     && resolution.value().size() == SIGN_LINE_COUNT) {
-                return rebuildSignText(original, resolution.value().toArray(Text[]::new), state, textRenderer);
+                return rebuildSignText(original, resolution.value().toArray(Text[]::new), filtered, maxTextWidth, textRenderer);
             }
             if (resolution.state() == ComponentTranslationRuntime.State.PENDING) {
                 return rebuildSignText(
                         original,
                         animateLines(source, "sign:face:" + sign.getPos() + ":" + face.name()),
-                        state,
+                        filtered,
+                        maxTextWidth,
                         textRenderer
                 );
             }
@@ -219,13 +221,13 @@ public final class SignTranslationSupport {
         return animated;
     }
 
-    private static boolean fitsLine(Text text, SignBlockEntityRenderState state, TextRenderer textRenderer) {
+    private static boolean fitsLine(Text text, int maxTextWidth, TextRenderer textRenderer) {
         if (text.getString().contains("\n")) {
             return false;
         }
         return textRenderer == null
-                || state.maxTextWidth <= 0
-                || textRenderer.wrapLines(text, state.maxTextWidth).size() <= 1;
+                || maxTextWidth <= 0
+                || textRenderer.wrapLines(text, maxTextWidth).size() <= 1;
     }
 
     private static boolean isFeatureEnabled(OtherTranslationsConfig config) {

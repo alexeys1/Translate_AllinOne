@@ -2,7 +2,6 @@ package com.cedarxuesong.translate_allinone.utils.input;
 
 import com.cedarxuesong.translate_allinone.utils.config.pojos.InputBindingConfig;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.input.KeyInput;
 import net.minecraft.client.util.InputUtil;
 import org.lwjgl.glfw.GLFW;
 
@@ -14,15 +13,15 @@ public final class KeybindingManager {
         return binding != null && binding.isBound();
     }
 
-    public static boolean isEscape(KeyInput keyInput) {
-        return extractKeyCode(keyInput) == GLFW.GLFW_KEY_ESCAPE;
+    public static boolean isEscape(int keyCode) {
+        return keyCode == GLFW.GLFW_KEY_ESCAPE;
     }
 
-    public static boolean matchesKeyInput(InputBindingConfig binding, KeyInput keyInput) {
+    public static boolean matchesKeyInput(InputBindingConfig binding, int keyCode) {
         if (!isBound(binding) || binding.type != InputBindingConfig.InputType.KEYSYM) {
             return false;
         }
-        return extractKeyCode(keyInput) == binding.code;
+        return keyCode >= 0 && keyCode == binding.code;
     }
 
     public static boolean isPressed(InputBindingConfig binding) {
@@ -45,14 +44,14 @@ public final class KeybindingManager {
                 return code <= GLFW.GLFW_MOUSE_BUTTON_LAST
                         && GLFW.glfwGetMouseButton(client.getWindow().getHandle(), code) == GLFW.GLFW_PRESS;
             }
-            return code <= GLFW.GLFW_KEY_LAST && InputUtil.isKeyPressed(client.getWindow(), code);
+            return code <= GLFW.GLFW_KEY_LAST && InputUtil.isKeyPressed(client.getWindow().getHandle(), code);
         } catch (Exception e) {
             return false;
         }
     }
 
-    public static InputBindingConfig captureKeyboardBinding(KeyInput keyInput) {
-        int code = extractKeyCode(keyInput);
+    public static InputBindingConfig captureKeyboardBinding(int keyCode) {
+        int code = keyCode >= 0 ? keyCode : -1;
         if (code < 0) {
             return null;
         }
@@ -106,11 +105,4 @@ public final class KeybindingManager {
         }
     }
 
-    private static int extractKeyCode(KeyInput keyInput) {
-        if (keyInput == null) {
-            return -1;
-        }
-        int code = keyInput.key();
-        return code >= 0 ? code : -1;
-    }
 }

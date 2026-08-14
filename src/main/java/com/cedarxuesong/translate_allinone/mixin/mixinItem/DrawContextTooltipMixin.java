@@ -21,7 +21,6 @@ import net.minecraft.text.MutableText;
 import net.minecraft.text.OrderedText;
 import net.minecraft.text.Style;
 import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.spongepowered.asm.mixin.Mixin;
@@ -77,7 +76,7 @@ public abstract class DrawContextTooltipMixin {
     }
 
     @Inject(
-            method = "drawTooltip(Lnet/minecraft/client/font/TextRenderer;Ljava/util/List;IILnet/minecraft/client/gui/tooltip/TooltipPositioner;Lnet/minecraft/util/Identifier;Z)V",
+            method = "drawTooltip(Lnet/minecraft/client/font/TextRenderer;Ljava/util/List;IILnet/minecraft/client/gui/tooltip/TooltipPositioner;)V",
             at = @At("HEAD")
     )
     private void translate_allinone$translateTooltipComponents(
@@ -86,8 +85,6 @@ public abstract class DrawContextTooltipMixin {
             int x,
             int y,
             TooltipPositioner positioner,
-            Identifier texture,
-            boolean recalculateWidth,
             CallbackInfo ci
     ) {
         if (translate_allinone$isProcessing.get()) {
@@ -361,7 +358,7 @@ public abstract class DrawContextTooltipMixin {
     }
 
     @Inject(
-            method = "drawDeferredElements",
+            method = "drawTooltip(Lnet/minecraft/client/font/TextRenderer;Ljava/util/List;IILnet/minecraft/client/gui/tooltip/TooltipPositioner;)V",
             at = @At("RETURN"),
             require = 0
     )

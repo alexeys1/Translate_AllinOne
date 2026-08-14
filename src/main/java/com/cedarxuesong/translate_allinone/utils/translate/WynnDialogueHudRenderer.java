@@ -4,11 +4,10 @@ import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.utils.AnimationManager;
 import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.WynnCraftConfig;
-import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
+import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.render.RenderTickCounter;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.OrderedText;
 import net.minecraft.text.Style;
@@ -69,7 +68,7 @@ public final class WynnDialogueHudRenderer {
         if (initialized) {
             return;
         }
-        HudElementRegistry.addLast(HUD_ELEMENT_ID, WynnDialogueHudRenderer::render);
+        HudRenderCallback.EVENT.register(WynnDialogueHudRenderer::render);
         initialized = true;
     }
 
@@ -290,7 +289,7 @@ public final class WynnDialogueHudRenderer {
         }
     }
 
-    private static void render(DrawContext drawContext, RenderTickCounter tickCounter) {
+    private static void render(DrawContext drawContext, float tickDelta) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client == null || client.player == null || client.world == null) {
             return;
@@ -609,12 +608,12 @@ public final class WynnDialogueHudRenderer {
             int viewportX,
             int viewportY
     ) {
-        drawContext.getMatrices().pushMatrix();
-        drawContext.getMatrices().translate((float) (viewportX + renderData.x()), (float) (viewportY + renderData.y()));
-        drawContext.getMatrices().scale(renderData.hudLayout().scale(), renderData.hudLayout().scale());
+        drawContext.getMatrices().push();
+        drawContext.getMatrices().translate((float) (viewportX + renderData.x()), (float) (viewportY + renderData.y()), 0.0F);
+        drawContext.getMatrices().scale(renderData.hudLayout().scale(), renderData.hudLayout().scale(), 1.0F);
 
         drawContext.fill(0, 0, renderData.boxWidth(), renderData.boxHeight(), BOX_BACKGROUND_COLOR);
-        drawContext.drawStrokedRectangle(0, 0, renderData.boxWidth(), renderData.boxHeight(), BOX_BORDER_COLOR);
+        drawContext.drawBorder(0, 0, renderData.boxWidth(), renderData.boxHeight(), BOX_BORDER_COLOR);
 
         int textX = PADDING;
         int textY = PADDING;
@@ -626,7 +625,7 @@ public final class WynnDialogueHudRenderer {
             textY += LINE_HEIGHT;
         }
 
-        drawContext.getMatrices().popMatrix();
+        drawContext.getMatrices().pop();
     }
 
     private static void drawErrorStatusLine(
@@ -635,14 +634,14 @@ public final class WynnDialogueHudRenderer {
             DialogueRenderData renderData,
             String errorMessage
     ) {
-        drawContext.getMatrices().pushMatrix();
-        drawContext.getMatrices().translate((float) renderData.x(), (float) (renderData.y() + renderData.scaledBoxHeight() + 2));
-        drawContext.getMatrices().scale(renderData.hudLayout().scale(), renderData.hudLayout().scale());
+        drawContext.getMatrices().push();
+        drawContext.getMatrices().translate((float) renderData.x(), (float) (renderData.y() + renderData.scaledBoxHeight() + 2), 0.0F);
+        drawContext.getMatrices().scale(renderData.hudLayout().scale(), renderData.hudLayout().scale(), 1.0F);
         Text statusText = errorMessage == null || errorMessage.isBlank()
                 ? Text.translatable(STATUS_ERROR_KEY)
                 : Text.translatable(STATUS_ERROR_WITH_REASON_KEY, TranslationErrorTextSupport.localizeReason(errorMessage));
         drawContext.drawTextWithShadow(textRenderer, statusText, 0, 0, STATUS_LINE_COLOR);
-        drawContext.getMatrices().popMatrix();
+        drawContext.getMatrices().pop();
     }
 
     private static void drawOptionsRows(
@@ -653,14 +652,14 @@ public final class WynnDialogueHudRenderer {
             int viewportY,
             List<String> perLineAnimationKeys
     ) {
-        drawContext.getMatrices().pushMatrix();
-        drawContext.getMatrices().translate((float) (viewportX + renderData.x()), (float) (viewportY + renderData.y()));
-        drawContext.getMatrices().scale(renderData.hudLayout().scale(), renderData.hudLayout().scale());
+        drawContext.getMatrices().push();
+        drawContext.getMatrices().translate((float) (viewportX + renderData.x()), (float) (viewportY + renderData.y()), 0.0F);
+        drawContext.getMatrices().scale(renderData.hudLayout().scale(), renderData.hudLayout().scale(), 1.0F);
 
         List<List<OrderedText>> groups = renderData.optionGroups();
         List<String> rawSegments = renderData.rawSegments();
         if (groups == null || groups.isEmpty()) {
-            drawContext.getMatrices().popMatrix();
+            drawContext.getMatrices().pop();
             return;
         }
 
@@ -698,7 +697,7 @@ public final class WynnDialogueHudRenderer {
             yOffset = rowBottom + OPTION_ROW_GAP;
         }
 
-        drawContext.getMatrices().popMatrix();
+        drawContext.getMatrices().pop();
     }
 
     private static void fillRoundedRect(DrawContext ctx, int x, int y, int x2, int y2, int color) {

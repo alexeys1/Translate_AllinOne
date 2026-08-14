@@ -607,8 +607,8 @@ final class TooltipComponentTranslationSupport {
             String replacement = content;
             if (matchingAnchors.size() == 1
                     && containsNaturalLanguageText(content)
-                    && usedAnchors.add(matchingAnchors.getFirst().id())) {
-                ParagraphTranslationPlan.AccentAnchor anchor = matchingAnchors.getFirst();
+                    && usedAnchors.add(matchingAnchors.get(0).id())) {
+                ParagraphTranslationPlan.AccentAnchor anchor = matchingAnchors.get(0);
                 replacement = anchor.beginToken() + content + anchor.endToken();
             }
             matcher.appendReplacement(promoted, Matcher.quoteReplacement(replacement));

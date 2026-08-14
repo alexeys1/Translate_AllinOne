@@ -110,9 +110,10 @@ public final class TooltipTextDebugCopySupport {
         }
 
         try {
-            boolean controlDown = InputUtil.isKeyPressed(client.getWindow(), GLFW.GLFW_KEY_LEFT_CONTROL)
-                    || InputUtil.isKeyPressed(client.getWindow(), GLFW.GLFW_KEY_RIGHT_CONTROL);
-            return controlDown && InputUtil.isKeyPressed(client.getWindow(), GLFW.GLFW_KEY_C);
+            long handle = client.getWindow().getHandle();
+            boolean controlDown = InputUtil.isKeyPressed(handle, GLFW.GLFW_KEY_LEFT_CONTROL)
+                    || InputUtil.isKeyPressed(handle, GLFW.GLFW_KEY_RIGHT_CONTROL);
+            return controlDown && InputUtil.isKeyPressed(handle, GLFW.GLFW_KEY_C);
         } catch (Exception ignored) {
             return false;
         }
