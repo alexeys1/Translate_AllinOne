@@ -44,6 +44,12 @@ public final class ModelSettingsMutationSupport {
         }
 
         settings.model_id = nextModelId;
+        int originalModelIndex = creating ? -1 : profile.model_ids.indexOf(originalModelId);
+        if (originalModelIndex >= 0) {
+            profile.model_ids.set(originalModelIndex, nextModelId);
+        } else if (!profile.model_ids.contains(nextModelId)) {
+            profile.model_ids.add(nextModelId);
+        }
         settings.temperature = chatTemperature;
         settings.chat_temperature = chatTemperature;
         settings.item_temperature = itemTemperature;
