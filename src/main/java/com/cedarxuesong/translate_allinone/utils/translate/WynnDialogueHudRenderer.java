@@ -12,7 +12,6 @@ import net.minecraft.text.MutableText;
 import net.minecraft.text.OrderedText;
 import net.minecraft.text.Style;
 import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,10 +19,6 @@ import java.util.Optional;
 import java.util.Objects;
 
 public final class WynnDialogueHudRenderer {
-    private static final Identifier HUD_ELEMENT_ID = Identifier.of(
-            Translate_AllinOne.MOD_ID,
-            "wynn_dialogue_hud"
-    );
     private static final long DISPLAY_DURATION_MILLIS = 10_000L;
     private static final int PADDING = 8;
     private static final int TITLE_GAP = 4;
