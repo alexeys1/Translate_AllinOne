@@ -517,7 +517,7 @@
   "text.translate_allinone.configscreen.status.testing_provider": "Testing: %s",
   "text.translate_allinone.configscreen.status.updated_model": "Updated model: %s",
   "text.translate_allinone.configscreen.title": "Translate_AllinOne Config",
-  "text.translate_allinone.configscreen.value.cache_entries": "%s translated, %s tracked in total",
+  "text.translate_allinone.configscreen.value.cache_entries": "%s cached",
   "text.translate_allinone.configscreen.value.dictionary_file_none_selected": "Not selected",
   "text.translate_allinone.configscreen.value.dictionary_file_selected": "Selected: %s",
   "text.translate_allinone.configscreen.version_link": "v%s",

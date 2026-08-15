@@ -1229,7 +1229,7 @@ public final class ConfigSectionContentSupport {
                         width,
                         translator.t("label.cache_entries_scoreboard"),
                         64,
-                        translator.t("value.cache_entries", scoreboardStats.translated(), scoreboardStats.total()).getString(),
+                        translator.t("value.cache_entries", scoreboardStats.translated()).getString(),
                         Text.empty(),
                         value -> {
                         },
@@ -1243,7 +1243,7 @@ public final class ConfigSectionContentSupport {
                         width,
                         translator.t("label.cache_entries_sign"),
                         64,
-                        translator.t("value.cache_entries", signStats.translated(), signStats.total()).getString(),
+                        translator.t("value.cache_entries", signStats.translated()).getString(),
                         Text.empty(),
                         value -> {
                         },
@@ -1257,7 +1257,7 @@ public final class ConfigSectionContentSupport {
                         width,
                         translator.t("label.cache_entries_entity"),
                         64,
-                        translator.t("value.cache_entries", entityStats.translated(), entityStats.total()).getString(),
+                        translator.t("value.cache_entries", entityStats.translated()).getString(),
                         Text.empty(),
                         value -> {
                         },
@@ -1271,7 +1271,7 @@ public final class ConfigSectionContentSupport {
                         width,
                         translator.t("label.cache_entries_book"),
                         64,
-                        translator.t("value.cache_entries", bookStats.translated(), bookStats.total()).getString(),
+                        translator.t("value.cache_entries", bookStats.translated()).getString(),
                         Text.empty(),
                         value -> {
                         },
@@ -1285,7 +1285,7 @@ public final class ConfigSectionContentSupport {
                         width,
                         translator.t("label.cache_entries_skyblock_npc"),
                         64,
-                        translator.t("value.cache_entries", skyblockNpcStats.translated(), skyblockNpcStats.total()).getString(),
+                        translator.t("value.cache_entries", skyblockNpcStats.translated()).getString(),
                         Text.empty(),
                         value -> {
                         },
@@ -1299,7 +1299,7 @@ public final class ConfigSectionContentSupport {
                         width,
                         translator.t("label.cache_entries_wynn_dialogue"),
                         64,
-                        translator.t("value.cache_entries", dialogueStats.translated(), dialogueStats.total()).getString(),
+                        translator.t("value.cache_entries", dialogueStats.translated()).getString(),
                         Text.empty(),
                         value -> {
                         },
@@ -1313,7 +1313,7 @@ public final class ConfigSectionContentSupport {
                         width,
                         translator.t("label.cache_entries_wynntils_task_tracker"),
                         64,
-                        translator.t("value.cache_entries", taskTrackerStats.translated(), taskTrackerStats.total()).getString(),
+                        translator.t("value.cache_entries", taskTrackerStats.translated()).getString(),
                         Text.empty(),
                         value -> {
                         },

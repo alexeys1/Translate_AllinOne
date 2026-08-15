@@ -517,7 +517,7 @@
   "text.translate_allinone.configscreen.status.testing_provider": "正在测试：%s",
   "text.translate_allinone.configscreen.status.updated_model": "已更新模型：%s",
   "text.translate_allinone.configscreen.title": "Translate_AllinOne 配置",
-  "text.translate_allinone.configscreen.value.cache_entries": "已缓存 %s 条，追踪总数 %s 条",
+  "text.translate_allinone.configscreen.value.cache_entries": "已缓存 %s 条",
   "text.translate_allinone.configscreen.value.dictionary_file_none_selected": "未选择",
   "text.translate_allinone.configscreen.value.dictionary_file_selected": "已选择：%s",
   "text.translate_allinone.configscreen.version_link": "v%s",
