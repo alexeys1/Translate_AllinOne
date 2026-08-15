@@ -22,7 +22,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class VanillaAdvancementTranslationSupport {
-    private static final String VANILLA_NAMESPACE = "minecraft";
     private static final String ADVANCEMENT_STATUS_ANIMATION_KEY = "advancement-tooltip-status";
     private static final AtomicBoolean UNEXPECTED_FAILURE_LOGGED = new AtomicBoolean(false);
     private static final long REFRESH_HOLD_RELEASE_GRACE_MILLIS = 250L;
@@ -35,8 +34,7 @@ public final class VanillaAdvancementTranslationSupport {
 
     public static boolean isVanillaAdvancement(AdvancementEntry holder) {
         return holder != null
-                && holder.id() != null
-                && VANILLA_NAMESPACE.equals(holder.id().getNamespace());
+                && holder.id() != null;
     }
 
     public static Text translateTitle(AdvancementEntry holder, Text originalTitle) {
