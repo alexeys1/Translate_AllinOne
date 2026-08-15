@@ -629,7 +629,6 @@ public class ConfigManager {
                 );
                 loadedConfig.otherTranslations.enabled = legacyAdvancementEnabled;
                 loadedConfig.otherTranslations.enabled_translate_vanilla_advancements = legacyAdvancementEnabled;
-                loadedConfig.itemTranslate.enabled_translate_vanilla_advancements = legacyAdvancementEnabled;
                 return true;
             }
             return false;
@@ -647,7 +646,6 @@ public class ConfigManager {
                 legacyItemConfig,
                 "enabled_translate_vanilla_advancements"
         );
-        loadedConfig.itemTranslate.enabled_translate_vanilla_advancements = legacyAdvancementEnabled;
         loadedConfig.otherTranslations.enabled = legacyAdvancementEnabled;
         loadedConfig.otherTranslations.enabled_translate_vanilla_advancements = legacyAdvancementEnabled;
 

@@ -55,7 +55,6 @@
   "text.autoconfig.translate_allinone/translate_allinone.option.itemTranslate.max_batch_size": "每次最大翻译条数",
   "text.autoconfig.translate_allinone/translate_allinone.option.itemTranslate.enabled_translate_item_custom_name": "翻译物品名称",
   "text.autoconfig.translate_allinone/translate_allinone.option.itemTranslate.enabled_translate_item_lore": "翻译 lore (物品简介)",
-  "text.autoconfig.translate_allinone/translate_allinone.option.itemTranslate.enabled_translate_vanilla_advancements": "翻译原版成就",
   "text.autoconfig.translate_allinone/translate_allinone.option.itemTranslate.target_language": "目标语言",
   "text.autoconfig.translate_allinone/translate_allinone.option.itemTranslate.llm_provider": "大模型Api格式（点击切换）",
   "text.autoconfig.translate_allinone/translate_allinone.option.itemTranslate.openapi": "OpenAI API 设置",

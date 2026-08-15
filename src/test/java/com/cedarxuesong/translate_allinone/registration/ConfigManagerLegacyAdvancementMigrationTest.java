@@ -2,6 +2,7 @@ package com.cedarxuesong.translate_allinone.registration;
 
 import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.OtherTranslationsConfig;
+import com.google.gson.JsonParser;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
@@ -39,7 +40,7 @@ class ConfigManagerLegacyAdvancementMigrationTest {
         assertTrue(config.otherTranslations.enabled_translate_vanilla_advancements);
         assertEquals("Japanese", config.otherTranslations.target_language);
         assertEquals(OtherTranslationsConfig.KeybindingMode.HOLD_TO_TRANSLATE, config.otherTranslations.keybinding.mode);
-        assertTrue(config.itemTranslate.enabled_translate_vanilla_advancements);
+        assertFalse(JsonParser.parseString(persisted).getAsJsonObject().getAsJsonObject("itemTranslate").has("enabled_translate_vanilla_advancements"));
         assertFalse(persisted.contains("external_custom_scoreboard_mode"));
     }
 }
