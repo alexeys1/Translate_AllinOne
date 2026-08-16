@@ -14,7 +14,9 @@ import net.minecraft.text.Text;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -27,6 +29,11 @@ public abstract class ChatHudMixin {
 
     @Unique
     private static final ThreadLocal<Boolean> isModifyingMessage = ThreadLocal.withInitial(() -> false);
+
+    @Inject(method = "render", at = @At("HEAD"))
+    private void animatePendingTranslations(CallbackInfo callbackInfo) {
+        ChatOutputTranslateManager.animatePendingChatLines();
+    }
 
     @ModifyVariable(method = "addMessage(Lnet/minecraft/text/Text;Lnet/minecraft/network/message/MessageSignatureData;Lnet/minecraft/client/gui/hud/MessageIndicator;)V", at = @At("HEAD"), argsOnly = true)
     private Text onAddMessage(Text message) {
