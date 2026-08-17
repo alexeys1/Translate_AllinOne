@@ -107,6 +107,7 @@ public class LifecycleEventManager {
                 UpdateCheckManager.tryNotifyInChat(client);
                 WynnDialogueTranslationSupport.tick();
                 ContinuousSignTranslationCoordinator.tick();
+                ChatOutputTranslateManager.animatePendingChatLines();
             }
             ScoreboardTranslationInputSupport.tick(
                     Translate_AllinOne.getConfig() == null
