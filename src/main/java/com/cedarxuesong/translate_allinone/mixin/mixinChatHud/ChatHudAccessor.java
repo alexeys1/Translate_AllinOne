@@ -13,6 +13,9 @@ public interface ChatHudAccessor {
     @Accessor("allMessages")
     List<GuiMessage> getMessages();
 
+    @Accessor("trimmedMessages")
+    List<GuiMessage.Line> getTrimmedMessages();
+
     @Accessor("chatScrollbarPos")
     int getScrolledLines();
 
