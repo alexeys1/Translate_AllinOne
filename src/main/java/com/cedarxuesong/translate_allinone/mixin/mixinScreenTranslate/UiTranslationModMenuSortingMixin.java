@@ -2,13 +2,13 @@ package com.cedarxuesong.translate_allinone.mixin.mixinScreenTranslate;
 
 import com.cedarxuesong.translate_allinone.utils.translate.UiTextRole;
 import com.cedarxuesong.translate_allinone.utils.translate.UiTranslationRuntime;
+import com.terraformersmc.modmenu.util.mod.Mod;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import java.lang.reflect.Method;
 import java.util.Comparator;
 import java.util.Locale;
 
@@ -16,41 +16,28 @@ import java.util.Locale;
 @Mixin(targets = "com.terraformersmc.modmenu.config.ModMenuConfig$Sorting", remap = false)
 public abstract class UiTranslationModMenuSortingMixin {
     @Inject(method = "getComparator", at = @At("RETURN"), cancellable = true, require = 0)
-    private void translate_allinone$sortByScreenTranslation(CallbackInfoReturnable<Comparator> cir) {
-        Comparator<?> original = cir.getReturnValue();
+    private void translate_allinone$sortByScreenTranslation(CallbackInfoReturnable<Comparator<Mod>> cir) {
+        Comparator<Mod> original = cir.getReturnValue();
         if (original == null) {
             return;
         }
 
-        String mode = enumName((Object) this);
+        String mode = ((Enum<?>) (Object) this).name();
         if (!"ASCENDING".equals(mode) && !"DESCENDING".equals(mode)) {
             return;
         }
 
-        Comparator<Object> translatedComparator = Comparator.comparing(
-                (Object mod) -> translatedName(mod).toLowerCase(Locale.ROOT)
+        Comparator<Mod> translatedComparator = Comparator.comparing(
+                (Mod mod) -> translatedName(mod).toLowerCase(Locale.ROOT)
         );
         cir.setReturnValue("DESCENDING".equals(mode) ? translatedComparator.reversed() : translatedComparator);
     }
 
-    private static String enumName(Object sorting) {
-        try {
-            Method name = sorting.getClass().getMethod("name");
-            Object value = name.invoke(sorting);
-            return value == null ? "" : value.toString();
-        } catch (ReflectiveOperationException | RuntimeException error) {
+    private static String translatedName(Mod mod) {
+        if (mod == null) {
             return "";
         }
-    }
-
-    private static String translatedName(Object mod) {
-        try {
-            Method getTranslatedName = mod.getClass().getMethod("getTranslatedName");
-            Object value = getTranslatedName.invoke(mod);
-            String base = value == null ? "" : value.toString();
-            return UiTranslationRuntime.translateStringInCurrentScreen(base, UiTextRole.OPTION);
-        } catch (ReflectiveOperationException | RuntimeException error) {
-            return "";
-        }
+        String base = mod.getTranslatedName();
+        return base == null ? "" : UiTranslationRuntime.translateStringInCurrentScreen(base, UiTextRole.OPTION);
     }
 }
