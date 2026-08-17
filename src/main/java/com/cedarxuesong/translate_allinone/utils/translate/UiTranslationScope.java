@@ -16,8 +16,36 @@ public final class UiTranslationScope {
     }
 
     public static Scope enter(Screen screen) {
+        return enterObject(screen);
+    }
+
+    public static Scope enter(Object screenObject) {
+        return enterObject(screenObject);
+    }
+
+    public static Scope enter(String className) {
         Frame parent = currentFrame();
-        UiScreenAdapter adapter = UiScreenAdapterRegistry.resolve(screen);
+        UiScreenAdapter adapter = className == null ? null : UiScreenAdapterRegistry.resolve(className);
+        if (adapter == null && parent != null) {
+            adapter = parent.adapter;
+        }
+        if (adapter == null) {
+            return Scope.inactive();
+        }
+        Frame frame = new Frame(
+                adapter,
+                parent == null ? new HashMap<>() : parent.cache,
+                UiTextRole.OPTION,
+                false,
+                false
+        );
+        FRAMES.get().push(frame);
+        return new Scope(frame);
+    }
+
+    private static Scope enterObject(Object screenObject) {
+        Frame parent = currentFrame();
+        UiScreenAdapter adapter = screenObject == null ? null : UiScreenAdapterRegistry.resolve(screenObject.getClass());
         if (adapter == null && parent != null) {
             adapter = parent.adapter;
         }

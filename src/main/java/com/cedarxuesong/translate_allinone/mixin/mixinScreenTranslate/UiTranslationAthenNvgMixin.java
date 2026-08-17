@@ -7,18 +7,16 @@ import com.cedarxuesong.translate_allinone.utils.translate.UiTranslationScope;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Pseudo
 @Mixin(
-        targets = "com.odtheking.odin.utils.ui.rendering.NVGRenderer",
+        targets = "foo.starred.athen.utils.nvg.NVGRenderer",
         remap = false
 )
-public abstract class UiTranslationOdinMixin {
+public abstract class UiTranslationAthenNvgMixin {
     @Redirect(
-            method = {"text", "textShadow", "textWidth", "drawWrappedString", "wrappedTextBounds"},
+            method = {"drawText", "drawTextWrapped", "getTextWidth", "getWrappedTextWidth", "getWrappedTextHeight"},
             at = @At(
                     value = "INVOKE",
                     target = "Lorg/lwjgl/nanovg/NanoVG;nvgText(JFFLjava/lang/CharSequence;)F"
@@ -27,16 +25,11 @@ public abstract class UiTranslationOdinMixin {
             remap = false
     )
     private static float translate_allinone$redirectNvgText(long vg, float x, float y, CharSequence text) {
-        String raw = text == null ? null : text.toString();
-        String translated;
-        try (UiTranslationScope.Scope scope = UiTranslationScope.enter("com.odtheking.odin.clickgui.ClickGUI")) {
-            translated = UiTranslationRuntime.translateStringInCurrentScreen(raw, UiTextRole.OPTION);
-        }
-        return translate_allinone$callNvgText(vg, x, y, translated == null ? "" : translated);
+        return translate_allinone$callNvgText(vg, x, y, translate_allinone$translateAthen(text == null ? null : text.toString(), UiTextRole.OPTION));
     }
 
     @Redirect(
-            method = {"text", "textShadow", "textWidth", "drawWrappedString", "wrappedTextBounds"},
+            method = {"drawText", "drawTextWrapped", "getTextWidth", "getWrappedTextWidth", "getWrappedTextHeight"},
             at = @At(
                     value = "INVOKE",
                     target = "Lorg/lwjgl/nanovg/NanoVG;nvgTextBounds(JFFLjava/lang/CharSequence;[F)F"
@@ -45,16 +38,11 @@ public abstract class UiTranslationOdinMixin {
             remap = false
     )
     private static float translate_allinone$redirectNvgTextBounds(long vg, float x, float y, CharSequence text, float[] bounds) {
-        String raw = text == null ? null : text.toString();
-        String translated;
-        try (UiTranslationScope.Scope scope = UiTranslationScope.enter("com.odtheking.odin.clickgui.ClickGUI")) {
-            translated = UiTranslationRuntime.translateStringInCurrentScreen(raw, UiTextRole.OPTION);
-        }
-        return translate_allinone$callNvgTextBounds(vg, x, y, translated == null ? "" : translated, bounds);
+        return translate_allinone$callNvgTextBounds(vg, x, y, translate_allinone$translateAthen(text == null ? null : text.toString(), UiTextRole.OPTION), bounds);
     }
 
     @Redirect(
-            method = {"text", "textShadow", "textWidth", "drawWrappedString", "wrappedTextBounds"},
+            method = {"drawText", "drawTextWrapped", "getTextWidth", "getWrappedTextWidth", "getWrappedTextHeight"},
             at = @At(
                     value = "INVOKE",
                     target = "Lorg/lwjgl/nanovg/NanoVG;nvgTextBox(JFFFLjava/lang/CharSequence;)V"
@@ -63,16 +51,11 @@ public abstract class UiTranslationOdinMixin {
             remap = false
     )
     private static void translate_allinone$redirectNvgTextBox(long vg, float x, float y, float rowHeight, CharSequence text) {
-        String raw = text == null ? null : text.toString();
-        String translated;
-        try (UiTranslationScope.Scope scope = UiTranslationScope.enter("com.odtheking.odin.clickgui.ClickGUI")) {
-            translated = UiTranslationRuntime.translateStringInCurrentScreen(raw, UiTextRole.DESCRIPTION);
-        }
-        translate_allinone$callNvgTextBox(vg, x, y, rowHeight, translated == null ? "" : translated);
+        translate_allinone$callNvgTextBox(vg, x, y, rowHeight, translate_allinone$translateAthen(text == null ? null : text.toString(), UiTextRole.DESCRIPTION));
     }
 
     @Redirect(
-            method = {"text", "textShadow", "textWidth", "drawWrappedString", "wrappedTextBounds"},
+            method = {"drawText", "drawTextWrapped", "getTextWidth", "getWrappedTextWidth", "getWrappedTextHeight"},
             at = @At(
                     value = "INVOKE",
                     target = "Lorg/lwjgl/nanovg/NanoVG;nvgTextBoxBounds(JFFFLjava/lang/CharSequence;[F)V"
@@ -81,22 +64,31 @@ public abstract class UiTranslationOdinMixin {
             remap = false
     )
     private static void translate_allinone$redirectNvgTextBoxBounds(long vg, float x, float y, float rowHeight, CharSequence text, float[] bounds) {
-        String raw = text == null ? null : text.toString();
-        String translated;
-        try (UiTranslationScope.Scope scope = UiTranslationScope.enter("com.odtheking.odin.clickgui.ClickGUI")) {
-            translated = UiTranslationRuntime.translateStringInCurrentScreen(raw, UiTextRole.DESCRIPTION);
-        }
-        translate_allinone$callNvgTextBoxBounds(vg, x, y, rowHeight, translated == null ? "" : translated, bounds);
+        translate_allinone$callNvgTextBoxBounds(vg, x, y, rowHeight, translate_allinone$translateAthen(text == null ? null : text.toString(), UiTextRole.DESCRIPTION), bounds);
     }
 
-    @Inject(
-            method = "getFontID",
-            at = @At("RETURN"),
+    @Redirect(
+            method = {"drawText", "drawTextWrapped", "getTextWidth", "getWrappedTextWidth", "getWrappedTextHeight"},
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lorg/lwjgl/nanovg/NanoVG;nvgFontFaceId(JI)V"
+            ),
             require = 0,
             remap = false
     )
-    private void translate_allinone$attachFallbackFont(CallbackInfoReturnable<Integer> cir) {
-        UiOdinFontFallback.attachFallback(cir.getReturnValue());
+    private static void translate_allinone$attachAthenFont(long vg, int fontId) {
+        UiOdinFontFallback.attachFallback("foo.starred.athen.utils.nvg.NVGRenderer", fontId);
+        translate_allinone$callNvgFontFaceId(vg, fontId);
+    }
+
+    private static String translate_allinone$translateAthen(String raw, UiTextRole role) {
+        UiTranslationScope.Scope scope = UiTranslationScope.enter("foo.starred.athen.config.ui.ClickGUI");
+        try {
+            String translated = UiTranslationRuntime.translateStringInCurrentScreen(raw, role);
+            return translated == null ? "" : translated;
+        } finally {
+            scope.close();
+        }
     }
 
     private static float translate_allinone$callNvgText(long vg, float x, float y, String text) {
@@ -135,6 +127,15 @@ public abstract class UiTranslationOdinMixin {
             Class.forName("org.lwjgl.nanovg.NanoVG")
                     .getMethod("nvgTextBoxBounds", long.class, float.class, float.class, float.class, CharSequence.class, float[].class)
                     .invoke(null, vg, x, y, rowHeight, text, bounds);
+        } catch (ReflectiveOperationException | RuntimeException ignored) {
+        }
+    }
+
+    private static void translate_allinone$callNvgFontFaceId(long vg, int fontId) {
+        try {
+            Class.forName("org.lwjgl.nanovg.NanoVG")
+                    .getMethod("nvgFontFaceId", long.class, int.class)
+                    .invoke(null, vg, fontId);
         } catch (ReflectiveOperationException | RuntimeException ignored) {
         }
     }
