@@ -458,9 +458,6 @@ public final class UiTranslationRuntime {
     }
 
     private static Component aiSource(Component source) {
-        if (!(source.getContents() instanceof TranslatableContents)) {
-            return source;
-        }
         MutableComponent materialized = Component.empty();
         source.visit((style, text) -> {
             if (text != null && !text.isEmpty()) {
