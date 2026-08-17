@@ -420,7 +420,8 @@ public final class ComponentTranslationRuntime {
             );
             return new Resolution<>(State.MISS, null, request.identity().key(), "");
         }
-        if (!LifecycleEventManager.isReadyForTranslation) {
+        if (!LifecycleEventManager.isReadyForTranslation
+                && document.route() != ComponentTranslationRoute.SCREEN_UI) {
             ComponentTranslationDebugLogger.flow(
                     document.route(),
                     "resolve route={} state=PENDING reason=client_not_ready key={}",
@@ -1219,7 +1220,7 @@ public final class ComponentTranslationRuntime {
 
     private static DispatchRoute dispatchRoute(ComponentTranslationRoute route) {
         return switch (route) {
-            case ADVANCEMENT, SIGN_FACE, SIGN_CONTINUOUS, ENTITY_NAME, TEXT_DISPLAY, BOOK_PAGE ->
+            case ADVANCEMENT, SIGN_FACE, SIGN_CONTINUOUS, ENTITY_NAME, TEXT_DISPLAY, BOOK_PAGE, SCREEN_UI ->
                     DispatchRoute.OTHER_TRANSLATIONS;
             case SCOREBOARD -> DispatchRoute.SCOREBOARD;
             case TOOLTIP_LINE, TOOLTIP_STRUCTURED, TOOLTIP_PARAGRAPH, CHAT_OUTPUT -> DispatchRoute.ITEM;

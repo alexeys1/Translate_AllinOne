@@ -39,7 +39,19 @@
     "mixinInGameGui.InGameHudAccessor",
     "mixinInGameGui.ScoreboardOverhaulAccessorMixin",
     "mixinInGameGui.SkyHanniCustomScoreboardMixin",
-    "mixinChatScreen.ChatScreenMixin"
+    "mixinChatScreen.ChatScreenMixin",
+    "mixinScreenTranslate.UiTranslationScreenMixin",
+    "mixinScreenTranslate.UiTranslationGuiGraphicsExtractorMixin",
+    "mixinScreenTranslate.UiTranslationActiveTextCollectorMixin",
+    "mixinScreenTranslate.UiTranslationRenderingTextCollectorMixin",
+    "mixinScreenTranslate.UiTranslationGuiTextRenderStateMixin",
+    "mixinScreenTranslate.UiTranslationYaclOptionDescriptionMixin",
+    "mixinScreenTranslate.UiTranslationFontMixin",
+    "mixinScreenTranslate.UiTranslationEditBoxMixin",
+    "mixinScreenTranslate.UiTranslationOdinMixin",
+    "mixinScreenTranslate.UiTranslationElementaFontMixin",
+    "mixinScreenTranslate.UiTranslationModMenuSortingMixin",
+    "mixinScreenTranslate.UiTranslationModMenuListMixin"
   ],
   "injectors": {
     "defaultRequire": 1
