@@ -135,6 +135,8 @@ public final class PromptMessageBuilder {
                     + "2) Use concise objective wording. Preserve counts, coordinates, names, and progress indicators exactly.\n"
                     + "3) Preserve exactly: Minecraft formatting codes, <sN> tags, {dN}/{gN}, %s/%d/%f, URLs, numbers, \\n, and \\t.\n"
                     + "4) Keep an uncertain term unchanged. No Markdown or extra fields.";
+            case "screen_ui" -> "Translate static third-party Minecraft configuration UI text into " + targetLanguage
+                    + ". Preserve visible text only, formatting codes, URLs, paths, commands, key bindings, placeholders, numbers, units, decorative glyphs, module identities, configuration keys, and persistent values. Return only the required JSON response with no Markdown or extra fields.";
             default -> "";
         };
     }

@@ -11,7 +11,8 @@ public enum ComponentTranslationRoute {
     TOOLTIP_LINE("tooltip_line", "item"),
     TOOLTIP_STRUCTURED("tooltip_structured", "item"),
     TOOLTIP_PARAGRAPH("tooltip_paragraph", "item"),
-    SCOREBOARD("scoreboard", "scoreboard");
+    SCOREBOARD("scoreboard", "scoreboard"),
+    SCREEN_UI("screen_ui", "screen_ui");
 
     private final String wireName;
     private final String promptRouteKey;

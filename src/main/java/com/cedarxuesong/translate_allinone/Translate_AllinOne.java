@@ -4,6 +4,8 @@ import com.cedarxuesong.translate_allinone.registration.CommandManager;
 import com.cedarxuesong.translate_allinone.registration.ConfigManager;
 import com.cedarxuesong.translate_allinone.registration.LifecycleEventManager;
 import com.cedarxuesong.translate_allinone.utils.backup.VersionUpgradeBackupManager;
+import com.cedarxuesong.translate_allinone.utils.cache.component.ComponentCacheModule;
+import com.cedarxuesong.translate_allinone.utils.cache.component.ComponentTranslationStoreRegistry;
 import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
 import com.cedarxuesong.translate_allinone.utils.translate.DictionaryHotReloadManager;
 import com.cedarxuesong.translate_allinone.utils.translate.WynncraftDictionaryInstaller;
@@ -23,6 +25,7 @@ public class Translate_AllinOne implements ModInitializer {
 		LOGGER.info("Translate All in One is initializing...");
 		VersionUpgradeBackupManager.backupIfVersionChanged();
 		ConfigManager.register();
+		ComponentTranslationStoreRegistry.getInstance().forModule(ComponentCacheModule.SCREEN_UI).load();
 		WynncraftDictionaryInstaller.ensureInstalled();
 		DictionaryHotReloadManager.start();
 		UpdateCheckManager.startStartupCheck();

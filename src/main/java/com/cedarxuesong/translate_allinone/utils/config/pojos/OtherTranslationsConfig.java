@@ -4,6 +4,7 @@ public class OtherTranslationsConfig {
     public static final String DEFAULT_TARGET_LANGUAGE = "Chinese";
 
     public boolean enabled = false;
+    public boolean enabled_screen_translation = false;
     public boolean enabled_translate_vanilla_advancements = false;
     public boolean enabled_translate_signs = false;
     public boolean continuous_sign_translation = false;
