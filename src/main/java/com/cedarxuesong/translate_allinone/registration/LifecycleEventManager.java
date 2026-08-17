@@ -1,6 +1,7 @@
 package com.cedarxuesong.translate_allinone.registration;
 
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
+import com.cedarxuesong.translate_allinone.utils.cache.ChatOutputTranslationCache;
 import com.cedarxuesong.translate_allinone.utils.cache.ScoreboardTextCache;
 import com.cedarxuesong.translate_allinone.utils.cache.SkyblockNpcTranslationCache;
 import com.cedarxuesong.translate_allinone.utils.cache.component.ComponentCacheMigrationManager;
@@ -148,6 +149,7 @@ public class LifecycleEventManager {
     private static void loadCachesAndStartTranslationManagers() {
         ComponentCacheMigrationManager.migrateLegacyCaches(ComponentTranslationStoreRegistry.getInstance());
         ComponentTranslationStoreRegistry.getInstance().load();
+        ChatOutputTranslationCache.getInstance().load();
         SkyblockNpcTranslationCache.getInstance().load();
         ItemTemplateCache.getInstance().load();
         ItemTranslateManager.getInstance().start();
@@ -161,6 +163,7 @@ public class LifecycleEventManager {
 
     private static void saveCaches() {
         ComponentTranslationStoreRegistry.getInstance().save();
+        ChatOutputTranslationCache.getInstance().save();
         SkyblockNpcTranslationCache.getInstance().save();
         ItemTemplateCache.getInstance().save();
         ScoreboardTextCache.getInstance().save();
