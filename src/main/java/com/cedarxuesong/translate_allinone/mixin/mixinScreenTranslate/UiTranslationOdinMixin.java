@@ -17,7 +17,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 )
 public abstract class UiTranslationOdinMixin {
     @ModifyVariable(
-            method = {"text", "textShadow", "textWidth"},
+            method = {"text", "textShadow"},
             at = @At("HEAD"),
             argsOnly = true,
             ordinal = 0,
@@ -25,6 +25,29 @@ public abstract class UiTranslationOdinMixin {
             remap = false
     )
     private String translate_allinone$translateOption(String source) {
+        return UiTranslationRuntime.translateStringInCurrentScreen(source, UiTextRole.OPTION);
+    }
+
+    private static boolean isOdinPanelConstructionOrSortingCall() {
+        return StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE)
+                .walk(frames -> frames
+                        .limit(12)
+                        .anyMatch(frame -> frame.getDeclaringClass().getName()
+                                .startsWith("com.odtheking.odin.clickgui.Panel")));
+    }
+
+    @ModifyVariable(
+            method = "textWidth",
+            at = @At("HEAD"),
+            argsOnly = true,
+            ordinal = 0,
+            require = 0,
+            remap = false
+    )
+    private String translate_allinone$translateOptionWidth(String source) {
+        if (isOdinPanelConstructionOrSortingCall()) {
+            return source;
+        }
         return UiTranslationRuntime.translateStringInCurrentScreen(source, UiTextRole.OPTION);
     }
 

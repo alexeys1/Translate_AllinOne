@@ -49,7 +49,9 @@
     "mixinScreenTranslate.UiTranslationFontMixin",
     "mixinScreenTranslate.UiTranslationEditBoxMixin",
     "mixinScreenTranslate.UiTranslationOdinMixin",
-    "mixinScreenTranslate.UiTranslationElementaFontMixin"
+    "mixinScreenTranslate.UiTranslationElementaFontMixin",
+    "mixinScreenTranslate.UiTranslationModMenuSortingMixin",
+    "mixinScreenTranslate.UiTranslationModMenuListMixin"
   ],
   "injectors": {
     "defaultRequire": 1

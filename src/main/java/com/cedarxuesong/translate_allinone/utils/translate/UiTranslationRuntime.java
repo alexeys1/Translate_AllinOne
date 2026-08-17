@@ -18,8 +18,10 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -27,6 +29,16 @@ public final class UiTranslationRuntime {
     private static final String POLICY_VERSION = "screen-ui-v1";
     private static final ThreadLocal<Set<FormattedCharSequence>> HANDLED_FORMATTED_SEQUENCES =
             ThreadLocal.withInitial(() -> Collections.newSetFromMap(new IdentityHashMap<>()));
+    private static final int SCREEN_TRANSLATION_NOTIFY_LIMIT = 8192;
+    private static final Set<String> NOTIFIED_SCREEN_TRANSLATIONS = Collections.newSetFromMap(
+            new LinkedHashMap<>(256, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, Boolean> eldest) {
+                    return size() > SCREEN_TRANSLATION_NOTIFY_LIMIT;
+                }
+            }
+    );
+    private static volatile int SCREEN_TRANSLATION_VERSION = 0;
     private static int FRAME_ID = 0;
 
     private UiTranslationRuntime() {
@@ -34,6 +46,24 @@ public final class UiTranslationRuntime {
 
     public static int currentFrameId() {
         return FRAME_ID;
+    }
+
+    public static int screenTranslationVersion() {
+        return SCREEN_TRANSLATION_VERSION;
+    }
+
+    static void notifyScreenTranslationAvailable(String source, UiTextRole role, String targetLanguage) {
+        if (source == null || role == null || role != UiTextRole.OPTION) {
+            return;
+        }
+        String key = role.wireName() + '\u0000'
+                + (targetLanguage == null ? "" : targetLanguage) + '\u0000'
+                + source;
+        synchronized (NOTIFIED_SCREEN_TRANSLATIONS) {
+            if (NOTIFIED_SCREEN_TRANSLATIONS.add(key)) {
+                SCREEN_TRANSLATION_VERSION++;
+            }
+        }
     }
 
     public static UiTranslationResult resolve(Component source, UiTextRole requestedRole) {
@@ -404,7 +434,6 @@ public final class UiTranslationRuntime {
                 }
             }
         } catch (ReflectiveOperationException | RuntimeException ignored) {
-            // Caxton may not expose a cure method; fall back to the original sequence.
         }
         return source;
     }
@@ -417,7 +446,6 @@ public final class UiTranslationRuntime {
                     return method;
                 }
             } catch (NoSuchMethodException ignored) {
-                // Keep walking up the hierarchy.
             }
         }
         try {
@@ -426,7 +454,6 @@ public final class UiTranslationRuntime {
                 return method;
             }
         } catch (NoSuchMethodException ignored) {
-            // No public cure method either.
         }
         return null;
     }

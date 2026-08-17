@@ -96,10 +96,9 @@ public final class UiTranslationScope {
 
     static void remember(String source, UiTextRole role, String targetLanguage, UiTranslationResult result) {
         Frame frame = currentFrame();
-        // Only cache final translated results. Pending/miss/failed must be re-resolved so
-        // a later cache write can take effect on the next call even within the same frame.
         if (frame != null && result != null && result.translated()) {
             frame.cache.put(new CacheKey(source, role, targetLanguage), result);
+            UiTranslationRuntime.notifyScreenTranslationAvailable(source, role, targetLanguage);
         }
     }
 

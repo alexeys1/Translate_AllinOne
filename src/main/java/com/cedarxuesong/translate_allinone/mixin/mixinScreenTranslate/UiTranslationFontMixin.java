@@ -1,5 +1,6 @@
 package com.cedarxuesong.translate_allinone.mixin.mixinScreenTranslate;
 
+import com.cedarxuesong.translate_allinone.utils.translate.UiScreenAdapter;
 import com.cedarxuesong.translate_allinone.utils.translate.UiTextRole;
 import com.cedarxuesong.translate_allinone.utils.translate.UiTranslationLazySplitList;
 import com.cedarxuesong.translate_allinone.utils.translate.UiTranslationRuntime;
@@ -36,9 +37,6 @@ public abstract class UiTranslationFontMixin {
         return UiTranslationRuntime.translateFormattedTextInCurrentScreen(source, UiTranslationScope.role());
     }
 
-    // Font.split() results are cached by some UIs (notably YACL's OptionDescriptionWidget).
-    // Returning a lazy list lets those caches pick up AI translations on later frames even if
-    // the list was created before the translation cache was populated.
     @Inject(
             method = "split(Lnet/minecraft/network/chat/FormattedText;I)Ljava/util/List;",
             at = @At("HEAD"),
@@ -125,8 +123,30 @@ public abstract class UiTranslationFontMixin {
         if (!UiTranslationScope.isActive() || UiTranslationScope.isInternal()) {
             return splitter.stringWidth(source);
         }
+
+        UiScreenAdapter adapter = UiTranslationScope.adapter();
+        if (adapter != null && "noammaddons".equals(adapter.modId())
+                && isNoammAddonsSortingWidthCall()) {
+            return splitter.stringWidth(source);
+        }
         String visible = UiTranslationRuntime.translateStringInCurrentScreen(source, UiTranslationScope.role());
         return splitter.stringWidth(visible);
+    }
+
+    private static boolean isNoammAddonsSortingWidthCall() {
+        return StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE)
+                .walk(frames -> frames
+                        .limit(16)
+                        .anyMatch(frame -> {
+                            String className = frame.getDeclaringClass().getName();
+                            String methodName = frame.getMethodName();
+                            if ("com.github.noamm9.ui.clickgui.Panel".equals(className)
+                                    && "getSorting".equals(methodName)) {
+                                return true;
+                            }
+                            return "com.github.noamm9.features.FeatureManager".equals(className)
+                                    && "createFeatureList".equals(methodName);
+                        }));
     }
 
     @Redirect(
