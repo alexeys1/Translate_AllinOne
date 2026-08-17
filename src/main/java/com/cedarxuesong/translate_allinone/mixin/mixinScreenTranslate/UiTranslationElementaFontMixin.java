@@ -28,6 +28,9 @@ public abstract class UiTranslationElementaFontMixin {
             remap = false
     )
     private String translate_allinone$translateText(String source) {
+        if (getClass().getName().contains("VanillaFontRenderer")) {
+            return UiTranslationRuntime.translateStringAnimatedInCurrentScreen(source, UiTextRole.OPTION);
+        }
         return UiTranslationRuntime.translateStringInCurrentScreen(source, UiTextRole.OPTION);
     }
 }

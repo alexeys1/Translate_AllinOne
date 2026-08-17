@@ -131,11 +131,18 @@ public final class UiTranslationRuntime {
                             config
                     );
             UiTranslationStatus status = status(translated.state());
-            Component visible = translated.state()
+            String animationKey = "screen-ui:" + adapter.modId() + "/" + adapter.screenId() + "/" + role.wireName() + ":" + sourceText;
+            Component visible;
+            if (translated.state()
                     == com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRuntime.State.CACHE_HIT
-                    && translated.displayed() != null
-                    ? translated.displayed()
-                    : safeSource;
+                    && translated.displayed() != null) {
+                visible = translated.displayed();
+            } else if (translated.state()
+                    == com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRuntime.State.PENDING) {
+                visible = ComponentRenderTranslationSupport.animatePending(safeSource, animationKey);
+            } else {
+                visible = safeSource;
+            }
             UiTranslationResult result = result(
                     adapter,
                     role,
@@ -178,6 +185,23 @@ public final class UiTranslationRuntime {
             return null;
         }
         return withCurrentScreen(() -> translateString(source, role), source);
+    }
+
+    public static String translateStringAnimated(String source, UiTextRole role) {
+        if (source == null) {
+            return null;
+        }
+        Component decoded = source.indexOf('§') >= 0
+                ? LegacyComponentTextCodec.decode(source)
+                : Component.literal(source);
+        return LegacyComponentTextCodec.encode(resolve(decoded, role).visibleComponent());
+    }
+
+    public static String translateStringAnimatedInCurrentScreen(String source, UiTextRole role) {
+        if (source == null) {
+            return null;
+        }
+        return withCurrentScreen(() -> translateStringAnimated(source, role), source);
     }
 
     public static Component translateComponentInCurrentScreen(Component source, UiTextRole role) {

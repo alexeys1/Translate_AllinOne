@@ -166,7 +166,7 @@ public abstract class UiTranslationFontMixin {
             boolean shadow,
             int background
     ) {
-        String visible = UiTranslationRuntime.translateStringInCurrentScreen(source, UiTextRole.OPTION);
+        String visible = UiTranslationRuntime.translateStringAnimatedInCurrentScreen(source, UiTextRole.OPTION);
         return font.prepareText(visible, x, y, color, shadow, background);
     }
 
