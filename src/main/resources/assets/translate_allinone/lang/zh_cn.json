@@ -127,7 +127,7 @@
   "text.translate_allinone.command.error.message_not_found": "未找到消息 ID：%s",
   "category.translate_allinone.keybindings": "Translate All in One",
   "text.translate_allinone.translate_button_hover": "翻译这条消息",
-  "text.translate_allinone.restore_button_hover": "恢复这条消息的原文",
+  "text.translate_allinone.restore_button_hover": "恢复这条消息的原文（中键：强制刷新缓存）",
   "text.translate_allinone.processing": "处理中...",
   "text.translate_allinone.thinking": "思考中... Tokens:%d",
   "text.translate_allinone.connecting": "连接中...",

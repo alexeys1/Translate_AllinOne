@@ -131,7 +131,27 @@ public class ChatOutputTranslateManager {
     }
 
     public static void translate(UUID messageId, Component originalMessage) {
-        if (!TranslationFeatureGate.isEnabled() || messageId == null || originalMessage == null) {
+        translate(messageId, originalMessage, originalMessage, false);
+    }
+
+    public static void forceRefreshTranslation(UUID messageId) {
+        if (!TranslationFeatureGate.isEnabled() || messageId == null) {
+            return;
+        }
+
+        MessageUtils.TrackedChatMessage trackedMessage = MessageUtils.getTrackedChatMessage(messageId);
+        if (trackedMessage == null
+                || !trackedMessage.showingTranslated()
+                || trackedMessage.originalMessage() == null
+                || trackedMessage.translatedMessage() == null) {
+            return;
+        }
+
+        translate(messageId, trackedMessage.originalMessage(), trackedMessage.translatedMessage(), true);
+    }
+
+    private static void translate(UUID messageId, Component originalMessage, Component lineToLocate, boolean forceRefresh) {
+        if (!TranslationFeatureGate.isEnabled() || messageId == null || originalMessage == null || lineToLocate == null) {
             return;
         }
         if (activeTranslationLines.containsKey(messageId)) {
@@ -143,10 +163,10 @@ public class ChatOutputTranslateManager {
         ChatComponent chatHud = client.gui.getChat();
         ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
         List<GuiMessage> messages = chatHudAccessor.getMessages();
-        LineSearchResult searchResult = findTargetLine(messages, originalMessage);
+        LineSearchResult searchResult = findTargetLine(messages, lineToLocate);
 
         if (searchResult == null) {
-            if (scheduleLineLocateRetry(messageId, originalMessage)) {
+            if (scheduleLineLocateRetry(messageId, originalMessage, lineToLocate, forceRefresh)) {
                 return;
             }
             LOGGER.error("Could not find chat line to update for messageId: {} after {} retries", messageId, MAX_LINE_LOCATE_RETRIES);
@@ -168,12 +188,20 @@ public class ChatOutputTranslateManager {
                 chatOutputConfig.target_language,
                 preparedTranslation.textToTranslate()
         );
-        LookupResult chatOutputCacheLookup = chatOutputCacheKey == null
-                ? null
-                : ChatOutputTranslationCache.getInstance().peek(chatOutputCacheKey);
         String skyblockCacheKey = !skyblockNpcMessage
                 ? null
                 : buildSkyblockNpcCacheKey(chatOutputConfig.target_language, preparedTranslation.textToTranslate());
+        if (forceRefresh) {
+            if (chatOutputCacheKey != null) {
+                ChatOutputTranslationCache.getInstance().forceRefresh(List.of(chatOutputCacheKey));
+            }
+            if (skyblockCacheKey != null) {
+                SkyblockNpcTranslationCache.getInstance().forceRefresh(List.of(skyblockCacheKey));
+            }
+        }
+        LookupResult chatOutputCacheLookup = chatOutputCacheKey == null
+                ? null
+                : ChatOutputTranslationCache.getInstance().peek(chatOutputCacheKey);
         LookupResult skyblockCacheLookup = skyblockCacheKey == null
                 ? null
                 : SkyblockNpcTranslationCache.getInstance().peek(skyblockCacheKey);
@@ -623,7 +651,7 @@ public class ChatOutputTranslateManager {
         return !lineContent.getSiblings().isEmpty() && lineContent.getSiblings().get(0).getString().equals(original);
     }
 
-    private static boolean scheduleLineLocateRetry(UUID messageId, Component originalMessage) {
+    private static boolean scheduleLineLocateRetry(UUID messageId, Component originalMessage, Component lineToLocate, boolean forceRefresh) {
         if (!TranslationFeatureGate.isEnabled()) {
             return false;
         }
@@ -638,7 +666,7 @@ public class ChatOutputTranslateManager {
             if (client == null) {
                 return;
             }
-            client.execute(() -> translate(messageId, originalMessage));
+            client.execute(() -> translate(messageId, originalMessage, lineToLocate, forceRefresh));
         });
         return true;
     }

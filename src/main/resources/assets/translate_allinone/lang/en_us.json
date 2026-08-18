@@ -127,7 +127,7 @@
   "text.translate_allinone.command.error.message_not_found": "Message not found for ID: %s",
   "category.translate_allinone.keybindings": "Translate All in One",
   "text.translate_allinone.translate_button_hover": "Translate this message",
-  "text.translate_allinone.restore_button_hover": "Restore the original message",
+  "text.translate_allinone.restore_button_hover": "Restore the original message (middle click: force refresh cache)",
   "text.translate_allinone.processing": "Processing...",
   "text.translate_allinone.thinking": "Thinking... Tokens:%d",
   "text.translate_allinone.connecting": "Connecting...",
