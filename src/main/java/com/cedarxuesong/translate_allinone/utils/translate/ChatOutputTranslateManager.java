@@ -75,7 +75,22 @@ public class ChatOutputTranslateManager {
                     + "(?<body>" + SKYBLOCK_NPC_FORMATTED_UNIT + "+?)(?:\u00A7[0-9a-fk-or])*"
                     + "(?:\\s+\\[T\\])?$"
     );
-
+    private static final Pattern STYLE_TAG_MARKER_PATTERN = Pattern.compile("</?s\\d+>");
+    private static final String SPEAKER_NAME_TOKEN = "[\\p{L}\\p{N}_.'\u2019\\-]+";
+    private static final String SPEAKER_NAME_PATTERN = "\\s*" + SPEAKER_NAME_TOKEN + "(?:\\s+" + SPEAKER_NAME_TOKEN + "){0,3}\\s*";
+    private static final Pattern SPEAKER_HEADER_PATTERN = Pattern.compile(
+            "^(?:"
+                    + "<[^<>\\r\\n]+>\\s+"
+                    + "|"
+                    + "(?:\\[[^\\]\\r\\n]+]\\s*)*"
+                    + "(?:"
+                    + "<[^<>\\r\\n]+>"
+                    + "|"
+                    + SPEAKER_NAME_PATTERN
+                    + ")"
+                    + ":\\s+"
+                    + ")"
+    );
     public static Text buildOriginalMessageWithToggle(UUID messageId, Text originalMessage) {
         return appendToggleButton(messageId, originalMessage, CHAT_TRANSLATE_ACTION, "text.translate_allinone.translate_button_hover");
     }
@@ -131,22 +146,42 @@ public class ChatOutputTranslateManager {
     }
 
     public static void translate(UUID messageId, Text originalMessage) {
-        if (!TranslationFeatureGate.isEnabled() || messageId == null || originalMessage == null) {
+        translate(messageId, originalMessage, originalMessage, false);
+    }
+
+    public static void forceRefreshTranslation(UUID messageId) {
+        if (!TranslationFeatureGate.isEnabled() || messageId == null) {
+            return;
+        }
+
+        MessageUtils.TrackedChatMessage trackedMessage = MessageUtils.getTrackedChatMessage(messageId);
+        if (trackedMessage == null
+                || !trackedMessage.showingTranslated()
+                || trackedMessage.originalMessage() == null
+                || trackedMessage.translatedMessage() == null) {
+            return;
+        }
+
+        translate(messageId, trackedMessage.originalMessage(), trackedMessage.translatedMessage(), true);
+    }
+
+    private static void translate(UUID messageId, Text originalMessage, Text lineToLocate, boolean forceRefresh) {
+        if (!TranslationFeatureGate.isEnabled() || messageId == null || originalMessage == null || lineToLocate == null) {
             return;
         }
         if (activeTranslationLines.containsKey(messageId)) {
             lineLocateRetryCounts.remove(messageId);
-            return; // Already being translated
+            return;
         }
 
         MinecraftClient client = MinecraftClient.getInstance();
         ChatHud chatHud = client.inGameHud.getChatHud();
         ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
         List<ChatHudLine> messages = chatHudAccessor.getMessages();
-        LineSearchResult searchResult = findTargetLine(messages, originalMessage);
+        LineSearchResult searchResult = findTargetLine(messages, lineToLocate);
 
         if (searchResult == null) {
-            if (scheduleLineLocateRetry(messageId, originalMessage)) {
+            if (scheduleLineLocateRetry(messageId, originalMessage, lineToLocate, forceRefresh)) {
                 return;
             }
             LOGGER.error("Could not find chat line to update for messageId: {} after {} retries", messageId, MAX_LINE_LOCATE_RETRIES);
@@ -168,12 +203,20 @@ public class ChatOutputTranslateManager {
                 chatOutputConfig.target_language,
                 preparedTranslation.textToTranslate()
         );
-        LookupResult chatOutputCacheLookup = chatOutputCacheKey == null
-                ? null
-                : ChatOutputTranslationCache.getInstance().peek(chatOutputCacheKey);
         String skyblockCacheKey = !skyblockNpcMessage
                 ? null
                 : buildSkyblockNpcCacheKey(chatOutputConfig.target_language, preparedTranslation.textToTranslate());
+        if (forceRefresh) {
+            if (chatOutputCacheKey != null) {
+                ChatOutputTranslationCache.getInstance().forceRefresh(List.of(chatOutputCacheKey));
+            }
+            if (skyblockCacheKey != null) {
+                SkyblockNpcTranslationCache.getInstance().forceRefresh(List.of(skyblockCacheKey));
+            }
+        }
+        LookupResult chatOutputCacheLookup = chatOutputCacheKey == null
+                ? null
+                : ChatOutputTranslationCache.getInstance().peek(chatOutputCacheKey);
         LookupResult skyblockCacheLookup = skyblockCacheKey == null
                 ? null
                 : SkyblockNpcTranslationCache.getInstance().peek(skyblockCacheKey);
@@ -622,7 +665,7 @@ public class ChatOutputTranslateManager {
         return !lineContent.getSiblings().isEmpty() && lineContent.getSiblings().get(0).getString().equals(original);
     }
 
-    private static boolean scheduleLineLocateRetry(UUID messageId, Text originalMessage) {
+    private static boolean scheduleLineLocateRetry(UUID messageId, Text originalMessage, Text lineToLocate, boolean forceRefresh) {
         if (!TranslationFeatureGate.isEnabled()) {
             return false;
         }
@@ -637,7 +680,7 @@ public class ChatOutputTranslateManager {
             if (client == null) {
                 return;
             }
-            client.execute(() -> translate(messageId, originalMessage));
+            client.execute(() -> translate(messageId, originalMessage, lineToLocate, forceRefresh));
         });
         return true;
     }
@@ -648,7 +691,8 @@ public class ChatOutputTranslateManager {
     static PreparedChatTranslation prepareTranslationPayload(Text originalMessage) {
         Text sourceMessage = stripTrailingTranslationMarker(originalMessage);
         StylePreserver.ExtractionResult extraction = StylePreserver.extractAndMarkWithTags(sourceMessage);
-        TemplateProcessor.TemplateExtractionResult templateResult = TemplateProcessor.extract(extraction.markedText);
+        SpeakerHeaderExtractionResult headerResult = extractSpeakerHeader(extraction.markedText);
+        TemplateProcessor.TemplateExtractionResult templateResult = TemplateProcessor.extract(headerResult.bodyMarkedText());
         TemplateProcessor.DecorativeGlyphExtractionResult glyphResult = TemplateProcessor.extractDecorativeGlyphTags(templateResult.template());
         String normalizedTemplate = TemplateProcessor.normalizeWynnInlineSpacerGlyphsInTaggedText(glyphResult.template());
         IgnorableChatSegmentExtractionResult ignorableSegments = extractIgnorableChatSegments(normalizedTemplate);
@@ -657,10 +701,73 @@ public class ChatOutputTranslateManager {
                 extraction.styleMap,
                 templateResult.values(),
                 glyphResult.values(),
-                ignorableSegments.values()
+                ignorableSegments.values(),
+                headerResult.header()
         );
     }
 
+    static SpeakerHeaderExtractionResult extractSpeakerHeader(String taggedText) {
+        if (taggedText == null || taggedText.isEmpty()) {
+            return new SpeakerHeaderExtractionResult("", taggedText == null ? "" : taggedText);
+        }
+        StyleTagStrippedView view = stripStyleTags(taggedText);
+        Matcher matcher = SPEAKER_HEADER_PATTERN.matcher(view.plainText());
+        if (!matcher.find()) {
+            return new SpeakerHeaderExtractionResult("", taggedText);
+        }
+        int originalEnd = view.originalIndex(matcher.end());
+        String header = taggedText.substring(0, originalEnd);
+        String body = taggedText.substring(originalEnd);
+        if (stripStyleTags(body).plainText().isBlank()) {
+            return new SpeakerHeaderExtractionResult("", taggedText);
+        }
+        return new SpeakerHeaderExtractionResult(header, body);
+    }
+
+    private static StyleTagStrippedView stripStyleTags(String text) {
+        StringBuilder plain = new StringBuilder(text.length());
+        List<Integer> sourceIndexes = new ArrayList<>();
+        Matcher matcher = STYLE_TAG_MARKER_PATTERN.matcher(text);
+        int lastEnd = 0;
+        while (matcher.find()) {
+            for (int i = lastEnd; i < matcher.start(); i++) {
+                plain.append(text.charAt(i));
+                sourceIndexes.add(i);
+            }
+            lastEnd = matcher.end();
+        }
+        for (int i = lastEnd; i < text.length(); i++) {
+            plain.append(text.charAt(i));
+            sourceIndexes.add(i);
+        }
+        int[] indexes = new int[sourceIndexes.size()];
+        for (int i = 0; i < indexes.length; i++) {
+            indexes[i] = sourceIndexes.get(i);
+        }
+        return new StyleTagStrippedView(plain.toString(), indexes, text);
+    }
+
+    private record StyleTagStrippedView(String plainText, int[] sourceIndexes, String sourceText) {
+        int originalIndex(int plainLength) {
+            if (plainLength <= 0) {
+                return 0;
+            }
+            int index = sourceIndexes[plainLength - 1] + 1;
+            Matcher matcher = STYLE_TAG_MARKER_PATTERN.matcher(sourceText);
+            matcher.region(index, sourceText.length());
+            while (matcher.lookingAt()) {
+                if (!matcher.group().startsWith("</")) {
+                    break;
+                }
+                index = matcher.end();
+                matcher.region(index, sourceText.length());
+            }
+            return index;
+        }
+    }
+
+    private record SpeakerHeaderExtractionResult(String header, String bodyMarkedText) {
+    }
     private static String buildChatOutputCacheKey(String targetLanguage, String textToTranslate) {
         if (textToTranslate == null || textToTranslate.isBlank()) {
             return null;
@@ -782,7 +889,7 @@ public class ChatOutputTranslateManager {
         }
 
         String reassembled = TemplateProcessor.reassemble(
-                translatedText == null ? "" : translatedText,
+                preparedTranslation.header() + (translatedText == null ? "" : translatedText),
                 preparedTranslation.templateValues()
         );
         reassembled = TemplateProcessor.reassembleDecorativeGlyphs(
@@ -894,7 +1001,8 @@ public class ChatOutputTranslateManager {
             Map<Integer, Style> styleMap,
             List<String> templateValues,
             List<String> decorativeGlyphValues,
-            List<String> ignorableSegments
+            List<String> ignorableSegments,
+            String header
     ) {
     }
 
@@ -921,7 +1029,7 @@ public class ChatOutputTranslateManager {
                 + "Rules (highest priority first):\n"
                 + "1) Output only the final translated text. No explanation, markdown, or quotes.\n"
                 + "2) Preserve style tags exactly: <s0>...</s0>, <s1>...</s1>, ... Keep the same tag ids, counts, and order.\n"
-                + "3) Preserve tokens exactly: § color/style codes, placeholders (%s %d %f {d1}), URLs, numbers, <...>, {...}, \\n, \\t.\n"
+                + "3) Preserve tokens exactly: 搂 color/style codes, placeholders (%s %d %f {d1}), URLs, numbers, <...>, {...}, \\n, \\t.\n"
                 + "4) If a term is uncertain, keep only that term unchanged and still translate surrounding text.\n"
                 + "5) If any rule cannot be guaranteed, return the original input unchanged.";
         String resolved = PromptMessageBuilder.applyPromptOverride("chat_output", basePrompt, providerProfile.system_prompt_overrides, targetLanguage);

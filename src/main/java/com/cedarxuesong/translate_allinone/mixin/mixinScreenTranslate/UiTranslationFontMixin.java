@@ -96,7 +96,7 @@ public abstract class UiTranslationFontMixin {
             require = 0
     )
     private OrderedText translate_allinone$translatedSequence(OrderedText source) {
-        OrderedText visible = UiTranslationRuntime.translateFormattedCharSequenceInCurrentScreen(source, UiTextRole.OPTION);
+        OrderedText visible = UiTranslationRuntime.translateFormattedCharSequenceInCurrentScreen(source, UiTranslationScope.role());
         if (visible != source) {
             UiTranslationRuntime.markFormattedSequenceHandled(visible);
         }
@@ -113,7 +113,7 @@ public abstract class UiTranslationFontMixin {
             require = 0
     )
     private String translate_allinone$translatedStringDraw(String source) {
-        return UiTranslationRuntime.translateStringAnimatedInCurrentScreen(source, UiTextRole.OPTION);
+        return UiTranslationRuntime.translateStringAnimatedInCurrentScreen(source, UiTranslationScope.role());
     }
 
     @ModifyVariable(

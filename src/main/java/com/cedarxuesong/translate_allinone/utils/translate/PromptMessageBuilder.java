@@ -124,7 +124,7 @@ public final class PromptMessageBuilder {
                     + "Target language: " + t + ".\n"
                     + "\n"
                     + "Rules (highest priority first):\n"
-                    + "1) Output only the final translated text. No explanation, markdown, or quotes.\n"
+                    + "1) Speaker names and NPC names are already removed from the input; never add or guess them. Output only the final translated text. No explanation, markdown, or quotes.\n"
                     + "2) Preserve style tags exactly: <s0>...</s0>, <s1>...</s1>, ... Keep the same tag ids, counts, and order.\n"
                     + "3) Preserve tokens exactly: § color/style codes, placeholders (%s %d %f {d1}), URLs, numbers, <...>, {...}, \\n, \\t.\n"
                     + "4) If a term is uncertain, keep only that term unchanged and still translate surrounding text.\n"

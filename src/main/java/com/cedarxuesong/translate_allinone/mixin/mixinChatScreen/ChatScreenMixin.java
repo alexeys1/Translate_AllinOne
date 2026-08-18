@@ -1,4 +1,5 @@
 package com.cedarxuesong.translate_allinone.mixin.mixinChatScreen;
+import java.util.UUID;
 
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.gui.chatinput.ChatInputPanelAction;
@@ -8,6 +9,8 @@ import com.cedarxuesong.translate_allinone.registration.ConfigManager;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ChatTranslateConfig;
 import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
 import com.cedarxuesong.translate_allinone.utils.translate.ChatInputTranslateManager;
+import com.cedarxuesong.translate_allinone.utils.translate.ChatHudStyleCapture;
+import com.cedarxuesong.translate_allinone.utils.translate.ChatOutputTranslateManager;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.Click;
@@ -17,6 +20,8 @@ import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.client.input.CharInput;
 import net.minecraft.client.input.KeyInput;
 import net.minecraft.text.Text;
+import net.minecraft.text.ClickEvent;
+import net.minecraft.text.Style;
 import org.lwjgl.glfw.GLFW;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -275,6 +280,11 @@ public class ChatScreenMixin {
     private void onMouseClicked(Click click, boolean bl, CallbackInfoReturnable<Boolean> cir) {
         panelDragging = false;
 
+        if (click.button() == GLFW.GLFW_MOUSE_BUTTON_MIDDLE && translate_allinone$handleMiddleClickOnChat(click)) {
+            cir.setReturnValue(true);
+            return;
+        }
+
         if (!translate_allinone$isPanelVisible()) {
             return;
         }
@@ -353,6 +363,51 @@ public class ChatScreenMixin {
             translate_allinone$performAction(action);
         }
         cir.setReturnValue(true);
+    }
+
+    @Unique
+    private boolean translate_allinone$handleMiddleClickOnChat(Click click) {
+        if (translate_allinone$isPanelVisible()) {
+            translate_allinone$ensurePanelPosition();
+            if (translate_allinone$panelRect().contains(click.x(), click.y())) {
+                return false;
+            }
+        }
+
+        Style style = translate_allinone$findClickableStyle(click);
+        if (style == null) {
+            return false;
+        }
+
+        ClickEvent clickEvent = style.getClickEvent();
+        if (!(clickEvent instanceof ClickEvent.RunCommand runCommand)) {
+            return false;
+        }
+
+        String command = runCommand.command();
+        String[] parts = command.split("\\s+");
+        if (parts.length < 4 || !"/translate_allinone".equals(parts[0]) || !"translatechatline".equals(parts[1])) {
+            return false;
+        }
+
+        if (!"restore".equals(parts[3])) {
+            return false;
+        }
+
+        try {
+            UUID messageId = UUID.fromString(parts[2]);
+            ChatOutputTranslateManager.forceRefreshTranslation(messageId);
+            return true;
+        } catch (IllegalArgumentException ignored) {
+            return false;
+        }
+    }
+
+    @Unique
+    private Style translate_allinone$findClickableStyle(Click click) {
+        Style style = ChatHudStyleCapture.get();
+        ChatHudStyleCapture.reset();
+        return style;
     }
 
     @Unique

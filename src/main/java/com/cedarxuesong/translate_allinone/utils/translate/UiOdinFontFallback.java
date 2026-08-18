@@ -10,48 +10,51 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-
 
 public final class UiOdinFontFallback {
     private static final String FALLBACK_FONT_NAME = "translate_allinone_cjk_fallback";
     private static final String NVG_RENDERER_CLASS = "com.odtheking.odin.utils.ui.rendering.NVGRenderer";
 
     private static final List<ByteBuffer> KEPT_BUFFERS = new ArrayList<>();
-    private static final Set<Integer> PATCHED_FONTS = ConcurrentHashMap.newKeySet();
-
-    private static volatile boolean attempted;
-    private static volatile int fallbackFontId = -1;
+    private static final Map<Long, Set<Integer>> PATCHED_FONTS_BY_CONTEXT = new ConcurrentHashMap<>();
+    private static final Map<Long, Integer> FALLBACK_FONT_BY_CONTEXT = new ConcurrentHashMap<>();
 
     private UiOdinFontFallback() {
     }
 
     public static void attachFallback(int fontId) {
-        if (fontId < 0) {
+        attachFallback(NVG_RENDERER_CLASS, fontId);
+    }
+
+    public static void attachFallback(String rendererClassName, int fontId) {
+        if (rendererClassName == null || rendererClassName.isBlank() || fontId < 0) {
             return;
         }
-        Long vg = currentContext();
+        Long vg = currentContext(rendererClassName);
         if (vg == null || vg <= 0) {
             return;
         }
-        ensureFallbackFont(vg);
-        if (fallbackFontId < 0 || fallbackFontId == fontId) {
+        int fallbackId = ensureFallbackFont(vg);
+        if (fallbackId < 0 || fallbackId == fontId) {
             return;
         }
-        if (PATCHED_FONTS.add(fontId)) {
+        Set<Integer> patched = PATCHED_FONTS_BY_CONTEXT.computeIfAbsent(vg, key -> ConcurrentHashMap.newKeySet());
+        if (patched.add(fontId)) {
             try {
-                addFallbackFontId(vg, fontId, fallbackFontId);
+                addFallbackFontId(vg, fontId, fallbackId);
             } catch (RuntimeException ignored) {
             }
         }
     }
 
-    private static synchronized void ensureFallbackFont(long vg) {
-        if (attempted) {
-            return;
+    private static synchronized int ensureFallbackFont(long vg) {
+        Integer existing = FALLBACK_FONT_BY_CONTEXT.get(vg);
+        if (existing != null) {
+            return existing;
         }
-        attempted = true;
         for (Path path : candidateFontPaths()) {
             try {
                 byte[] bytes = Files.readAllBytes(path);
@@ -62,13 +65,14 @@ public final class UiOdinFontFallback {
                 buffer.put(bytes).flip();
                 int id = createFontMem(vg, FALLBACK_FONT_NAME, buffer);
                 if (id >= 0) {
-                    fallbackFontId = id;
+                    FALLBACK_FONT_BY_CONTEXT.put(vg, id);
                     KEPT_BUFFERS.add(buffer);
-                    return;
+                    return id;
                 }
             } catch (IOException | RuntimeException ignored) {
             }
         }
+        return -1;
     }
 
     private static int createFontMem(long vg, String name, ByteBuffer buffer) {
@@ -91,19 +95,47 @@ public final class UiOdinFontFallback {
     }
 
     private static Long currentContext() {
+        return currentContext(NVG_RENDERER_CLASS);
+    }
+
+    private static Long currentContext(String rendererClassName) {
         try {
-            Class<?> clazz = Class.forName(NVG_RENDERER_CLASS);
+            Class<?> clazz = Class.forName(rendererClassName);
+            Object instance = null;
             try {
-                Method method = clazz.getMethod("access$getVg$p");
-                return (Long) method.invoke(null);
+                Field instanceField = clazz.getDeclaredField("INSTANCE");
+                instanceField.setAccessible(true);
+                instance = instanceField.get(null);
             } catch (ReflectiveOperationException ignored) {
+            }
+            try {
+                Method method = clazz.getDeclaredMethod("access$getVg$p");
+                method.setAccessible(true);
+                Object value = method.invoke(instance);
+                if (value instanceof Number) {
+                    return ((Number) value).longValue();
+                }
+            } catch (ReflectiveOperationException | RuntimeException ignored) {
+            }
+            try {
                 Field field = clazz.getDeclaredField("vg");
                 field.setAccessible(true);
-                return field.getLong(null);
+                Object value;
+                try {
+                    value = field.get(instance);
+                } catch (IllegalArgumentException notStaticWithoutInstance) {
+                    Field instanceField = clazz.getDeclaredField("INSTANCE");
+                    instanceField.setAccessible(true);
+                    value = field.get(instanceField.get(null));
+                }
+                if (value instanceof Number) {
+                    return ((Number) value).longValue();
+                }
+            } catch (ReflectiveOperationException | RuntimeException ignored) {
             }
         } catch (ReflectiveOperationException | RuntimeException ignored) {
-            return null;
         }
+        return null;
     }
 
     private static List<Path> candidateFontPaths() {
@@ -136,5 +168,3 @@ public final class UiOdinFontFallback {
         }
     }
 }
-
-

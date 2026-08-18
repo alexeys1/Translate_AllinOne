@@ -36,6 +36,8 @@
     "mixinWynnDialogue.WynnDialogueTextDrawerMixin",
     "mixinInGameGui.InGameHudMixin",
     "mixinInGameGui.InGameHudAccessor",
+    "mixinChatHud.ChatHudStyleCaptureMixin",
+    "mixinChatHud.ChatHudInteractableMixin",
     "mixinChatScreen.ChatScreenMixin",
     "mixinScreenTranslate.UiTranslationScreenMixin",
     "mixinScreenTranslate.UiTranslationDrawContextMixin",
@@ -45,7 +47,11 @@
     "mixinScreenTranslate.UiTranslationModMenuSortingMixin",
     "mixinScreenTranslate.UiTranslationModMenuListMixin",
     "mixinScreenTranslate.UiTranslationOdinMixin",
-    "mixinScreenTranslate.UiTranslationYaclOptionDescriptionMixin"
+    "mixinScreenTranslate.UiTranslationYaclOptionDescriptionMixin",
+    "mixinScreenTranslate.UiTranslationAthenScreenMixin",
+    "mixinScreenTranslate.UiTranslationAthenNvgMixin",
+    "mixinScreenTranslate.UiTranslationTaliumRendererMixin",
+    "mixinScreenTranslate.UiTranslationOdinScreenMixin"
   ],
   "injectors": {
     "defaultRequire": 1
