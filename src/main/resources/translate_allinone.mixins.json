@@ -1,4 +1,4 @@
-{
+﻿{
   "required": true,
   "minVersion": "0.8",
   "refmap": "translate_allinone.refmap.json",
@@ -20,6 +20,8 @@
     "mixinEntity.EntityRendererMixin",
     "mixinEntity.TextDisplayEntityRendererMixin",
     "mixinSign.AbstractSignBlockEntityRendererMixin",
+    "mixinSign.BlockEntityRenderDispatcherMixin",
+    "mixinSign.SignBlockEntityMixin",
     "mixinWynnDialogue.WynnDialogueInGameHudAccessor",
     "mixinWynnDialogue.WynnDialogueInGameHudMixin",
     "mixinWynnDialogue.WynnDialogueTextRendererAccessor",

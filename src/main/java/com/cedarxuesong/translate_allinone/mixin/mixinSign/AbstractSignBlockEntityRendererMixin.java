@@ -1,6 +1,7 @@
 package com.cedarxuesong.translate_allinone.mixin.mixinSign;
 
 import com.cedarxuesong.translate_allinone.utils.translate.SignTranslationSupport;
+import com.cedarxuesong.translate_allinone.utils.translate.SignRenderContext;
 import net.minecraft.block.entity.SignBlockEntity;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.render.VertexConsumerProvider;
@@ -30,7 +31,10 @@ public abstract class AbstractSignBlockEntityRendererMixin {
             int overlay,
             CallbackInfo ci
     ) {
-        translate_allinone$translatedSign = SignTranslationSupport.resolveForRender(sign, textRenderer);
+        SignTranslationSupport.RenderedSignText rendered = SignRenderContext.rendered(sign);
+        translate_allinone$translatedSign = rendered == null
+                ? SignTranslationSupport.resolveForRender(sign, textRenderer)
+                : rendered;
     }
 
     @org.spongepowered.asm.mixin.Unique
