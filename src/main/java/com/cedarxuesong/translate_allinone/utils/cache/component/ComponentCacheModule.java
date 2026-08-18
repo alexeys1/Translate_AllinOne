@@ -27,6 +27,9 @@ public enum ComponentCacheModule {
     )),
     ADVANCEMENT("advancement", "component_advancement_translate_cache.json", EnumSet.of(
             ComponentTranslationRoute.ADVANCEMENT
+    )),
+    SCREEN_UI("screen_ui", "component_screen_ui_translate_cache.json", EnumSet.of(
+            ComponentTranslationRoute.SCREEN_UI
     ));
 
     private final String wireName;

@@ -562,6 +562,8 @@
   "text.translate_allinone.configscreen.desc.other_translations_threads": "其他翻译的最大并发请求数",
   "text.translate_allinone.configscreen.label.other_translations_batch_size": "其他翻译批大小",
   "text.translate_allinone.configscreen.desc.other_translations_batch_size": "单个 API 请求中提交的其他翻译文档最大数量",
+  "text.translate_allinone.configscreen.label.screen_translation_enabled": "翻译第三方配置界面",
+  "text.translate_allinone.configscreen.desc.screen_translation_enabled": "翻译第三方配置界面",
   "text.translate_allinone.configscreen.label.translate_signs": "翻译告示牌",
   "text.translate_allinone.configscreen.desc.translate_signs": "仅在客户端渲染中翻译可见告示牌文字",
   "text.translate_allinone.configscreen.label.continuous_sign_translation": "连续告示牌翻译",
