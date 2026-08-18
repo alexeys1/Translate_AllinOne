@@ -5,6 +5,7 @@ import com.cedarxuesong.translate_allinone.utils.translate.UiTextRole;
 import com.cedarxuesong.translate_allinone.utils.translate.UiTranslationLazySplitList;
 import com.cedarxuesong.translate_allinone.utils.translate.UiTranslationRuntime;
 import com.cedarxuesong.translate_allinone.utils.translate.UiTranslationScope;
+import com.cedarxuesong.translate_allinone.utils.text.LegacyComponentTextCodec;
 import net.minecraft.client.StringSplitter;
 import net.minecraft.client.gui.Font;
 import net.minecraft.network.chat.Component;
@@ -93,11 +94,22 @@ public abstract class UiTranslationFontMixin {
             require = 0
     )
     private FormattedCharSequence translate_allinone$translatedSequence(FormattedCharSequence source) {
-        FormattedCharSequence visible = UiTranslationRuntime.translateFormattedCharSequenceInCurrentScreen(source, UiTextRole.OPTION);
+        FormattedCharSequence visible = UiTranslationRuntime.translateFormattedCharSequenceInCurrentScreen(source, UiTranslationScope.role());
         if (visible != source) {
             UiTranslationRuntime.markFormattedSequenceHandled(visible);
         }
         return visible;
+    }
+
+    @ModifyVariable(
+            method = "drawInBatch8xOutline(Lnet/minecraft/util/FormattedCharSequence;FFIILorg/joml/Matrix4fc;Lnet/minecraft/client/renderer/MultiBufferSource;I)V",
+            at = @At("HEAD"),
+            argsOnly = true,
+            ordinal = 0,
+            require = 0
+    )
+    private FormattedCharSequence translate_allinone$translatedOutlineSequence(FormattedCharSequence source) {
+        return UiTranslationRuntime.translateFormattedCharSequenceInCurrentScreen(source, UiTranslationScope.role());
     }
 
     @ModifyVariable(
@@ -108,7 +120,7 @@ public abstract class UiTranslationFontMixin {
             require = 0
     )
     private FormattedCharSequence translate_allinone$translatedPreparedSequence(FormattedCharSequence source) {
-        return UiTranslationRuntime.translateFormattedCharSequenceInCurrentScreen(source, UiTextRole.OPTION);
+        return UiTranslationRuntime.translateFormattedCharSequenceInCurrentScreen(source, UiTranslationScope.role());
     }
 
     @Redirect(
@@ -166,8 +178,9 @@ public abstract class UiTranslationFontMixin {
             boolean shadow,
             int background
     ) {
-        String visible = UiTranslationRuntime.translateStringAnimatedInCurrentScreen(source, UiTextRole.OPTION);
-        return font.prepareText(visible, x, y, color, shadow, background);
+        Component sourceComponent = source.indexOf('搂') >= 0 ? LegacyComponentTextCodec.decode(source) : Component.literal(source);
+        Component visible = UiTranslationRuntime.translateComponentInCurrentScreen(sourceComponent, UiTranslationScope.role());
+        return UiTranslationScope.withInternal(() -> font.prepareText(visible.getVisualOrderText(), x, y, color, shadow, false, background));
     }
 
     @Redirect(

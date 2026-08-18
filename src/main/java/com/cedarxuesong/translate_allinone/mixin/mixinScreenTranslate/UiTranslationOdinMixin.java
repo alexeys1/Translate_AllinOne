@@ -1,5 +1,6 @@
 package com.cedarxuesong.translate_allinone.mixin.mixinScreenTranslate;
 
+import com.cedarxuesong.translate_allinone.utils.translate.NvgAnimatedTextRenderer;
 import com.cedarxuesong.translate_allinone.utils.translate.UiOdinFontFallback;
 import com.cedarxuesong.translate_allinone.utils.translate.UiTextRole;
 import com.cedarxuesong.translate_allinone.utils.translate.UiTranslationRuntime;
@@ -18,7 +19,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 )
 public abstract class UiTranslationOdinMixin {
     @Redirect(
-            method = {"text", "textShadow", "textWidth", "drawWrappedString", "wrappedTextBounds"},
+            method = {"text", "textWidth", "drawWrappedString", "wrappedTextBounds"},
             at = @At(
                     value = "INVOKE",
                     target = "Lorg/lwjgl/nanovg/NanoVG;nvgText(JFFLjava/lang/CharSequence;)F"
@@ -30,13 +31,31 @@ public abstract class UiTranslationOdinMixin {
         String raw = text == null ? null : text.toString();
         String translated;
         try (UiTranslationScope.Scope scope = UiTranslationScope.enter("com.odtheking.odin.clickgui.ClickGUI")) {
+            translated = UiTranslationRuntime.translateStringAnimatedInCurrentScreen(raw, UiTextRole.OPTION);
+        }
+        return NvgAnimatedTextRenderer.drawText(vg, x, y, translated == null ? "" : translated);
+    }
+
+    @Redirect(
+            method = "textShadow",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lorg/lwjgl/nanovg/NanoVG;nvgText(JFFLjava/lang/CharSequence;)F"
+            ),
+            require = 0,
+            remap = false
+    )
+    private static float translate_allinone$redirectNvgTextShadow(long vg, float x, float y, CharSequence text) {
+        String raw = text == null ? null : text.toString();
+        String translated;
+        try (UiTranslationScope.Scope scope = UiTranslationScope.enter("com.odtheking.odin.clickgui.ClickGUI")) {
             translated = UiTranslationRuntime.translateStringInCurrentScreen(raw, UiTextRole.OPTION);
         }
         return translate_allinone$callNvgText(vg, x, y, translated == null ? "" : translated);
     }
 
     @Redirect(
-            method = {"text", "textShadow", "textWidth", "drawWrappedString", "wrappedTextBounds"},
+            method = {"text", "textWidth", "drawWrappedString", "wrappedTextBounds"},
             at = @At(
                     value = "INVOKE",
                     target = "Lorg/lwjgl/nanovg/NanoVG;nvgTextBounds(JFFLjava/lang/CharSequence;[F)F"
@@ -54,7 +73,7 @@ public abstract class UiTranslationOdinMixin {
     }
 
     @Redirect(
-            method = {"text", "textShadow", "textWidth", "drawWrappedString", "wrappedTextBounds"},
+            method = {"text", "textWidth", "drawWrappedString", "wrappedTextBounds"},
             at = @At(
                     value = "INVOKE",
                     target = "Lorg/lwjgl/nanovg/NanoVG;nvgTextBox(JFFFLjava/lang/CharSequence;)V"
@@ -66,13 +85,13 @@ public abstract class UiTranslationOdinMixin {
         String raw = text == null ? null : text.toString();
         String translated;
         try (UiTranslationScope.Scope scope = UiTranslationScope.enter("com.odtheking.odin.clickgui.ClickGUI")) {
-            translated = UiTranslationRuntime.translateStringInCurrentScreen(raw, UiTextRole.DESCRIPTION);
+            translated = UiTranslationRuntime.translateStringAnimatedInCurrentScreen(raw, UiTextRole.DESCRIPTION);
         }
-        translate_allinone$callNvgTextBox(vg, x, y, rowHeight, translated == null ? "" : translated);
+        NvgAnimatedTextRenderer.drawTextBox(vg, x, y, rowHeight, translated == null ? "" : translated);
     }
 
     @Redirect(
-            method = {"text", "textShadow", "textWidth", "drawWrappedString", "wrappedTextBounds"},
+            method = {"text", "textWidth", "drawWrappedString", "wrappedTextBounds"},
             at = @At(
                     value = "INVOKE",
                     target = "Lorg/lwjgl/nanovg/NanoVG;nvgTextBoxBounds(JFFFLjava/lang/CharSequence;[F)V"

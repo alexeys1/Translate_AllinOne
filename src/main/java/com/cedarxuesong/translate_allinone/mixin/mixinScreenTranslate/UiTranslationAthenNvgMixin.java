@@ -1,5 +1,6 @@
 package com.cedarxuesong.translate_allinone.mixin.mixinScreenTranslate;
 
+import com.cedarxuesong.translate_allinone.utils.translate.NvgAnimatedTextRenderer;
 import com.cedarxuesong.translate_allinone.utils.translate.UiOdinFontFallback;
 import com.cedarxuesong.translate_allinone.utils.translate.UiTextRole;
 import com.cedarxuesong.translate_allinone.utils.translate.UiTranslationRuntime;
@@ -25,7 +26,7 @@ public abstract class UiTranslationAthenNvgMixin {
             remap = false
     )
     private static float translate_allinone$redirectNvgText(long vg, float x, float y, CharSequence text) {
-        return translate_allinone$callNvgText(vg, x, y, translate_allinone$translateAthen(text == null ? null : text.toString(), UiTextRole.OPTION));
+        return NvgAnimatedTextRenderer.drawText(vg, x, y, translate_allinone$translateAthenAnimated(text == null ? null : text.toString(), UiTextRole.OPTION));
     }
 
     @Redirect(
@@ -51,7 +52,7 @@ public abstract class UiTranslationAthenNvgMixin {
             remap = false
     )
     private static void translate_allinone$redirectNvgTextBox(long vg, float x, float y, float rowHeight, CharSequence text) {
-        translate_allinone$callNvgTextBox(vg, x, y, rowHeight, translate_allinone$translateAthen(text == null ? null : text.toString(), UiTextRole.DESCRIPTION));
+        NvgAnimatedTextRenderer.drawTextBox(vg, x, y, rowHeight, translate_allinone$translateAthenAnimated(text == null ? null : text.toString(), UiTextRole.DESCRIPTION));
     }
 
     @Redirect(
@@ -79,6 +80,16 @@ public abstract class UiTranslationAthenNvgMixin {
     private static void translate_allinone$attachAthenFont(long vg, int fontId) {
         UiOdinFontFallback.attachFallback("foo.starred.athen.utils.nvg.NVGRenderer", fontId);
         translate_allinone$callNvgFontFaceId(vg, fontId);
+    }
+
+    private static String translate_allinone$translateAthenAnimated(String raw, UiTextRole role) {
+        UiTranslationScope.Scope scope = UiTranslationScope.enter("foo.starred.athen.config.ui.ClickGUI");
+        try {
+            String translated = UiTranslationRuntime.translateStringAnimatedInCurrentScreen(raw, role);
+            return translated == null ? "" : translated;
+        } finally {
+            scope.close();
+        }
     }
 
     private static String translate_allinone$translateAthen(String raw, UiTextRole role) {
