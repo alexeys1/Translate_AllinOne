@@ -41,7 +41,9 @@ public class ChatHudTranslateCommand {
 
         Component originalMessage = MessageUtils.getTrackedMessage(messageId);
         if (originalMessage == null) {
-            context.getSource().sendError(Component.translatable(MESSAGE_NOT_FOUND_KEY, messageIdStr));
+            if (!ChatOutputTranslateManager.handleToggleCommandWithMissingTracking(messageId, action)) {
+                context.getSource().sendError(Component.translatable(MESSAGE_NOT_FOUND_KEY, messageIdStr));
+            }
             return 0;
         }
 

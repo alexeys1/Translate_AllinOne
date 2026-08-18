@@ -187,7 +187,9 @@ public class ChatOutputTranslateManager {
             }
             LOGGER.error("Could not find chat line to update for messageId: {} after {} retries", messageId, MAX_LINE_LOCATE_RETRIES);
             lineLocateRetryCounts.remove(messageId);
-            MessageUtils.removeTrackedMessage(messageId);
+            if (!isLineContentStillPresent(messages, lineToLocate)) {
+                MessageUtils.removeTrackedMessage(messageId);
+            }
             return;
         }
         lineLocateRetryCounts.remove(messageId);
@@ -606,8 +608,6 @@ public class ChatOutputTranslateManager {
             }
             client.execute(() -> restoreLineAfterTemporaryError(messageId, errorLine, originalLine));
         });
-
-        MessageUtils.removeTrackedMessage(messageId);
     }
 
     private static void restoreLineAfterTemporaryError(UUID messageId, GuiMessage errorLine, GuiMessage originalLine) {
@@ -664,6 +664,30 @@ public class ChatOutputTranslateManager {
             return true;
         }
         return !lineContent.getSiblings().isEmpty() && lineContent.getSiblings().get(0).getString().equals(original);
+    }
+
+    private static boolean isLineContentStillPresent(List<GuiMessage> messages, Component lineToLocate) {
+        if (messages == null || lineToLocate == null) {
+            return false;
+        }
+        String target = lineToLocate.getString();
+        if (target == null || target.isEmpty()) {
+            return false;
+        }
+        for (GuiMessage line : messages) {
+            Component content = line.content();
+            if (content == null) {
+                continue;
+            }
+            if (content.getString().contains(target)) {
+                return true;
+            }
+            if (!content.getSiblings().isEmpty()
+                    && content.getSiblings().get(0).getString().contains(target)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean scheduleLineLocateRetry(UUID messageId, Component originalMessage, Component lineToLocate, boolean forceRefresh) {
@@ -1023,6 +1047,65 @@ public class ChatOutputTranslateManager {
         toggleButton.setStyle(toggleStyle);
         root.append(toggleButton);
         return root;
+    }
+
+    public static boolean handleToggleCommandWithMissingTracking(UUID messageId, String action) {
+        if (messageId == null || action == null) {
+            return false;
+        }
+        Minecraft client = Minecraft.getInstance();
+        if (client == null || client.gui == null || client.gui.hud.getChat() == null) {
+            return false;
+        }
+        ChatHudAccessor chatHudAccessor = (ChatHudAccessor) client.gui.hud.getChat();
+        List<GuiMessage> messages = chatHudAccessor.getMessages();
+        String commandPrefix = "/translate_allinone translatechatline " + messageId + " " + action;
+        for (GuiMessage line : messages) {
+            Component content = line.content();
+            if (content == null || !containsToggleCommand(content, commandPrefix)) {
+                continue;
+            }
+            if (CHAT_TRANSLATE_ACTION.equalsIgnoreCase(action)) {
+                Component original = extractToggleMessageContent(content);
+                if (original != null) {
+                    MessageUtils.putTrackedMessage(messageId, original);
+                    translate(messageId, original);
+                    return true;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean containsToggleCommand(Component content, String commandPrefix) {
+        if (hasToggleCommand(content.getStyle(), commandPrefix)) {
+            return true;
+        }
+        for (Component sibling : content.getSiblings()) {
+            if (hasToggleCommand(sibling.getStyle(), commandPrefix)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasToggleCommand(Style style, String commandPrefix) {
+        if (style == null) {
+            return false;
+        }
+        ClickEvent clickEvent = style.getClickEvent();
+        return clickEvent instanceof ClickEvent.RunCommand runCommand
+                && runCommand.command() != null
+                && runCommand.command().startsWith(commandPrefix);
+    }
+
+    private static Component extractToggleMessageContent(Component root) {
+        if (root == null || root.getSiblings().isEmpty()) {
+            return null;
+        }
+        Component first = root.getSiblings().get(0);
+        return first == null ? null : first.copy();
     }
 
     @NotNull
