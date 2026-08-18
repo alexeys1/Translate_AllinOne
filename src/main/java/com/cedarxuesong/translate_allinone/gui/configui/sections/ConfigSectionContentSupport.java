@@ -632,6 +632,16 @@ public final class ConfigSectionContentSupport {
                         translator.t("desc.other_translations_enabled")
                 );
                 y += ROW_STEP;
+                toggleAdder.add(
+                        x,
+                        y,
+                        width,
+                        translator.t("label.screen_translation_enabled"),
+                        () -> otherTranslations.enabled_screen_translation,
+                        value -> otherTranslations.enabled_screen_translation = value,
+                        translator.t("desc.screen_translation_enabled")
+                );
+                y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.basic"), x, width, basicStart, y);
 
                 y += GROUP_GAP;

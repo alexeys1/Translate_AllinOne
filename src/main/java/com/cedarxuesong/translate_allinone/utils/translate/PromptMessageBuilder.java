@@ -160,6 +160,7 @@ public final class PromptMessageBuilder {
                     + "4) Preserve tokens exactly: §a §l §r %s %d %f {d1} URLs numbers <...> {...} <s0> </s0> \\n \\t.\n"
                     + "5) If unsure for a value, keep that value unchanged.\n"
                     + "6) No extra text outside JSON.";
+            case "screen_ui" -> "Translate static third-party Minecraft configuration UI text into " + t + ". Preserve visible text only, formatting codes, URLs, paths, commands, key bindings, placeholders, numbers, units, decorative glyphs, module identities, configuration keys, and persistent values. Return only the required JSON response with no Markdown or extra fields.";
             default -> "";
         };
     }

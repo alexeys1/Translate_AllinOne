@@ -563,6 +563,8 @@
   "text.translate_allinone.configscreen.desc.other_translations_threads": "Maximum number of parallel translation requests for other translations",
   "text.translate_allinone.configscreen.label.other_translations_batch_size": "Other Translation Batch Size",
   "text.translate_allinone.configscreen.desc.other_translations_batch_size": "Maximum number of other translation documents submitted in one API request",
+  "text.translate_allinone.configscreen.label.screen_translation_enabled": "Translate Third-Party Config Screens",
+  "text.translate_allinone.configscreen.desc.screen_translation_enabled": "Translate third-party configuration screens",
   "text.translate_allinone.configscreen.label.translate_signs": "Translate Signs",
   "text.translate_allinone.configscreen.desc.translate_signs": "Translate visible sign text in the client renderer",
   "text.translate_allinone.configscreen.label.continuous_sign_translation": "Continuous Sign Translation",
