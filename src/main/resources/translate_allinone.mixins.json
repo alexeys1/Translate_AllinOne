@@ -37,7 +37,11 @@
     "mixinScreenTranslate.UiTranslationModMenuSortingMixin",
     "mixinScreenTranslate.UiTranslationModMenuListMixin",
     "mixinScreenTranslate.UiTranslationOdinMixin",
-    "mixinScreenTranslate.UiTranslationYaclOptionDescriptionMixin"
+    "mixinScreenTranslate.UiTranslationYaclOptionDescriptionMixin",
+    "mixinScreenTranslate.UiTranslationAthenScreenMixin",
+    "mixinScreenTranslate.UiTranslationAthenNvgMixin",
+    "mixinScreenTranslate.UiTranslationTaliumRendererMixin",
+    "mixinScreenTranslate.UiTranslationOdinScreenMixin"
   ],
   "injectors": {
     "defaultRequire": 1

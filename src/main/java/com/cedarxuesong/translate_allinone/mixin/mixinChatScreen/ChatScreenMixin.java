@@ -1,5 +1,7 @@
 package com.cedarxuesong.translate_allinone.mixin.mixinChatScreen;
 
+import java.util.UUID;
+
 import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.gui.chatinput.ChatInputPanelAction;
 import com.cedarxuesong.translate_allinone.gui.chatinput.ChatInputPanelRect;
@@ -9,11 +11,14 @@ import com.cedarxuesong.translate_allinone.utils.config.pojos.ChatTranslateConfi
 import com.cedarxuesong.translate_allinone.utils.input.KeybindingManager;
 import com.cedarxuesong.translate_allinone.utils.input.ChatInputInstructionFieldRegistry;
 import com.cedarxuesong.translate_allinone.utils.translate.ChatInputTranslateManager;
+import com.cedarxuesong.translate_allinone.utils.translate.ChatOutputTranslateManager;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ChatScreen;
 import net.minecraft.client.gui.widget.TextFieldWidget;
+import net.minecraft.text.ClickEvent;
+import net.minecraft.text.Style;
 import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 import org.spongepowered.asm.mixin.Mixin;
@@ -264,6 +269,11 @@ public class ChatScreenMixin {
     private void onMouseClicked(double mouseX, double mouseY, int button, CallbackInfoReturnable<Boolean> cir) {
         panelDragging = false;
 
+        if (button == GLFW.GLFW_MOUSE_BUTTON_MIDDLE && translate_allinone$handleMiddleClickOnChat(mouseX, mouseY)) {
+            cir.setReturnValue(true);
+            return;
+        }
+
         if (!translate_allinone$isPanelVisible()) {
             return;
         }
@@ -340,6 +350,53 @@ public class ChatScreenMixin {
             translate_allinone$performAction(action);
         }
         cir.setReturnValue(true);
+    }
+
+    @Unique
+    private boolean translate_allinone$handleMiddleClickOnChat(double mouseX, double mouseY) {
+        if (translate_allinone$isPanelVisible()) {
+            translate_allinone$ensurePanelPosition();
+            if (translate_allinone$panelRect().contains(mouseX, mouseY)) {
+                return false;
+            }
+        }
+
+        Style style = translate_allinone$findClickableStyle(mouseX, mouseY);
+        if (style == null) {
+            return false;
+        }
+
+        ClickEvent clickEvent = style.getClickEvent();
+        if (clickEvent.getAction() != ClickEvent.Action.RUN_COMMAND) {
+            return false;
+        }
+
+        String command = clickEvent.getValue();
+        String[] parts = command.split("\\s+");
+        if (parts.length < 4 || !"/translate_allinone".equals(parts[0]) || !"translatechatline".equals(parts[1])) {
+            return false;
+        }
+
+        if (!"restore".equals(parts[3])) {
+            return false;
+        }
+
+        try {
+            UUID messageId = UUID.fromString(parts[2]);
+            ChatOutputTranslateManager.forceRefreshTranslation(messageId);
+            return true;
+        } catch (IllegalArgumentException ignored) {
+            return false;
+        }
+    }
+
+    @Unique
+    private Style translate_allinone$findClickableStyle(double mouseX, double mouseY) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null || client.inGameHud == null || client.inGameHud.getChatHud() == null) {
+            return null;
+        }
+        return client.inGameHud.getChatHud().getTextStyleAt(mouseX, mouseY);
     }
 
     @Unique

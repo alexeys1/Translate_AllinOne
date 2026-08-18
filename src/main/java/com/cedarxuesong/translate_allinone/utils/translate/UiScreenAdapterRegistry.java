@@ -12,9 +12,6 @@ public final class UiScreenAdapterRegistry {
     private static final List<SoftAdapterRegistration> REGISTRATIONS = new ArrayList<>();
 
     static {
-        
-        
-        
         registerMod(
                 "odin",
                 "com.odtheking.odin.clickgui.",
@@ -57,8 +54,20 @@ public final class UiScreenAdapterRegistry {
                 UiScreenAdapter.Backend.MINECRAFT_FONT,
                 Set.of(UiTextRole.values())
         );
-        
-        
+        registerMod(
+                "athen",
+                "foo.starred.athen.config.ui.",
+                "",
+                UiScreenAdapter.Backend.NANOVG,
+                Set.of(UiTextRole.values())
+        );
+        registerMod(
+                "devonian",
+                "com.github.synnerz.devonian.config.ui.",
+                "",
+                UiScreenAdapter.Backend.MINECRAFT_FONT,
+                Set.of(UiTextRole.values())
+        );
     }
 
     private UiScreenAdapterRegistry() {
@@ -84,10 +93,18 @@ public final class UiScreenAdapterRegistry {
     }
 
     public static UiScreenAdapter resolve(Screen screen) {
-        if (screen == null) {
-            return null;
-        }
-        String className = screen.getClass().getName();
+        return screen == null ? null : resolveClassName(screen.getClass().getName());
+    }
+
+    public static UiScreenAdapter resolve(Class<?> screenClass) {
+        return screenClass == null ? null : resolveClassName(screenClass.getName());
+    }
+
+    public static UiScreenAdapter resolve(String className) {
+        return resolveClassName(className);
+    }
+
+    private static UiScreenAdapter resolveClassName(String className) {
         for (SoftAdapterRegistration registration : REGISTRATIONS) {
             if (!isModLoaded(registration.modId())) {
                 continue;
@@ -142,5 +159,3 @@ public final class UiScreenAdapterRegistry {
         }
     }
 }
-
-
