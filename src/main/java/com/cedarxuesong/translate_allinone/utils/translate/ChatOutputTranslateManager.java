@@ -186,7 +186,9 @@ public class ChatOutputTranslateManager {
             }
             LOGGER.error("Could not find chat line to update for messageId: {} after {} retries", messageId, MAX_LINE_LOCATE_RETRIES);
             lineLocateRetryCounts.remove(messageId);
-            MessageUtils.removeTrackedMessage(messageId);
+            if (!isLineContentStillPresent(messages, lineToLocate)) {
+                MessageUtils.removeTrackedMessage(messageId);
+            }
             return;
         }
         lineLocateRetryCounts.remove(messageId);
@@ -577,8 +579,6 @@ public class ChatOutputTranslateManager {
             }
             client.execute(() -> restoreLineAfterTemporaryError(messageId, errorLine, originalLine));
         });
-
-        MessageUtils.removeTrackedMessage(messageId);
     }
 
     private static void restoreLineAfterTemporaryError(UUID messageId, ChatHudLine errorLine, ChatHudLine originalLine) {
@@ -635,6 +635,29 @@ public class ChatOutputTranslateManager {
             return true;
         }
         return !lineContent.getSiblings().isEmpty() && lineContent.getSiblings().get(0).getString().equals(original);
+    }
+    private static boolean isLineContentStillPresent(List<ChatHudLine> messages, Text lineToLocate) {
+        if (messages == null || lineToLocate == null) {
+            return false;
+        }
+        String target = lineToLocate.getString();
+        if (target == null || target.isEmpty()) {
+            return false;
+        }
+        for (ChatHudLine line : messages) {
+            Text content = line.content();
+            if (content == null) {
+                continue;
+            }
+            if (content.getString().contains(target)) {
+                return true;
+            }
+            if (!content.getSiblings().isEmpty()
+                    && content.getSiblings().get(0).getString().contains(target)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean scheduleLineLocateRetry(UUID messageId, Text originalMessage, Text lineToLocate, boolean forceRefresh) {
@@ -997,6 +1020,65 @@ public class ChatOutputTranslateManager {
         toggleButton.setStyle(toggleStyle);
         root.append(toggleButton);
         return root;
+    }
+    public static boolean handleToggleCommandWithMissingTracking(UUID messageId, String action) {
+        if (messageId == null || action == null) {
+            return false;
+        }
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null || client.inGameHud == null || client.inGameHud.getChatHud() == null) {
+            return false;
+        }
+        ChatHudAccessor chatHudAccessor = (ChatHudAccessor) client.inGameHud.getChatHud();
+        List<ChatHudLine> messages = chatHudAccessor.getMessages();
+        String commandPrefix = "/translate_allinone translatechatline " + messageId + " " + action;
+        for (ChatHudLine line : messages) {
+            Text content = line.content();
+            if (content == null || !containsToggleCommand(content, commandPrefix)) {
+                continue;
+            }
+            if (CHAT_TRANSLATE_ACTION.equalsIgnoreCase(action)) {
+                Text original = extractToggleMessageContent(content);
+                if (original != null) {
+                    MessageUtils.putTrackedMessage(messageId, original);
+                    translate(messageId, original);
+                    return true;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean containsToggleCommand(Text content, String commandPrefix) {
+        if (hasToggleCommand(content.getStyle(), commandPrefix)) {
+            return true;
+        }
+        for (Text sibling : content.getSiblings()) {
+            if (hasToggleCommand(sibling.getStyle(), commandPrefix)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasToggleCommand(Style style, String commandPrefix) {
+        if (style == null) {
+            return false;
+        }
+        ClickEvent clickEvent = style.getClickEvent();
+        return clickEvent != null
+                && clickEvent.getAction() == ClickEvent.Action.RUN_COMMAND
+                && clickEvent.getValue() != null
+                && clickEvent.getValue().startsWith(commandPrefix);
+    }
+
+    private static Text extractToggleMessageContent(Text root) {
+        if (root == null || root.getSiblings().isEmpty()) {
+            return null;
+        }
+        Text first = root.getSiblings().get(0);
+        return first == null ? null : first.copy();
     }
 
     @NotNull
