@@ -110,7 +110,7 @@ public final class PromptMessageBuilder {
                     + "3) Keep an uncertain span unchanged. No Markdown, explanations, or extra fields.";
             case "chat_output" -> "Translate a received Minecraft chat message into " + targetLanguage + ".\n"
                     + "Rules:\n"
-                    + "1) Preserve speaker names, server commands, item ids, URLs, numbers, and uncertain proper nouns.\n"
+                    + "1) Speaker names and NPC names are already removed from the input; never add or guess them. Preserve server commands, item ids, URLs, numbers, and uncertain proper nouns.\n"
                     + "2) Preserve exactly: Minecraft formatting codes, every <sN> tag, {dN}/{gN}, %s/%d/%f, \\n, and \\t.\n"
                     + "3) Translate ordinary wording naturally while keeping protected tokens attached to their intended meaning.\n"
                     + "4) Keep an uncertain span unchanged. No Markdown, explanations, or extra fields.";

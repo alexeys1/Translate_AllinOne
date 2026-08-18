@@ -127,7 +127,7 @@
   "text.translate_allinone.command.error.message_not_found": "未找到消息 ID：%s",
   "category.translate_allinone.keybindings": "Translate All in One",
   "text.translate_allinone.translate_button_hover": "翻译这条消息",
-  "text.translate_allinone.restore_button_hover": "恢复这条消息的原文",
+  "text.translate_allinone.restore_button_hover": "恢复这条消息的原文（中键：强制刷新缓存）",
   "text.translate_allinone.processing": "处理中...",
   "text.translate_allinone.thinking": "思考中... Tokens:%d",
   "text.translate_allinone.connecting": "连接中...",
@@ -601,6 +601,6 @@
   "text.translate_allinone.configscreen.desc.other_translations_threads": "其他翻译的最大并发请求数",
   "text.translate_allinone.configscreen.label.other_translations_batch_size": "其他翻译批大小",
   "text.translate_allinone.configscreen.desc.other_translations_batch_size": "单个 API 请求中提交的其他翻译文档最大数量",
-  "text.translate_allinone.configscreen.label.screen_translation_enabled": "翻译第三方配置界面",
+  "text.translate_allinone.configscreen.label.screen_translation_enabled": "§c§l[WIP] §r翻译第三方配置界面",
   "text.translate_allinone.configscreen.desc.screen_translation_enabled": "翻译第三方配置界面"
 }
