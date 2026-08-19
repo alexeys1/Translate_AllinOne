@@ -34,9 +34,6 @@ public record ProviderSettings(OpenAISettings openAISettings, OllamaSettings oll
         String keepAlive = activeModelSettings == null ? profile.keep_alive_time : activeModelSettings.keep_alive_time;
         Map<String, Object> parameters = toParameterMap(activeModelSettings == null ? profile.custom_parameters : activeModelSettings.custom_parameters);
 
-        if (modelId == null || modelId.isBlank()) {
-            modelId = providerType == ApiProviderType.OLLAMA ? "qwen3:0.6b" : "gpt-4o";
-        }
         if (keepAlive == null || keepAlive.isBlank()) {
             keepAlive = "1m";
         }

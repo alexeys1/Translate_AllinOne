@@ -20,9 +20,9 @@ public class ApiProviderProfile {
     public ApiProviderType type = ApiProviderType.OPENAI_COMPAT;
     public String base_url = "https://api.openai.com/v1";
     public String api_key = "";
-    public String model_id = "gpt-4o";
-    public List<String> model_ids = new ArrayList<>(List.of("gpt-4o"));
-    public List<ModelSettings> model_settings = new ArrayList<>(List.of(ModelSettings.openAiDefault("gpt-4o")));
+    public String model_id = "";
+    public List<String> model_ids = new ArrayList<>();
+    public List<ModelSettings> model_settings = new ArrayList<>();
 
     public Double temperature = null;
     public Double chat_temperature = null;
@@ -44,9 +44,6 @@ public class ApiProviderProfile {
         profile.name = "OpenAI Default";
         profile.type = ApiProviderType.OPENAI_COMPAT;
         profile.base_url = "https://api.openai.com/v1";
-        profile.model_id = "gpt-4o";
-        profile.model_ids = new ArrayList<>(List.of("gpt-4o"));
-        profile.model_settings = new ArrayList<>(List.of(ModelSettings.openAiDefault("gpt-4o")));
         return profile;
     }
 
@@ -56,9 +53,6 @@ public class ApiProviderProfile {
         profile.name = "Ollama Default";
         profile.type = ApiProviderType.OLLAMA;
         profile.base_url = "http://localhost:11434";
-        profile.model_id = "qwen3:0.6b";
-        profile.model_ids = new ArrayList<>(List.of("qwen3:0.6b"));
-        profile.model_settings = new ArrayList<>(List.of(ModelSettings.ollamaDefault("qwen3:0.6b")));
         return profile;
     }
 
@@ -283,7 +277,7 @@ public class ApiProviderProfile {
     }
 
     public static class ModelSettings {
-        public String model_id = "gpt-4o";
+        public String model_id = "";
         public Double temperature = null;
         public Double chat_temperature = null;
         public Double item_temperature = null;
@@ -296,20 +290,6 @@ public class ApiProviderProfile {
         public boolean inject_system_prompt_into_user_message = true;
         public String system_prompt_suffix = "\\no_think";
         public List<CustomParameterEntry> custom_parameters = new ArrayList<>();
-
-        public static ModelSettings openAiDefault(String modelId) {
-            ModelSettings settings = new ModelSettings();
-            settings.model_id = modelId;
-            settings.keep_alive_time = "1m";
-            return settings;
-        }
-
-        public static ModelSettings ollamaDefault(String modelId) {
-            ModelSettings settings = new ModelSettings();
-            settings.model_id = modelId;
-            settings.keep_alive_time = "1m";
-            return settings;
-        }
 
         public double temperatureFor(TemperatureScene scene) {
             return switch (scene == null ? TemperatureScene.CHAT : scene) {
