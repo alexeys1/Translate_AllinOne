@@ -477,7 +477,7 @@
   "text.translate_allinone.configscreen.modal.dictionary_files.current": "已选择：%s",
   "text.translate_allinone.configscreen.modal.dictionary_files.empty": "当前目录下没有可用的字典文件",
   "text.translate_allinone.configscreen.modal.dictionary_files.entry_selected": "%s  [已选]",
-  "text.translate_allinone.configscreen.modal.dictionary_files.instructions": "点击下方文件名即可设为当前选择",
+  "text.translate_allinone.configscreen.modal.dictionary_files.instructions": "点击下方文件名即可设为当前选择（鼠标滚轮可滚动文件列表）",
   "text.translate_allinone.configscreen.modal.dictionary_files.title": "选择字典文件 - %s",
   "text.translate_allinone.configscreen.modal.model.custom_parameters": "自定义参数",
   "text.translate_allinone.configscreen.modal.model.inject_prompt_into_user": "注入提示词至用户消息",
