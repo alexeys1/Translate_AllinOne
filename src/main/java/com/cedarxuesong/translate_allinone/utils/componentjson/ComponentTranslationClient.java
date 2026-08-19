@@ -144,7 +144,7 @@ public final class ComponentTranslationClient {
         ProtectedTokenMask protectedTokenMask = ProtectedTokenMask.forRequest(document.route(), request);
         request = protectedTokenMask.mask(request);
         List<OpenAIRequest.Message> messages = buildMessages(document.route(), request, providerProfile);
-        ProviderSettings settings = ProviderSettings.fromProviderProfile(providerProfile).withStructuredOutputEnabled();
+        ProviderSettings settings = ProviderSettings.fromProviderProfile(providerProfile);
         CompletionRequester completionRequester = completionRequesterFactory.apply(settings);
         StructuredOutputSpec responseSchema = ComponentResponseJsonSchema.forDocument(document);
         ComponentTranslationMetrics.recordValue(

@@ -22,7 +22,6 @@ public final class ModelSettingsApplySupport {
             String keepAliveDraft,
             boolean supportsSystem,
             boolean injectPromptIntoUser,
-            boolean structuredOutput,
             String systemPromptSuffixDraft,
             List<CustomParameterEntry> customParametersDraft,
             boolean setDefault
@@ -65,7 +64,6 @@ public final class ModelSettingsApplySupport {
                 ModelSettingsValueSupport.normalizeKeepAliveInput(keepAliveDraft),
                 supportsSystem,
                 injectPromptIntoUser,
-                structuredOutput,
                 ProviderProfileSupport.sanitizeText(systemPromptSuffixDraft),
                 customParametersDraft,
                 setDefault

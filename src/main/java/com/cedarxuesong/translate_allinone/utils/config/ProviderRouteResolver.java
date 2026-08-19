@@ -106,7 +106,6 @@ public final class ProviderRouteResolver {
         modelCopy.wynntils_task_tracker_temperature = modelSettings.temperatureFor(ApiProviderProfile.TemperatureScene.WYNNTILS_TASK_TRACKER);
         modelCopy.wynn_npc_dialogue_temperature = modelSettings.temperatureFor(ApiProviderProfile.TemperatureScene.WYNN_NPC_DIALOGUE);
         modelCopy.keep_alive_time = modelSettings.keep_alive_time;
-        modelCopy.enable_structured_output_if_available = modelSettings.enable_structured_output_if_available;
         modelCopy.supports_system_message = modelSettings.supports_system_message;
         modelCopy.inject_system_prompt_into_user_message = modelSettings.inject_system_prompt_into_user_message;
         modelCopy.system_prompt_suffix = modelSettings.system_prompt_suffix;
@@ -122,7 +121,6 @@ public final class ProviderRouteResolver {
         snapshot.wynntils_task_tracker_temperature = modelCopy.wynntils_task_tracker_temperature;
         snapshot.wynn_npc_dialogue_temperature = modelCopy.wynn_npc_dialogue_temperature;
         snapshot.keep_alive_time = modelCopy.keep_alive_time;
-        snapshot.enable_structured_output_if_available = modelCopy.enable_structured_output_if_available;
         snapshot.supports_system_message = modelCopy.supports_system_message;
         snapshot.inject_system_prompt_into_user_message = modelCopy.inject_system_prompt_into_user_message;
         snapshot.system_prompt_suffix = modelCopy.system_prompt_suffix;

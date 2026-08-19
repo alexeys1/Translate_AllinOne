@@ -32,7 +32,6 @@ public class ApiProviderProfile {
     public Double wynntils_task_tracker_temperature = null;
     public Double wynn_npc_dialogue_temperature = null;
     public String keep_alive_time = "1m";
-    public boolean enable_structured_output_if_available = false;
     public boolean supports_system_message = true;
     public boolean inject_system_prompt_into_user_message = true;
     public String system_prompt_suffix = "\\no_think";
@@ -154,11 +153,6 @@ public class ApiProviderProfile {
         return settings == null ? inject_system_prompt_into_user_message : settings.inject_system_prompt_into_user_message;
     }
 
-    public boolean activeStructuredOutputEnabled() {
-        ModelSettings settings = getActiveModelSettings();
-        return settings == null ? enable_structured_output_if_available : settings.enable_structured_output_if_available;
-    }
-
     public String activeSystemPromptSuffix() {
         ModelSettings settings = getActiveModelSettings();
         return settings == null ? system_prompt_suffix : settings.system_prompt_suffix;
@@ -195,7 +189,6 @@ public class ApiProviderProfile {
         wynntils_task_tracker_temperature = active.temperatureFor(TemperatureScene.WYNNTILS_TASK_TRACKER);
         wynn_npc_dialogue_temperature = active.temperatureFor(TemperatureScene.WYNN_NPC_DIALOGUE);
         keep_alive_time = normalizeKeepAlive(active.keep_alive_time);
-        enable_structured_output_if_available = active.enable_structured_output_if_available;
         supports_system_message = active.supports_system_message;
         inject_system_prompt_into_user_message = active.inject_system_prompt_into_user_message;
         system_prompt_suffix = normalizeSuffix(active.system_prompt_suffix);
@@ -214,7 +207,6 @@ public class ApiProviderProfile {
         settings.wynn_npc_dialogue_temperature = normalizeTemperature(source.wynn_npc_dialogue_temperature, DEFAULT_WYNN_NPC_DIALOGUE_TEMPERATURE);
         settings.temperature = settings.temperatureFor(TemperatureScene.CHAT);
         settings.keep_alive_time = normalizeKeepAlive(source.keep_alive_time);
-        settings.enable_structured_output_if_available = source.enable_structured_output_if_available;
         settings.supports_system_message = source.supports_system_message;
         settings.inject_system_prompt_into_user_message = source.inject_system_prompt_into_user_message;
         settings.system_prompt_suffix = normalizeSuffix(source.system_prompt_suffix);
@@ -234,7 +226,6 @@ public class ApiProviderProfile {
         settings.wynn_npc_dialogue_temperature = normalizeTemperature(wynn_npc_dialogue_temperature, DEFAULT_WYNN_NPC_DIALOGUE_TEMPERATURE);
         settings.temperature = settings.temperatureFor(TemperatureScene.CHAT);
         settings.keep_alive_time = normalizeKeepAlive(keep_alive_time);
-        settings.enable_structured_output_if_available = enable_structured_output_if_available;
         settings.supports_system_message = supports_system_message;
         settings.inject_system_prompt_into_user_message = inject_system_prompt_into_user_message;
         settings.system_prompt_suffix = normalizeSuffix(system_prompt_suffix);
@@ -301,7 +292,6 @@ public class ApiProviderProfile {
         public Double wynntils_task_tracker_temperature = null;
         public Double wynn_npc_dialogue_temperature = null;
         public String keep_alive_time = "1m";
-        public boolean enable_structured_output_if_available = false;
         public boolean supports_system_message = true;
         public boolean inject_system_prompt_into_user_message = true;
         public String system_prompt_suffix = "\\no_think";

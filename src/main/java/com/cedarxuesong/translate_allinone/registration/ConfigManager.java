@@ -126,6 +126,7 @@ public class ConfigManager {
             boolean migratedLegacyVanillaAdvancementConfig = migrateLegacyVanillaAdvancementConfig(rawConfig, loadedConfig);
             boolean migratedLegacyComponentRoutingConfig = migrateLegacyComponentRoutingConfig(rawConfig, loadedConfig);
             boolean removedOtherTranslationsRequestsPerMinute = removeOtherTranslationsRequestsPerMinute(rawConfig);
+            boolean removedStructuredOutputConfig = removeStructuredOutputConfig(rawConfig);
             loadedConfig = normalizeConfig(loadedConfig);
 
             if (shouldRewriteConfig) {
@@ -139,6 +140,7 @@ public class ConfigManager {
                     || migratedLegacyVanillaAdvancementConfig
                     || migratedLegacyComponentRoutingConfig
                     || removedOtherTranslationsRequestsPerMinute
+                    || removedStructuredOutputConfig
                     || missingOtherTranslationsMasterSwitch) {
                 writeConfigBestEffort(
                         configPath,
@@ -537,6 +539,33 @@ public class ConfigManager {
 
     private static boolean removeOtherTranslationsRequestsPerMinute(JsonElement rawConfig) {
         return hasAnyField(getOtherTranslationsObject(rawConfig), "requests_per_minute");
+    }
+
+    private static boolean removeStructuredOutputConfig(JsonElement rawConfig) {
+        if (rawConfig == null || !rawConfig.isJsonObject()) {
+            return false;
+        }
+        boolean removed = false;
+        JsonObject providerManager = getNestedObject(rawConfig.getAsJsonObject(), "providerManager");
+        JsonElement providers = providerManager == null ? null : providerManager.get("providers");
+        if (providers != null && providers.isJsonArray()) {
+            for (JsonElement providerElement : providers.getAsJsonArray()) {
+                if (providerElement == null || !providerElement.isJsonObject()) {
+                    continue;
+                }
+                JsonObject provider = providerElement.getAsJsonObject();
+                removed |= provider.remove("enable_structured_output_if_available") != null;
+                JsonElement modelSettings = provider.get("model_settings");
+                if (modelSettings != null && modelSettings.isJsonArray()) {
+                    for (JsonElement settingsElement : modelSettings.getAsJsonArray()) {
+                        if (settingsElement != null && settingsElement.isJsonObject()) {
+                            removed |= settingsElement.getAsJsonObject().remove("enable_structured_output_if_available") != null;
+                        }
+                    }
+                }
+            }
+        }
+        return removed;
     }
 
     private static boolean shouldRewriteOtherTranslationsMasterSwitch(JsonElement rawConfig) {

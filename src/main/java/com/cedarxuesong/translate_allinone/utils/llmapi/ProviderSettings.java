@@ -8,10 +8,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 一个用于封装不同翻译提供商API设置的记录。
- * 这是一个不可变的数据结构。
- */
 public record ProviderSettings(OpenAISettings openAISettings, OllamaSettings ollamaSettings) {
 
     public static ProviderSettings fromOpenAI(OpenAISettings settings) {
@@ -36,9 +32,6 @@ public record ProviderSettings(OpenAISettings openAISettings, OllamaSettings oll
                 ? activeModelSettings.temperatureFor(ApiProviderProfile.TemperatureScene.CHAT)
                 : activeModelSettings.temperature;
         String keepAlive = activeModelSettings == null ? profile.keep_alive_time : activeModelSettings.keep_alive_time;
-        boolean structuredOutput = activeModelSettings == null
-                ? profile.enable_structured_output_if_available
-                : activeModelSettings.enable_structured_output_if_available;
         Map<String, Object> parameters = toParameterMap(activeModelSettings == null ? profile.custom_parameters : activeModelSettings.custom_parameters);
 
         if (modelId == null || modelId.isBlank()) {
@@ -57,7 +50,6 @@ public record ProviderSettings(OpenAISettings openAISettings, OllamaSettings oll
                     profile.api_key,
                     modelId,
                     keepAlive,
-                    structuredOutput,
                     options
             );
             return fromOllama(ollamaSettings);
@@ -68,36 +60,10 @@ public record ProviderSettings(OpenAISettings openAISettings, OllamaSettings oll
                 profile.api_key,
                 modelId,
                 temperature,
-                structuredOutput,
                 parameters,
                 providerType
         );
         return fromOpenAI(openAISettings);
-    }
-
-    public ProviderSettings withStructuredOutputEnabled() {
-        if (openAISettings != null) {
-            return fromOpenAI(new OpenAISettings(
-                    openAISettings.baseUrl(),
-                    openAISettings.apiKey(),
-                    openAISettings.modelId(),
-                    openAISettings.temperature(),
-                    true,
-                    openAISettings.customParameters(),
-                    openAISettings.providerType()
-            ));
-        }
-        if (ollamaSettings != null) {
-            return fromOllama(new OllamaSettings(
-                    ollamaSettings.baseUrl(),
-                    ollamaSettings.apiKey(),
-                    ollamaSettings.modelId(),
-                    ollamaSettings.keepAlive(),
-                    true,
-                    ollamaSettings.options()
-            ));
-        }
-        return this;
     }
 
     public static Map<String, Object> toParameterMap(List<CustomParameterEntry> customParameters) {
@@ -143,22 +109,11 @@ public record ProviderSettings(OpenAISettings openAISettings, OllamaSettings oll
         }
     }
 
-    /**
-     * OpenAI API 的相关设置
-     * @param baseUrl API的基地址
-     * @param apiKey API密钥
-     * @param modelId 使用的模型ID
-     * @param temperature 模型温度
-     * @param enableStructuredOutputIfAvailable 是否启用结构化输出（如果可用）
-     * @param customParameters 可选的自定义参数，会被添加到请求体中
-     * @param providerType OpenAI 接口类型（兼容 Chat Completions 或 Responses）
-     */
     public static record OpenAISettings(
             String baseUrl,
             String apiKey,
             String modelId,
             double temperature,
-            boolean enableStructuredOutputIfAvailable,
             Map<String, Object> customParameters,
             ApiProviderType providerType
     ) {
@@ -169,46 +124,22 @@ public record ProviderSettings(OpenAISettings openAISettings, OllamaSettings oll
             }
         }
 
-        /**
-         * 一个不含结构化输出开关的便捷构造函数（默认关闭）。
-         */
         public OpenAISettings(String baseUrl, String apiKey, String modelId, double temperature, Map<String, Object> customParameters) {
-            this(baseUrl, apiKey, modelId, temperature, false, customParameters, ApiProviderType.OPENAI_COMPAT);
+            this(baseUrl, apiKey, modelId, temperature, customParameters, ApiProviderType.OPENAI_COMPAT);
         }
 
-        /**
-         * 一个不含自定义参数的便捷构造函数。
-         */
         public OpenAISettings(String baseUrl, String apiKey, String modelId, double temperature) {
-            this(baseUrl, apiKey, modelId, temperature, false, null, ApiProviderType.OPENAI_COMPAT);
+            this(baseUrl, apiKey, modelId, temperature, null, ApiProviderType.OPENAI_COMPAT);
         }
     }
 
-    /**
-     * Ollama API 的相关设置
-     * @param baseUrl API的基地址, 例如 "http://localhost:11434"
-     * @param modelId 使用的模型ID
-     * @param keepAlive 模型在内存中保持加载的时间 (例如 "5m")
-     * @param enableStructuredOutputIfAvailable 是否启用结构化输出（如果可用）
-     * @param options 额外的模型参数 (例如 temperature, top_p)
-     */
-    public static record OllamaSettings(String baseUrl, String apiKey, String modelId, String keepAlive, boolean enableStructuredOutputIfAvailable, Map<String, Object> options) {
-        public OllamaSettings(String baseUrl, String modelId, String keepAlive, boolean enableStructuredOutputIfAvailable, Map<String, Object> options) {
-            this(baseUrl, "", modelId, keepAlive, enableStructuredOutputIfAvailable, options);
-        }
-
-        /**
-         * 一个不含结构化输出开关的便捷构造函数（默认关闭）。
-         */
+    public static record OllamaSettings(String baseUrl, String apiKey, String modelId, String keepAlive, Map<String, Object> options) {
         public OllamaSettings(String baseUrl, String modelId, String keepAlive, Map<String, Object> options) {
-            this(baseUrl, "", modelId, keepAlive, false, options);
+            this(baseUrl, "", modelId, keepAlive, options);
         }
 
-        /**
-         * 一个使用默认keepAlive且不含自定义参数的便捷构造函数。
-         */
         public OllamaSettings(String baseUrl, String modelId) {
-            this(baseUrl, "", modelId, "5m", false, null);
+            this(baseUrl, "", modelId, "5m", null);
         }
     }
 }

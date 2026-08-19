@@ -321,7 +321,6 @@ public class ModConfigScreen extends Screen {
     private String modelSettingsKeepAliveDraft = "";
     private boolean modelSettingsSupportsSystemDraft;
     private boolean modelSettingsInjectPromptIntoUserDraft = true;
-    private boolean modelSettingsStructuredOutputDraft;
     private String modelSettingsSystemPromptSuffixDraft = "";
     private List<CustomParameterEntry> modelSettingsCustomParametersDraft = new ArrayList<>();
     private List<CustomParameterEntry> customParametersBackup = new ArrayList<>();
@@ -1196,7 +1195,6 @@ public class ModConfigScreen extends Screen {
         modelSettingsKeepAliveDraft = draft.keepAliveDraft();
         modelSettingsSupportsSystemDraft = draft.supportsSystem();
         modelSettingsInjectPromptIntoUserDraft = draft.injectPromptIntoUser();
-        modelSettingsStructuredOutputDraft = draft.structuredOutput();
         modelSettingsSystemPromptSuffixDraft = draft.systemPromptSuffixDraft();
         modelSettingsCustomParametersDraft = draft.customParametersDraft();
         customParametersBackup = draft.customParametersBackup();
@@ -1234,7 +1232,6 @@ public class ModConfigScreen extends Screen {
         modelSettingsKeepAliveDraft = empty.keepAliveDraft();
         modelSettingsSupportsSystemDraft = empty.supportsSystem();
         modelSettingsInjectPromptIntoUserDraft = empty.injectPromptIntoUser();
-        modelSettingsStructuredOutputDraft = empty.structuredOutput();
         modelSettingsSystemPromptSuffixDraft = empty.systemPromptSuffixDraft();
         modelSettingsCustomParametersDraft = empty.customParametersDraft();
         customParametersBackup = empty.customParametersBackup();
@@ -1421,7 +1418,6 @@ public class ModConfigScreen extends Screen {
                 CustomParameterTreeSupport.countEntries(modelSettingsCustomParametersDraft),
                 modelSettingsSupportsSystemDraft,
                 modelSettingsInjectPromptIntoUserDraft,
-                modelSettingsStructuredOutputDraft,
                 modelSettingsSetDefault,
                 ModConfigScreen::t,
                 floatingActionBlockRegistry::add,
@@ -1444,7 +1440,6 @@ public class ModConfigScreen extends Screen {
                     rebuildActionBlocks(FocusTarget.MODEL_NAME);
                 },
                 value -> modelSettingsInjectPromptIntoUserDraft = value,
-                value -> modelSettingsStructuredOutputDraft = value,
                 value -> modelSettingsSetDefault = value,
                 () -> {
                     closeModelSettingsModal();
@@ -1470,7 +1465,6 @@ public class ModConfigScreen extends Screen {
                 modelSettingsKeepAliveDraft,
                 modelSettingsSupportsSystemDraft,
                 modelSettingsInjectPromptIntoUserDraft,
-                modelSettingsStructuredOutputDraft,
                 modelSettingsSystemPromptSuffixDraft,
                 modelSettingsCustomParametersDraft,
                 modelSettingsSetDefault
