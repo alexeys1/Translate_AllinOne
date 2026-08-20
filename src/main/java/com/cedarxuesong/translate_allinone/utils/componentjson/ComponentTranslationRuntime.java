@@ -24,9 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Queue;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
@@ -44,19 +42,8 @@ public final class ComponentTranslationRuntime {
     private static volatile ComponentTranslationClient client = DEFAULT_CLIENT;
     private static volatile Supplier<ModConfig> configSupplier = DEFAULT_CONFIG_SUPPLIER;
     private static final Map<DispatchRoute, DispatchState> DISPATCH = createDispatchStates();
-    private static final Map<String, FailureState> FAILURES = new ConcurrentHashMap<>();
-    private static final Map<String, PendingCandidate> PENDING_CANDIDATES = new ConcurrentHashMap<>();
-    private static final Map<String, Long> FALLBACK_GENERATIONS = Collections.synchronizedMap(
-            new LinkedHashMap<>(64, 0.75f, true) {
-                @Override
-                protected boolean removeEldestEntry(Map.Entry<String, Long> eldest) {
-                    return size() > DOCUMENT_CACHE_LIMIT;
-                }
-            }
-    );
-    private static final AtomicLong SESSION_EPOCH = new AtomicLong();
-    private static final Object WORK_LOCK = new Object();
-    private static final Map<String, TranslationWork> WORKS = new LinkedHashMap<>();
+    private static final ComponentTranslationRuntimeState<FailureDisposition> STATE =
+            new ComponentTranslationRuntimeState<>();
     private static final Map<DocumentMemoKey, MemoizedDocument> DOCUMENTS = Collections.synchronizedMap(
             new LinkedHashMap<>(64, 0.75f, true) {
                 @Override
@@ -65,23 +52,6 @@ public final class ComponentTranslationRuntime {
                 }
             }
     );
-    private static final Map<PreparedRequestMemoKey, ComponentTranslationPreparedRequest> PREPARED_REQUESTS =
-            Collections.synchronizedMap(new LinkedHashMap<>(64, 0.75f, true) {
-                @Override
-                protected boolean removeEldestEntry(
-                        Map.Entry<PreparedRequestMemoKey, ComponentTranslationPreparedRequest> eldest
-                ) {
-                    return size() > DOCUMENT_CACHE_LIMIT;
-                }
-            });
-    private static final Map<String, Boolean> ENTITY_TEMPLATE_SEEDS = Collections.synchronizedMap(
-            new LinkedHashMap<>(64, 0.75f, true) {
-                @Override
-                protected boolean removeEldestEntry(Map.Entry<String, Boolean> eldest) {
-                    return size() > DOCUMENT_CACHE_LIMIT;
-                }
-            });
-
     private ComponentTranslationRuntime() {
     }
 
@@ -250,7 +220,7 @@ public final class ComponentTranslationRuntime {
                 }
             }
             if (document.route() == ComponentTranslationRoute.TOOLTIP_PARAGRAPH
-                    || PENDING_CANDIDATES.containsKey(request.identity().key())) {
+                    || STATE.hasPendingCandidate(request.identity().key())) {
                 CandidateApplication<T> candidate = applyPendingCandidate(request, renderer, requestContext);
                 if (candidate.accepted()) {
                     return new Resolution<>(State.CACHE_HIT, candidate.value(), request.identity().key(), "");
@@ -260,12 +230,13 @@ public final class ComponentTranslationRuntime {
                         ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.CACHE_HIT);
                         return new Resolution<>(State.CACHE_HIT, safeCacheValue, request.identity().key(), "");
                     }
-                    FailureState failure = new FailureState(
-                            candidate.errorMessage(),
-                            Long.MAX_VALUE,
-                            FailureDisposition.TERMINAL_CONTENT_FAILURE
-                    );
-                    FAILURES.put(request.identity().key(), failure);
+                    ComponentTranslationRuntimeState.FailureState<FailureDisposition> failure =
+                            new ComponentTranslationRuntimeState.FailureState<>(
+                                    candidate.errorMessage(),
+                                    Long.MAX_VALUE,
+                                    FailureDisposition.TERMINAL_CONTENT_FAILURE
+                            );
+                    STATE.putFailure(request.identity().key(), failure);
                     return new Resolution<>(
                             State.FAILED,
                             null,
@@ -280,7 +251,7 @@ public final class ComponentTranslationRuntime {
                         && markEntityTemplateSeeded(request.identity().key())) {
                     store(request.document().route()).put(request, lookup.response());
                 }
-                FAILURES.remove(lookup.cacheKey());
+                STATE.removeFailure(lookup.cacheKey());
                 ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.CACHE_HIT);
                 ComponentTranslationDebugLogger.flow(
                         document.route(),
@@ -296,7 +267,7 @@ public final class ComponentTranslationRuntime {
                     try {
                         T rendered = renderer.apply(templateLookup.response());
                         store(request.document().route()).put(request, templateLookup.response());
-                        FAILURES.remove(request.identity().key());
+                        STATE.removeFailure(request.identity().key());
                         ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.TEMPLATE_HIT);
                         ComponentTranslationDebugLogger.entityTemplateReuse(
                                 request.identity().key(),
@@ -389,7 +360,8 @@ public final class ComponentTranslationRuntime {
             }
         }
 
-        FailureState failure = activeFailure(request.identity().key());
+        ComponentTranslationRuntimeState.FailureState<FailureDisposition> failure =
+                STATE.activeFailure(request.identity().key(), System.currentTimeMillis());
         if (failure != null) {
             ComponentTranslationMetrics.record(
                     document,
@@ -457,10 +429,10 @@ public final class ComponentTranslationRuntime {
         }
         ComponentTranslationPreparedRequest request = preparedRequest(document, targetLanguage);
         String key = request.identity().key();
-        boolean failureRemoved = FAILURES.remove(key) != null;
+        boolean failureRemoved = STATE.removeFailure(key);
         boolean fallbackGenerationRemoved = clearFallbackGeneration(key);
-        boolean candidateRemoved = PENDING_CANDIDATES.remove(key) != null;
-        ENTITY_TEMPLATE_SEEDS.remove(key);
+        boolean candidateRemoved = STATE.removePendingCandidate(key);
+        STATE.clearEntityTemplateSeed(key);
         boolean refreshRequested = requestRefresh(key);
         boolean removed = store(document.route()).remove(request);
         boolean templateRemoved = store(document.route()).removeEntityTemplate(request);
@@ -468,14 +440,14 @@ public final class ComponentTranslationRuntime {
     }
 
     public static long beginSession() {
-        long epoch = SESSION_EPOCH.incrementAndGet();
+        long epoch = STATE.advanceSession();
         TranslationQueueWatchdog.reset();
         clearRuntimeState();
         return epoch;
     }
 
     public static long endSession() {
-        long epoch = SESSION_EPOCH.incrementAndGet();
+        long epoch = STATE.advanceSession();
         TranslationQueueWatchdog.reset();
         clearRuntimeState();
         return epoch;
@@ -487,29 +459,22 @@ public final class ComponentTranslationRuntime {
     }
 
     public static long providerConfigurationChanged() {
-        long epoch = SESSION_EPOCH.incrementAndGet();
+        long epoch = STATE.advanceSession();
         TranslationQueueWatchdog.reset();
         clearRuntimeState();
         return epoch;
     }
 
     public static long cancelPendingTranslations() {
-        long epoch = SESSION_EPOCH.incrementAndGet();
+        long epoch = STATE.advanceSession();
         TranslationQueueWatchdog.reset();
         clearRuntimeState();
         return epoch;
     }
 
     private static void clearRuntimeState() {
-        FAILURES.clear();
-        PENDING_CANDIDATES.clear();
-        FALLBACK_GENERATIONS.clear();
+        STATE.clear();
         DOCUMENTS.clear();
-        PREPARED_REQUESTS.clear();
-        ENTITY_TEMPLATE_SEEDS.clear();
-        synchronized (WORK_LOCK) {
-            WORKS.clear();
-        }
         for (DispatchState state : DISPATCH.values()) {
             synchronized (state) {
                 state.queue.clear();
@@ -593,18 +558,14 @@ public final class ComponentTranslationRuntime {
         if (primaryCacheKey == null || primaryCacheKey.isBlank() || !LifecycleEventManager.isReadyForTranslation) {
             return true;
         }
-        long epoch = SESSION_EPOCH.get();
-        synchronized (FALLBACK_GENERATIONS) {
-            Long previousEpoch = FALLBACK_GENERATIONS.put(primaryCacheKey, epoch);
-            return previousEpoch == null || previousEpoch != epoch;
-        }
+        return STATE.claimFallbackGeneration(primaryCacheKey);
     }
 
     public static boolean clearFallbackGeneration(String primaryCacheKey) {
         if (primaryCacheKey == null || primaryCacheKey.isBlank()) {
             return false;
         }
-        return FALLBACK_GENERATIONS.remove(primaryCacheKey) != null;
+        return STATE.clearFallbackGeneration(primaryCacheKey);
     }
 
     private static boolean queue(
@@ -614,7 +575,7 @@ public final class ComponentTranslationRuntime {
         if (!TranslationFeatureGate.isEnabled()) {
             return false;
         }
-        long epoch = SESSION_EPOCH.get();
+        long epoch = STATE.epoch();
         String cacheKey = request.identity().key();
         if (!registerQueued(request, requestContext, epoch)) {
             ComponentTranslationDebugLogger.flow(
@@ -906,7 +867,7 @@ public final class ComponentTranslationRuntime {
                 candidateHash,
                 request.epoch()
         );
-        WorkCompletion completion = completeAndStore(request, response);
+        ComponentTranslationRuntimeState.WorkCompletion completion = completeAndStore(request, response);
         if (!completion.current()) {
             ComponentTranslationMetrics.record(request.document(), ComponentTranslationMetrics.Outcome.STALE_SESSION);
             ComponentTranslationMetrics.record(request.document(), ComponentTranslationMetrics.Outcome.JOB_EXPIRED);
@@ -939,7 +900,7 @@ public final class ComponentTranslationRuntime {
             return;
         }
         if (completion.stored()) {
-            FAILURES.remove(request.cacheKey());
+            STATE.removeFailure(request.cacheKey());
         }
         ComponentTranslationMetrics.record(request.document(), ComponentTranslationMetrics.Outcome.JOB_SUCCESS);
         ComponentTranslationDebugLogger.flow(
@@ -984,13 +945,14 @@ public final class ComponentTranslationRuntime {
             Function<ComponentTranslationResponse, T> renderer,
             String requestContext
     ) {
-        PendingCandidate candidate = PENDING_CANDIDATES.get(request.identity().key());
+        ComponentTranslationRuntimeState.PendingCandidate candidate =
+                STATE.pendingCandidate(request.identity().key());
         if (candidate == null) {
             return CandidateApplication.absent();
         }
-        if (candidate.epoch() != SESSION_EPOCH.get()
+        if (candidate.epoch() != STATE.epoch()
                 || !candidate.request().identity().equals(request.identity())) {
-            PENDING_CANDIDATES.remove(request.identity().key(), candidate);
+            STATE.removePendingCandidate(request.identity().key(), candidate);
             return CandidateApplication.absent();
         }
         CandidatePromotion<T> promotion = validateAndCommitCandidate(
@@ -1007,8 +969,8 @@ public final class ComponentTranslationRuntime {
                     candidate.hash(),
                     requestContext == null ? candidate.requestContext() : requestContext
             );
-            PENDING_CANDIDATES.remove(request.identity().key(), candidate);
-            FAILURES.remove(request.identity().key());
+            STATE.removePendingCandidate(request.identity().key(), candidate);
+            STATE.removeFailure(request.identity().key());
             ComponentTranslationDebugLogger.flow(
                     request.document().route(),
                     "candidate route={} phase=CACHE_COMMIT result=stored key={} candidate={}",
@@ -1018,7 +980,7 @@ public final class ComponentTranslationRuntime {
             );
             return CandidateApplication.accepted(promotion.value());
         }
-        PENDING_CANDIDATES.remove(request.identity().key(), candidate);
+        STATE.removePendingCandidate(request.identity().key(), candidate);
         ComponentTranslationMetrics.record(
                 request.document(),
                 ComponentTranslationMetrics.Outcome.RESPONSE_REJECTED
@@ -1072,11 +1034,11 @@ public final class ComponentTranslationRuntime {
             FailureDisposition disposition
     ) {
         failWork(request.cacheKey(), request.epoch());
-        if (request.epoch() == SESSION_EPOCH.get()) {
+        if (request.epoch() == STATE.epoch()) {
             String resolvedMessage = message == null || message.isBlank() ? "Component translation failed" : message;
             Throwable cause = error == null ? null : TranslateExceptionUtils.unwrapThrowable(error);
             if (restoresMissAfterRetryExhaustion(cause)) {
-                FAILURES.remove(request.cacheKey());
+                STATE.removeFailure(request.cacheKey());
                 ComponentTranslationMetrics.record(
                         request.document(),
                         ComponentTranslationMetrics.Outcome.RESPONSE_REJECTED
@@ -1099,9 +1061,9 @@ public final class ComponentTranslationRuntime {
                 );
                 return;
             }
-            FAILURES.put(
+            STATE.putFailure(
                     request.cacheKey(),
-                    new FailureState(
+                    new ComponentTranslationRuntimeState.FailureState<>(
                             resolvedMessage,
                             failureExpiresAtMillis(
                                     request.document().route(),
@@ -1164,18 +1126,6 @@ public final class ComponentTranslationRuntime {
             state.active.remove(batch);
         }
         drain(route);
-    }
-
-    private static FailureState activeFailure(String key) {
-        FailureState failure = FAILURES.get(key);
-        if (failure == null) {
-            return null;
-        }
-        if (System.currentTimeMillis() <= failure.expiresAtMillis()) {
-            return failure;
-        }
-        FAILURES.remove(key, failure);
-        return null;
     }
 
     static long failureExpiresAtMillis(
@@ -1280,27 +1230,7 @@ public final class ComponentTranslationRuntime {
             ComponentTranslationDocument document,
             String targetLanguage
     ) {
-        if (document == null || targetLanguage == null || targetLanguage.isBlank()) {
-            throw new IllegalArgumentException("Component translation document and target language are required.");
-        }
-        String normalizedLanguage = targetLanguage.trim();
-        PreparedRequestMemoKey key = new PreparedRequestMemoKey(document, normalizedLanguage);
-        ComponentTranslationPreparedRequest memoized = PREPARED_REQUESTS.get(key);
-        if (memoized != null) {
-            return memoized;
-        }
-        long startedAt = System.nanoTime();
-        try {
-            ComponentTranslationPreparedRequest prepared = ComponentTranslationPreparedRequest.create(document, normalizedLanguage);
-            PREPARED_REQUESTS.put(key, prepared);
-            return prepared;
-        } finally {
-            ComponentTranslationMetrics.recordNanos(
-                    document.route(),
-                    ComponentTranslationMetrics.Timing.HASH,
-                    System.nanoTime() - startedAt
-            );
-        }
+        return STATE.preparedRequest(document, targetLanguage);
     }
 
     private static ComponentTranslationStore store(ComponentTranslationRoute route) {
@@ -1318,100 +1248,43 @@ public final class ComponentTranslationRuntime {
             String requestContext,
             long epoch
     ) {
-        synchronized (WORK_LOCK) {
-            if (epoch != SESSION_EPOCH.get() || WORKS.containsKey(request.identity().key())) {
-                return false;
-            }
-            WORKS.put(
-                    request.identity().key(),
-                    new TranslationWork(request, epoch, requestContext, WorkState.QUEUED, false)
-            );
-            return true;
-        }
+        return STATE.registerQueued(request, requestContext, epoch);
     }
 
     private static boolean hasActiveWork(String cacheKey) {
-        synchronized (WORK_LOCK) {
-            TranslationWork work = WORKS.get(cacheKey);
-            return work != null && work.epoch() == SESSION_EPOCH.get();
-        }
+        return STATE.hasActiveWork(cacheKey);
     }
 
     private static boolean markEntityTemplateSeeded(String fullCacheKey) {
-        synchronized (ENTITY_TEMPLATE_SEEDS) {
-            return ENTITY_TEMPLATE_SEEDS.put(fullCacheKey, Boolean.TRUE) == null;
-        }
+        return STATE.markEntityTemplateSeeded(fullCacheKey);
     }
 
     private static boolean markWorkInFlight(String cacheKey, long epoch) {
-        synchronized (WORK_LOCK) {
-            TranslationWork work = WORKS.get(cacheKey);
-            if (work == null || work.epoch() != epoch || work.state() != WorkState.QUEUED) {
-                return false;
-            }
-            WORKS.put(cacheKey, work.withState(WorkState.IN_FLIGHT));
-            return true;
-        }
+        return STATE.markWorkInFlight(cacheKey, epoch);
     }
 
-    private static WorkCompletion completeAndStore(
+    private static ComponentTranslationRuntimeState.WorkCompletion completeAndStore(
             PendingRequest request,
             ComponentTranslationResponse response
     ) {
-        synchronized (WORK_LOCK) {
-            TranslationWork work = WORKS.get(request.cacheKey());
-            if (!TranslationFeatureGate.isEnabled()
-                    || work == null
-                    || work.epoch() != request.epoch()
-                    || request.epoch() != SESSION_EPOCH.get()) {
-                return WorkCompletion.STALE;
-            }
-            if (work.refreshAfterCompletion()) {
-                WORKS.remove(request.cacheKey());
-                return new WorkCompletion(true, true, false, false);
-            }
-            if (shouldStageCandidate(request)) {
-                PENDING_CANDIDATES.put(
-                        request.cacheKey(),
-                        new PendingCandidate(
-                                request.prepared(),
-                                response,
-                                request.epoch(),
-                                candidateHash(response),
-                                request.requestContext()
-                        )
-                );
-                WORKS.remove(request.cacheKey());
-                return new WorkCompletion(true, false, false, true);
-            }
-            boolean stored = store(request.prepared().document().route()).put(request.prepared(), response);
-            WORKS.remove(request.cacheKey());
-            return new WorkCompletion(true, false, stored, false);
-        }
+        return STATE.complete(
+                request.prepared(),
+                response,
+                request.epoch(),
+                TranslationFeatureGate.isEnabled(),
+                shouldStageCandidate(request),
+                candidateHash(response),
+                request.requestContext(),
+                () -> store(request.prepared().document().route()).put(request.prepared(), response)
+        );
     }
 
     private static void failWork(String cacheKey, long epoch) {
-        synchronized (WORK_LOCK) {
-            TranslationWork work = WORKS.get(cacheKey);
-            if (work != null && work.epoch() == epoch) {
-                WORKS.remove(cacheKey);
-            }
-        }
+        STATE.failWork(cacheKey, epoch);
     }
 
     private static boolean requestRefresh(String cacheKey) {
-        synchronized (WORK_LOCK) {
-            TranslationWork work = WORKS.get(cacheKey);
-            if (work == null) {
-                return false;
-            }
-            if (work.state() == WorkState.QUEUED) {
-                WORKS.remove(cacheKey);
-                return true;
-            }
-            WORKS.put(cacheKey, work.withRefreshAfterCompletion());
-            return true;
-        }
+        return STATE.requestRefresh(cacheKey);
     }
 
     private static final class StoreHolder {
@@ -1507,31 +1380,6 @@ public final class ComponentTranslationRuntime {
         }
     }
 
-    private record TranslationWork(
-            ComponentTranslationPreparedRequest request,
-            long epoch,
-            String requestContext,
-            WorkState state,
-            boolean refreshAfterCompletion
-    ) {
-        private TranslationWork withState(WorkState updatedState) {
-            return new TranslationWork(request, epoch, requestContext, updatedState, refreshAfterCompletion);
-        }
-
-        private TranslationWork withRefreshAfterCompletion() {
-            return new TranslationWork(request, epoch, requestContext, state, true);
-        }
-    }
-
-    private record WorkCompletion(boolean current, boolean refreshAfterCompletion, boolean stored, boolean staged) {
-        private static final WorkCompletion STALE = new WorkCompletion(false, false, false, false);
-    }
-
-    private enum WorkState {
-        QUEUED,
-        IN_FLIGHT
-    }
-
     private record DocumentMemoKey(
             ComponentTranslationRoute route,
             int policyVersion,
@@ -1542,37 +1390,6 @@ public final class ComponentTranslationRuntime {
     }
 
     private record MemoizedDocument(Component source, ComponentTranslationDocument document) {
-    }
-
-    private static final class PreparedRequestMemoKey {
-        private final ComponentTranslationDocument document;
-        private final String targetLanguage;
-        private final int hashCode;
-
-        private PreparedRequestMemoKey(ComponentTranslationDocument document, String targetLanguage) {
-            this.document = document;
-            this.targetLanguage = targetLanguage;
-            this.hashCode = 31 * System.identityHashCode(document) + targetLanguage.hashCode();
-        }
-
-        @Override
-        public boolean equals(Object value) {
-            return value instanceof PreparedRequestMemoKey other
-                    && document == other.document
-                    && targetLanguage.equals(other.targetLanguage);
-        }
-
-        @Override
-        public int hashCode() {
-            return hashCode;
-        }
-    }
-
-    private record FailureState(
-            String message,
-            long expiresAtMillis,
-            FailureDisposition disposition
-    ) {
     }
 
     private static boolean shouldStageCandidate(PendingRequest request) {
@@ -1586,15 +1403,6 @@ public final class ComponentTranslationRuntime {
                 && "paragraph-line-fallback-v1".equals(
                 request.document().semanticSettings().get("route_policy")
         );
-    }
-
-    private record PendingCandidate(
-            ComponentTranslationPreparedRequest request,
-            ComponentTranslationResponse response,
-            long epoch,
-            String hash,
-            String requestContext
-    ) {
     }
 
     private record CandidateApplication<T>(
