@@ -107,8 +107,12 @@ public final class SignTranslationSupport {
         }
         ContinuousSignTranslationCoordinator.SignFaceKey key =
                 new ContinuousSignTranslationCoordinator.SignFaceKey(sign.getPos(), face);
+        Text[] source = original.getMessages(filtered);
+        if (source == null || source.length != SIGN_LINE_COUNT) {
+            return original;
+        }
         Text[] coordinated = ContinuousSignTranslationCoordinator.translatedLines(key);
-        if (coordinated != null) {
+        if (coordinated != null && hasVisibleTranslation(source, coordinated)) {
             return rebuildSignText(original, coordinated, state, textRenderer);
         }
         String coordinatedAnimationKey = ContinuousSignTranslationCoordinator.pendingAnimationKey(key);
@@ -121,14 +125,11 @@ public final class SignTranslationSupport {
             );
         }
         if (!config.continuous_sign_translation) {
-            return original;
+            return coordinated == null
+                    ? original
+                    : rebuildSignText(original, coordinated, state, textRenderer);
         }
-        if (ContinuousSignTranslationCoordinator.isGroupedFace(key)) {
-            return original;
-        }
-
-        Text[] source = original.getMessages(filtered);
-        if (source == null || source.length != SIGN_LINE_COUNT) {
+        if (coordinated == null && ContinuousSignTranslationCoordinator.isGroupedFace(key)) {
             return original;
         }
         try {
@@ -164,7 +165,28 @@ public final class SignTranslationSupport {
             }
         } catch (RuntimeException ignored) {
         }
-        return original;
+        return coordinated == null
+                ? original
+                : rebuildSignText(original, coordinated, state, textRenderer);
+    }
+
+    static boolean hasVisibleTranslation(Text[] source, Text[] translated) {
+        if (source == null
+                || translated == null
+                || source.length != SIGN_LINE_COUNT
+                || translated.length != SIGN_LINE_COUNT) {
+            return false;
+        }
+        for (int index = 0; index < SIGN_LINE_COUNT; index++) {
+            Text sourceLine = source[index];
+            Text translatedLine = translated[index];
+            if (sourceLine != null
+                    && translatedLine != null
+                    && !sourceLine.getString().equals(translatedLine.getString())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void refreshFaceIfNeeded(
