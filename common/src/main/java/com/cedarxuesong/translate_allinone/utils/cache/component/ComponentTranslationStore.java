@@ -1,12 +1,9 @@
 package com.cedarxuesong.translate_allinone.utils.cache.component;
 
-import com.cedarxuesong.translate_allinone.Translate_AllinOne;
-import com.cedarxuesong.translate_allinone.utils.cache.CacheBackupManager;
 import com.cedarxuesong.translate_allinone.utils.cache.CacheFileSaveSupport;
 import com.cedarxuesong.translate_allinone.utils.cache.CacheStats;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentJsonException;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentJsonLimits;
-import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationDebugLogger;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationPreparedRequest;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationResponse;
 import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslationRoute;
@@ -18,6 +15,8 @@ import com.google.gson.JsonObject;
 import com.google.gson.Strictness;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.InputStream;
 import java.io.IOException;
@@ -60,12 +59,34 @@ public final class ComponentTranslationStore {
     private static final int MAX_RECOVERY_ARTIFACTS = 5;
     private static final AtomicLong RECOVERY_SEQUENCE = new AtomicLong();
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
+    private static final Logger LOGGER = LoggerFactory.getLogger("translate_allinone");
+    private static final BackupAccess NO_OP_BACKUP_ACCESS = new BackupAccess() {
+        @Override
+        public void maybeBackup(Path cacheFilePath, String cacheTypeLabel) {
+        }
+
+        @Override
+        public List<Path> findVerifiedBackups(Path cacheFilePath) {
+            return List.of();
+        }
+    };
+    private static final Diagnostics NO_OP_DIAGNOSTICS = new Diagnostics() {
+        @Override
+        public void flowForNamespace(String namespace, String message, Object... arguments) {
+        }
+
+        @Override
+        public void error(ComponentTranslationRoute route, String message, Object... arguments) {
+        }
+    };
 
     private final Path path;
     private final ComponentCacheModule module;
     private final boolean passiveBackupEnabled;
     private final long maxFileBytes;
     private final int maxEntries;
+    private final BackupAccess backupAccess;
+    private final Diagnostics diagnostics;
     private final Map<String, Entry> entries = new LinkedHashMap<>();
     private final Map<String, Entry> entityTemplates = new LinkedHashMap<>();
     private final Map<String, Entry> memoryEntries = new LinkedHashMap<>();
@@ -79,7 +100,33 @@ public final class ComponentTranslationStore {
     private ScheduledFuture<?> scheduledSave;
 
     ComponentTranslationStore(Path cacheDirectory, ComponentCacheModule module, boolean passiveBackupEnabled) {
-        this(cacheDirectory, module, passiveBackupEnabled, MAX_FILE_BYTES, DEFAULT_MAX_ENTRIES);
+        this(
+                cacheDirectory,
+                module,
+                passiveBackupEnabled,
+                MAX_FILE_BYTES,
+                DEFAULT_MAX_ENTRIES,
+                NO_OP_BACKUP_ACCESS,
+                NO_OP_DIAGNOSTICS
+        );
+    }
+
+    ComponentTranslationStore(
+            Path cacheDirectory,
+            ComponentCacheModule module,
+            boolean passiveBackupEnabled,
+            BackupAccess backupAccess,
+            Diagnostics diagnostics
+    ) {
+        this(
+                cacheDirectory,
+                module,
+                passiveBackupEnabled,
+                MAX_FILE_BYTES,
+                DEFAULT_MAX_ENTRIES,
+                backupAccess,
+                diagnostics
+        );
     }
 
     ComponentTranslationStore(
@@ -88,6 +135,26 @@ public final class ComponentTranslationStore {
             boolean passiveBackupEnabled,
             long maxFileBytes,
             int maxEntries
+    ) {
+        this(
+                cacheDirectory,
+                module,
+                passiveBackupEnabled,
+                maxFileBytes,
+                maxEntries,
+                NO_OP_BACKUP_ACCESS,
+                NO_OP_DIAGNOSTICS
+        );
+    }
+
+    private ComponentTranslationStore(
+            Path cacheDirectory,
+            ComponentCacheModule module,
+            boolean passiveBackupEnabled,
+            long maxFileBytes,
+            int maxEntries,
+            BackupAccess backupAccess,
+            Diagnostics diagnostics
     ) {
         if (cacheDirectory == null) {
             throw new IllegalArgumentException("Component cache directory is required.");
@@ -103,6 +170,8 @@ public final class ComponentTranslationStore {
         this.passiveBackupEnabled = passiveBackupEnabled;
         this.maxFileBytes = maxFileBytes;
         this.maxEntries = maxEntries;
+        this.backupAccess = backupAccess == null ? NO_OP_BACKUP_ACCESS : backupAccess;
+        this.diagnostics = diagnostics == null ? NO_OP_DIAGNOSTICS : diagnostics;
         this.saveExecutor = Executors.newSingleThreadScheduledExecutor(runnable -> {
             Thread thread = new Thread(runnable, "translate_allinone-component-" + module.wireName() + "-save");
             thread.setDaemon(true);
@@ -120,7 +189,7 @@ public final class ComponentTranslationStore {
         persistenceState = PersistenceState.HEALTHY;
         saveRetryAttempts = 0;
         if (!Files.exists(path)) {
-            Translate_AllinOne.LOGGER.info("Component {} cache file not found; starting empty.", module.wireName());
+            LOGGER.info("Component {} cache file not found; starting empty.", module.wireName());
             return;
         }
 
@@ -128,7 +197,7 @@ public final class ComponentTranslationStore {
             LoadedFile loaded = readFileWithRetry(path);
             entries.putAll(loaded.entries());
             entityTemplates.putAll(loaded.entityTemplates());
-            ComponentTranslationDebugLogger.flowForNamespace(
+            diagnostics.flowForNamespace(
                     module.wireName(),
                     "cache_load schema={} entries={} entityTemplates={} path={}",
                     loaded.schemaVersion(),
@@ -162,7 +231,7 @@ public final class ComponentTranslationStore {
             return new Lookup(Status.HIT, key, response);
         } catch (ComponentJsonException | IllegalArgumentException error) {
             removeInternal(key);
-            ComponentTranslationDebugLogger.error(
+            diagnostics.error(
                     request.document().route(),
                     "Component cache entry rejected: route={} key={} reason={}",
                     request.document().route().wireName(),
@@ -201,7 +270,7 @@ public final class ComponentTranslationStore {
             return new Lookup(Status.HIT, key, response);
         } catch (ComponentJsonException | IllegalArgumentException error) {
             removeEntityTemplateInternal(key);
-            ComponentTranslationDebugLogger.error(
+            diagnostics.error(
                     request.document().route(),
                     "Entity template cache entry rejected: templateKey={} reason={}",
                     key,
@@ -243,7 +312,7 @@ public final class ComponentTranslationStore {
                 moveToMemory(memoryEntityTemplates, templateKey, entityTemplates.remove(templateKey));
             }
             changed = true;
-            Translate_AllinOne.LOGGER.warn(
+            LOGGER.warn(
                     "Component {} cache entry will remain memory-only because it exceeds the persistence budget.",
                     module.wireName(),
                     error
@@ -288,9 +357,9 @@ public final class ComponentTranslationStore {
             dirty = false;
             saveRetryAttempts = 0;
             if (passiveBackupEnabled) {
-                CacheBackupManager.maybeBackup(path, "component " + module.wireName());
+                backupAccess.maybeBackup(path, "component " + module.wireName());
             }
-            ComponentTranslationDebugLogger.flowForNamespace(
+            diagnostics.flowForNamespace(
                     module.wireName(),
                     "cache_save schema={} entries={} entityTemplates={} path={}",
                     SCHEMA_VERSION,
@@ -594,7 +663,7 @@ public final class ComponentTranslationStore {
             try {
                 SalvagedFile salvaged = readFileWithSalvage(path);
                 restoreSalvaged(salvaged);
-                Translate_AllinOne.LOGGER.warn(
+                LOGGER.warn(
                         "Rebuilt Component {} cache by skipping {} invalid entry record(s); preserved original file at {}.",
                         module.wireName(),
                         salvaged.skippedEntries(),
@@ -602,20 +671,20 @@ public final class ComponentTranslationStore {
                 );
                 return;
             } catch (IOException | RuntimeException salvageError) {
-                Translate_AllinOne.LOGGER.warn(
+                LOGGER.warn(
                         "Component {} cache is not eligible for single-entry salvage.",
                         module.wireName(),
                         salvageError
                 );
             }
             List<Path> candidates = passiveBackupEnabled
-                    ? CacheBackupManager.findVerifiedComponentCacheBackups(path)
+                    ? backupAccess.findVerifiedBackups(path)
                     : List.of();
             for (Path candidate : candidates) {
                 try {
                     readFile(candidate);
                     restoreCandidate(candidate);
-                    Translate_AllinOne.LOGGER.warn(
+                    LOGGER.warn(
                             "Recovered Component {} cache from verified passive backup {} after preserving corrupt file {}.",
                             module.wireName(),
                             candidate,
@@ -624,7 +693,7 @@ public final class ComponentTranslationStore {
                     );
                     return;
                 } catch (IOException | RuntimeException recoveryError) {
-                    Translate_AllinOne.LOGGER.warn(
+                    LOGGER.warn(
                             "Rejected verified Component {} cache backup candidate {} during strict recovery.",
                             module.wireName(),
                             candidate,
@@ -638,7 +707,7 @@ public final class ComponentTranslationStore {
             entityTemplates.clear();
             persistenceState = PersistenceState.MEMORY_ONLY;
             recoveryError.addSuppressed(loadFailure);
-            Translate_AllinOne.LOGGER.error(
+            LOGGER.error(
                     "Failed to recover Component {} cache. This session will use memory-only cache data; inspect preserved cache artifacts for {}.",
                     module.wireName(),
                     path,
@@ -713,7 +782,7 @@ public final class ComponentTranslationStore {
         if (persistenceState != PersistenceState.HEALTHY || dirty) {
             throw new IOException("Failed to create an empty replacement Component cache file.");
         }
-        Translate_AllinOne.LOGGER.warn(
+        LOGGER.warn(
                 "Isolated unrecoverable Component {} cache {} after preserving backup {} and created an empty cache file.",
                 module.wireName(),
                 isolatedPath,
@@ -756,7 +825,7 @@ public final class ComponentTranslationStore {
                 Files.deleteIfExists(artifacts.get(index));
             }
         } catch (IOException error) {
-            Translate_AllinOne.LOGGER.warn(
+            LOGGER.warn(
                     "Failed to prune obsolete Component {} cache recovery artifacts under {}.",
                     module.wireName(),
                     recoveryDirectory,
@@ -1027,7 +1096,7 @@ public final class ComponentTranslationStore {
         } catch (RejectedExecutionException error) {
             saveScheduled.set(false);
             persistenceState = PersistenceState.MEMORY_ONLY;
-            Translate_AllinOne.LOGGER.error(
+            LOGGER.error(
                     "Component {} cache executor is unavailable; continuing with memory-only cache data.",
                     module.wireName(),
                     error
@@ -1039,7 +1108,7 @@ public final class ComponentTranslationStore {
         if (error instanceof AccessDeniedException && saveRetryAttempts < SAVE_RETRY_LIMIT) {
             saveRetryAttempts++;
             long delayMillis = SAVE_RETRY_BASE_MILLIS << (saveRetryAttempts - 1);
-            Translate_AllinOne.LOGGER.warn(
+            LOGGER.warn(
                     "Failed to save Component {} cache; retrying persistence in {} ms (attempt {}/{}).",
                     module.wireName(),
                     delayMillis,
@@ -1051,7 +1120,7 @@ public final class ComponentTranslationStore {
             return;
         }
         persistenceState = PersistenceState.MEMORY_ONLY;
-        Translate_AllinOne.LOGGER.error(
+        LOGGER.error(
                 "Failed to save Component {} cache. The current session will continue with memory-only cache data: {}",
                 module.wireName(),
                 path,
@@ -1164,6 +1233,18 @@ public final class ComponentTranslationStore {
             }
         }
         return true;
+    }
+
+    interface BackupAccess {
+        void maybeBackup(Path cacheFilePath, String cacheTypeLabel);
+
+        List<Path> findVerifiedBackups(Path cacheFilePath);
+    }
+
+    interface Diagnostics {
+        void flowForNamespace(String namespace, String message, Object... arguments);
+
+        void error(ComponentTranslationRoute route, String message, Object... arguments);
     }
 
     public record Lookup(Status status, String cacheKey, ComponentTranslationResponse response) {

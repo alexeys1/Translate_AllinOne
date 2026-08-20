@@ -8,10 +8,18 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 
 public final class ComponentTranslationMetrics {
+    private static final LogSink NO_OP_LOG_SINK = (route, message, arguments) -> {};
     private static final Map<ComponentTranslationRoute, RouteMetrics> ROUTES = createRoutes();
     private static final ConcurrentMap<RoutePolicyKey, RouteMetrics> POLICIES = new ConcurrentHashMap<>();
+    private static volatile LogSink flowLogSink = NO_OP_LOG_SINK;
+    private static volatile LogSink timingLogSink = NO_OP_LOG_SINK;
 
     private ComponentTranslationMetrics() {
+    }
+
+    public static void configureLogging(LogSink flowSink, LogSink timingSink) {
+        flowLogSink = flowSink == null ? NO_OP_LOG_SINK : flowSink;
+        timingLogSink = timingSink == null ? NO_OP_LOG_SINK : timingSink;
     }
 
     public static void record(ComponentTranslationRoute route, Outcome outcome) {
@@ -182,7 +190,7 @@ public final class ComponentTranslationMetrics {
     }
 
     private static void logOutcome(ComponentTranslationRoute route, Outcome outcome) {
-        ComponentTranslationDebugLogger.flow(
+        flowLogSink.log(
                 route,
                 "metric route={} outcome={}",
                 route.wireName(),
@@ -191,7 +199,7 @@ public final class ComponentTranslationMetrics {
     }
 
     private static void logTiming(ComponentTranslationRoute route, Timing timing, long nanos) {
-        ComponentTranslationDebugLogger.timing(
+        timingLogSink.log(
                 route,
                 "route={} phase={} nanos={}",
                 route.wireName(),
@@ -236,6 +244,11 @@ public final class ComponentTranslationMetrics {
             result.put(measurement, 0L);
         }
         return Map.copyOf(result);
+    }
+
+    @FunctionalInterface
+    public interface LogSink {
+        void log(ComponentTranslationRoute route, String message, Object... arguments);
     }
 
     public enum Outcome {

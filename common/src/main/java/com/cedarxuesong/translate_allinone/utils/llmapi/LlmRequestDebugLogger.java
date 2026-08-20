@@ -1,8 +1,9 @@
 package com.cedarxuesong.translate_allinone.utils.llmapi;
 
-import com.cedarxuesong.translate_allinone.Translate_AllinOne;
-import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
 import com.cedarxuesong.translate_allinone.utils.llmapi.openai.OpenAIRequest;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -16,14 +17,21 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 
 final class LlmRequestDebugLogger {
+    private static final Logger LOGGER = LoggerFactory.getLogger("translate_allinone");
+    private static volatile BooleanSupplier requestTextStatsEnabled = () -> false;
     private static final int MESSAGE_PREVIEW_HEAD_CHARS = 220;
     private static final int MESSAGE_PREVIEW_TAIL_CHARS = 140;
     private static final ConcurrentMap<String, AtomicInteger> REQUEST_FINGERPRINT_COUNTS = new ConcurrentHashMap<>();
     private static final ConcurrentMap<String, AtomicInteger> ROLE_FINGERPRINT_COUNTS = new ConcurrentHashMap<>();
 
     private LlmRequestDebugLogger() {
+    }
+
+    static void configureRequestTextStatsLogging(BooleanSupplier enabledSupplier) {
+        requestTextStatsEnabled = enabledSupplier == null ? () -> false : enabledSupplier;
     }
 
     static void logIfEnabled(
@@ -42,7 +50,7 @@ final class LlmRequestDebugLogger {
 
         RequestTextStats stats = summarize(messages);
         SeenCounts seenCounts = registerSeenCounts(stats);
-        Translate_AllinOne.LOGGER.info(
+        LOGGER.info(
                 "[LLMDev:request] api={} provider={} model={} streaming={} structuredOutput={} dispatch={} sendAttempt={} messages={} totalChars={} totalCodePoints={} totalUtf8Bytes={} estimatedTokens={} charsByRole={} estimatedTokensByRole={} tokenShareByRole={} roleFingerprints={} roleSeenCounts={} messageStats={} messagePreview={} requestFingerprint={} requestSeenCount={} context={}",
                 api,
                 providerName(settings),
@@ -137,10 +145,7 @@ final class LlmRequestDebugLogger {
 
     private static boolean shouldLogLlmRequestTextStats() {
         try {
-            ModConfig config = Translate_AllinOne.getConfig();
-            return config != null
-                    && config.debug != null
-                    && config.debug.log_llm_request_text_stats;
+            return requestTextStatsEnabled.getAsBoolean();
         } catch (Throwable ignored) {
             return false;
         }

@@ -8,13 +8,17 @@ import com.cedarxuesong.translate_allinone.utils.componentjson.ComponentTranslat
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-final class TranslationQueueResetCoordinator {
+public final class TranslationQueueResetCoordinator {
     private static final AtomicBoolean CLEARING = new AtomicBoolean();
 
     private TranslationQueueResetCoordinator() {
     }
 
-    static void clearAll(TranslationQueueWatchdog.Trip trip) {
+    public static void register() {
+        TranslationQueueWatchdog.configureTripHandler(TranslationQueueResetCoordinator::clearAll);
+    }
+
+    private static void clearAll(TranslationQueueWatchdog.Trip trip) {
         if (trip == null || !CLEARING.compareAndSet(false, true)) {
             return;
         }

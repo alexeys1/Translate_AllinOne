@@ -1,6 +1,5 @@
 package com.cedarxuesong.translate_allinone.utils.llmapi.openai;
 
-import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.utils.TranslateStringUtils;
 import com.cedarxuesong.translate_allinone.utils.TranslateExceptionUtils;
 import com.cedarxuesong.translate_allinone.utils.llmapi.LLMApiException;
@@ -11,6 +10,9 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -25,6 +27,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class OpenAIClient {
+    private static final Logger LOGGER = LoggerFactory.getLogger("translate_allinone");
 
     private static final Gson GSON = LlmPayloadJsonSupport.gson();
     private static final HttpClient SHARED_HTTP_CLIENT = HttpClient.newBuilder()
@@ -85,7 +88,7 @@ public class OpenAIClient {
             if (root instanceof LLMApiException) {
                 return;
             }
-            Translate_AllinOne.LOGGER.error("OpenAI request failed before receiving valid API response. endpoint={} summary={}",
+            LOGGER.error("OpenAI request failed before receiving valid API response. endpoint={} summary={}",
                     endpoint, requestSummary, root);
         });
     }
@@ -129,7 +132,7 @@ public class OpenAIClient {
             if (e instanceof LLMApiException llmApiException) {
                 throw llmApiException;
             }
-            Translate_AllinOne.LOGGER.error("OpenAI streaming request failed. endpoint={} summary={}", endpoint, requestSummary, e);
+            LOGGER.error("OpenAI streaming request failed. endpoint={} summary={}", endpoint, requestSummary, e);
             throw new LLMApiException("请求OpenAI流式API时出错", e);
         }
     }
@@ -178,7 +181,7 @@ public class OpenAIClient {
             if (root instanceof LLMApiException) {
                 return;
             }
-            Translate_AllinOne.LOGGER.error("OpenAI Responses request failed before receiving valid API response. endpoint={} summary={}",
+            LOGGER.error("OpenAI Responses request failed before receiving valid API response. endpoint={} summary={}",
                     endpoint, requestSummary, root);
         });
     }
@@ -224,7 +227,7 @@ public class OpenAIClient {
             if (e instanceof LLMApiException llmApiException) {
                 throw llmApiException;
             }
-            Translate_AllinOne.LOGGER.error("OpenAI Responses streaming request failed. endpoint={} summary={}", endpoint, requestSummary, e);
+            LOGGER.error("OpenAI Responses streaming request failed. endpoint={} summary={}", endpoint, requestSummary, e);
             throw new LLMApiException("请求 OpenAI Responses 流式 API 时出错", e);
         }
     }
@@ -679,7 +682,7 @@ public class OpenAIClient {
 
     private void logApiError(HttpResponse<?> response, String endpoint, String requestSummary, String responseBody) {
         String requestId = response.headers().firstValue("x-request-id").orElse("-");
-        Translate_AllinOne.LOGGER.error(
+        LOGGER.error(
                 "OpenAI API returned non-200. status={} requestId={} endpoint={} summary={} response_body={}"
                 , response.statusCode()
                 , requestId

@@ -31,7 +31,7 @@ public final class ComponentTranslationCacheKey {
             throw new IllegalArgumentException("Document and target language are required for a component cache key.");
         }
 
-        JsonElement structure = ComponentTranslationApplier.maskedCopy(document.sourceJson(), document.units());
+        JsonElement structure = ComponentTranslationJsonApplier.maskedCopy(document.sourceJson(), document.units());
         JsonArray sources = sourceUnits(document);
         JsonArray tokenMetadata = protectedTokens(document);
 

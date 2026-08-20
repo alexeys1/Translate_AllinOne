@@ -1,0 +1,33 @@
+plugins {
+	id 'java-library'
+}
+
+group = rootProject.group
+version = rootProject.version
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	compileOnly "com.google.code.gson:gson:2.13.2"
+	compileOnly "org.slf4j:slf4j-api:2.0.17"
+	testImplementation platform("org.junit:junit-bom:5.12.2")
+	testImplementation "org.junit.jupiter:junit-jupiter"
+	testImplementation "com.google.code.gson:gson:2.13.2"
+	testRuntimeOnly "org.slf4j:slf4j-nop:2.0.17"
+	testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+}
+
+tasks.withType(JavaCompile).configureEach {
+	options.release = 17
+}
+
+test {
+	useJUnitPlatform()
+}
+
+java {
+	sourceCompatibility = JavaVersion.VERSION_17
+	targetCompatibility = JavaVersion.VERSION_17
+}

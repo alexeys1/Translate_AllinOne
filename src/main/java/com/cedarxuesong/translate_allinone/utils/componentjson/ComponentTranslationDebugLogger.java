@@ -30,6 +30,13 @@ public final class ComponentTranslationDebugLogger {
     private ComponentTranslationDebugLogger() {
     }
 
+    public static void register() {
+        ComponentTranslationMetrics.configureLogging(
+                ComponentTranslationDebugLogger::flow,
+                ComponentTranslationDebugLogger::timing
+        );
+    }
+
     public static void refresh(ModConfig config) {
         THROTTLES.clear();
         TEXT_CONTENT_LOG_TIMES.clear();

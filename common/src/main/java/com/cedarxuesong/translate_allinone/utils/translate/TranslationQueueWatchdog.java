@@ -5,8 +5,10 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -18,6 +20,7 @@ public final class TranslationQueueWatchdog {
     static final long FAILURE_WINDOW_MILLIS = TimeUnit.MINUTES.toMillis(1);
 
     private static final AtomicLong REQUEST_IDS = new AtomicLong();
+    private static volatile Consumer<Trip> tripHandler = trip -> {};
     private static final State STATE = new State(
             STALLED_TASK_THRESHOLD,
             STALL_TIMEOUT_MILLIS,
@@ -27,6 +30,10 @@ public final class TranslationQueueWatchdog {
     );
 
     private TranslationQueueWatchdog() {
+    }
+
+    public static void configureTripHandler(Consumer<Trip> handler) {
+        tripHandler = Objects.requireNonNull(handler);
     }
 
     public static long requestStarted(String source, Collection<String> taskKeys) {
@@ -67,7 +74,7 @@ public final class TranslationQueueWatchdog {
 
     private static void tripIfNeeded(Trip trip) {
         if (trip != null) {
-            TranslationQueueResetCoordinator.clearAll(trip);
+            tripHandler.accept(trip);
         }
     }
 

@@ -1,8 +1,10 @@
 package com.cedarxuesong.translate_allinone.utils.translate;
 
-import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.cedarxuesong.translate_allinone.utils.TranslateExceptionUtils;
 import com.cedarxuesong.translate_allinone.utils.TranslateStringUtils;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -15,6 +17,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 public abstract class AbstractTranslateManager {
+    private static final Logger LOGGER = LoggerFactory.getLogger("translate_allinone");
 
     protected final AtomicLong sessionEpoch = new AtomicLong(0);
     protected ExecutorService workerExecutor;
@@ -78,7 +81,7 @@ public abstract class AbstractTranslateManager {
             return false;
         }
 
-        Translate_AllinOne.LOGGER.warn(
+        LOGGER.warn(
                 "{} translation key mismatch. expectedCount={}, actualCount={}, missing={}, extra={}",
                 managerLabel(),
                 expectedKeys.size(),
@@ -95,7 +98,7 @@ public abstract class AbstractTranslateManager {
 
     public synchronized void start() {
         long newSessionEpoch = sessionEpoch.incrementAndGet();
-        Translate_AllinOne.LOGGER.info("{} translation session started. epoch={}", managerLabel(), newSessionEpoch);
+        LOGGER.info("{} translation session started. epoch={}", managerLabel(), newSessionEpoch);
 
         beforeStart();
 
@@ -105,14 +108,14 @@ public abstract class AbstractTranslateManager {
             for (int i = 0; i < count; i++) {
                 workerExecutor.submit(this::processingLoop);
             }
-            Translate_AllinOne.LOGGER.info("{}TranslateManager started with {} worker threads.", managerLabel(), count);
+            LOGGER.info("{}TranslateManager started with {} worker threads.", managerLabel(), count);
         }
 
         if (collectorExecutor == null || collectorExecutor.isShutdown()) {
             collectorExecutor = Executors.newSingleThreadScheduledExecutor();
             collectorExecutor.scheduleAtFixedRate(
                     this::collectAndBatchItems, 0, collectIntervalMs(), TimeUnit.MILLISECONDS);
-            Translate_AllinOne.LOGGER.info("{} translation collector started.", managerLabel());
+            LOGGER.info("{} translation collector started.", managerLabel());
         }
 
         if (retryExecutor == null || retryExecutor.isShutdown()) {
@@ -120,13 +123,13 @@ public abstract class AbstractTranslateManager {
             long interval = retryIntervalSec();
             retryExecutor.scheduleAtFixedRate(
                     this::requeueErroredItems, interval, interval, TimeUnit.SECONDS);
-            Translate_AllinOne.LOGGER.info("{} translation retry scheduler started.", managerLabel());
+            LOGGER.info("{} translation retry scheduler started.", managerLabel());
         }
     }
 
     public synchronized void stop() {
         long invalidatedSessionEpoch = sessionEpoch.incrementAndGet();
-        Translate_AllinOne.LOGGER.info("{} translation session invalidated. epoch={}", managerLabel(), invalidatedSessionEpoch);
+        LOGGER.info("{} translation session invalidated. epoch={}", managerLabel(), invalidatedSessionEpoch);
 
         shutdownExecutor(workerExecutor, managerLabel() + "TranslateManager's processing threads");
         shutdownExecutor(collectorExecutor, managerLabel() + " translation collector");
@@ -140,12 +143,12 @@ public abstract class AbstractTranslateManager {
             executor.shutdownNow();
             try {
                 if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
-                    Translate_AllinOne.LOGGER.error("{} did not terminate in time.", label);
+                    LOGGER.error("{} did not terminate in time.", label);
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
-            Translate_AllinOne.LOGGER.info("{} stopped.", label);
+            LOGGER.info("{} stopped.", label);
         }
     }
 
@@ -175,13 +178,13 @@ public abstract class AbstractTranslateManager {
                     requeueFailedBatch(batch, "Processing thread interrupted");
                 }
                 Thread.currentThread().interrupt();
-                Translate_AllinOne.LOGGER.info("{} processing thread interrupted, shutting down.", managerLabel());
+                LOGGER.info("{} processing thread interrupted, shutting down.", managerLabel());
                 break;
             } catch (Exception e) {
                 if (batch != null && !batch.isEmpty()) {
                     requeueFailedBatch(batch, "Processing loop failure: " + e.getMessage());
                 }
-                Translate_AllinOne.LOGGER.error("An unexpected error occurred in the {} processing loop, continuing.", managerLabel(), e);
+                LOGGER.error("An unexpected error occurred in the {} processing loop, continuing.", managerLabel(), e);
             }
         }
     }
@@ -204,7 +207,7 @@ public abstract class AbstractTranslateManager {
             }
 
         } catch (Exception e) {
-            Translate_AllinOne.LOGGER.error("Error collecting {} translation items.", managerLabel(), e);
+            LOGGER.error("Error collecting {} translation items.", managerLabel(), e);
         }
     }
 
@@ -226,10 +229,10 @@ public abstract class AbstractTranslateManager {
                 count++;
             }
             if (count > 0) {
-                Translate_AllinOne.LOGGER.info("{} retry scheduler requeued {} errored items.", managerLabel(), count);
+                LOGGER.info("{} retry scheduler requeued {} errored items.", managerLabel(), count);
             }
         } catch (Exception e) {
-            Translate_AllinOne.LOGGER.error("Error requeueing {} errored items.", managerLabel(), e);
+            LOGGER.error("Error requeueing {} errored items.", managerLabel(), e);
         }
     }
 }
