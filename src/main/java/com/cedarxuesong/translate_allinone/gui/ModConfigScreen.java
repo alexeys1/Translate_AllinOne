@@ -3107,6 +3107,9 @@ public class ModConfigScreen extends Screen {
         if (modalOpen) {
             super.extractRenderState(context, mouseX, mouseY, delta);
         }
+        if (routeDropdownSlot != null) {
+            context.fill(0, 0, this.width, this.height, COLOR_MODAL_OVERLAY);
+        }
         ConfigUiControlRenderer.drawCheckboxBlocks(context, this.font, floatingCheckboxBlocks, mouseX, mouseY);
         ConfigUiControlRenderer.drawActionBlocks(context, this.font, floatingActionBlocks, mouseX, mouseY, COLOR_BORDER);
 
