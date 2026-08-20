@@ -26,7 +26,6 @@ public final class ModelSettingsModalSupport {
             int customParameterCount,
             boolean modelSettingsSupportsSystemDraft,
             boolean modelSettingsInjectPromptIntoUserDraft,
-            boolean modelSettingsStructuredOutputDraft,
             boolean modelSettingsSetDefault,
             Translator translator,
             FloatingActionBlockAdder floatingActionBlockAdder,
@@ -39,7 +38,6 @@ public final class ModelSettingsModalSupport {
             Runnable onEditCustomParameters,
             Consumer<Boolean> onSupportsSystemChanged,
             Consumer<Boolean> onInjectPromptIntoUserChanged,
-            Consumer<Boolean> onStructuredOutputChanged,
             Consumer<Boolean> onSetDefaultChanged,
             Runnable onCancel,
             Runnable onSave,
@@ -212,19 +210,6 @@ public final class ModelSettingsModalSupport {
             , null);
             rowY += 24;
         }
-
-        floatingCheckboxAdder.add(
-                rect.x + 24,
-                rowY,
-                rect.width - 48,
-                20,
-                () -> translator.t("modal.model.structured_output"),
-                () -> modelSettingsStructuredOutputDraft,
-                onStructuredOutputChanged,
-                checkboxStyle,
-                translator.t("desc.structured_output")
-        );
-        rowY += 24;
 
         floatingCheckboxAdder.add(
                 rect.x + 24,

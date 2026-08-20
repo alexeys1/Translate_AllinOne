@@ -5,6 +5,7 @@ import com.cedarxuesong.translate_allinone.utils.cache.CacheStats;
 import com.cedarxuesong.translate_allinone.utils.cache.ItemTemplateCache;
 import com.cedarxuesong.translate_allinone.utils.cache.component.ComponentCacheModule;
 import com.cedarxuesong.translate_allinone.utils.cache.component.ComponentTranslationStoreRegistry;
+import com.cedarxuesong.translate_allinone.utils.componentjson.NoRoutedModelErrorSupport;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
@@ -75,7 +76,27 @@ public final class TooltipInternalLineSupport {
     }
 
     public static boolean shouldShowErrorStatusLine(TooltipTranslationSupport.TooltipProcessingResult processedTooltip) {
-        return false;
+        if (processedTooltip == null || processedTooltip.translatableLines() <= 0) {
+            return false;
+        }
+        if (!NoRoutedModelErrorSupport.isTooltipNoRoutedError(processedTooltip.errorMessage())) {
+            return false;
+        }
+        return NoRoutedModelErrorSupport.shouldShowTooltipError(tooltipErrorFingerprint(processedTooltip));
+    }
+
+    private static String tooltipErrorFingerprint(TooltipTranslationSupport.TooltipProcessingResult processedTooltip) {
+        List<Text> lines = processedTooltip.translatedLines();
+        if (lines == null || lines.isEmpty()) {
+            return "";
+        }
+        StringBuilder builder = new StringBuilder();
+        for (Text line : lines) {
+            if (line != null) {
+                builder.append(line.getString()).append('\n');
+            }
+        }
+        return builder.toString();
     }
 
     public static List<Text> appendStatusLineIfNeeded(
@@ -96,11 +117,10 @@ public final class TooltipInternalLineSupport {
 
         List<Text> tooltipWithStatus = new ArrayList<>(tooltip.size() + 2);
         tooltipWithStatus.addAll(tooltip);
-        if (showStatusLine) {
-            tooltipWithStatus.add(createStatusLine(stats, processedTooltip.missingKeyIssue(), animationKey));
-        }
         if (showErrorStatusLine) {
-            tooltipWithStatus.add(createErrorStatusLine(processedTooltip.errorMessage()));
+            tooltipWithStatus.add(createErrorStatusLine(NoRoutedModelErrorSupport.tooltipErrorMessage()));
+        } else if (showStatusLine) {
+            tooltipWithStatus.add(createStatusLine(stats, processedTooltip.missingKeyIssue(), animationKey));
         }
         return tooltipWithStatus;
     }
