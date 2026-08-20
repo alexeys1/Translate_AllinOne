@@ -1,7 +1,6 @@
 package com.cedarxuesong.translate_allinone.gui.configui.support;
 
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ApiProviderProfile;
-import com.cedarxuesong.translate_allinone.utils.config.pojos.ApiProviderType;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.CustomParameterEntry;
 
 import java.util.ArrayList;
@@ -20,9 +19,7 @@ public final class ModelSettingsDraftSupport {
             sourceSettings = profile.getActiveModelSettings();
         }
         if (sourceSettings == null) {
-            sourceSettings = profile.type == ApiProviderType.OLLAMA
-                    ? ApiProviderProfile.ModelSettings.ollamaDefault("qwen3:0.6b")
-                    : ApiProviderProfile.ModelSettings.openAiDefault("gpt-4o");
+            sourceSettings = new ApiProviderProfile.ModelSettings();
         }
 
         boolean creating = resolvedOriginalId.isBlank();
@@ -43,7 +40,6 @@ public final class ModelSettingsDraftSupport {
                 ProviderProfileSupport.sanitizeText(sourceSettings.keep_alive_time),
                 sourceSettings.supports_system_message,
                 sourceSettings.inject_system_prompt_into_user_message,
-                sourceSettings.enable_structured_output_if_available,
                 ProviderProfileSupport.sanitizeText(sourceSettings.system_prompt_suffix),
                 customParameters,
                 CustomParameterEntry.deepCopyList(customParameters),
@@ -65,7 +61,6 @@ public final class ModelSettingsDraftSupport {
                 "",
                 false,
                 true,
-                false,
                 "",
                 new ArrayList<>(),
                 new ArrayList<>(),
@@ -86,7 +81,6 @@ public final class ModelSettingsDraftSupport {
             String keepAliveDraft,
             boolean supportsSystem,
             boolean injectPromptIntoUser,
-            boolean structuredOutput,
             String systemPromptSuffixDraft,
             List<CustomParameterEntry> customParametersDraft,
             List<CustomParameterEntry> customParametersBackup,

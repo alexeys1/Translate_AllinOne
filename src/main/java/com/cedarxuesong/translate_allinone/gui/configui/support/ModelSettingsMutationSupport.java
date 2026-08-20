@@ -29,7 +29,6 @@ public final class ModelSettingsMutationSupport {
             String keepAliveTime,
             boolean supportsSystemMessage,
             boolean injectPromptIntoUser,
-            boolean structuredOutput,
             String systemPromptSuffix,
             List<CustomParameterEntry> customParameters,
             boolean setAsDefault
@@ -60,7 +59,6 @@ public final class ModelSettingsMutationSupport {
         settings.keep_alive_time = keepAliveTime;
         settings.supports_system_message = supportsSystemMessage;
         settings.inject_system_prompt_into_user_message = injectPromptIntoUser;
-        settings.enable_structured_output_if_available = structuredOutput;
         settings.system_prompt_suffix = systemPromptSuffix;
         settings.custom_parameters = creating
                 ? ModelCustomParameterDefaultsSupport.applyForNewModel(profile, customParameters)

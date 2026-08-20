@@ -20,9 +20,9 @@ public class ApiProviderProfile {
     public ApiProviderType type = ApiProviderType.OPENAI_COMPAT;
     public String base_url = "https://api.openai.com/v1";
     public String api_key = "";
-    public String model_id = "gpt-4o";
-    public List<String> model_ids = new ArrayList<>(List.of("gpt-4o"));
-    public List<ModelSettings> model_settings = new ArrayList<>(List.of(ModelSettings.openAiDefault("gpt-4o")));
+    public String model_id = "";
+    public List<String> model_ids = new ArrayList<>();
+    public List<ModelSettings> model_settings = new ArrayList<>();
 
     public Double temperature = null;
     public Double chat_temperature = null;
@@ -32,7 +32,6 @@ public class ApiProviderProfile {
     public Double wynntils_task_tracker_temperature = null;
     public Double wynn_npc_dialogue_temperature = null;
     public String keep_alive_time = "1m";
-    public boolean enable_structured_output_if_available = false;
     public boolean supports_system_message = true;
     public boolean inject_system_prompt_into_user_message = true;
     public String system_prompt_suffix = "\\no_think";
@@ -45,9 +44,6 @@ public class ApiProviderProfile {
         profile.name = "OpenAI Default";
         profile.type = ApiProviderType.OPENAI_COMPAT;
         profile.base_url = "https://api.openai.com/v1";
-        profile.model_id = "gpt-4o";
-        profile.model_ids = new ArrayList<>(List.of("gpt-4o"));
-        profile.model_settings = new ArrayList<>(List.of(ModelSettings.openAiDefault("gpt-4o")));
         return profile;
     }
 
@@ -57,9 +53,6 @@ public class ApiProviderProfile {
         profile.name = "Ollama Default";
         profile.type = ApiProviderType.OLLAMA;
         profile.base_url = "http://localhost:11434";
-        profile.model_id = "qwen3:0.6b";
-        profile.model_ids = new ArrayList<>(List.of("qwen3:0.6b"));
-        profile.model_settings = new ArrayList<>(List.of(ModelSettings.ollamaDefault("qwen3:0.6b")));
         return profile;
     }
 
@@ -154,11 +147,6 @@ public class ApiProviderProfile {
         return settings == null ? inject_system_prompt_into_user_message : settings.inject_system_prompt_into_user_message;
     }
 
-    public boolean activeStructuredOutputEnabled() {
-        ModelSettings settings = getActiveModelSettings();
-        return settings == null ? enable_structured_output_if_available : settings.enable_structured_output_if_available;
-    }
-
     public String activeSystemPromptSuffix() {
         ModelSettings settings = getActiveModelSettings();
         return settings == null ? system_prompt_suffix : settings.system_prompt_suffix;
@@ -195,7 +183,6 @@ public class ApiProviderProfile {
         wynntils_task_tracker_temperature = active.temperatureFor(TemperatureScene.WYNNTILS_TASK_TRACKER);
         wynn_npc_dialogue_temperature = active.temperatureFor(TemperatureScene.WYNN_NPC_DIALOGUE);
         keep_alive_time = normalizeKeepAlive(active.keep_alive_time);
-        enable_structured_output_if_available = active.enable_structured_output_if_available;
         supports_system_message = active.supports_system_message;
         inject_system_prompt_into_user_message = active.inject_system_prompt_into_user_message;
         system_prompt_suffix = normalizeSuffix(active.system_prompt_suffix);
@@ -214,7 +201,6 @@ public class ApiProviderProfile {
         settings.wynn_npc_dialogue_temperature = normalizeTemperature(source.wynn_npc_dialogue_temperature, DEFAULT_WYNN_NPC_DIALOGUE_TEMPERATURE);
         settings.temperature = settings.temperatureFor(TemperatureScene.CHAT);
         settings.keep_alive_time = normalizeKeepAlive(source.keep_alive_time);
-        settings.enable_structured_output_if_available = source.enable_structured_output_if_available;
         settings.supports_system_message = source.supports_system_message;
         settings.inject_system_prompt_into_user_message = source.inject_system_prompt_into_user_message;
         settings.system_prompt_suffix = normalizeSuffix(source.system_prompt_suffix);
@@ -234,7 +220,6 @@ public class ApiProviderProfile {
         settings.wynn_npc_dialogue_temperature = normalizeTemperature(wynn_npc_dialogue_temperature, DEFAULT_WYNN_NPC_DIALOGUE_TEMPERATURE);
         settings.temperature = settings.temperatureFor(TemperatureScene.CHAT);
         settings.keep_alive_time = normalizeKeepAlive(keep_alive_time);
-        settings.enable_structured_output_if_available = enable_structured_output_if_available;
         settings.supports_system_message = supports_system_message;
         settings.inject_system_prompt_into_user_message = inject_system_prompt_into_user_message;
         settings.system_prompt_suffix = normalizeSuffix(system_prompt_suffix);
@@ -292,7 +277,7 @@ public class ApiProviderProfile {
     }
 
     public static class ModelSettings {
-        public String model_id = "gpt-4o";
+        public String model_id = "";
         public Double temperature = null;
         public Double chat_temperature = null;
         public Double item_temperature = null;
@@ -301,25 +286,10 @@ public class ApiProviderProfile {
         public Double wynntils_task_tracker_temperature = null;
         public Double wynn_npc_dialogue_temperature = null;
         public String keep_alive_time = "1m";
-        public boolean enable_structured_output_if_available = false;
         public boolean supports_system_message = true;
         public boolean inject_system_prompt_into_user_message = true;
         public String system_prompt_suffix = "\\no_think";
         public List<CustomParameterEntry> custom_parameters = new ArrayList<>();
-
-        public static ModelSettings openAiDefault(String modelId) {
-            ModelSettings settings = new ModelSettings();
-            settings.model_id = modelId;
-            settings.keep_alive_time = "1m";
-            return settings;
-        }
-
-        public static ModelSettings ollamaDefault(String modelId) {
-            ModelSettings settings = new ModelSettings();
-            settings.model_id = modelId;
-            settings.keep_alive_time = "1m";
-            return settings;
-        }
 
         public double temperatureFor(TemperatureScene scene) {
             return switch (scene == null ? TemperatureScene.CHAT : scene) {

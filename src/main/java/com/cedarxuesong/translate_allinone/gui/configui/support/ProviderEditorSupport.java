@@ -71,15 +71,9 @@ public final class ProviderEditorSupport {
             if (profile.base_url == null || profile.base_url.isBlank()) {
                 profile.base_url = "http://localhost:11434";
             }
-            if (profile.model_id == null || profile.model_id.isBlank()) {
-                profile.model_id = "qwen3:0.6b";
-            }
         } else {
             if (profile.base_url == null || profile.base_url.isBlank()) {
                 profile.base_url = "https://api.openai.com/v1";
-            }
-            if (profile.model_id == null || profile.model_id.isBlank()) {
-                profile.model_id = "gpt-4o";
             }
         }
         ProviderProfileSupport.normalizeModelIds(profile);

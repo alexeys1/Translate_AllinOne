@@ -755,6 +755,13 @@ public final class ComponentTranslationRuntime {
                     batch.requests().size(),
                     first.cacheKey()
             );
+            NoRoutedModelErrorSupport.onNoRoutedModel(
+                    switch (route) {
+                        case ITEM -> NoRoutedModelErrorSupport.Surface.ITEM_TOOLTIP;
+                        case OTHER_TRANSLATIONS -> NoRoutedModelErrorSupport.Surface.OTHER_TRANSLATIONS;
+                        case SCOREBOARD -> NoRoutedModelErrorSupport.Surface.SCOREBOARD;
+                    }
+            );
             failBatch(
                     route,
                     batch,

@@ -126,6 +126,9 @@ public class ModConfigScreen extends Screen {
     private static final int SCROLLBAR_WIDTH = 8;
     private static final int SCROLLBAR_MIN_THUMB_HEIGHT = 26;
     private static final int SCROLL_STEP = 28;
+    private static final int DICTIONARY_ROW_HEIGHT = 20;
+    private static final int DICTIONARY_ROW_GAP = 4;
+    private static final int SCROLLBAR_LIST_GAP = 8;
     private static final double SCROLL_ANIMATION_SPEED = 15.0;
     private static final double OVER_SCROLL_RESISTANCE = 0.42;
     private static final double OVER_SCROLL_MAX = 56.0;
@@ -318,7 +321,6 @@ public class ModConfigScreen extends Screen {
     private String modelSettingsKeepAliveDraft = "";
     private boolean modelSettingsSupportsSystemDraft;
     private boolean modelSettingsInjectPromptIntoUserDraft = true;
-    private boolean modelSettingsStructuredOutputDraft;
     private String modelSettingsSystemPromptSuffixDraft = "";
     private List<CustomParameterEntry> modelSettingsCustomParametersDraft = new ArrayList<>();
     private List<CustomParameterEntry> customParametersBackup = new ArrayList<>();
@@ -337,6 +339,10 @@ public class ModConfigScreen extends Screen {
     private boolean modelSettingsSetDefault;
     private DictionaryFileSelectionSupport.Slot dictionaryFilesModalSlot = DictionaryFileSelectionSupport.Slot.WYNNCRAFT_DIALOGUE;
     private List<String> dictionaryFilesSelectionBackup = new ArrayList<>();
+    private int dictionaryFilesScrollOffset;
+    private UiRect dictionaryFilesListViewport;
+    private int dictionaryFilesModalMaxScroll;
+    private boolean draggingDictionaryFilesScrollbar;
 
     private FocusTarget pendingFocusTarget = FocusTarget.NONE;
     private ConfigSectionContentSupport.HotkeyTarget hotkeyCaptureTarget;
@@ -1189,7 +1195,6 @@ public class ModConfigScreen extends Screen {
         modelSettingsKeepAliveDraft = draft.keepAliveDraft();
         modelSettingsSupportsSystemDraft = draft.supportsSystem();
         modelSettingsInjectPromptIntoUserDraft = draft.injectPromptIntoUser();
-        modelSettingsStructuredOutputDraft = draft.structuredOutput();
         modelSettingsSystemPromptSuffixDraft = draft.systemPromptSuffixDraft();
         modelSettingsCustomParametersDraft = draft.customParametersDraft();
         customParametersBackup = draft.customParametersBackup();
@@ -1227,7 +1232,6 @@ public class ModConfigScreen extends Screen {
         modelSettingsKeepAliveDraft = empty.keepAliveDraft();
         modelSettingsSupportsSystemDraft = empty.supportsSystem();
         modelSettingsInjectPromptIntoUserDraft = empty.injectPromptIntoUser();
-        modelSettingsStructuredOutputDraft = empty.structuredOutput();
         modelSettingsSystemPromptSuffixDraft = empty.systemPromptSuffixDraft();
         modelSettingsCustomParametersDraft = empty.customParametersDraft();
         customParametersBackup = empty.customParametersBackup();
@@ -1414,7 +1418,6 @@ public class ModConfigScreen extends Screen {
                 CustomParameterTreeSupport.countEntries(modelSettingsCustomParametersDraft),
                 modelSettingsSupportsSystemDraft,
                 modelSettingsInjectPromptIntoUserDraft,
-                modelSettingsStructuredOutputDraft,
                 modelSettingsSetDefault,
                 ModConfigScreen::t,
                 floatingActionBlockRegistry::add,
@@ -1437,7 +1440,6 @@ public class ModConfigScreen extends Screen {
                     rebuildActionBlocks(FocusTarget.MODEL_NAME);
                 },
                 value -> modelSettingsInjectPromptIntoUserDraft = value,
-                value -> modelSettingsStructuredOutputDraft = value,
                 value -> modelSettingsSetDefault = value,
                 () -> {
                     closeModelSettingsModal();
@@ -1463,7 +1465,6 @@ public class ModConfigScreen extends Screen {
                 modelSettingsKeepAliveDraft,
                 modelSettingsSupportsSystemDraft,
                 modelSettingsInjectPromptIntoUserDraft,
-                modelSettingsStructuredOutputDraft,
                 modelSettingsSystemPromptSuffixDraft,
                 modelSettingsCustomParametersDraft,
                 modelSettingsSetDefault
@@ -2113,6 +2114,8 @@ public class ModConfigScreen extends Screen {
     private void openDictionaryFilesModal(DictionaryFileSelectionSupport.Slot slot) {
         dictionaryFilesModalSlot = slot == null ? DictionaryFileSelectionSupport.Slot.WYNNCRAFT_DIALOGUE : slot;
         dictionaryFilesModalOpen = true;
+        dictionaryFilesScrollOffset = 0;
+        draggingDictionaryFilesScrollbar = false;
         dictionaryFilesSelectionBackup = new ArrayList<>(
                 DictionaryFileSelectionSupport.getSelectedFiles(ensureDictionaryConfig(), dictionaryFilesModalSlot)
         );
@@ -2135,6 +2138,74 @@ public class ModConfigScreen extends Screen {
         }
         dictionaryFilesModalOpen = false;
         dictionaryFilesSelectionBackup = new ArrayList<>();
+        dictionaryFilesScrollOffset = 0;
+        dictionaryFilesModalMaxScroll = 0;
+        draggingDictionaryFilesScrollbar = false;
+    }
+
+    private boolean scrollDictionaryFilesBy(int rows) {
+        if (dictionaryFilesModalMaxScroll <= 0) {
+            return false;
+        }
+        int next = Math.max(0, Math.min(dictionaryFilesModalMaxScroll, dictionaryFilesScrollOffset + rows));
+        if (next == dictionaryFilesScrollOffset) {
+            return false;
+        }
+        dictionaryFilesScrollOffset = next;
+        rebuildActionBlocks();
+        return true;
+    }
+
+    private UiRect dictionaryFilesScrollbarTrackRect() {
+        UiRect viewport = dictionaryFilesListViewport;
+        if (viewport == null || viewport.height < DICTIONARY_ROW_HEIGHT || dictionaryFilesModalMaxScroll <= 0) {
+            return null;
+        }
+        int trackX = viewport.right() - SCROLLBAR_WIDTH - 2;
+        return new UiRect(trackX, viewport.y, SCROLLBAR_WIDTH, viewport.height);
+    }
+
+    private UiRect dictionaryFilesScrollbarThumbRect() {
+        UiRect track = dictionaryFilesScrollbarTrackRect();
+        if (track == null) {
+            return null;
+        }
+        int extraHeight = dictionaryFilesModalMaxScroll * (DICTIONARY_ROW_HEIGHT + DICTIONARY_ROW_GAP);
+        int thumbHeight = Math.max(
+                SCROLLBAR_MIN_THUMB_HEIGHT,
+                (int) Math.round(track.height * (track.height / (double) (track.height + extraHeight)))
+        );
+        thumbHeight = Math.min(track.height, thumbHeight);
+        int travel = Math.max(0, track.height - thumbHeight);
+        int thumbY = travel == 0
+                ? track.y
+                : track.y + (int) Math.round((dictionaryFilesScrollOffset / (double) Math.max(1, dictionaryFilesModalMaxScroll)) * travel);
+        return new UiRect(track.x, thumbY, track.width, thumbHeight);
+    }
+
+    private int dictionaryFilesOffsetFromThumbMouseY(double mouseY) {
+        UiRect track = dictionaryFilesScrollbarTrackRect();
+        UiRect thumb = dictionaryFilesScrollbarThumbRect();
+        if (track == null || thumb == null || dictionaryFilesModalMaxScroll <= 0) {
+            return dictionaryFilesScrollOffset;
+        }
+        int travel = Math.max(1, track.height - thumb.height);
+        double anchorY = mouseY - thumb.height / 2.0;
+        double ratio = Math.max(0.0, Math.min(1.0, (anchorY - track.y) / travel));
+        return (int) Math.round(ratio * dictionaryFilesModalMaxScroll);
+    }
+
+    private void drawDictionaryFilesModalScrollbar(GuiGraphicsExtractor context, int mouseX, int mouseY) {
+        UiRect track = dictionaryFilesScrollbarTrackRect();
+        UiRect thumb = dictionaryFilesScrollbarThumbRect();
+        if (track == null || thumb == null) {
+            return;
+        }
+        context.fill(track.x, track.y, track.right(), track.bottom(), COLOR_SCROLL_TRACK);
+        boolean hovered = thumb.contains(mouseX, mouseY);
+        int thumbColor = draggingDictionaryFilesScrollbar || hovered ? COLOR_SCROLL_THUMB_HOVER : COLOR_SCROLL_THUMB;
+        context.fill(thumb.x, thumb.y, thumb.right(), thumb.bottom(), thumbColor);
+        ConfigUiDraw.drawOutline(context, track.x, track.y, track.width, track.height, COLOR_BORDER);
     }
 
     private void closeResetConfirmModal() {
@@ -2291,8 +2362,9 @@ public class ModConfigScreen extends Screen {
         int contentX = modalRect.x + 16;
         int contentWidth = modalRect.width - 32;
         int rowY = modalRect.y + 48;
-        int rowHeight = 20;
-        int rowGap = 4;
+        int rowHeight = DICTIONARY_ROW_HEIGHT;
+        int rowGap = DICTIONARY_ROW_GAP;
+        int rowStep = rowHeight + rowGap;
         int maxRowsBottom = modalRect.bottom() - 58;
 
         DictionaryConfig dictionaryConfig = ensureDictionaryConfig();
@@ -2344,10 +2416,24 @@ public class ModConfigScreen extends Screen {
                     false
             );
         } else {
-            for (String fileName : availableFiles) {
+            int listTop = rowY;
+            int maxVisible = Math.max(1, (maxRowsBottom - listTop + rowGap) / rowStep);
+            dictionaryFilesModalMaxScroll = Math.max(0, availableFiles.size() - maxVisible);
+            dictionaryFilesScrollOffset = Math.max(0, Math.min(dictionaryFilesModalMaxScroll, dictionaryFilesScrollOffset));
+            dictionaryFilesListViewport = new UiRect(
+                    contentX,
+                    listTop,
+                    contentWidth,
+                    Math.max(0, maxRowsBottom - listTop)
+            );
+            int rowWidth = dictionaryFilesModalMaxScroll > 0
+                    ? contentWidth - SCROLLBAR_WIDTH - SCROLLBAR_LIST_GAP
+                    : contentWidth;
+            for (int i = dictionaryFilesScrollOffset; i < availableFiles.size(); i++) {
                 if (rowY + rowHeight > maxRowsBottom) {
                     break;
                 }
+                String fileName = availableFiles.get(i);
                 boolean selected = selectedFiles.contains(fileName);
                 Component label = selected
                         ? t("modal.dictionary_files.entry_selected", fileName)
@@ -2355,7 +2441,7 @@ public class ModConfigScreen extends Screen {
                 floatingActionBlockRegistry.add(
                         contentX,
                         rowY,
-                        contentWidth,
+                        rowWidth,
                         rowHeight,
                         label,
                         () -> {
@@ -2379,7 +2465,7 @@ public class ModConfigScreen extends Screen {
                         selected ? COLOR_TEXT_ACCENT : COLOR_TEXT,
                         false
                 );
-                rowY += rowHeight + rowGap;
+                rowY += rowStep;
             }
         }
 
@@ -2615,6 +2701,23 @@ public class ModConfigScreen extends Screen {
 
         if (modalOpen) {
             draggingSlider = null;
+            if (dictionaryFilesModalOpen) {
+                UiRect thumb = dictionaryFilesScrollbarThumbRect();
+                if (thumb != null && thumb.contains(mouseX, mouseY)) {
+                    draggingDictionaryFilesScrollbar = true;
+                    return true;
+                }
+                UiRect track = dictionaryFilesScrollbarTrackRect();
+                if (track != null && track.contains(mouseX, mouseY)) {
+                    int next = dictionaryFilesOffsetFromThumbMouseY(mouseY);
+                    if (next != dictionaryFilesScrollOffset) {
+                        dictionaryFilesScrollOffset = next;
+                        rebuildActionBlocks();
+                    }
+                    draggingDictionaryFilesScrollbar = true;
+                    return true;
+                }
+            }
             if (!isInsideOpenModal(mouseX, mouseY)) {
                 ConfigUiModalInteractionSupport.ModalCloseAction action = ConfigUiModalInteractionSupport.outsideModalClickAction(
                         addProviderModalOpen,
@@ -2784,6 +2887,14 @@ public class ModConfigScreen extends Screen {
     public boolean mouseDragged(MouseButtonEvent click, double deltaX, double deltaY) {
         if (isAnyModalOpen()) {
             draggingSlider = null;
+            if (draggingDictionaryFilesScrollbar && click.button() == 0) {
+                int next = dictionaryFilesOffsetFromThumbMouseY(click.y());
+                if (next != dictionaryFilesScrollOffset) {
+                    dictionaryFilesScrollOffset = next;
+                    rebuildActionBlocks();
+                }
+                return true;
+            }
             stopScrollingDrag();
             return super.mouseDragged(click, deltaX, deltaY);
         }
@@ -2833,6 +2944,7 @@ public class ModConfigScreen extends Screen {
     public boolean mouseReleased(MouseButtonEvent click) {
         if (isAnyModalOpen()) {
             draggingSlider = null;
+            draggingDictionaryFilesScrollbar = false;
             stopScrollingDrag();
             return super.mouseReleased(click);
         }
@@ -2857,6 +2969,17 @@ public class ModConfigScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        if (dictionaryFilesModalOpen) {
+            if (verticalAmount != 0.0
+                    && ConfigUiModalSupport.dictionaryFilesModalRect(this.width, this.height).contains(mouseX, mouseY)) {
+                int delta = verticalAmount > 0 ? -1 : 1;
+                if (scrollDictionaryFilesBy(delta)) {
+                    return true;
+                }
+            }
+            return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+        }
+
         if (isAnyModalOpen()) {
             return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
         }
@@ -2984,8 +3107,15 @@ public class ModConfigScreen extends Screen {
         if (modalOpen) {
             super.extractRenderState(context, mouseX, mouseY, delta);
         }
+        if (routeDropdownSlot != null) {
+            context.fill(0, 0, this.width, this.height, COLOR_MODAL_OVERLAY);
+        }
         ConfigUiControlRenderer.drawCheckboxBlocks(context, this.font, floatingCheckboxBlocks, mouseX, mouseY);
         ConfigUiControlRenderer.drawActionBlocks(context, this.font, floatingActionBlocks, mouseX, mouseY, COLOR_BORDER);
+
+        if (dictionaryFilesModalOpen) {
+            drawDictionaryFilesModalScrollbar(context, mouseX, mouseY);
+        }
 
         ConfigUiScreenRenderSupport.renderStatusToast(
                 context,

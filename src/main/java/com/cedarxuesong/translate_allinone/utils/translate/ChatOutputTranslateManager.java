@@ -61,7 +61,7 @@ public class ChatOutputTranslateManager {
     private static int currentConcurrentRequests = -1;
     private static final int MAX_LINE_LOCATE_RETRIES = 4;
     private static final long LINE_LOCATE_RETRY_DELAY_MS = 40L;
-    private static final long ROUTE_ERROR_DISPLAY_MS = 3_000L;
+    private static final long ROUTE_ERROR_DISPLAY_MS = 2_000L;
     private static final String TRANSLATION_ERROR_KEY = "text.translate_allinone.chat.output_translation_error";
     private static final String NO_ROUTED_MODEL_ERROR_KEY = "text.translate_allinone.translation.error.no_routed_model";
     private static final Pattern STYLE_TAG_PATTERN = Pattern.compile("<s(\\d+)>(.*?)</s\\1>", Pattern.DOTALL);
