@@ -114,7 +114,7 @@
   "text.translate_allinone.item.tooltip_key_mismatch_retrying": "Item translation key mismatch, retrying...",
   "text.translate_allinone.item.tooltip_translation_error": "Error: %s",
   "text.translate_allinone.translation.status.translating": "Translating...",
-  "text.translate_allinone.translation.error.no_routed_model": "Translation Error: No routed model selected",
+  "text.translate_allinone.translation.error.no_routed_model": "Error: No routed model selected",
   "text.translate_allinone.translation.error.no_routed_model_reason": "No routed model selected",
   "text.translate_allinone.translation.error.remote_host_terminated_handshake": "Remote host terminated the handshake",
   "text.translate_allinone.chat.output_translation_error": "Translation Error: %s",

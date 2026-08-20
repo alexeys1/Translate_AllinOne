@@ -114,7 +114,7 @@
   "text.translate_allinone.item.tooltip_key_mismatch_retrying": "物品翻译键不匹配，正在重试...",
   "text.translate_allinone.item.tooltip_translation_error": "错误：%s",
   "text.translate_allinone.translation.status.translating": "翻译中...",
-  "text.translate_allinone.translation.error.no_routed_model": "翻译错误：未选择路由模型",
+  "text.translate_allinone.translation.error.no_routed_model": "错误：未选择路由模型",
   "text.translate_allinone.translation.error.no_routed_model_reason": "未选择路由模型",
   "text.translate_allinone.translation.error.remote_host_terminated_handshake": "远程主机终止了握手",
   "text.translate_allinone.chat.output_translation_error": "错误：%s",
