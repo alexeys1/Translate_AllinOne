@@ -367,7 +367,7 @@ public class ChatScreenMixin {
         }
 
         ClickEvent clickEvent = style.getClickEvent();
-        if (clickEvent.getAction() != ClickEvent.Action.RUN_COMMAND) {
+        if (clickEvent == null || clickEvent.getAction() != ClickEvent.Action.RUN_COMMAND) {
             return false;
         }
 

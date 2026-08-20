@@ -28,9 +28,11 @@ public class ChatHudTranslateCommand {
     private static int run(CommandContext<FabricClientCommandSource> context) {
         String messageIdStr = StringArgumentType.getString(context, "messageId");
         String action = "translate";
+        boolean explicitAction = true;
         try {
             action = StringArgumentType.getString(context, "action");
         } catch (IllegalArgumentException ignored) {
+            explicitAction = false;
         }
         UUID messageId;
         try {
@@ -53,7 +55,11 @@ public class ChatHudTranslateCommand {
             return 1;
         }
 
-        ChatOutputTranslateManager.translate(messageId, originalMessage);
+        if (explicitAction && "translate".equalsIgnoreCase(action)) {
+            ChatOutputTranslateManager.translateManually(messageId, originalMessage);
+        } else {
+            ChatOutputTranslateManager.translate(messageId, originalMessage);
+        }
 
         return 1;
     }

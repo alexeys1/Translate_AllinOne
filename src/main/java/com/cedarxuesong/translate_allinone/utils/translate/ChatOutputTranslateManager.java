@@ -149,6 +149,23 @@ public class ChatOutputTranslateManager {
         translate(messageId, originalMessage, originalMessage, false);
     }
 
+    public static void translateManually(UUID messageId, Text originalMessage) {
+        Text lineToLocate = originalMessage;
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client != null && client.inGameHud != null && client.inGameHud.getChatHud() != null) {
+            ChatHudAccessor chatHudAccessor = (ChatHudAccessor) client.inGameHud.getChatHud();
+            LineSearchResult searchResult = findTargetLine(
+                    chatHudAccessor.getMessages(),
+                    messageId,
+                    CHAT_TRANSLATE_ACTION
+            );
+            if (searchResult != null) {
+                lineToLocate = searchResult.line().content();
+            }
+        }
+        translate(messageId, originalMessage, lineToLocate, false);
+    }
+
     public static void forceRefreshTranslation(UUID messageId) {
         if (!TranslationFeatureGate.isEnabled() || messageId == null) {
             return;
@@ -606,27 +623,58 @@ public class ChatOutputTranslateManager {
     }
 
     private static LineSearchResult findTargetLine(List<ChatHudLine> messages, Text originalMessage) {
+        int lineIndex = findTargetLineIndex(messages, originalMessage);
+        return lineIndex == -1 ? null : new LineSearchResult(lineIndex, messages.get(lineIndex));
+    }
+
+    static int findTargetLineIndex(List<ChatHudLine> messages, Text originalMessage) {
+        if (messages == null || originalMessage == null) {
+            return -1;
+        }
         for (int i = 0; i < messages.size(); i++) {
             ChatHudLine line = messages.get(i);
             if (matchesTargetTextReference(line.content(), originalMessage)) {
-                return new LineSearchResult(i, line);
+                return i;
             }
         }
 
         for (int i = 0; i < messages.size(); i++) {
             ChatHudLine line = messages.get(i);
             if (matchesTargetTextByContent(line.content(), originalMessage)) {
-                return new LineSearchResult(i, line);
+                return i;
             }
         }
-        return null;
+        return -1;
+    }
+
+    private static LineSearchResult findTargetLine(List<ChatHudLine> messages, UUID messageId, String action) {
+        int lineIndex = findTargetLineIndex(messages, messageId, action);
+        return lineIndex == -1 ? null : new LineSearchResult(lineIndex, messages.get(lineIndex));
+    }
+
+    static int findTargetLineIndex(List<ChatHudLine> messages, UUID messageId, String action) {
+        if (messages == null || messageId == null || action == null) {
+            return -1;
+        }
+        String commandPrefix = "/translate_allinone translatechatline " + messageId + " " + action;
+        for (int i = 0; i < messages.size(); i++) {
+            if (containsToggleCommandDeep(messages.get(i).content(), commandPrefix)) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     private static boolean matchesTargetTextReference(Text lineContent, Text originalMessage) {
         if (lineContent.equals(originalMessage)) {
             return true;
         }
-        return !lineContent.getSiblings().isEmpty() && lineContent.getSiblings().get(0).equals(originalMessage);
+        for (Text sibling : lineContent.getSiblings()) {
+            if (sibling.equals(originalMessage)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean matchesTargetTextByContent(Text lineContent, Text originalMessage) {
@@ -634,7 +682,12 @@ public class ChatOutputTranslateManager {
         if (lineContent.getString().equals(original)) {
             return true;
         }
-        return !lineContent.getSiblings().isEmpty() && lineContent.getSiblings().get(0).getString().equals(original);
+        for (Text sibling : lineContent.getSiblings()) {
+            if (sibling.getString().equals(original)) {
+                return true;
+            }
+        }
+        return false;
     }
     private static boolean isLineContentStillPresent(List<ChatHudLine> messages, Text lineToLocate) {
         if (messages == null || lineToLocate == null) {
@@ -1060,6 +1113,18 @@ public class ChatOutputTranslateManager {
             }
         }
         return false;
+    }
+
+    private static boolean containsToggleCommandDeep(Text content, String commandPrefix) {
+        if (content == null) {
+            return false;
+        }
+        return content.visit(
+                (style, text) -> hasToggleCommand(style, commandPrefix)
+                        ? Optional.of(Boolean.TRUE)
+                        : Optional.empty(),
+                Style.EMPTY
+        ).orElse(false);
     }
 
     private static boolean hasToggleCommand(Style style, String commandPrefix) {
