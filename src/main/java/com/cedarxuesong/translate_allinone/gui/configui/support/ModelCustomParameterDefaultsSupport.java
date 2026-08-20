@@ -9,6 +9,7 @@ import java.util.Locale;
 
 public final class ModelCustomParameterDefaultsSupport {
     private static final String DEEPSEEK_URL_MARKER = "deepseek";
+    private static final String MIMO_URL_MARKER = "xiaomimimo";
     private static final String THINKING_PARAMETER_KEY = "thinking";
     private static final String THINKING_TYPE_KEY = "type";
     private static final String THINKING_DISABLED_VALUE = "disabled";
@@ -18,16 +19,17 @@ public final class ModelCustomParameterDefaultsSupport {
 
     public static List<CustomParameterEntry> applyForNewModel(ApiProviderProfile profile, List<CustomParameterEntry> source) {
         List<CustomParameterEntry> result = CustomParameterEntry.deepCopyList(source);
-        if (!shouldUseDeepSeekThinkingDefault(profile) || hasTopLevelParameter(result, THINKING_PARAMETER_KEY)) {
+        if (!shouldDisableThinkingByDefault(profile) || hasTopLevelParameter(result, THINKING_PARAMETER_KEY)) {
             return result;
         }
-        result.add(createDeepSeekThinkingParameter());
+        result.add(createThinkingDisabledParameter());
         return result;
     }
 
-    private static boolean shouldUseDeepSeekThinkingDefault(ApiProviderProfile profile) {
+    private static boolean shouldDisableThinkingByDefault(ApiProviderProfile profile) {
         String baseUrl = profile == null || profile.base_url == null ? "" : profile.base_url;
-        return baseUrl.toLowerCase(Locale.ROOT).contains(DEEPSEEK_URL_MARKER);
+        String normalized = baseUrl.toLowerCase(Locale.ROOT);
+        return normalized.contains(DEEPSEEK_URL_MARKER) || normalized.contains(MIMO_URL_MARKER);
     }
 
     private static boolean hasTopLevelParameter(List<CustomParameterEntry> parameters, String key) {
@@ -45,7 +47,7 @@ public final class ModelCustomParameterDefaultsSupport {
         return false;
     }
 
-    private static CustomParameterEntry createDeepSeekThinkingParameter() {
+    private static CustomParameterEntry createThinkingDisabledParameter() {
         CustomParameterEntry typeEntry = new CustomParameterEntry();
         typeEntry.key = THINKING_TYPE_KEY;
         typeEntry.value = THINKING_DISABLED_VALUE;

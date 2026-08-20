@@ -17,6 +17,7 @@ public class AnimationManager {
     private static final int LIGHT_GREY = 0xAAAAAA;
     private static final int DARK_RED = 0x7A1E1E;
     private static final int LIGHT_RED = 0xFF5A5A;
+    private static final int ANIMATION_RUN_GROUP_SIZE = 4;
     private static final long STATE_CLEANUP_INTERVAL_MS = 10_000L;
     private static final long STATE_STALE_AFTER_MS = 30_000L;
 
@@ -50,14 +51,26 @@ public class AnimationManager {
         long time = System.currentTimeMillis();
 
         int codePointIndex = 0;
-        for (int offset = 0; offset < plainText.length(); ) {
-            int codePoint = plainText.codePointAt(offset);
-            float sine = (float) (Math.sin(time / 200.0 + codePointIndex / 5.0) + 1.0) / 2.0f;
-            int color = ColorHelper.lerp(sine, DARK_GREY, LIGHT_GREY);
-            animatedText.append(Text.literal(new String(Character.toChars(codePoint)))
-                    .setStyle(Style.EMPTY.withColor(TextColor.fromRgb(color))));
-            offset += Character.charCount(codePoint);
-            codePointIndex++;
+        int offset = 0;
+        while (offset < plainText.length()) {
+            StringBuilder group = new StringBuilder();
+            int groupChars = 0;
+            int runColor = 0;
+            while (offset < plainText.length() && groupChars < ANIMATION_RUN_GROUP_SIZE) {
+                int codePoint = plainText.codePointAt(offset);
+                if (groupChars == 0) {
+                    float sine = (float) (Math.sin(time / 200.0 + codePointIndex / 5.0) + 1.0) / 2.0f;
+                    runColor = ColorHelper.lerp(sine, DARK_GREY, LIGHT_GREY);
+                }
+                group.appendCodePoint(codePoint);
+                offset += Character.charCount(codePoint);
+                codePointIndex++;
+                groupChars++;
+            }
+            if (group.length() > 0) {
+                animatedText.append(Text.literal(group.toString())
+                        .setStyle(Style.EMPTY.withColor(TextColor.fromRgb(runColor))));
+            }
         }
         return animatedText;
     }
@@ -112,20 +125,35 @@ public class AnimationManager {
         }
 
         Style resolvedStyle = style == null ? Style.EMPTY : style;
-        for (int offset = 0; offset < text.length(); ) {
-            int codePoint = text.codePointAt(offset);
-            float baseSine = (float) (Math.sin(time / 200.0 + charIndex.get() / 5.0) + 1.0) / 2.0f;
-            float alertSine = (float) (Math.sin(time / 120.0 + charIndex.get() / 2.5) + 1.0) / 2.0f;
-
-            int baseColor = ColorHelper.lerp(baseSine, DARK_GREY, LIGHT_GREY);
-            int alertColor = ColorHelper.lerp(alertSine, DARK_RED, LIGHT_RED);
-            int color = ColorHelper.lerp(alertProgress, baseColor, alertColor);
-
-            Style newStyle = resolvedStyle.withColor(TextColor.fromRgb(color));
-            animatedText.append(Text.literal(new String(Character.toChars(codePoint))).setStyle(newStyle));
-            offset += Character.charCount(codePoint);
-            charIndex.incrementAndGet();
+        int offset = 0;
+        while (offset < text.length()) {
+            StringBuilder group = new StringBuilder();
+            int groupChars = 0;
+            int runColor = 0;
+            while (offset < text.length() && groupChars < ANIMATION_RUN_GROUP_SIZE) {
+                int codePoint = text.codePointAt(offset);
+                if (groupChars == 0) {
+                    runColor = computeAnimatedColor(time, charIndex.get(), alertProgress);
+                }
+                group.appendCodePoint(codePoint);
+                offset += Character.charCount(codePoint);
+                charIndex.incrementAndGet();
+                groupChars++;
+            }
+            if (group.length() > 0) {
+                Style newStyle = resolvedStyle.withColor(TextColor.fromRgb(runColor));
+                animatedText.append(Text.literal(group.toString()).setStyle(newStyle));
+            }
         }
+    }
+
+    private static int computeAnimatedColor(long time, int charIndex, float alertProgress) {
+        float baseSine = (float) (Math.sin(time / 200.0 + charIndex / 5.0) + 1.0) / 2.0f;
+        float alertSine = (float) (Math.sin(time / 120.0 + charIndex / 2.5) + 1.0) / 2.0f;
+
+        int baseColor = ColorHelper.lerp(baseSine, DARK_GREY, LIGHT_GREY);
+        int alertColor = ColorHelper.lerp(alertSine, DARK_RED, LIGHT_RED);
+        return ColorHelper.lerp(alertProgress, baseColor, alertColor);
     }
 
     private static float getAlertProgress(String animationKey, boolean alertMissingKeys, long now) {
