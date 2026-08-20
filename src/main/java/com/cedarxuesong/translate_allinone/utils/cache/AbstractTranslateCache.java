@@ -132,6 +132,10 @@ public abstract class AbstractTranslateCache<B> {
         runtimeState.queues().markErrored(failedKeys, errorMessage, errorMessage);
     }
 
+    public synchronized void clearTranslationQueue() {
+        runtimeState.queues().clearTranslationQueue();
+    }
+
     public void load() {
         runtimeState.resetForLoad();
         persistence.resetForLoad();

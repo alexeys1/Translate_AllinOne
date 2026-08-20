@@ -170,6 +170,10 @@ public final class WynnDialogueTextCache {
         runtimeState.queues().clearPendingAndInProgress();
     }
 
+    public synchronized void clearTranslationQueue() {
+        runtimeState.queues().clearTranslationQueue();
+    }
+
     public synchronized void updateTranslations(Map<String, String> translations) {
         if (translations == null || translations.isEmpty()) {
             return;

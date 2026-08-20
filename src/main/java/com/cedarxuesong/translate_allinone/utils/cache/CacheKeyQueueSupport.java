@@ -45,6 +45,11 @@ final class CacheKeyQueueSupport<K, B> {
         allQueuedOrInProgressKeys.clear();
     }
 
+    void clearTranslationQueue() {
+        clearPendingAndInProgress();
+        errorCache.clear();
+    }
+
     boolean isPendingQueueEmpty() {
         return pendingQueue.isEmpty();
     }

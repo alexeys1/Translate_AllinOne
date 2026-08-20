@@ -175,6 +175,11 @@ final class CacheRuntimeStateSupport<K, B> {
             refreshAfterInProgress.clear();
         }
 
+        void clearTranslationQueue() {
+            keyQueueSupport.clearTranslationQueue();
+            refreshAfterInProgress.clear();
+        }
+
         boolean isPendingQueueEmpty() {
             return keyQueueSupport.isPendingQueueEmpty();
         }

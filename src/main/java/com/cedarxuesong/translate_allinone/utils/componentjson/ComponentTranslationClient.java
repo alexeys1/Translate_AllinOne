@@ -355,6 +355,12 @@ public final class ComponentTranslationClient {
                 || message.contains("timeout");
     }
 
+    static boolean retriesExhausted(Throwable error) {
+        Throwable cause = TranslateExceptionUtils.unwrapThrowable(error);
+        return cause instanceof ComponentJsonException componentError && componentError.retriesExhausted()
+                || isRetryableProviderFailure(cause);
+    }
+
     private <T> CompletableFuture<T> retryAfterDelay(Supplier<CompletableFuture<T>> operation) {
         return CompletableFuture.runAsync(
                         () -> { },

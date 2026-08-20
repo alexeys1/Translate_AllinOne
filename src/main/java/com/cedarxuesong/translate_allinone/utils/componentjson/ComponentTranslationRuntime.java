@@ -9,6 +9,7 @@ import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
 import com.cedarxuesong.translate_allinone.utils.config.ProviderRouteResolver;
 import com.cedarxuesong.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.cedarxuesong.translate_allinone.utils.translate.TranslationFeatureGate;
+import com.cedarxuesong.translate_allinone.utils.translate.TranslationQueueWatchdog;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -468,22 +469,33 @@ public final class ComponentTranslationRuntime {
 
     public static long beginSession() {
         long epoch = SESSION_EPOCH.incrementAndGet();
+        TranslationQueueWatchdog.reset();
         clearRuntimeState();
         return epoch;
     }
 
     public static long endSession() {
         long epoch = SESSION_EPOCH.incrementAndGet();
+        TranslationQueueWatchdog.reset();
         clearRuntimeState();
         return epoch;
     }
 
     public static void resetSession() {
+        TranslationQueueWatchdog.reset();
         clearRuntimeState();
     }
 
     public static long providerConfigurationChanged() {
         long epoch = SESSION_EPOCH.incrementAndGet();
+        TranslationQueueWatchdog.reset();
+        clearRuntimeState();
+        return epoch;
+    }
+
+    public static long cancelPendingTranslations() {
+        long epoch = SESSION_EPOCH.incrementAndGet();
+        TranslationQueueWatchdog.reset();
         clearRuntimeState();
         return epoch;
     }
@@ -777,6 +789,10 @@ public final class ComponentTranslationRuntime {
             return;
         }
 
+        long watchdogRequestId = TranslationQueueWatchdog.requestStarted(
+                "component/" + route.name(),
+                batch.requests().stream().map(PendingRequest::cacheKey).toList()
+        );
         try {
             ComponentTranslationBatch translationBatch = ComponentTranslationBatch.create(
                     batch.requests().stream().map(PendingRequest::document).toList()
@@ -789,6 +805,10 @@ public final class ComponentTranslationRuntime {
                     batchContext
             ).whenComplete((result, error) -> {
                 if (error != null) {
+                    TranslationQueueWatchdog.requestFailed(
+                            watchdogRequestId,
+                            ComponentTranslationClient.retriesExhausted(error)
+                    );
                     failBatch(route, batch, error.getMessage(), error, classifyFailure(error));
                     return;
                 }
@@ -802,7 +822,9 @@ public final class ComponentTranslationRuntime {
                             recordRequestFailure(request, e.getMessage(), e, classifyFailure(e));
                         }
                     }
+                    TranslationQueueWatchdog.requestSucceeded(watchdogRequestId);
                 } catch (RuntimeException e) {
+                    TranslationQueueWatchdog.requestFailed(watchdogRequestId, false);
                     failBatch(
                             route,
                             batch,
@@ -815,6 +837,7 @@ public final class ComponentTranslationRuntime {
                 finishRequest(route, batch);
             });
         } catch (RuntimeException e) {
+            TranslationQueueWatchdog.requestFailed(watchdogRequestId, false);
             failBatch(route, batch, e.getMessage(), e, FailureDisposition.TERMINAL_CONTENT_FAILURE);
         }
     }
@@ -835,6 +858,10 @@ public final class ComponentTranslationRuntime {
             );
             return;
         }
+        long watchdogRequestId = TranslationQueueWatchdog.requestStarted(
+                "component/" + route.name(),
+                List.of(request.cacheKey())
+        );
         try {
             client.translateResponse(
                     request.document(),
@@ -843,17 +870,24 @@ public final class ComponentTranslationRuntime {
                     request.requestContext()
             ).whenComplete((result, error) -> {
                 if (error != null) {
+                    TranslationQueueWatchdog.requestFailed(
+                            watchdogRequestId,
+                            ComponentTranslationClient.retriesExhausted(error)
+                    );
                     failBatch(route, batch, error.getMessage(), error, classifyFailure(error));
                     return;
                 }
                 try {
                     completeRequest(request, result, 1);
+                    TranslationQueueWatchdog.requestSucceeded(watchdogRequestId);
                 } catch (RuntimeException e) {
+                    TranslationQueueWatchdog.requestFailed(watchdogRequestId, false);
                     recordRequestFailure(request, e.getMessage(), e, classifyFailure(e));
                 }
                 finishRequest(route, batch);
             });
         } catch (RuntimeException e) {
+            TranslationQueueWatchdog.requestFailed(watchdogRequestId, false);
             failBatch(route, batch, e.getMessage(), e, classifyFailure(e));
         }
     }

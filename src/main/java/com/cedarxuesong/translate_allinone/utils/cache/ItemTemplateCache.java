@@ -654,6 +654,10 @@ public class ItemTemplateCache {
         );
     }
 
+    public synchronized void clearTranslationQueue() {
+        runtimeState.queues().clearTranslationQueue();
+    }
+
     private QueueSnapshot snapshotQueuesUnsafe() {
         return new QueueSnapshot(
                 runtimeState.queues().pendingSize(),
