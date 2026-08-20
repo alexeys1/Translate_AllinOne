@@ -1,0 +1,311 @@
+package com.cedarxuesong.translate_allinone.utils.cache;
+
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
+
+public class TextTranslationCacheService {
+    private static final String CACHE_DIRECTORY_NAME = "translate_cache";
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
+    private static final Logger LOGGER = LoggerFactory.getLogger("translate_allinone");
+    private static final long SAVE_DEBOUNCE_MILLIS = 1500L;
+
+    private final Path cacheFilePath;
+    private final boolean passiveBackupEnabled;
+    private final String cacheLabel;
+    private final List<String> legacyCacheFileNames;
+    private final String migrationDescription;
+    private final BiConsumer<Path, String> backupAction;
+    private final Map<String, String> templateCache = new ConcurrentHashMap<>();
+    private final Set<String> inProgress = ConcurrentHashMap.newKeySet();
+    private final LinkedBlockingDeque<String> pendingQueue = new LinkedBlockingDeque<>();
+    private final LinkedBlockingQueue<List<String>> batchWorkQueue = new LinkedBlockingQueue<>();
+    private final Set<String> allQueuedOrInProgressKeys = ConcurrentHashMap.newKeySet();
+    private final Map<String, String> errorCache = new ConcurrentHashMap<>();
+    private final CacheRuntimeStateSupport<String, List<String>> runtimeState = new CacheRuntimeStateSupport<>(
+            templateCache,
+            new CacheKeyQueueSupport<>(
+                    pendingQueue,
+                    inProgress,
+                    batchWorkQueue,
+                    allQueuedOrInProgressKeys,
+                    errorCache
+            )
+    );
+    private final CachePersistenceSupport persistence = new CachePersistenceSupport(SAVE_DEBOUNCE_MILLIS);
+    private final ScheduledExecutorService saveExecutor;
+
+    protected TextTranslationCacheService(
+            Path cacheFilePath,
+            boolean passiveBackupEnabled,
+            String cacheLabel,
+            List<String> legacyCacheFileNames,
+            String saveThreadName,
+            String migrationDescription,
+            BiConsumer<Path, String> backupAction
+    ) {
+        this.cacheFilePath = cacheFilePath;
+        this.passiveBackupEnabled = passiveBackupEnabled;
+        this.cacheLabel = cacheLabel;
+        this.legacyCacheFileNames = List.copyOf(legacyCacheFileNames);
+        this.migrationDescription = migrationDescription;
+        this.backupAction = backupAction;
+        this.saveExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread thread = new Thread(r, saveThreadName);
+            thread.setDaemon(true);
+            return thread;
+        });
+    }
+    public synchronized void load() {
+        runtimeState.resetForLoad();
+        persistence.resetForLoad();
+
+        Path loadPath = resolveLoadPath();
+        if (!Files.isRegularFile(loadPath)) {
+            LOGGER.info("{} file not found, a new one will be created upon saving.", cacheLabel);
+            return;
+        }
+
+        try (var reader = Files.newBufferedReader(loadPath, StandardCharsets.UTF_8)) {
+            @SuppressWarnings("unchecked")
+            Map<String, String> loaded = GSON.fromJson(reader, ConcurrentHashMap.class);
+            if (loaded != null) {
+                loaded.forEach((key, value) -> {
+                    if (key != null && value != null && !value.isEmpty()) {
+                        runtimeState.templateCache().put(key, value);
+                    }
+                });
+            }
+            migrateLegacyCache(loadPath);
+            LOGGER.info(
+                    "Successfully loaded {} {} entries.",
+                    runtimeState.templateCache().size(),
+                    cacheLabel);
+        } catch (IOException | RuntimeException e) {
+            LOGGER.error("Failed to load {}.", cacheLabel, e);
+        }
+    }
+
+    public synchronized void save() {
+        if (!persistence.beginSave()) {
+            return;
+        }
+
+        try {
+            Files.createDirectories(cacheFilePath.getParent());
+            Path tempPath = cacheFilePath.resolveSibling(cacheFilePath.getFileName() + ".tmp");
+            try (var writer = Files.newBufferedWriter(tempPath, StandardCharsets.UTF_8)) {
+                GSON.toJson(runtimeState.templateCache(), writer);
+            }
+
+            CacheFileSaveSupport.replaceWithRetry(tempPath, cacheFilePath);
+
+            if (passiveBackupEnabled) {
+                backupAction.accept(cacheFilePath, cacheLabel);
+            }
+            persistence.finishSave();
+            LOGGER.info(
+                    "Successfully saved {} {} entries.",
+                    runtimeState.templateCache().size(),
+                    cacheLabel);
+        } catch (IOException e) {
+            LOGGER.error("Failed to save {}.", cacheLabel, e);
+        }
+    }
+
+    public LookupResult lookupOrQueue(String originalTemplate) {
+        if (originalTemplate == null || originalTemplate.isBlank()) {
+            return new LookupResult(TranslationStatus.NOT_CACHED, "", null);
+        }
+        return toLookupResult(runtimeState.lookupOrQueue(originalTemplate));
+    }
+
+    public LookupResult peek(String originalTemplate) {
+        if (originalTemplate == null || originalTemplate.isBlank()) {
+            return new LookupResult(TranslationStatus.NOT_CACHED, "", null);
+        }
+        return toLookupResult(runtimeState.peek(originalTemplate));
+    }
+
+    public List<String> drainAllPendingItems() {
+        return runtimeState.queues().drainAllPendingItems();
+    }
+
+    public void submitBatchForTranslation(List<String> batch) {
+        if (batch != null && !batch.isEmpty()) {
+            runtimeState.queues().submitBatch(batch);
+        }
+    }
+
+    public List<String> takeBatchForTranslation() throws InterruptedException {
+        return runtimeState.queues().takeBatch();
+    }
+
+    public void markAsInProgress(List<String> batch) {
+        runtimeState.queues().markAsInProgress(batch);
+    }
+
+    public synchronized void releaseInProgress(Set<String> keys) {
+        runtimeState.queues().releaseInProgress(keys);
+    }
+
+    public synchronized void clearPendingAndInProgress() {
+        runtimeState.queues().clearPendingAndInProgress();
+    }
+
+    public synchronized void clearTranslationQueue() {
+        runtimeState.queues().clearTranslationQueue();
+    }
+
+    public synchronized void updateTranslations(Map<String, String> translations) {
+        if (translations == null || translations.isEmpty()) {
+            return;
+        }
+
+        runtimeState.updateTranslations(translations);
+        persistence.markDirty();
+        scheduleSave();
+    }
+
+    public synchronized int forceRefresh(Iterable<String> originalTemplates) {
+        if (originalTemplates == null) {
+            return 0;
+        }
+
+        java.util.List<String> refreshKeys = new java.util.ArrayList<>();
+        for (String originalTemplate : originalTemplates) {
+            if (originalTemplate != null && !originalTemplate.isBlank()) {
+                refreshKeys.add(originalTemplate);
+            }
+        }
+        int refreshedCount = runtimeState.forceRefresh(refreshKeys);
+
+        if (refreshedCount > 0) {
+            persistence.markDirty();
+            scheduleSave();
+        }
+
+        return refreshedCount;
+    }
+
+    public Set<String> getErroredKeys() {
+        return runtimeState.copyErroredKeys();
+    }
+
+    public synchronized CacheStats getCacheStats() {
+        return new CacheStats((int) runtimeState.translatedCount(), runtimeState.totalCount());
+    }
+
+    public synchronized void requeueFromError(String key) {
+        if (key == null || key.isBlank()) {
+            return;
+        }
+        runtimeState.queues().requeueFromError(key);
+    }
+
+    public synchronized void requeueFailed(Set<String> failedKeys, String errorMessage) {
+        if (failedKeys == null || failedKeys.isEmpty()) {
+            return;
+        }
+        runtimeState.queues().markErrored(failedKeys, errorMessage, "Unknown translation error");
+    }
+
+    public synchronized Map<String, String> snapshotTranslations() {
+        return new HashMap<>(runtimeState.templateCache());
+    }
+
+    private synchronized void scheduleSave() {
+        CachePersistenceSupport.SaveSchedulePlan schedulePlan = persistence.planSave(false);
+        if (schedulePlan.action() == CachePersistenceSupport.SaveScheduleAction.SAVE_NOW) {
+            save();
+            return;
+        }
+        if (schedulePlan.action() == CachePersistenceSupport.SaveScheduleAction.SCHEDULE_ASYNC) {
+            saveExecutor.schedule(this::save, schedulePlan.delayMillis(), TimeUnit.MILLISECONDS);
+        }
+    }
+
+    private Path resolveLoadPath() {
+        if (Files.isRegularFile(cacheFilePath)) {
+            return cacheFilePath;
+        }
+
+        for (String legacyCacheFileName : legacyCacheFileNames) {
+            Path legacyPath = resolveLegacyCachePath(legacyCacheFileName);
+            if (legacyPath != null && Files.isRegularFile(legacyPath)) {
+                return legacyPath;
+            }
+        }
+        return cacheFilePath;
+    }
+    private Path resolveLegacyCachePath(String fileName) {
+        Path cacheDirectory = cacheFilePath.getParent();
+        if (cacheDirectory == null || cacheDirectory.getFileName() == null
+                || !CACHE_DIRECTORY_NAME.equals(cacheDirectory.getFileName().toString())) {
+            return null;
+        }
+
+        Path configDirectory = cacheDirectory.getParent();
+        return configDirectory == null ? null : configDirectory.resolve(fileName);
+    }
+
+    private void migrateLegacyCache(Path loadPath) {
+        if (cacheFilePath.equals(loadPath)) {
+            return;
+        }
+
+        try {
+            Files.createDirectories(cacheFilePath.getParent());
+            try {
+                Files.move(loadPath, cacheFilePath, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException ignored) {
+                Files.move(loadPath, cacheFilePath);
+            }
+            LOGGER.info("Migrated legacy {} cache from {} to {}.", migrationDescription, loadPath, cacheFilePath);
+        } catch (IOException e) {
+            LOGGER.warn(
+                    "Loaded legacy {} cache from {} but could not migrate it to {}.",
+                    migrationDescription,
+                    loadPath,
+                    cacheFilePath,
+                    e
+            );
+        }
+    }
+    private LookupResult toLookupResult(CacheRuntimeStateSupport.LookupState lookupState) {
+        return new LookupResult(
+                toTranslationStatus(lookupState.status()),
+                lookupState.translation(),
+                lookupState.errorMessage()
+        );
+    }
+
+    private TranslationStatus toTranslationStatus(CacheRuntimeStateSupport.LookupStatus lookupStatus) {
+        return switch (lookupStatus) {
+            case TRANSLATED -> TranslationStatus.TRANSLATED;
+            case IN_PROGRESS -> TranslationStatus.IN_PROGRESS;
+            case PENDING -> TranslationStatus.PENDING;
+            case ERROR -> TranslationStatus.ERROR;
+            case NOT_CACHED -> TranslationStatus.NOT_CACHED;
+        };
+    }
+}

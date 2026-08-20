@@ -1,9 +1,9 @@
 package com.cedarxuesong.translate_allinone.utils.cache;
 
-import com.cedarxuesong.translate_allinone.Translate_AllinOne;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import net.fabricmc.loader.api.FabricLoader;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.Writer;
@@ -21,10 +21,10 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 public abstract class AbstractTranslateCache<B> {
+    private static final Logger LOGGER = LoggerFactory.getLogger("translate_allinone");
 
     protected static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
     protected static final long SAVE_DEBOUNCE_MILLIS = 1500L;
-    protected static final String MOD_ID = "translate_allinone";
 
     protected final Path cacheFilePath;
     protected final boolean passiveBackupEnabled;
@@ -146,7 +146,7 @@ public abstract class AbstractTranslateCache<B> {
                 runtimeState.putLoadedEntries(entries);
             }
         } catch (Exception e) {
-            Translate_AllinOne.LOGGER.error("Failed to load cache from {}", cacheFilePath, e);
+            LOGGER.error("Failed to load cache from {}", cacheFilePath, e);
         }
     }
 
@@ -170,7 +170,7 @@ public abstract class AbstractTranslateCache<B> {
 
             persistence.finishSave();
         } catch (Exception e) {
-            Translate_AllinOne.LOGGER.error("Failed to save cache to {}", cacheFilePath, e);
+            LOGGER.error("Failed to save cache to {}", cacheFilePath, e);
         }
     }
 
@@ -200,7 +200,5 @@ public abstract class AbstractTranslateCache<B> {
         };
     }
 
-    protected static Path resolveDefaultCachePath(String cacheFileName) {
-        return FabricLoader.getInstance().getConfigDir().resolve(MOD_ID).resolve(cacheFileName);
-    }
+
 }
