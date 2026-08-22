@@ -6,6 +6,8 @@ plugins {
 version = "${project.mod_version}+mc${project.minecraft_version}"
 group = project.maven_group
 
+evaluationDependsOn(":common")
+
 def modArchiveVersion = "${project.mod_version}+mc${project.minecraft_version}"
 
 base {
@@ -27,6 +29,8 @@ repositories {
 }
 
 dependencies {
+	implementation project(":common")
+
 	// To change the versions see the gradle.properties file
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
 	mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
@@ -88,9 +92,15 @@ java {
 jar {
 	inputs.property "archivesName", project.base.archivesName
 
+	from project(":common").sourceSets.main.output
+
 	from("LICENSE") {
 		rename { "${it}_${inputs.properties.archivesName}"}
 	}
+}
+
+tasks.named("sourcesJar", Jar) {
+	from project(":common").sourceSets.main.allSource
 }
 
 // configure the maven publication

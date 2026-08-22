@@ -109,6 +109,11 @@ public final class WynntilsTaskTrackerTranslateManager {
         cache.clearPendingAndInProgress();
     }
 
+    public synchronized void clearTranslationQueue() {
+        sessionEpoch.incrementAndGet();
+        cache.clearTranslationQueue();
+    }
+
     private void processingLoop() {
         while (!Thread.currentThread().isInterrupted()) {
             List<String> batch = null;
