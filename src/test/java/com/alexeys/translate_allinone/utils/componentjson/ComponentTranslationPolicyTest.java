@@ -1,4 +1,4 @@
-package com.cedarxuesong.translate_allinone.utils.componentjson;
+package com.alexeys.translate_allinone.utils.componentjson;
 
 import java.util.Map;
 import java.util.Set;

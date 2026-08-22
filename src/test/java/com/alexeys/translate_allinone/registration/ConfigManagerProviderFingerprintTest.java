@@ -1,6 +1,6 @@
-package com.cedarxuesong.translate_allinone.registration;
+package com.alexeys.translate_allinone.registration;
 
-import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
+import com.alexeys.translate_allinone.utils.config.ModConfig;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

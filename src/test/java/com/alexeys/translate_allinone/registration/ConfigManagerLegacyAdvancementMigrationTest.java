@@ -1,7 +1,7 @@
-package com.cedarxuesong.translate_allinone.registration;
+package com.alexeys.translate_allinone.registration;
 
-import com.cedarxuesong.translate_allinone.utils.config.ModConfig;
-import com.cedarxuesong.translate_allinone.utils.config.pojos.OtherTranslationsConfig;
+import com.alexeys.translate_allinone.utils.config.ModConfig;
+import com.alexeys.translate_allinone.utils.config.pojos.OtherTranslationsConfig;
 import com.google.gson.JsonParser;
 import java.nio.file.Files;
 import java.nio.file.Path;

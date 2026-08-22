@@ -1,4 +1,4 @@
-package com.cedarxuesong.translate_allinone.utils.cache;
+package com.alexeys.translate_allinone.utils.cache;
 
 import java.nio.file.Path;
 import java.util.Map;

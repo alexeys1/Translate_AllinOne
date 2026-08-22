@@ -1,6 +1,6 @@
-package com.cedarxuesong.translate_allinone.utils.config;
+package com.alexeys.translate_allinone.utils.config;
 
-import com.cedarxuesong.translate_allinone.utils.config.pojos.ScoreboardConfig;
+import com.alexeys.translate_allinone.utils.config.pojos.ScoreboardConfig;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;

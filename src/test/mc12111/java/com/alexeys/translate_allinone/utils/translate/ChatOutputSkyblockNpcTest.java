@@ -1,4 +1,4 @@
-package com.cedarxuesong.translate_allinone.utils.translate;
+package com.alexeys.translate_allinone.utils.translate;
 
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
