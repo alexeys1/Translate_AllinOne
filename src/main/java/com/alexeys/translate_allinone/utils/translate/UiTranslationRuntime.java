@@ -101,7 +101,7 @@ public final class UiTranslationRuntime {
         }
 
         boolean userInput = UiTranslationScope.isUserInput() && role != UiTextRole.DESCRIPTION;
-        UiTextFilter.Decision decision = UiTextFilter.evaluate(
+        UiTextFilter.Decision decision = UiScreenTextPolicy.evaluate(
                 sourceText,
                 role,
                 userInput
@@ -122,13 +122,15 @@ public final class UiTranslationRuntime {
 
         try {
             Component translationSource = aiSource(safeSource);
+            Set<String> decorativeGlyphs = UiScreenTextPolicy.decorativeGlyphs(sourceText);
             ComponentRenderTranslationSupport.TranslationResult translated =
                     ComponentRenderTranslationSupport.translate(
                             translationSource,
                             ComponentTranslationRoute.SCREEN_UI,
                             adapter.modId() + "/" + adapter.screenId() + "/" + role.wireName(),
                             POLICY_VERSION + ":" + role.wireName(),
-                            config
+                            config,
+                            decorativeGlyphs
                     );
             UiTranslationStatus status = status(translated.state());
             String animationKey = "screen-ui:" + adapter.modId() + "/" + adapter.screenId() + "/" + role.wireName() + ":" + sourceText;
