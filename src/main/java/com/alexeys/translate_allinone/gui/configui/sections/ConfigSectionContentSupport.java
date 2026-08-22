@@ -22,6 +22,7 @@ import com.alexeys.translate_allinone.utils.config.pojos.ProviderManagerConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ScoreboardConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.WynnCraftConfig;
 import com.alexeys.translate_allinone.utils.translate.DictionaryFileSelectionSupport;
+import com.alexeys.translate_allinone.versionapi.MinecraftVersionCapabilities;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
@@ -600,11 +601,6 @@ public final class ConfigSectionContentSupport {
                 if (scoreboard.keybinding.refreshBinding == null) {
                     scoreboard.keybinding.refreshBinding = new InputBindingConfig();
                 }
-                if (scoreboard.external_custom_scoreboard_mode == null) {
-                    scoreboard.external_custom_scoreboard_mode =
-                            ScoreboardConfig.ExternalCustomScoreboardMode.DISABLED;
-                }
-
                 int basicStart = y;
                 toggleAdder.add(x, y, width, translator.t("label.enabled"), () -> scoreboard.enabled, value -> scoreboard.enabled = value, translator.t("desc.scoreboard_enabled"));
                 y += ROW_STEP;
@@ -612,21 +608,27 @@ public final class ConfigSectionContentSupport {
                 y += ROW_STEP;
                 toggleAdder.add(x, y, width, translator.t("label.translate_player_name"), () -> scoreboard.enabled_translate_player_name, value -> scoreboard.enabled_translate_player_name = value, tooltip(translator, "label.translate_player_name"));
                 y += ROW_STEP;
-                actionAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t(
-                                "label.external_custom_scoreboard_mode",
-                                externalScoreboardModeText(
-                                        translator,
-                                        scoreboard.external_custom_scoreboard_mode
-                                )
-                        ),
-                        scoreboardExternalModeCycle,
-                        translator.t("desc.external_custom_scoreboard_mode")
-                );
-                y += ROW_STEP;
+                if (MinecraftVersionCapabilities.current().externalScoreboardTranslation()) {
+                    if (scoreboard.external_custom_scoreboard_mode == null) {
+                        scoreboard.external_custom_scoreboard_mode =
+                                ScoreboardConfig.ExternalCustomScoreboardMode.DISABLED;
+                    }
+                    actionAdder.add(
+                            x,
+                            y,
+                            width,
+                            translator.t(
+                                    "label.external_custom_scoreboard_mode",
+                                    externalScoreboardModeText(
+                                            translator,
+                                            scoreboard.external_custom_scoreboard_mode
+                                    )
+                            ),
+                            scoreboardExternalModeCycle,
+                            translator.t("desc.external_custom_scoreboard_mode")
+                    );
+                    y += ROW_STEP;
+                }
                 textFieldRowAdder.add(
                         x,
                         y,

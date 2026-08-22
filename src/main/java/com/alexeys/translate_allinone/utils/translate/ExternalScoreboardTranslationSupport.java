@@ -8,6 +8,7 @@ import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationPo
 import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationRoute;
 import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationRuntime;
 import com.alexeys.translate_allinone.utils.config.pojos.ScoreboardConfig;
+import com.alexeys.translate_allinone.versionapi.MinecraftVersionCapabilities;
 import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -110,7 +111,8 @@ public final class ExternalScoreboardTranslationSupport {
     }
 
     public static boolean isEnabled(ScoreboardConfig config, boolean hidesVanillaScoreboard) {
-        if (!TranslationFeatureGate.isEnabled()
+        if (!MinecraftVersionCapabilities.current().externalScoreboardTranslation()
+                || !TranslationFeatureGate.isEnabled()
                 || ComponentRenderTranslationSupport.isTranslationBlockedByScreen()
                 || config == null
                 || !config.enabled
