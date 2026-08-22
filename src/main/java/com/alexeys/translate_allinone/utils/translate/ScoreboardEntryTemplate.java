@@ -18,8 +18,6 @@ import net.minecraft.text.Text;
 
 public final class ScoreboardEntryTemplate {
     public static final String POLICY_VERSION = "scoreboard";
-    @Deprecated
-    public static final String PLAYER_NAME_TOKEN = "<taio-player-name>";
     private static final String OWNER_POINTER_PREFIX = "/extra/1";
     private static final ComponentTranslationApplier APPLIER = new ComponentTranslationApplier();
     private static final ComponentCodec<Text> COMPONENT_CODEC = MinecraftComponentCodec.INSTANCE;
@@ -114,24 +112,6 @@ public final class ScoreboardEntryTemplate {
     private static boolean isOwnerPointer(String pointer) {
         return OWNER_POINTER_PREFIX.equals(pointer)
                 || (pointer != null && pointer.startsWith(OWNER_POINTER_PREFIX + "/"));
-    }
-
-    @Deprecated
-    public static boolean preservesPlayerNameToken(String sourceTemplate, String translatedTemplate) {
-        return countPlayerNameTokens(sourceTemplate) == countPlayerNameTokens(translatedTemplate);
-    }
-
-    private static int countPlayerNameTokens(String template) {
-        if (template == null || template.isEmpty()) {
-            return 0;
-        }
-        int count = 0;
-        int index = 0;
-        while ((index = template.indexOf(PLAYER_NAME_TOKEN, index)) >= 0) {
-            count++;
-            index += PLAYER_NAME_TOKEN.length();
-        }
-        return count;
     }
 
     private static Text copyOrEmpty(Text text) {

@@ -4,7 +4,6 @@ import com.alexeys.translate_allinone.gui.configui.model.ConfigSection;
 import com.alexeys.translate_allinone.gui.configui.model.RouteSlot;
 import com.alexeys.translate_allinone.utils.cache.CacheStats;
 import com.alexeys.translate_allinone.utils.cache.ItemTemplateCache;
-import com.alexeys.translate_allinone.utils.cache.ScoreboardTextCache;
 import com.alexeys.translate_allinone.utils.cache.SkyblockNpcTranslationCache;
 import com.alexeys.translate_allinone.utils.cache.WynnDialogueTextCache;
 import com.alexeys.translate_allinone.utils.cache.WynntilsTaskTrackerTextCache;

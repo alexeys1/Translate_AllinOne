@@ -2,7 +2,6 @@ package com.alexeys.translate_allinone.registration;
 
 import com.alexeys.translate_allinone.Translate_AllinOne;
 import com.alexeys.translate_allinone.utils.cache.ChatOutputTranslationCache;
-import com.alexeys.translate_allinone.utils.cache.ScoreboardTextCache;
 import com.alexeys.translate_allinone.utils.cache.SkyblockNpcTranslationCache;
 import com.alexeys.translate_allinone.utils.cache.component.ComponentCacheMigrationManager;
 import com.alexeys.translate_allinone.utils.cache.component.ComponentTranslationStoreRegistry;
@@ -11,7 +10,6 @@ import com.alexeys.translate_allinone.utils.cache.WynnDialogueTextCache;
 import com.alexeys.translate_allinone.utils.cache.ItemTemplateCache;
 import com.alexeys.translate_allinone.utils.cache.WynntilsTaskTrackerTextCache;
 import com.alexeys.translate_allinone.utils.translate.ItemTranslateManager;
-import com.alexeys.translate_allinone.utils.translate.ScoreboardTranslateManager;
 import com.alexeys.translate_allinone.utils.translate.BookTranslationSupport;
 import com.alexeys.translate_allinone.utils.translate.ChatOutputTranslateManager;
 import com.alexeys.translate_allinone.utils.translate.ComponentRenderTranslationSupport;
@@ -140,7 +138,6 @@ public class LifecycleEventManager {
 
     private static void stopTranslationManagers() {
         ItemTranslateManager.getInstance().stop();
-        ScoreboardTranslateManager.getInstance().stop();
         WynnDialogueTranslateManager.getInstance().stop();
         WynntilsTaskTrackerTranslateManager.getInstance().stop();
         WynnDialogueTranslationSupport.resetSession();
@@ -153,8 +150,6 @@ public class LifecycleEventManager {
         SkyblockNpcTranslationCache.getInstance().load();
         ItemTemplateCache.getInstance().load();
         ItemTranslateManager.getInstance().start();
-        ScoreboardTextCache.getInstance().load();
-        ScoreboardTranslateManager.getInstance().start();
         WynnDialogueTextCache.getInstance().load();
         WynnDialogueTranslateManager.getInstance().start();
         WynntilsTaskTrackerTextCache.getInstance().load();
@@ -166,7 +161,6 @@ public class LifecycleEventManager {
         ChatOutputTranslationCache.getInstance().save();
         SkyblockNpcTranslationCache.getInstance().save();
         ItemTemplateCache.getInstance().save();
-        ScoreboardTextCache.getInstance().save();
         WynnDialogueTextCache.getInstance().save();
         WynntilsTaskTrackerTextCache.getInstance().save();
     }
