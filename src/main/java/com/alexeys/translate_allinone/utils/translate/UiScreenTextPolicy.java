@@ -27,6 +27,14 @@ final class UiScreenTextPolicy {
                 && !decorativeGlyphs(value).isEmpty()) {
             return new UiTextFilter.Decision(false, "", UiTextRole.OPTION, UiTextFilter.Reason.NO_LETTERS);
         }
+        if (decision.reason() == UiTextFilter.Reason.CONFIG_KEY && isTrailingColonLabel(filterValue)) {
+            return new UiTextFilter.Decision(
+                    true,
+                    value.trim(),
+                    role == null ? UiTextRole.OPTION : role,
+                    null
+            );
+        }
         return decision;
     }
 
@@ -55,6 +63,17 @@ final class UiScreenTextPolicy {
             }
         });
         return filtered.toString();
+    }
+
+    private static boolean isTrailingColonLabel(String value) {
+        if (value == null) {
+            return false;
+        }
+        String text = value.trim();
+        int colonIndex = text.indexOf(':');
+        return colonIndex == text.length() - 1
+                && text.indexOf('.') < 0
+                && text.indexOf('_') < 0;
     }
 
     private static boolean isPrivateUseCodePoint(int codePoint) {

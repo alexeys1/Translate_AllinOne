@@ -49,4 +49,12 @@ class UiScreenTextPolicyTest {
         assertFalse(decision.eligible());
         assertEquals(UiTextFilter.Reason.USER_INPUT, decision.reason());
     }
+
+    @Test
+    void acceptsLabelEndingWithColon() {
+        UiTextFilter.Decision decision = UiScreenTextPolicy.evaluate("License:", UiTextRole.OPTION, false);
+
+        assertTrue(decision.eligible());
+        assertEquals("License:", decision.text());
+    }
 }
