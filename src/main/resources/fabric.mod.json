@@ -18,10 +18,10 @@
 	"environment": "Client",
 	"entrypoints": {
 		"main": [
-			"com.cedarxuesong.translate_allinone.Translate_AllinOne"
+			"com.alexeys.translate_allinone.Translate_AllinOne"
 		],
 		"modmenu": [
-			"com.cedarxuesong.translate_allinone.gui.ModMenuIntegration"
+			"com.alexeys.translate_allinone.gui.ModMenuIntegration"
 		]
 	},
 	"mixins": [
