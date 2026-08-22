@@ -20,6 +20,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -107,6 +108,11 @@ public final class WynntilsTaskTrackerTranslateManager {
     public synchronized void cancelPendingTranslations() {
         stop();
         cache.clearPendingAndInProgress();
+    }
+
+    public synchronized void clearTranslationQueue() {
+        sessionEpoch.incrementAndGet();
+        cache.clearTranslationQueue();
     }
 
     private void processingLoop() {
@@ -237,16 +243,23 @@ public final class WynntilsTaskTrackerTranslateManager {
                 requestContext,
                 userPrompt);
 
-        llm.getCompletion(messages, requestContext).whenComplete((response, error) -> {
+        CompletableFuture<String> completion = llm.getCompletion(messages, requestContext);
+        long watchdogRequestId = TranslationQueueWatchdog.requestStarted("wynntils_task_tracker", originalTexts);
+        completion.whenComplete((response, error) -> {
             if (!isSessionActive(batchSessionEpoch)) {
+                TranslationQueueWatchdog.requestSuperseded(watchdogRequestId);
                 cache.releaseInProgress(Set.copyOf(originalTexts));
                 return;
             }
 
             List<RetryRequest> deferredRetries = new ArrayList<>();
+            Set<String> failedTaskKeys = ConcurrentHashMap.newKeySet();
+            boolean requestSuperseded = false;
+            boolean retriesExhausted = false;
 
             if (error != null) {
                 if (TranslateExceptionUtils.isInternalPostprocessError(error) && originalTexts.size() > 1) {
+                    requestSuperseded = true;
                     Translate_AllinOne.LOGGER.warn(
                             "Wynntils task tracker batch hit internal post-process error, retrying as single-item batches. context={} batchSize={}",
                             requestContext,
@@ -256,6 +269,8 @@ public final class WynntilsTaskTrackerTranslateManager {
                         deferredRetries.add(new RetryRequest(List.of(text), 0));
                     }
                 } else {
+                    failedTaskKeys.addAll(originalTexts);
+                    retriesExhausted = TranslateExceptionUtils.isInternalPostprocessError(error);
                     cache.requeueFailed(Set.copyOf(originalTexts), error.getMessage());
                     Translate_AllinOne.LOGGER.error(
                             "Failed to translate Wynntils task tracker batch. context={}",
@@ -282,8 +297,11 @@ public final class WynntilsTaskTrackerTranslateManager {
 
                     if (hasKeyMismatch(translatedMapFromAI, originalTexts.size())) {
                         if (keyMismatchRetryCount < TranslateStringUtils.MAX_KEY_MISMATCH_BATCH_RETRIES) {
+                            requestSuperseded = true;
                             deferredRetries.add(new RetryRequest(originalTexts, keyMismatchRetryCount + 1));
                         } else {
+                            failedTaskKeys.addAll(originalTexts);
+                            retriesExhausted = true;
                             Translate_AllinOne.LOGGER.warn(
                                     "Wynntils task tracker keys mismatched after retries, re-queueing full batch. context={}",
                                     requestContext
@@ -352,6 +370,7 @@ public final class WynntilsTaskTrackerTranslateManager {
                         missingTranslations.addAll(itemsToRequeueForColor);
                         missingTranslations.addAll(itemsToRequeueForEmpty);
                         if (!missingTranslations.isEmpty()) {
+                            failedTaskKeys.addAll(missingTranslations);
                             Translate_AllinOne.LOGGER.warn(
                                     "Wynntils task tracker LLM response missing {} keys. context={}",
                                     missingTranslations.size(),
@@ -361,18 +380,30 @@ public final class WynntilsTaskTrackerTranslateManager {
                         }
                     }
                 } catch (JsonSyntaxException e) {
+                    failedTaskKeys.addAll(originalTexts);
                     cache.requeueFailed(Set.copyOf(originalTexts), "Invalid JSON response");
                     Translate_AllinOne.LOGGER.error(
                             "Failed to parse Wynntils task tracker translation response. context={}",
                             requestContext,
                             e);
                 } catch (Throwable t) {
+                    failedTaskKeys.addAll(originalTexts);
                     cache.requeueFailed(Set.copyOf(originalTexts), "Translation post-processing failure");
                     Translate_AllinOne.LOGGER.error(
                             "Unexpected Wynntils task tracker post-processing error. context={}",
                             requestContext,
                             t);
                 }
+            }
+
+            if (requestSuperseded) {
+                TranslationQueueWatchdog.requestSuperseded(watchdogRequestId);
+            } else {
+                TranslationQueueWatchdog.requestCompleted(
+                        watchdogRequestId,
+                        failedTaskKeys,
+                        retriesExhausted
+                );
             }
 
             for (RetryRequest retryRequest : deferredRetries) {
@@ -420,19 +451,7 @@ public final class WynntilsTaskTrackerTranslateManager {
     }
 
     private String buildSystemPrompt(String targetLanguage, String suffix, java.util.Map<String, String> overrides) {
-        String basePrompt = "You are a deterministic JSON value translator.\n"
-                + "Target language: " + targetLanguage + ".\n"
-                + "\n"
-                + "Input is a JSON object with string keys and string values.\n"
-                + "Output must be one valid JSON object only.\n"
-                + "\n"
-                + "Rules:\n"
-                + "1) Keep all keys unchanged.\n"
-                + "2) Keep key count unchanged.\n"
-                + "3) Translate values only.\n"
-                + "4) Preserve tokens exactly: §a §l §r %s %d %f {d1} URLs numbers <...> {...} <s0> </s0> \\n \\t.\n"
-                + "5) If unsure for a value, keep that value unchanged.\n"
-                + "6) No extra text outside JSON.";
+        String basePrompt = PromptMessageBuilder.getDefaultPrompt("wynntils_task_tracker", targetLanguage);
         String resolved = PromptMessageBuilder.applyPromptOverride("wynntils_task_tracker", basePrompt, overrides, targetLanguage);
         return PromptMessageBuilder.appendSystemPromptSuffix(resolved, suffix);
     }

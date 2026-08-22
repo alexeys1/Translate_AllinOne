@@ -8,7 +8,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ConfigManagerLegacyAdvancementMigrationTest {
@@ -39,7 +38,6 @@ class ConfigManagerLegacyAdvancementMigrationTest {
         assertTrue(config.otherTranslations.enabled_translate_vanilla_advancements);
         assertEquals("Japanese", config.otherTranslations.target_language);
         assertEquals(OtherTranslationsConfig.KeybindingMode.HOLD_TO_TRANSLATE, config.otherTranslations.keybinding.mode);
-        assertTrue(config.itemTranslate.enabled_translate_vanilla_advancements);
-        assertFalse(persisted.contains("external_custom_scoreboard_mode"));
+        assertTrue(persisted.contains("external_custom_scoreboard_mode"));
     }
 }

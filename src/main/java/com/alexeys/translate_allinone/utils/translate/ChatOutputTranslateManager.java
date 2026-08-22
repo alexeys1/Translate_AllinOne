@@ -861,6 +861,16 @@ public class ChatOutputTranslateManager {
         client.execute(() -> restorePendingOriginalLines(pendingLines));
     }
 
+    public static synchronized void clearTranslationQueue() {
+        ExecutorService executor = translationExecutor;
+        translationExecutor = null;
+        currentConcurrentRequests = -1;
+        if (executor != null) {
+            executor.shutdownNow();
+        }
+        cancelPendingTranslations();
+    }
+
     private static void restorePendingOriginalLines(Map<UUID, ChatHudLine> pendingLines) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client == null || client.inGameHud == null) {

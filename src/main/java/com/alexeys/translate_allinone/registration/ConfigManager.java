@@ -384,6 +384,10 @@ public class ConfigManager {
         if (configToUse.scoreboardTranslate.keybinding.refreshBinding == null) {
             configToUse.scoreboardTranslate.keybinding.refreshBinding = new InputBindingConfig();
         }
+        if (configToUse.scoreboardTranslate.external_custom_scoreboard_mode == null) {
+            configToUse.scoreboardTranslate.external_custom_scoreboard_mode =
+                    ScoreboardConfig.ExternalCustomScoreboardMode.DISABLED;
+        }
         if (configToUse.scoreboardTranslate.debug == null) {
             configToUse.scoreboardTranslate.debug = new ScoreboardConfig.DebugConfig();
         }
@@ -658,7 +662,6 @@ public class ConfigManager {
                 );
                 loadedConfig.otherTranslations.enabled = legacyAdvancementEnabled;
                 loadedConfig.otherTranslations.enabled_translate_vanilla_advancements = legacyAdvancementEnabled;
-                loadedConfig.itemTranslate.enabled_translate_vanilla_advancements = legacyAdvancementEnabled;
                 return true;
             }
             return false;
@@ -676,7 +679,6 @@ public class ConfigManager {
                 legacyItemConfig,
                 "enabled_translate_vanilla_advancements"
         );
-        loadedConfig.itemTranslate.enabled_translate_vanilla_advancements = legacyAdvancementEnabled;
         loadedConfig.otherTranslations.enabled = legacyAdvancementEnabled;
         loadedConfig.otherTranslations.enabled_translate_vanilla_advancements = legacyAdvancementEnabled;
 

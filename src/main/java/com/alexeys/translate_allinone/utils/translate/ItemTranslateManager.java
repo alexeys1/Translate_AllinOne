@@ -89,7 +89,7 @@ public class ItemTranslateManager {
     }
 
     public static boolean isAnyItemTranslationFeatureEnabled(ItemTranslateConfig config) {
-        return config != null && (config.enabled || config.enabled_translate_vanilla_advancements);
+        return config != null && config.enabled;
     }
 
     public synchronized void start() {
@@ -673,13 +673,12 @@ public class ItemTranslateManager {
             return;
         }
         Translate_AllinOne.LOGGER.info(
-                "[ItemDev:session] phase={} epoch={} enabled={} customName={} lore={} vanillaAdvancements={} target={} configuredConcurrent={} activeWorkers={} maxBatchSize={} requestsPerMinute={} debugEnabled={} logBatchTiming={} queue={}",
+                "[ItemDev:session] phase={} epoch={} enabled={} customName={} lore={} target={} configuredConcurrent={} activeWorkers={} maxBatchSize={} requestsPerMinute={} debugEnabled={} logBatchTiming={} queue={}",
                 phase,
                 epoch,
                 config.enabled,
                 config.enabled_translate_item_custom_name,
                 config.enabled_translate_item_lore,
-                config.enabled_translate_vanilla_advancements,
                 config.target_language,
                 config.max_concurrent_requests,
                 currentConcurrentRequests > 0 ? currentConcurrentRequests : Math.max(1, config.max_concurrent_requests),
