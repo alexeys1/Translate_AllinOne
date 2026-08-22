@@ -381,21 +381,7 @@ public class ScoreboardTranslateManager {
     }
 
     private String buildSystemPrompt(String targetLanguage, String suffix, java.util.Map<String, String> overrides) {
-        String basePrompt = "You are a deterministic JSON value translator.\n"
-                + "Target language: " + targetLanguage + ".\n"
-                + "\n"
-                + "Input is a JSON object with string keys and string values.\n"
-                + "Output must be one valid JSON object only.\n"
-                + "\n"
-                + "Rules:\n"
-                + "1) Keep all keys unchanged.\n"
-                + "2) Keep key count unchanged.\n"
-                + "3) Translate values only.\n"
-                + "4) Use natural " + targetLanguage + " game UI phrasing.\n"
-                + "5) Preserve tokens exactly: §a §l §r %s %d %f {d1} URLs numbers <...> {...} \\n \\t.\n"
-                + "6) <taio-player-name> is a player-name placeholder: preserve it exactly once, but move it when needed for natural grammar.\n"
-                + "7) If unsure for a value, keep that value unchanged.\n"
-                + "8) No extra text outside JSON.";
+        String basePrompt = PromptMessageBuilder.getDefaultPrompt("scoreboard", targetLanguage);
         String resolved = PromptMessageBuilder.applyPromptOverride("scoreboard", basePrompt, overrides, targetLanguage);
         return PromptMessageBuilder.appendSystemPromptSuffix(resolved, suffix);
     }

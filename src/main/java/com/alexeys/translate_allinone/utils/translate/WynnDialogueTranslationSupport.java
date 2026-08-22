@@ -817,15 +817,20 @@ public final class WynnDialogueTranslationSupport {
         boolean shouldRequestTranslations = shouldRequestTranslations(dialogueConfig, hotkeyPressed);
         boolean shouldShowOptions = shouldTranslateNpcOptions();
         maybeForceRefreshCurrentCandidate(candidate);
+        boolean forcedRefreshPending = hasPendingForcedRefresh(candidate);
+        boolean shouldResolvePresentation = WynnDialogueDisplayModeSupport.shouldResolvePresentation(
+                shouldRenderTranslated,
+                forcedRefreshPending
+        );
 
         boolean allowDisplayQueue = WynnDialogueQueuePolicy.shouldAllowDisplayQueue(
                 candidate != null && candidate.overlaySource(),
                 shouldRequestTranslations
         );
-        DialogueDisplayState dialogueState = shouldRenderTranslated
+        DialogueDisplayState dialogueState = shouldResolvePresentation
                 ? resolveDialogueDisplayState(candidate.dialogue(), candidate.overlaySource(), allowDisplayQueue)
                 : DialogueDisplayState.of(candidate.dialogue(), false, "");
-        OptionsDisplayResult optionsResult = shouldShowOptions && shouldRenderTranslated
+        OptionsDisplayResult optionsResult = shouldShowOptions && shouldResolvePresentation
                 ? resolveOptionsDisplayState(candidate.optionsText(), allowDisplayQueue)
                 : new OptionsDisplayResult(
                         shouldShowOptions
@@ -845,7 +850,7 @@ public final class WynnDialogueTranslationSupport {
         String displayOptionsText = optionsState.displayText();
         String originalOptionsText = shouldShowOptions ? candidate.optionsText() : "";
 
-        String translatedNpcName = shouldRenderTranslated
+        String translatedNpcName = shouldResolvePresentation
                 ? resolveNpcName(candidate.npcName(), shouldRequestTranslations)
                 : candidate.npcName();
         String presentedPayload = candidate.observedNonce()
@@ -863,8 +868,8 @@ public final class WynnDialogueTranslationSupport {
             return;
         }
 
-        boolean dialoguePending = dialogueState.pending() && shouldRenderTranslated;
-        boolean optionsPending = optionsState.pending() && shouldRenderTranslated;
+        boolean dialoguePending = dialogueState.pending() && shouldResolvePresentation;
+        boolean optionsPending = optionsState.pending() && shouldResolvePresentation;
         String errorMessage = "";
         if (shouldRenderTranslated) {
             if (dialogueState.hasError()) {
@@ -1317,7 +1322,13 @@ public final class WynnDialogueTranslationSupport {
         int refreshedCount = cache().forceRefresh(refreshKeys);
         if (refreshedCount > 0) {
             forcedRefreshPendingKeys.addAll(refreshKeys);
-            WynnDialogueOverlayController.getInstance().onForceRefreshStarted(candidate.observedNonce());
+            WynnDialoguePresentation pendingPresentation = createForcedRefreshPendingPresentation(
+                    candidate,
+                    refreshKeys
+            );
+            lastPresentation = pendingPresentation;
+            lastPresentedPayload = "";
+            WynnDialogueOverlayController.getInstance().onForceRefreshStarted(pendingPresentation);
             throttledDevLog(
                     "dialogue_force_refresh",
                     DEBUG_HUD_LOG_THROTTLE_MILLIS,
@@ -1327,6 +1338,55 @@ public final class WynnDialogueTranslationSupport {
                     describeForLog(candidate.dialogue())
             );
         }
+    }
+
+    private static WynnDialoguePresentation createForcedRefreshPendingPresentation(
+            DialogueCandidate candidate,
+            Set<String> refreshKeys
+    ) {
+        String dialogueKey = buildDialogueCacheKey(candidate.dialogue());
+        boolean dialoguePending = refreshKeys.contains(dialogueKey);
+        List<String> optionAnimationKeys = buildOptionCacheKeys(candidate.optionsText()).stream()
+                .map(key -> refreshKeys.contains(key) ? key : "")
+                .toList();
+        boolean optionsPending = optionAnimationKeys.stream().anyMatch(key -> !key.isBlank());
+        return createPresentation(
+                candidate.observedNonce(),
+                candidate.pageInfo(),
+                candidate.npcName(),
+                candidate.npcName(),
+                candidate.dialogue(),
+                candidate.dialogue(),
+                shouldTranslateNpcOptions() ? candidate.optionsText() : "",
+                shouldTranslateNpcOptions() ? candidate.optionsText() : "",
+                dialoguePending,
+                optionsPending,
+                dialoguePending ? dialogueKey : "",
+                optionAnimationKeys,
+                ""
+        );
+    }
+
+    private static boolean hasPendingForcedRefresh(DialogueCandidate candidate) {
+        if (candidate == null || forcedRefreshPendingKeys.isEmpty()) {
+            return false;
+        }
+        Set<String> candidateKeys = new LinkedHashSet<>();
+        addCandidateForceRefreshKeys(candidateKeys, candidate);
+        boolean pending = false;
+        for (String candidateKey : candidateKeys) {
+            if (!forcedRefreshPendingKeys.contains(candidateKey)) {
+                continue;
+            }
+            LookupResult lookup = cache().peek(candidateKey);
+            if (lookup.status() == TranslationStatus.PENDING
+                    || lookup.status() == TranslationStatus.IN_PROGRESS) {
+                pending = true;
+            } else {
+                forcedRefreshPendingKeys.remove(candidateKey);
+            }
+        }
+        return pending;
     }
 
     private static void maybeQueueStableOverlayDialogue() {

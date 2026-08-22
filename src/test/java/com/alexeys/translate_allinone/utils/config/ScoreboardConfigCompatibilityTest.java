@@ -6,14 +6,14 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ScoreboardConfigCompatibilityTest {
     private static final Gson GSON = new Gson();
 
     @Test
-    void ignoresLegacyExternalScoreboardModeAndDoesNotPersistIt() {
+    void preservesExternalScoreboardModeAcrossVersions() {
         ScoreboardConfig config = GSON.fromJson(
                 "{\"enabled\":true,\"external_custom_scoreboard_mode\":\"FORCE\"}",
                 ScoreboardConfig.class
@@ -21,6 +21,7 @@ class ScoreboardConfigCompatibilityTest {
 
         JsonObject persisted = JsonParser.parseString(GSON.toJson(config)).getAsJsonObject();
         assertTrue(config.enabled);
-        assertFalse(persisted.has("external_custom_scoreboard_mode"));
+        assertEquals(ScoreboardConfig.ExternalCustomScoreboardMode.FORCE, config.external_custom_scoreboard_mode);
+        assertEquals("FORCE", persisted.get("external_custom_scoreboard_mode").getAsString());
     }
 }

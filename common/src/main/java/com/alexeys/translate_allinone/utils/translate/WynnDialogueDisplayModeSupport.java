@@ -37,4 +37,11 @@ final class WynnDialogueDisplayModeSupport {
         }
         return sharedMode != WynnCraftConfig.KeybindingMode.HOLD_TO_TRANSLATE || isKeyPressed;
     }
+
+    static boolean shouldResolvePresentation(
+            boolean shouldRenderTranslated,
+            boolean forcedRefreshPending
+    ) {
+        return shouldRenderTranslated || forcedRefreshPending;
+    }
 }

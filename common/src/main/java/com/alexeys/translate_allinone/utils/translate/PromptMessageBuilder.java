@@ -40,14 +40,10 @@ public final class PromptMessageBuilder {
             return List.of(new OpenAIRequest.Message("user", safeUser));
         }
 
-        if (supportsSystemMessage) {
-            return List.of(
-                    new OpenAIRequest.Message("system", safeSystem),
-                    new OpenAIRequest.Message("user", safeUser)
-            );
-        }
-
-        return List.of(new OpenAIRequest.Message("user", safeUser));
+        return List.of(
+                new OpenAIRequest.Message("system", safeSystem),
+                new OpenAIRequest.Message("user", safeUser)
+        );
     }
 
     public static String appendSystemPromptSuffix(String basePrompt, String suffix) {
@@ -65,8 +61,8 @@ public final class PromptMessageBuilder {
         if (overrides != null && !overrides.isEmpty()) {
             String override = overrides.get(routeKey);
             if (override != null && !override.isBlank()) {
-                String t = targetLanguage == null || targetLanguage.isBlank() ? "Chinese" : targetLanguage;
-                return override.replace("{target_language}", t);
+                String language = targetLanguage == null || targetLanguage.isBlank() ? "Chinese" : targetLanguage;
+                return override.replace("{target_language}", language);
             }
         }
         return defaultBasePrompt;
@@ -76,91 +72,71 @@ public final class PromptMessageBuilder {
         return applyPromptOverride(routeKey, defaultBasePrompt, overrides, "Chinese");
     }
 
+    public static String getDefaultPrompt(String routeKey, String targetLanguage) {
+        String language = targetLanguage == null || targetLanguage.isBlank() ? "Chinese" : targetLanguage;
+        return getDefaultPromptTemplate(routeKey).replace("{target_language}", language);
+    }
+
     public static String getDefaultPromptTemplate(String routeKey) {
-        String t = "{target_language}";
+        String targetLanguage = "{target_language}";
         return switch (routeKey) {
-            case "item" -> "Translate JSON values into " + t
-                    + ". Output valid JSON only, keys unchanged.\n"
-                    + "\n"
+            case "item" -> "Translate Minecraft item tooltip text for an in-game client into " + targetLanguage + ".\n"
+                    + "Return only the JSON response required by the request.\n"
                     + "Rules:\n"
-                    + "1) Natural " + t + " game UI phrasing (e.g. 61格/3秒). Multiline: keep meaning and line order.\n"
-                    + "2) Preserve exactly: § codes, <s0> </s0>, {d1}, %s %d %f, URLs, numbers, <...>, {...}, \\n, \\t.\n"
-                    + "3) Never add, drop, or reorder tags, placeholders, or text fragments.\n"
-                    + "4) \"take (N) damage from (X)\" means the subject RECEIVES/SUFFERS damage from X, NEVER translates as dealing damage to X.\n"
-                    + "5) If unsure, keep original. Output JSON only.";
-            case "scoreboard" -> "You are a deterministic JSON value translator.\n"
-                    + "Target language: " + t + ".\n"
-                    + "\n"
-                    + "Input is a JSON object with string keys and string values.\n"
-                    + "Output must be one valid JSON object only.\n"
-                    + "\n"
+                    + "1) Keep every key, id, entry count, and entry order unchanged; translate text only.\n"
+                    + "2) Preserve exactly: Minecraft formatting codes, <sN> tags, {dN}/{gN} placeholders, %s/%d/%f, URLs, numbers, item ids, commands, \\n, and \\t.\n"
+                    + "3) Use concise, natural game UI wording. Preserve explicit line breaks; normal words may be reordered naturally around protected tokens.\n"
+                    + "4) \"take N damage from X\" means the subject receives damage from X, never deals damage to X.\n"
+                    + "5) Keep an uncertain term unchanged. No Markdown, explanations, or extra fields.";
+            case "scoreboard" -> "Translate Minecraft scoreboard labels and status values into " + targetLanguage + ".\n"
+                    + "Return only the JSON response required by the request.\n"
                     + "Rules:\n"
-                    + "1) Keep all keys unchanged.\n"
-                    + "2) Keep key count unchanged.\n"
-                    + "3) Translate values only.\n"
-                    + "4) Preserve tokens exactly: §a §l §r %s %d %f {d1} URLs numbers <...> {...} \\n \\t.\n"
-                    + "5) If unsure for a value, keep that value unchanged.\n"
-                    + "6) No extra text outside JSON.";
-            case "sign_book" -> "You are a deterministic Minecraft Component JSON translator.\n"
-                    + "Target language: " + t + ".\n"
-                    + "Output valid JSON only; keys, Component structure, styles, hover events, click events, insertions and extras must remain unchanged.\n"
-                    + "\n"
+                    + "1) Keep every key, id, entry count, and entry order unchanged; translate text only.\n"
+                    + "2) Use short, scannable game UI wording. Do not add labels, padding, or commentary.\n"
+                    + "3) Preserve exactly: Minecraft formatting codes, <sN> tags, {dN}/{gN}, %s/%d/%f, scores, URLs, numbers, \\n, and \\t.\n"
+                    + "4) Keep an uncertain term unchanged. No Markdown or extra fields.";
+            case "sign_book" -> "Translate Minecraft sign and book text into " + targetLanguage + " for an in-game client.\n"
+                    + "Return only the JSON response required by the request; never output Minecraft Component JSON.\n"
                     + "Rules:\n"
-                    + "1) Translate literal text values only. Preserve every placeholder, URL, number, command, item id and uncertain proper noun exactly.\n"
-                    + "2) For sign text, keep every line short. Never add a line break or merge lines.\n"
-                    + "3) For book pages, preserve paragraphs, explicit line breaks and all interactive Component structure.\n"
-                    + "4) If any structure or token cannot be preserved, return the original value unchanged.\n"
-                    + "5) Output JSON only.";
-            case "entity_text" -> "You are a deterministic Minecraft Component JSON translator.\n"
-                    + "Target language: " + t + ".\n"
-                    + "Output valid JSON only; keys, Component structure, styles, hover events, click events, insertions and extras must remain unchanged.\n"
-                    + "\n"
+                    + "1) Translate literal text only. Preserve all ids, keys, formatting markers, placeholders, URLs, numbers, commands, item ids, and proper nouns.\n"
+                    + "2) Keep sign faces short and keep their line breaks exactly. For books, preserve paragraph boundaries and explicit line breaks.\n"
+                    + "3) Do not invent, remove, or alter interactive data represented by the request.\n"
+                    + "4) Keep an uncertain span unchanged. No Markdown, explanations, or extra fields.";
+            case "entity_text" -> "Translate Minecraft entity names and text displays into " + targetLanguage + " for an in-game client.\n"
+                    + "Return only the JSON response required by the request; never output Minecraft Component JSON.\n"
                     + "Rules:\n"
-                    + "1) Translate literal text values only. Preserve every placeholder, URL, number, command, item id and uncertain proper noun exactly.\n"
-                    + "2) Name tags must stay short. Text displays may contain full sentences, but never add line breaks or delete Component placeholders.\n"
-                    + "3) If any structure or token cannot be preserved, return the original value unchanged.\n"
-                    + "4) Output JSON only.";
-            case "chat_output" -> "You are a deterministic translation engine.\n"
-                    + "Target language: " + t + ".\n"
-                    + "\n"
-                    + "Rules (highest priority first):\n"
-                    + "1) Speaker names and NPC names are already removed from the input; never add or guess them. Output only the final translated text. No explanation, markdown, or quotes.\n"
-                    + "2) Preserve style tags exactly: <s0>...</s0>, <s1>...</s1>, ... Keep the same tag ids, counts, and order.\n"
-                    + "3) Preserve tokens exactly: § color/style codes, placeholders (%s %d %f {d1}), URLs, numbers, <...>, {...}, \\n, \\t.\n"
-                    + "4) If a term is uncertain, keep only that term unchanged and still translate surrounding text.\n"
-                    + "5) If any rule cannot be guaranteed, return the original input unchanged.";
-            case "chat_input_translate" -> "You are a deterministic translation engine.\n"
-                    + "Target language: " + t + ".\n"
-                    + "\n"
-                    + "Rules (highest priority first):\n"
-                    + "1) Output only the final translated text. No explanation, markdown, or quotes.\n"
-                    + "2) Preserve tokens exactly: § color/style codes, placeholders (%s %d %f {d1}), URLs, numbers, command prefix (/), <...>, {...}, \\n, \\t.\n"
-                    + "3) If a term is uncertain, keep only that term unchanged and still translate surrounding text.\n"
-                    + "4) Keep punctuation and spacing stable unless translation naturally requires changes.\n"
-                    + "5) If any rule cannot be guaranteed, return the original input unchanged.";
-            case "wynn_npc_dialogue" -> "Translate WynnCraft NPC dialogue into " + t
-                    + ". Output valid JSON only, keys unchanged.\n"
-                    + "\n"
+                    + "1) Translate literal text only. Preserve all ids, keys, formatting markers, placeholders, URLs, numbers, commands, item ids, and proper nouns.\n"
+                    + "2) Name tags must stay short. Text displays may use natural sentence order, but do not add line breaks.\n"
+                    + "3) Keep an uncertain span unchanged. No Markdown, explanations, or extra fields.";
+            case "chat_output" -> "Translate a received Minecraft chat message into " + targetLanguage + ".\n"
                     + "Rules:\n"
-                    + "1) Natural " + t + ", keep original meaning and paragraph breaks. No mixed-language.\n"
-                    + "2) Do not translate: place names (Ragni, Troms), character names, [bracketed] items.\n"
-                    + "3) Poetic lines: use rhythmic " + t + ".\n"
-                    + "4) Preserve exactly: § codes, {tokens}, %s %d %f, URLs, numbers, <...>, <s0> </s0>, \\n, \\t, zalgo text.\n"
-                    + "5) If unsure, keep original. No extra text.";
-            case "wynntils_task_tracker" -> "You are a deterministic JSON value translator.\n"
-                    + "Target language: " + t + ".\n"
-                    + "\n"
-                    + "Input is a JSON object with string keys and string values.\n"
-                    + "Output must be one valid JSON object only.\n"
-                    + "\n"
+                    + "1) Speaker names and NPC names are already removed from the input; never add or guess them. Preserve server commands, item ids, URLs, numbers, and uncertain proper nouns.\n"
+                    + "2) Preserve exactly: Minecraft formatting codes, every <sN> tag, {dN}/{gN}, %s/%d/%f, \\n, and \\t.\n"
+                    + "3) Translate ordinary wording naturally while keeping protected tokens attached to their intended meaning.\n"
+                    + "4) Keep an uncertain span unchanged. No Markdown, explanations, or extra fields.";
+            case "chat_input_translate" -> "Translate player-composed Minecraft chat input into " + targetLanguage + ".\n"
+                    + "Output only the final translated message, with no Markdown, quotes, or explanation.\n"
                     + "Rules:\n"
-                    + "1) Keep all keys unchanged.\n"
-                    + "2) Keep key count unchanged.\n"
-                    + "3) Translate values only.\n"
-                    + "4) Preserve tokens exactly: §a §l §r %s %d %f {d1} URLs numbers <...> {...} <s0> </s0> \\n \\t.\n"
-                    + "5) If unsure for a value, keep that value unchanged.\n"
-                    + "6) No extra text outside JSON.";
-            case "screen_ui" -> "Translate static third-party Minecraft configuration UI text into " + t + ". Preserve visible text only, formatting codes, URLs, paths, commands, key bindings, placeholders, numbers, units, decorative glyphs, module identities, configuration keys, and persistent values. Return only the required JSON response with no Markdown or extra fields.";
+                    + "1) Preserve commands beginning with /, player names, item ids, URLs, numbers, and uncertain proper nouns.\n"
+                    + "2) Preserve exactly: Minecraft formatting codes, <sN> tags, {dN}/{gN}, %s/%d/%f, \\n, and \\t.\n"
+                    + "3) Use natural chat phrasing and change punctuation or spacing only when the translation requires it.\n"
+                    + "4) Keep an uncertain span unchanged.";
+            case "wynn_npc_dialogue" -> "Translate WynnCraft NPC dialogue and quest narration into " + targetLanguage + ".\n"
+                    + "Return only the JSON response required by the request.\n"
+                    + "Rules:\n"
+                    + "1) Preserve story meaning, speaker tone, paragraph breaks, and established WynnCraft terminology.\n"
+                    + "2) Keep character names, place names such as Ragni and Troms, and [bracketed] item names unchanged.\n"
+                    + "3) Preserve exactly: Minecraft formatting codes, <sN> tags, {dN}/{gN}, %s/%d/%f, URLs, numbers, \\n, \\t, and decorative text.\n"
+                    + "4) Render poetic lines naturally in " + targetLanguage + " without adding commentary. Keep an uncertain term unchanged.";
+            case "wynntils_task_tracker" -> "Translate Wynntils task-tracker objectives and progress text into " + targetLanguage + ".\n"
+                    + "Return only the JSON response required by the request.\n"
+                    + "Rules:\n"
+                    + "1) Keep every key, id, entry count, and entry order unchanged; translate text only.\n"
+                    + "2) Use concise objective wording. Preserve counts, coordinates, names, and progress indicators exactly.\n"
+                    + "3) Preserve exactly: Minecraft formatting codes, <sN> tags, {dN}/{gN}, %s/%d/%f, URLs, numbers, \\n, and \\t.\n"
+                    + "4) Keep an uncertain term unchanged. No Markdown or extra fields.";
+            case "screen_ui" -> "Translate static third-party Minecraft configuration UI text into " + targetLanguage
+                    + ". Preserve visible text only, formatting codes, URLs, paths, commands, key bindings, placeholders, numbers, units, decorative glyphs, module identities, configuration keys, and persistent values. Return only the required JSON response with no Markdown or extra fields.";
             default -> "";
         };
     }

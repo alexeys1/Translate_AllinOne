@@ -346,15 +346,7 @@ public class ChatInputTranslateManager {
 
     private static String buildSystemPrompt(String targetLanguage, TransformMode mode, String instruction) {
         return switch (mode) {
-            case TRANSLATE -> "You are a deterministic translation engine.\n"
-                    + "Target language: " + targetLanguage + ".\n"
-                    + "\n"
-                    + "Rules (highest priority first):\n"
-                    + "1) Output only the final translated text. No explanation, markdown, or quotes.\n"
-                    + "2) Preserve tokens exactly: § color/style codes, placeholders (%s %d %f {d1}), URLs, numbers, command prefix (/), <...>, {...}, \\n, \\t.\n"
-                    + "3) If a term is uncertain, keep only that term unchanged and still translate surrounding text.\n"
-                    + "4) Keep punctuation and spacing stable unless translation naturally requires changes.\n"
-                    + "5) If any rule cannot be guaranteed, return the original input unchanged.";
+            case TRANSLATE -> PromptMessageBuilder.getDefaultPrompt("chat_input_translate", targetLanguage);
             case PROFESSIONAL -> buildRewritePrompt(targetLanguage, "professional, precise, concise");
             case FRIENDLY -> buildRewritePrompt(targetLanguage, "friendly, warm, natural");
             case EXPAND -> buildRewritePrompt(targetLanguage, "rich, vivid, and more detailed while keeping the original intent");

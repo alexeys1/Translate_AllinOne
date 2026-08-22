@@ -8,4 +8,3 @@ public enum UiTranslationStatus {
     FAILED,
     INELIGIBLE
 }
-

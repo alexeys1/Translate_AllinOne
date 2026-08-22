@@ -53,10 +53,6 @@ public class ProviderManagerConfig {
         routes.chat_output = normalizeRouteValue(routes.chat_output);
     }
 
-    public boolean isTranslationEnabled() {
-        return translation_enabled == null || translation_enabled;
-    }
-
     public ApiProviderProfile findById(String id) {
         if (id == null || id.isBlank() || providers == null) {
             return null;
@@ -68,6 +64,10 @@ public class ProviderManagerConfig {
             }
         }
         return null;
+    }
+
+    public boolean isTranslationEnabled() {
+        return translation_enabled == null || translation_enabled;
     }
 
     public static String composeRouteKey(String providerId, String modelId) {

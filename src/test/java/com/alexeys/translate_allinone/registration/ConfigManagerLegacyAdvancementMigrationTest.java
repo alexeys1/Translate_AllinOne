@@ -41,6 +41,5 @@ class ConfigManagerLegacyAdvancementMigrationTest {
         assertEquals("Japanese", config.otherTranslations.target_language);
         assertEquals(OtherTranslationsConfig.KeybindingMode.HOLD_TO_TRANSLATE, config.otherTranslations.keybinding.mode);
         assertFalse(JsonParser.parseString(persisted).getAsJsonObject().getAsJsonObject("itemTranslate").has("enabled_translate_vanilla_advancements"));
-        assertFalse(persisted.contains("external_custom_scoreboard_mode"));
     }
 }

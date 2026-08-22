@@ -126,8 +126,8 @@ final class CacheRuntimeStateSupport<K, B> {
             keysToRequeueNow.add(key);
             refreshedCount++;
         }
-        for (int i = keysToRequeueNow.size() - 1; i >= 0; i--) {
-            keyQueueSupport.requeueToFront(keysToRequeueNow.get(i));
+        for (int index = keysToRequeueNow.size() - 1; index >= 0; index--) {
+            keyQueueSupport.requeueToFront(keysToRequeueNow.get(index));
         }
         return refreshedCount;
     }
@@ -158,8 +158,8 @@ final class CacheRuntimeStateSupport<K, B> {
         }
 
         keyQueueSupport.finishKeys(deferredRefreshKeys);
-        for (int i = deferredRefreshKeys.size() - 1; i >= 0; i--) {
-            keyQueueSupport.requeueToFront(deferredRefreshKeys.get(i));
+        for (int index = deferredRefreshKeys.size() - 1; index >= 0; index--) {
+            keyQueueSupport.requeueToFront(deferredRefreshKeys.get(index));
         }
     }
 
@@ -244,8 +244,8 @@ final class CacheRuntimeStateSupport<K, B> {
             }
 
             keyQueueSupport.finishKeys(deferredRefreshKeys);
-            for (int i = deferredRefreshKeys.size() - 1; i >= 0; i--) {
-                keyQueueSupport.requeueToFront(deferredRefreshKeys.get(i));
+            for (int index = deferredRefreshKeys.size() - 1; index >= 0; index--) {
+                keyQueueSupport.requeueToFront(deferredRefreshKeys.get(index));
             }
         }
 

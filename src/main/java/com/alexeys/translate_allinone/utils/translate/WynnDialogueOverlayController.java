@@ -144,7 +144,11 @@ public final class WynnDialogueOverlayController {
         acceptPresentation(presentation, true);
     }
 
-    synchronized void onForceRefreshStarted(long observedNonce) {
+    synchronized void onForceRefreshStarted(WynnDialoguePresentation pendingPresentation) {
+        if (pendingPresentation == null) {
+            return;
+        }
+        long observedNonce = pendingPresentation.observedNonce();
         if (activeTemplate == null
                 || (activeTemplate.observedNonce() != 0L
                 && activeTemplate.observedNonce() != observedNonce)) {
@@ -155,6 +159,7 @@ public final class WynnDialogueOverlayController {
         }
         currentPresentation = null;
         lastTranslatedPresentation = null;
+        acceptPresentation(pendingPresentation, true);
     }
 
     private synchronized void observeNonDialogueOverlay() {
