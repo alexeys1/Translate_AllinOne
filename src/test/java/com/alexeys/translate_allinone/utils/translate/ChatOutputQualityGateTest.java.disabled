@@ -1,0 +1,121 @@
+package com.alexeys.translate_allinone.utils.translate;
+
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class ChatOutputQualityGateTest {
+
+    @Test
+    void extractsJsonTranslationFromObject() {
+        assertEquals(
+                "你好",
+                ChatOutputTranslateManager.extractJsonTranslation("{\"translation\": \"你好\"}")
+        );
+    }
+
+    @Test
+    void extractsJsonTranslationFromTranslationsMap() {
+        assertEquals(
+                "新的一天！\n你的",
+                ChatOutputTranslateManager.extractJsonTranslation(
+                        "{\"translations\": {\"s0\": \"新的一天！\", \"s1\": \"你的\"}}"
+                )
+        );
+    }
+
+    @Test
+    void extractsJsonTranslationFromInlineKey() {
+        assertEquals(
+                "你好",
+                ChatOutputTranslateManager.extractJsonTranslation("\"translation\": \"你好\"")
+        );
+    }
+
+    @Test
+    void extractsJsonTranslationFromTextKey() {
+        assertEquals(
+                "你好",
+                ChatOutputTranslateManager.extractJsonTranslation("{\"text\": \"你好\"}")
+        );
+    }
+
+    @Test
+    void extractsNothingForUnknownJsonObject() {
+        assertNull(ChatOutputTranslateManager.extractJsonTranslation("{\"foo\": \"bar\"}"));
+    }
+
+    @Test
+    void extractsNothingForMalformedJson() {
+        assertNull(ChatOutputTranslateManager.extractJsonTranslation("{not json"));
+    }
+
+    @Test
+    void sanitizeStripsMarkdownJsonFence() {
+        assertEquals(
+                "你好",
+                ChatOutputTranslateManager.sanitizeModelReply("```json\n{\"translation\": \"你好\"}\n```")
+        );
+    }
+
+    @Test
+    void sanitizeStripsEnglishPreamblePrefixes() {
+        assertEquals("Hello", ChatOutputTranslateManager.sanitizeModelReply("Translation: Hello"));
+        assertEquals("Hello", ChatOutputTranslateManager.sanitizeModelReply("translated text : Hello"));
+        assertEquals("Hello", ChatOutputTranslateManager.sanitizeModelReply("Translated:Hello"));
+        assertEquals("Hello", ChatOutputTranslateManager.sanitizeModelReply("Here's the translation: Hello"));
+    }
+
+    @Test
+    void sanitizeLeavesChinesePrefixUntouched() {
+        assertEquals("翻译：你好", ChatOutputTranslateManager.sanitizeModelReply("翻译：你好"));
+        assertEquals("好的，你好", ChatOutputTranslateManager.sanitizeModelReply("好的，你好"));
+    }
+
+    @Test
+    void sanitizeLeavesPlainReplyUntouched() {
+        assertEquals("你好，世界！", ChatOutputTranslateManager.sanitizeModelReply("你好，世界！"));
+    }
+
+    @Test
+    void acceptsNormalTranslation() {
+        assertTrue(ChatOutputTranslateManager.isChatOutputAccepted("你好世界", "Hello world", "你好世界"));
+    }
+
+    @Test
+    void rejectsEmptyCandidate() {
+        assertFalse(ChatOutputTranslateManager.isChatOutputAccepted("", "Hello", ""));
+        assertFalse(ChatOutputTranslateManager.isChatOutputAccepted("   ", "Hello", "   "));
+    }
+
+    @Test
+    void rejectsStructuredJsonLeftover() {
+        assertFalse(ChatOutputTranslateManager.isChatOutputAccepted(
+                "{\"translation\": \"你好\"}", "Hello", "{\"translation\": \"你好\"}"
+        ));
+        assertFalse(ChatOutputTranslateManager.isChatOutputAccepted(
+                "\"translation\": \"你好\"", "Hello", "\"translation\": \"你好\""
+        ));
+    }
+
+    @Test
+    void rejectsSourceEcho() {
+        assertFalse(ChatOutputTranslateManager.isChatOutputAccepted("Hello world", "Hello world", "Hello world"));
+    }
+
+    @Test
+    void rejectsLeftoverPlaceholderInRenderedText() {
+        assertFalse(ChatOutputTranslateManager.isChatOutputAccepted(
+                "点击这里 {index}", "Click here", "点击这里 {index}"
+        ));
+    }
+
+    @Test
+    void normalizeReadableStripsMarkupAndPlaceholders() {
+        assertEquals("Hiworld", ChatOutputTranslateManager.normalizeReadable("<s1>Hi</s1>{d1}{g1}world"));
+        assertEquals("", ChatOutputTranslateManager.normalizeReadable("<s1></s1>"));
+    }
+}
