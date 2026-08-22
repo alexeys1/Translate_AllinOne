@@ -2,7 +2,8 @@ package com.alexeys.translate_allinone.utils.translate;
 
 import com.alexeys.translate_allinone.utils.componentjson.ComponentDocumentBuilder;
 import com.alexeys.translate_allinone.utils.componentjson.ComponentDynamicTemplate;
-import com.alexeys.translate_allinone.utils.componentjson.ComponentJsonCodec;
+import com.alexeys.translate_allinone.versionapi.ComponentCodec;
+import com.alexeys.translate_allinone.versionapi.MinecraftComponentCodec;
 import com.alexeys.translate_allinone.utils.componentjson.ComponentTextUnit;
 import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationApplier;
 import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationDocument;
@@ -19,6 +20,7 @@ public final class ScoreboardEntryTemplate {
     public static final String POLICY_VERSION = "scoreboard";
     private static final String OWNER_POINTER_PREFIX = "/extra/1";
     private static final ComponentTranslationApplier APPLIER = new ComponentTranslationApplier();
+    private static final ComponentCodec<Component> COMPONENT_CODEC = MinecraftComponentCodec.INSTANCE;
 
     public record Prepared(
             Component original,
@@ -100,11 +102,11 @@ public final class ScoreboardEntryTemplate {
         JsonObject source = new JsonObject();
         source.addProperty("text", "");
         JsonArray segments = new JsonArray();
-        segments.add(ComponentJsonCodec.encode(prefix));
-        segments.add(ComponentJsonCodec.encode(owner));
-        segments.add(ComponentJsonCodec.encode(suffix));
+        segments.add(COMPONENT_CODEC.encode(prefix));
+        segments.add(COMPONENT_CODEC.encode(owner));
+        segments.add(COMPONENT_CODEC.encode(suffix));
         source.add("extra", segments);
-        return ComponentJsonCodec.decode(source);
+        return COMPONENT_CODEC.decode(source);
     }
 
     private static boolean isOwnerPointer(String pointer) {

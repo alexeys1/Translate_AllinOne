@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -113,6 +114,11 @@ public final class WynnDialogueTranslateManager {
     public synchronized void cancelPendingTranslations() {
         stop();
         cache.clearPendingAndInProgress();
+    }
+
+    public synchronized void clearTranslationQueue() {
+        sessionEpoch.incrementAndGet();
+        cache.clearTranslationQueue();
     }
 
     private void processingLoop() {
@@ -242,16 +248,23 @@ public final class WynnDialogueTranslateManager {
                 userPrompt == null ? "" : userPrompt.replace("\n", "\\n")
         );
 
-        llm.getCompletion(messages, requestContext).whenComplete((response, error) -> {
+        CompletableFuture<String> completion = llm.getCompletion(messages, requestContext);
+        long watchdogRequestId = TranslationQueueWatchdog.requestStarted("wynn_dialogue", originalKeys);
+        completion.whenComplete((response, error) -> {
             if (!isSessionActive(batchSessionEpoch)) {
+                TranslationQueueWatchdog.requestSuperseded(watchdogRequestId);
                 cache.releaseInProgress(Set.copyOf(originalKeys));
                 return;
             }
 
             List<RetryRequest> deferredRetries = new ArrayList<>();
+            Set<String> failedTaskKeys = ConcurrentHashMap.newKeySet();
+            boolean requestSuperseded = false;
+            boolean retriesExhausted = false;
 
             if (error != null) {
                 if (TranslateExceptionUtils.isInternalPostprocessError(error) && originalKeys.size() > 1) {
+                    requestSuperseded = true;
                     Translate_AllinOne.LOGGER.warn(
                             "Wynn dialogue batch hit internal post-process error, retrying as single-item batches. context={} batchSize={}",
                             requestContext,
@@ -261,6 +274,8 @@ public final class WynnDialogueTranslateManager {
                         deferredRetries.add(new RetryRequest(List.of(key), 0));
                     }
                 } else {
+                    failedTaskKeys.addAll(originalKeys);
+                    retriesExhausted = TranslateExceptionUtils.isInternalPostprocessError(error);
                     cache.requeueFailed(Set.copyOf(originalKeys), error.getMessage());
                     WynnDialogueTranslationSupport.throttledDevLog(
                             "llm_error",
@@ -299,8 +314,11 @@ public final class WynnDialogueTranslateManager {
 
                     if (hasKeyMismatch(translatedMapFromAI, originalKeys.size())) {
                         if (keyMismatchRetryCount < TranslateStringUtils.MAX_KEY_MISMATCH_BATCH_RETRIES) {
+                            requestSuperseded = true;
                             deferredRetries.add(new RetryRequest(originalKeys, keyMismatchRetryCount + 1));
                         } else {
+                            failedTaskKeys.addAll(originalKeys);
+                            retriesExhausted = true;
                             Translate_AllinOne.LOGGER.warn(
                                     "Wynn dialogue keys mismatched after retries, re-queueing full batch. context={}",
                                     requestContext
@@ -349,6 +367,7 @@ public final class WynnDialogueTranslateManager {
                         }
 
                         if (!missingTranslations.isEmpty()) {
+                            failedTaskKeys.addAll(missingTranslations);
                             Translate_AllinOne.LOGGER.warn(
                                     "Wynn dialogue LLM response missing {} keys. context={}",
                                     missingTranslations.size(),
@@ -358,6 +377,7 @@ public final class WynnDialogueTranslateManager {
                         }
                     }
                 } catch (JsonSyntaxException e) {
+                    failedTaskKeys.addAll(originalKeys);
                     cache.requeueFailed(Set.copyOf(originalKeys), "Invalid JSON response");
                     Translate_AllinOne.LOGGER.error(
                             "Failed to parse Wynn dialogue translation response. context={}",
@@ -365,6 +385,7 @@ public final class WynnDialogueTranslateManager {
                             e
                     );
                 } catch (Throwable t) {
+                    failedTaskKeys.addAll(originalKeys);
                     cache.requeueFailed(Set.copyOf(originalKeys), "Translation post-processing failure");
                     Translate_AllinOne.LOGGER.error(
                             "Unexpected Wynn dialogue post-processing error. context={}",
@@ -372,6 +393,16 @@ public final class WynnDialogueTranslateManager {
                             t
                     );
                 }
+            }
+
+            if (requestSuperseded) {
+                TranslationQueueWatchdog.requestSuperseded(watchdogRequestId);
+            } else {
+                TranslationQueueWatchdog.requestCompleted(
+                        watchdogRequestId,
+                        failedTaskKeys,
+                        retriesExhausted
+                );
             }
 
             for (RetryRequest retryRequest : deferredRetries) {

@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.network.chat.Component;
 
+/** Controls opt-in diagnostics for the structure-preserving translation runtime. */
 public final class ComponentTranslationDebugLogger {
     private static final long THROTTLE_WINDOW_MILLIS = 5_000L;
     private static final int FLOW_LOG_LIMIT = 24;
@@ -27,6 +28,13 @@ public final class ComponentTranslationDebugLogger {
     private static volatile boolean entityIdentityEnabled;
 
     private ComponentTranslationDebugLogger() {
+    }
+
+    public static void register() {
+        ComponentTranslationMetrics.configureLogging(
+                ComponentTranslationDebugLogger::flow,
+                ComponentTranslationDebugLogger::timing
+        );
     }
 
     public static void refresh(ModConfig config) {
@@ -158,6 +166,10 @@ public final class ComponentTranslationDebugLogger {
         }
     }
 
+    /**
+     * Logs only the hashed cache-identity material for entity-name Component cache misses. Source and translated
+     * text are intentionally excluded so the switch is safe to use when investigating key churn.
+     */
     public static void entityIdentityMiss(
             ComponentTranslationDocument document,
             String targetLanguage,
@@ -188,6 +200,7 @@ public final class ComponentTranslationDebugLogger {
         );
     }
 
+    /** Logs a safe, opt-in record when an entity response is reused across Component metadata. */
     public static void entityTemplateReuse(String fullKey, String templateKey) {
         if (entityIdentityEnabled && permit("entity-template")) {
             Translate_AllinOne.LOGGER.info(
@@ -210,6 +223,7 @@ public final class ComponentTranslationDebugLogger {
         }
     }
 
+    /** Logs a validation/provider failure with a lower, independent limit. */
     public static void error(ComponentTranslationRoute route, String message, Object... arguments) {
         if (permit("error")) {
             Translate_AllinOne.LOGGER.warn("[component-error] " + message, arguments);
@@ -312,6 +326,16 @@ public final class ComponentTranslationDebugLogger {
         };
     }
 
+    private static boolean registerTextContentKey(String deduplicationKey) {
+        long now = System.currentTimeMillis();
+        Long previous = TEXT_CONTENT_LOG_TIMES.putIfAbsent(deduplicationKey, now);
+        if (previous != null && now - previous < THROTTLE_WINDOW_MILLIS) {
+            return false;
+        }
+        TEXT_CONTENT_LOG_TIMES.put(deduplicationKey, now);
+        return true;
+    }
+
     static List<String> splitTextForLog(String text) {
         String source = text == null ? "" : text;
         if (source.isEmpty()) {
@@ -327,16 +351,6 @@ public final class ComponentTranslationDebugLogger {
             start = end;
         }
         return chunks;
-    }
-
-    private static boolean registerTextContentKey(String deduplicationKey) {
-        long now = System.currentTimeMillis();
-        Long previous = TEXT_CONTENT_LOG_TIMES.putIfAbsent(deduplicationKey, now);
-        if (previous != null && now - previous < THROTTLE_WINDOW_MILLIS) {
-            return false;
-        }
-        TEXT_CONTENT_LOG_TIMES.put(deduplicationKey, now);
-        return true;
     }
 
     private static String tooltipTextIdentity(List<Component> labels) {
