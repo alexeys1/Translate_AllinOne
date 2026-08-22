@@ -1,0 +1,40 @@
+package com.alexeys.translate_allinone;
+
+import com.alexeys.translate_allinone.registration.CommandManager;
+import com.alexeys.translate_allinone.registration.ConfigManager;
+import com.alexeys.translate_allinone.registration.LifecycleEventManager;
+import com.alexeys.translate_allinone.utils.backup.VersionUpgradeBackupManager;
+import com.alexeys.translate_allinone.utils.cache.component.ComponentCacheModule;
+import com.alexeys.translate_allinone.utils.cache.component.ComponentTranslationStoreRegistry;
+import com.alexeys.translate_allinone.utils.config.ModConfig;
+import com.alexeys.translate_allinone.utils.translate.DictionaryHotReloadManager;
+import com.alexeys.translate_allinone.utils.translate.WynncraftDictionaryInstaller;
+import com.alexeys.translate_allinone.utils.translate.WynnDialogueTranslationSupport;
+import com.alexeys.translate_allinone.utils.update.UpdateCheckManager;
+import net.fabricmc.api.ModInitializer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class Translate_AllinOne implements ModInitializer {
+
+	public static final String MOD_ID = "translate_allinone";
+	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
+
+	@Override
+	public void onInitialize() {
+		LOGGER.info("Translate All in One is initializing...");
+		VersionUpgradeBackupManager.backupIfVersionChanged();
+		ConfigManager.register();
+		ComponentTranslationStoreRegistry.getInstance().forModule(ComponentCacheModule.SCREEN_UI).load();
+		WynncraftDictionaryInstaller.ensureInstalled();
+		DictionaryHotReloadManager.start();
+		UpdateCheckManager.startStartupCheck();
+		CommandManager.register();
+		LifecycleEventManager.register();
+		WynnDialogueTranslationSupport.init();
+	}
+
+	public static ModConfig getConfig() {
+		return ConfigManager.getConfig();
+	}
+}
