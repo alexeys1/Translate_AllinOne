@@ -1,5 +1,6 @@
 package com.alexeys.translate_allinone.utils.cache.component;
 
+import com.alexeys.translate_allinone.utils.cache.CacheFileSaveSupport;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
@@ -158,11 +159,7 @@ public final class ComponentCacheMigrationService {
         try (var writer = Files.newBufferedWriter(tempPath, StandardCharsets.UTF_8)) {
             GSON.toJson(value, writer);
         }
-        try {
-            Files.move(tempPath, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (AtomicMoveNotSupportedException ignored) {
-            Files.move(tempPath, path, StandardCopyOption.REPLACE_EXISTING);
-        }
+        CacheFileSaveSupport.replaceWithRetry(tempPath, path);
     }
 
     private static String sha256(Path path) throws IOException {
