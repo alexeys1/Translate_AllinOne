@@ -9,7 +9,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Aggregates same-route V1 documents for one provider request without changing their cache keys. */
 public record ComponentTranslationBatch(
         ComponentTranslationDocument requestDocument,
         List<ComponentTranslationDocument> documents
@@ -87,7 +86,6 @@ public record ComponentTranslationBatch(
         return new ComponentTranslationBatch(requestDocument, documents);
     }
 
-    /** Returns whether adding a document would keep the provider request within V1 limits. */
     static boolean canAppend(
             List<ComponentTranslationDocument> documents,
             ComponentTranslationDocument candidate

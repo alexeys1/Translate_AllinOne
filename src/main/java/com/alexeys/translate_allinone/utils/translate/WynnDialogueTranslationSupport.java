@@ -1253,7 +1253,6 @@ public final class WynnDialogueTranslationSupport {
         int refreshedCount = cache().forceRefresh(refreshKeys);
         if (refreshedCount > 0) {
             forcedRefreshPendingKeys.addAll(refreshKeys);
-            queueForcedRefreshKeys(refreshKeys);
             WynnDialoguePresentation pendingPresentation = createForcedRefreshPendingPresentation(
                     candidate,
                     refreshKeys
@@ -1297,19 +1296,6 @@ public final class WynnDialogueTranslationSupport {
                 optionAnimationKeys,
                 ""
         );
-    }
-
-    private static void queueForcedRefreshKeys(Set<String> refreshKeys) {
-        if (!WynnDialogueDisplayModeSupport.shouldQueueForcedRefreshImmediately(
-                getDialogueConfig(),
-                resolveSharedKeybindingMode(),
-                hasConfiguredRoute()
-        )) {
-            return;
-        }
-        for (String refreshKey : refreshKeys) {
-            cache().lookupOrQueue(refreshKey);
-        }
     }
 
     private static boolean hasPendingForcedRefresh(DialogueCandidate candidate) {

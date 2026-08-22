@@ -38,17 +38,6 @@ final class WynnDialogueDisplayModeSupport {
         return sharedMode != WynnCraftConfig.KeybindingMode.HOLD_TO_TRANSLATE || isKeyPressed;
     }
 
-    static boolean shouldQueueForcedRefreshImmediately(
-            WynnCraftConfig.NpcDialogueConfig config,
-            WynnCraftConfig.KeybindingMode sharedMode,
-            boolean hasConfiguredRoute
-    ) {
-        return hasConfiguredRoute
-                && config != null
-                && config.enabled
-                && sharedMode != null;
-    }
-
     static boolean shouldResolvePresentation(
             boolean shouldRenderTranslated,
             boolean forcedRefreshPending
