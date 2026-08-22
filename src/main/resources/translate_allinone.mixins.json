@@ -2,7 +2,7 @@
   "required": true,
   "minVersion": "0.8",
   "refmap": "translate_allinone.refmap.json",
-  "package": "com.cedarxuesong.translate_allinone.mixin",
+  "package": "com.alexeys.translate_allinone.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
   ],

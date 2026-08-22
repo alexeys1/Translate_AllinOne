@@ -1,0 +1,234 @@
+package com.alexeys.translate_allinone.gui.configui.sections;
+
+import com.alexeys.translate_allinone.gui.configui.support.ProviderProfileSupport;
+import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
+import com.alexeys.translate_allinone.utils.config.pojos.ProviderManagerConfig;
+import net.minecraft.client.gui.widget.TextFieldWidget;
+import net.minecraft.text.Text;
+
+import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
+
+public final class ProviderManagerSectionSupport {
+    private static final int CONTENT_TOP_INSET = 16;
+    private static final int COLUMN_GAP = 16;
+    private static final int STACKED_SECTION_GAP = 34;
+    private static final int MIN_CONTENT_HEIGHT = 24;
+    private static final int GROUP_PADDING_TOP = 18;
+    private static final int GROUP_PADDING_BOTTOM = 8;
+    private static final int GROUP_PADDING_SIDE = 6;
+    private static final int STACKED_LAYOUT_BREAKPOINT = 720;
+
+    private ProviderManagerSectionSupport() {
+    }
+
+    public static RenderResult render(
+            ProviderManagerConfig providerManager,
+            int viewportHeight,
+            int x,
+            int y,
+            int width,
+            String providerSearchQuery,
+            String selectedProviderId,
+            int selectedProviderIndex,
+            boolean providerApiKeyVisible,
+            ProviderListSectionSupport.Style providerListStyle,
+            ProviderDetailSectionSupport.Style providerDetailStyle,
+            Translator translator,
+            ToggleAdder toggleAdder,
+            ProviderDetailSectionSupport.GroupBoxAdder groupBoxAdder,
+            ProviderDetailSectionSupport.ProviderTypeLabelProvider providerTypeLabelProvider,
+            ProviderListSectionSupport.ActionBlockAdder listActionBlockAdder,
+            ProviderListSectionSupport.TextFieldAdder listTextFieldAdder,
+            Consumer<String> onSearchChanged,
+            Consumer<String> onProviderSelected,
+            Runnable onOpenAddProvider,
+            ProviderDetailSectionSupport.ActionBlockAdder detailActionBlockAdder,
+            ProviderDetailSectionSupport.TextFieldAdder detailTextFieldAdder,
+            Consumer<ApiProviderProfile> onToggleProviderEnabled,
+            Consumer<ApiProviderProfile> onDeleteProvider,
+            Runnable onToggleApiKeyVisible,
+            Consumer<ApiProviderProfile> onTestProviderConnection,
+            BiConsumer<ApiProviderProfile, String> onSetDefaultModel,
+            BiConsumer<ApiProviderProfile, String> onOpenModelSettings,
+            BiConsumer<ApiProviderProfile, String> onRemoveModel,
+            Consumer<ApiProviderProfile> onAddModel,
+            Consumer<ApiProviderProfile> onOpenPromptEditor,
+            Consumer<Boolean> onToggleTranslationEnabled
+    ) {
+        int workspaceHeight = Math.max(120, viewportHeight - 12);
+        int contentY = y + CONTENT_TOP_INSET;
+        int contentHeight = Math.max(120, workspaceHeight - CONTENT_TOP_INSET);
+        boolean stackedLayout = width < STACKED_LAYOUT_BREAKPOINT;
+
+        int globalTranslationStartY = contentY;
+        toggleAdder.add(
+                x,
+                contentY,
+                width,
+                translator.t("label.global_translation"),
+                providerManager::isTranslationEnabled,
+                onToggleTranslationEnabled,
+                translator.t("desc.global_translation")
+        );
+        addGroupBox(
+                groupBoxAdder,
+                translator.t("group.providers.global"),
+                x,
+                width,
+                globalTranslationStartY,
+                globalTranslationStartY + MIN_CONTENT_HEIGHT
+        );
+        contentY = globalTranslationStartY + MIN_CONTENT_HEIGHT + STACKED_SECTION_GAP;
+
+        ProviderProfileSupport.SelectedProvider selected = ProviderProfileSupport.resolveSelectedProvider(
+                providerManager,
+                selectedProviderId,
+                selectedProviderIndex
+        );
+
+        if (stackedLayout) {
+            ProviderListSectionSupport.RenderResult listResult = ProviderListSectionSupport.render(
+                    providerManager,
+                    x,
+                    contentY,
+                    width,
+                    providerSearchQuery,
+                    selectedProviderId,
+                    translator::t,
+                    listActionBlockAdder,
+                    listTextFieldAdder,
+                    onSearchChanged,
+                    onProviderSelected,
+                    onOpenAddProvider,
+                    providerListStyle
+            );
+
+            int listContentBottom = listResult.contentBottomY();
+            addGroupBox(
+                    groupBoxAdder,
+                    translator.t("group.providers.list"),
+                    x,
+                    width,
+                    contentY,
+                    listContentBottom
+            );
+
+            int detailY = listContentBottom + STACKED_SECTION_GAP;
+            int detailContentBottom = ProviderDetailSectionSupport.render(
+                    selected.profile(),
+                    x,
+                    detailY,
+                    width,
+                    contentHeight,
+                    providerApiKeyVisible,
+                    translator::t,
+                    groupBoxAdder,
+                    providerTypeLabelProvider,
+                    detailActionBlockAdder,
+                    detailTextFieldAdder,
+                    onToggleProviderEnabled,
+                    onDeleteProvider,
+                    onToggleApiKeyVisible,
+                    onTestProviderConnection,
+                    onSetDefaultModel,
+                    onOpenModelSettings,
+                    onRemoveModel,
+                    onAddModel,
+                    onOpenPromptEditor,
+                    providerDetailStyle
+            );
+
+            int totalContentBottom = Math.max(listContentBottom, detailContentBottom);
+            return new RenderResult(listResult.providerSearchField(), selected.selectedProviderId(), totalContentBottom);
+        }
+
+        int listWidth = Math.max(220, Math.min(300, width / 3));
+        int detailX = x + listWidth + COLUMN_GAP;
+        int detailWidth = Math.max(260, width - listWidth - COLUMN_GAP);
+
+        ProviderListSectionSupport.RenderResult listResult = ProviderListSectionSupport.render(
+                providerManager,
+                x,
+                contentY,
+                listWidth,
+                providerSearchQuery,
+                selectedProviderId,
+                translator::t,
+                listActionBlockAdder,
+                listTextFieldAdder,
+                onSearchChanged,
+                onProviderSelected,
+                onOpenAddProvider,
+                providerListStyle
+        );
+
+        int leftContentBottom = Math.max(contentY + contentHeight, listResult.contentBottomY());
+
+        addGroupBox(
+                groupBoxAdder,
+                translator.t("group.providers.list"),
+                x,
+                listWidth,
+                contentY,
+                leftContentBottom
+        );
+
+        int detailContentBottom = ProviderDetailSectionSupport.render(
+                selected.profile(),
+                detailX,
+                contentY,
+                detailWidth,
+                contentHeight,
+                providerApiKeyVisible,
+                translator::t,
+                groupBoxAdder,
+                providerTypeLabelProvider,
+                detailActionBlockAdder,
+                detailTextFieldAdder,
+                onToggleProviderEnabled,
+                onDeleteProvider,
+                onToggleApiKeyVisible,
+                onTestProviderConnection,
+                onSetDefaultModel,
+                onOpenModelSettings,
+                onRemoveModel,
+                onAddModel,
+                onOpenPromptEditor,
+                providerDetailStyle
+        );
+
+        int totalContentBottom = Math.max(leftContentBottom, Math.max(contentY + contentHeight, detailContentBottom));
+        return new RenderResult(listResult.providerSearchField(), selected.selectedProviderId(), totalContentBottom);
+    }
+
+    private static void addGroupBox(
+            ProviderDetailSectionSupport.GroupBoxAdder groupBoxAdder,
+            Text title,
+            int x,
+            int width,
+            int contentStartY,
+            int contentEndY
+    ) {
+        int contentBottom = Math.max(contentStartY + MIN_CONTENT_HEIGHT, contentEndY);
+        int groupX = x - GROUP_PADDING_SIDE;
+        int groupY = contentStartY - GROUP_PADDING_TOP;
+        int groupWidth = width + GROUP_PADDING_SIDE * 2;
+        int groupHeight = (contentBottom - contentStartY) + GROUP_PADDING_TOP + GROUP_PADDING_BOTTOM;
+        groupBoxAdder.add(groupX, groupY, groupWidth, groupHeight, title);
+    }
+
+    @FunctionalInterface
+    public interface Translator {
+        Text t(String key, Object... args);
+    }
+
+    @FunctionalInterface
+    public interface ToggleAdder {
+        void add(int x, int y, int width, Text label, BooleanSupplier getter, Consumer<Boolean> setter, Text tooltip);
+    }
+
+    public record RenderResult(TextFieldWidget providerSearchField, String selectedProviderId, int contentBottomY) {
+    }
+}

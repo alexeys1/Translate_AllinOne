@@ -1,0 +1,124 @@
+package com.alexeys.translate_allinone.gui.configui.render;
+
+import com.alexeys.translate_allinone.gui.configui.controls.ActionBlock;
+import com.alexeys.translate_allinone.gui.configui.controls.CheckboxBlock;
+import com.alexeys.translate_allinone.gui.configui.controls.GroupBox;
+import com.alexeys.translate_allinone.gui.configui.controls.IntSliderBlock;
+import com.alexeys.translate_allinone.gui.configui.controls.StaticTextRow;
+import net.minecraft.client.font.TextRenderer;
+import net.minecraft.client.gui.DrawContext;
+import net.minecraft.text.Text;
+
+import java.util.List;
+
+import static com.alexeys.translate_allinone.gui.configui.render.ConfigUiDraw.drawOutline;
+
+public final class ConfigUiControlRenderer {
+    private ConfigUiControlRenderer() {
+    }
+
+    public static void drawActionBlocks(
+            DrawContext context,
+            TextRenderer textRenderer,
+            List<ActionBlock> blocks,
+            int mouseX,
+            int mouseY,
+            int borderColor
+    ) {
+        for (ActionBlock block : blocks) {
+            boolean enabled = block.enabled();
+            boolean hovered = enabled && block.contains(mouseX, mouseY);
+            int background = hovered ? block.hoverColor() : block.color();
+            int textColor = enabled ? block.textColor() : (block.textColor() & 0x00FFFFFF) | 0x70000000;
+            if (!enabled) {
+                background = (background & 0x00FFFFFF) | 0x70000000;
+            }
+            context.fill(block.x(), block.y(), block.x() + block.width(), block.y() + block.height(), background);
+            drawOutline(context, block.x(), block.y(), block.width(), block.height(), borderColor);
+
+            Text label = trimText(textRenderer, block.label(), Math.max(0, block.width() - 12));
+            int textY = block.y() + 6;
+            int textX = block.centered()
+                    ? block.x() + (block.width() - textRenderer.getWidth(label)) / 2
+                    : block.x() + 6;
+            context.drawText(textRenderer, label, textX, textY, textColor, false);
+        }
+    }
+
+    public static void drawSliderBlocks(DrawContext context, List<IntSliderBlock> sliders, int mouseX, int mouseY) {
+        for (IntSliderBlock slider : sliders) {
+            slider.render(context, mouseX, mouseY);
+        }
+    }
+
+    public static void drawGroupBoxes(DrawContext context, TextRenderer textRenderer, List<GroupBox> boxes) {
+        for (GroupBox box : boxes) {
+            if (box.width() <= 0 || box.height() <= 0) {
+                continue;
+            }
+
+            GroupBox.Style style = box.style();
+            context.fill(box.x(), box.y(), box.x() + box.width(), box.y() + box.height(), style.backgroundColor());
+            drawOutline(context, box.x(), box.y(), box.width(), box.height(), style.borderColor());
+
+            Text title = box.title();
+            if (title == null || title.getString().isBlank()) {
+                continue;
+            }
+
+            int titleX = box.x() + 10;
+            int titleY = box.y() + 5;
+            int titleWidth = textRenderer.getWidth(title);
+            context.fill(titleX - 3, titleY - 1, titleX + titleWidth + 3, titleY + 9, style.titleBackgroundColor());
+            context.drawText(textRenderer, title, titleX, titleY, style.titleColor(), false);
+        }
+    }
+
+    public static void drawCheckboxBlocks(
+            DrawContext context,
+            TextRenderer textRenderer,
+            List<CheckboxBlock> blocks,
+            int mouseX,
+            int mouseY
+    ) {
+        for (CheckboxBlock block : blocks) {
+            block.render(context, textRenderer, mouseX, mouseY);
+        }
+    }
+
+    public static void drawStaticTextRows(DrawContext context, TextRenderer textRenderer, List<StaticTextRow> rows) {
+        for (StaticTextRow row : rows) {
+            int labelX = row.x() + 6;
+            int valueX = row.x() + row.labelWidth() + 6;
+            int textY = row.y() + 6;
+
+            int labelMaxWidth = Math.max(0, row.labelWidth() - 12);
+            int valueMaxWidth = Math.max(0, row.width() - row.labelWidth() - 12);
+
+            Text label = trimText(textRenderer, row.label(), labelMaxWidth);
+            Text value = trimText(textRenderer, row.value(), valueMaxWidth);
+
+            context.drawText(textRenderer, label, labelX, textY, row.labelColor(), false);
+            context.drawText(textRenderer, value, valueX, textY, row.valueColor(), false);
+        }
+    }
+
+    private static Text trimText(TextRenderer textRenderer, Text text, int maxWidth) {
+        if (text == null || maxWidth <= 0) {
+            return Text.empty();
+        }
+
+        String content = text.getString();
+        if (textRenderer.getWidth(content) <= maxWidth) {
+            return text;
+        }
+
+        int ellipsisWidth = textRenderer.getWidth("...");
+        if (ellipsisWidth >= maxWidth) {
+            return Text.literal(textRenderer.trimToWidth(content, maxWidth));
+        }
+
+        String trimmed = textRenderer.trimToWidth(content, maxWidth - ellipsisWidth);
+        return Text.literal(trimmed + "...");
+    }
+}
