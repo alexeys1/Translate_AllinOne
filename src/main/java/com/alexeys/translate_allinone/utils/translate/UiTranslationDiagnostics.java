@@ -4,17 +4,10 @@ import com.alexeys.translate_allinone.Translate_AllinOne;
 import com.alexeys.translate_allinone.utils.config.ModConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.OtherTranslationsConfig;
 
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
 
 final class UiTranslationDiagnostics {
-    private static final int EVENT_LIMIT = 2048;
-    private static final int PREVIEW_LIMIT = 160;
-    private static final Set<String> LOGGED_SCREENS = boundedSet();
-    private static final Set<String> LOGGED_TEXT_EVENTS = boundedSet();
+    private static final UiTranslationDiagnosticsCore CORE = new UiTranslationDiagnosticsCore();
 
     private UiTranslationDiagnostics() {
     }
@@ -26,13 +19,13 @@ final class UiTranslationDiagnostics {
         String resolvedClassName = className == null ? "" : className;
         String modId = adapter == null ? "unmatched" : adapter.modId();
         String backend = adapter == null ? "none" : adapter.backend().name().toLowerCase(Locale.ROOT);
-        String key = resolvedClassName + '\u0000' + modId + '\u0000' + backend;
-        if (LOGGED_SCREENS.add(key)) {
+        UiTranslationDiagnosticsCore.ScreenEvent event = CORE.recordScreen(resolvedClassName, modId, backend);
+        if (event != null) {
             Translate_AllinOne.LOGGER.info(
                     "[ScreenTranslate] screen class={} mod={} backend={}",
-                    resolvedClassName,
-                    modId,
-                    backend
+                    event.className(),
+                    event.modId(),
+                    event.backend()
             );
         }
     }
@@ -47,33 +40,32 @@ final class UiTranslationDiagnostics {
         if (!isEnabled() || adapter == null) {
             return;
         }
-        String reason = decision == null || decision.reason() == null
-                ? "none"
-                : decision.reason().name().toLowerCase(Locale.ROOT);
-        String preview = decision != null && decision.reason() == UiTextFilter.Reason.USER_INPUT
-                ? "<user-input>"
-                : preview(source);
-        String roleName = role == null ? "option" : role.wireName();
-        String statusName = status == null ? "unknown" : status.name().toLowerCase(Locale.ROOT);
-        String key = adapter.screenId() + '\u0000' + roleName + '\u0000' + reason + '\u0000'
-                + statusName + '\u0000' + preview;
-        if (LOGGED_TEXT_EVENTS.add(key)) {
+        String backend = adapter.backend().name().toLowerCase(Locale.ROOT);
+        UiTranslationDiagnosticsCore.TextEvent event = CORE.recordText(
+                adapter.modId(),
+                adapter.screenId(),
+                backend,
+                role,
+                decision,
+                status,
+                source
+        );
+        if (event != null) {
             Translate_AllinOne.LOGGER.info(
                     "[ScreenTranslate] text mod={} screen={} backend={} role={} reason={} status={} source={}",
-                    adapter.modId(),
-                    adapter.screenId(),
-                    adapter.backend().name().toLowerCase(Locale.ROOT),
-                    roleName,
-                    reason,
-                    statusName,
-                    preview
+                    event.modId(),
+                    event.screenId(),
+                    event.backend(),
+                    event.role(),
+                    event.reason(),
+                    event.status(),
+                    event.preview()
             );
         }
     }
 
     static void reset() {
-        LOGGED_SCREENS.clear();
-        LOGGED_TEXT_EVENTS.clear();
+        CORE.reset();
     }
 
     private static boolean isEnabled() {
@@ -86,25 +78,5 @@ final class UiTranslationDiagnostics {
         } catch (RuntimeException error) {
             return false;
         }
-    }
-
-    private static String preview(String source) {
-        if (source == null || source.isBlank()) {
-            return "<empty>";
-        }
-        String normalized = source.replaceAll("\\s+", " ").trim();
-        return normalized.length() <= PREVIEW_LIMIT
-                ? normalized
-                : normalized.substring(0, PREVIEW_LIMIT) + "…";
-    }
-
-    private static Set<String> boundedSet() {
-        Map<String, Boolean> values = new LinkedHashMap<>(256, 0.75f, true) {
-            @Override
-            protected boolean removeEldestEntry(Map.Entry<String, Boolean> eldest) {
-                return size() > EVENT_LIMIT;
-            }
-        };
-        return Collections.synchronizedSet(Collections.newSetFromMap(values));
     }
 }
