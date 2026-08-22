@@ -771,4 +771,4 @@ public class TemplateProcessor {
     private static boolean isWynnInlineSpacerGlyphCodePoint(int codePoint) {
         return codePoint >= WYNN_INLINE_SPACER_START && codePoint <= WYNN_INLINE_SPACER_END;
     }
-} 
+}
