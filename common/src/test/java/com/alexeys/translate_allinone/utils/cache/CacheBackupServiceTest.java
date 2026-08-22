@@ -1,6 +1,6 @@
-package com.cedarxuesong.translate_allinone.utils.cache;
+package com.alexeys.translate_allinone.utils.cache;
 
-import com.cedarxuesong.translate_allinone.utils.config.pojos.CacheBackupConfig;
+import com.alexeys.translate_allinone.utils.config.pojos.CacheBackupConfig;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

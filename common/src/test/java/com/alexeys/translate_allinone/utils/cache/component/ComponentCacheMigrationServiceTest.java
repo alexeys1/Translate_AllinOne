@@ -1,4 +1,4 @@
-package com.cedarxuesong.translate_allinone.utils.cache.component;
+package com.alexeys.translate_allinone.utils.cache.component;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
