@@ -24,6 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -42,6 +43,7 @@ import java.util.stream.Collectors;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.multiplayer.chat.GuiMessage;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.components.ChatComponent;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
@@ -64,6 +66,12 @@ public class ChatOutputTranslateManager {
     private static int currentConcurrentRequests = -1;
     private static final int MAX_LINE_LOCATE_RETRIES = 4;
     private static final long LINE_LOCATE_RETRY_DELAY_MS = 40L;
+    private static final int SPLIT_LINE_COUNT_CACHE_CAP = 512;
+    private static final long STREAMING_UPDATE_INTERVAL_MS = 100L;
+    private static final Map<GuiMessage, Integer> splitLineCountCache = new IdentityHashMap<>();
+    private static Font cachedSplitFont;
+    private static int cachedSplitLineWidth = Integer.MIN_VALUE;
+    private static final Map<UUID, Long> streamingUpdateLastApplied = new ConcurrentHashMap<>();
     private static final long ROUTE_ERROR_DISPLAY_MS = 2_000L;
     private static final String TRANSLATION_ERROR_KEY = "text.translate_allinone.chat.output_translation_error";
     private static final String NO_ROUTED_MODEL_ERROR_KEY = "text.translate_allinone.translation.error.no_routed_model";
@@ -211,63 +219,17 @@ public class ChatOutputTranslateManager {
 
         updateExecutorServiceIfNeeded();
 
-        ChatTranslateConfig.ChatOutputTranslateConfig chatOutputConfig = Translate_AllinOne.getConfig().chatTranslate.output;
-        boolean skyblockNpcMessage = isSkyblockNpcMessage(originalMessage);
-        PreparedChatTranslation preparedTranslation = prepareTranslationPayload(originalMessage);
-        String chatOutputCacheKey = buildChatOutputCacheKey(
-                chatOutputConfig.target_language,
-                preparedTranslation.textToTranslate()
-        );
-        String skyblockCacheKey = !skyblockNpcMessage
-                ? null
-                : buildSkyblockNpcCacheKey(chatOutputConfig.target_language, preparedTranslation.textToTranslate());
-        if (forceRefresh) {
-            if (chatOutputCacheKey != null) {
-                ChatOutputTranslationCache.getInstance().forceRefresh(List.of(chatOutputCacheKey));
-            }
-            if (skyblockCacheKey != null) {
-                SkyblockNpcTranslationCache.getInstance().forceRefresh(List.of(skyblockCacheKey));
-            }
-        }
-        LookupResult chatOutputCacheLookup = chatOutputCacheKey == null
-                ? null
-                : ChatOutputTranslationCache.getInstance().peek(chatOutputCacheKey);
-        LookupResult skyblockCacheLookup = skyblockCacheKey == null
-                ? null
-                : SkyblockNpcTranslationCache.getInstance().peek(skyblockCacheKey);
-        ApiProviderProfile providerProfile = ProviderRouteResolver.resolve(
-                Translate_AllinOne.getConfig(),
-                ProviderRouteResolver.Route.CHAT_OUTPUT
-        );
-        boolean hasCachedTranslation = (skyblockCacheLookup != null
-                && skyblockCacheLookup.status() == TranslationStatus.TRANSLATED)
-                || (chatOutputCacheLookup != null
-                && chatOutputCacheLookup.status() == TranslationStatus.TRANSLATED);
-        if (providerProfile == null && !hasCachedTranslation) {
-            LOGGER.warn("No routed model selected for chat output translation; showing temporary error for messageId={}", messageId);
-            showTemporaryRouteError(messageId, chatHudAccessor, messages, lineIndex, targetLine);
-            lineLocateRetryCounts.remove(messageId);
-            return;
-        }
-
         Component placeholderText = AnimationManager.getAnimatedStyledText(originalMessage);
-
         GuiMessage newLine = new GuiMessage(targetLine.addedTime(), placeholderText, targetLine.signature(), targetLine.source(), targetLine.tag());
-        int scrolledLines = chatHudAccessor.getScrolledLines();
         messages.set(lineIndex, newLine);
         activeTranslationLines.put(messageId, newLine);
         pendingAnimationSources.put(messageId, originalMessage);
         long requestGeneration = translationGeneration.incrementAndGet();
         translationGenerations.put(messageId, requestGeneration);
-        chatHudAccessor.invokeRefresh();
-        chatHudAccessor.setScrolledLines(scrolledLines);
+        updateVisibleChatLine(client, chatHudAccessor, messages, lineIndex, newLine);
 
-        final String finalChatOutputCacheKey = chatOutputCacheKey;
-        final LookupResult finalChatOutputCacheLookup = chatOutputCacheLookup;
-        final String finalSkyblockCacheKey = skyblockCacheKey;
-        final LookupResult finalSkyblockCacheLookup = skyblockCacheLookup;
-        final PreparedChatTranslation finalPreparedTranslation = preparedTranslation;
         final long finalRequestGeneration = requestGeneration;
+        final boolean finalForceRefresh = forceRefresh;
         translationExecutor.submit(() -> {
             String requestContext = "route=chat_output,messageId=" + messageId;
             long watchdogRequestId = 0L;
@@ -275,41 +237,69 @@ public class ChatOutputTranslateManager {
                 if (!isTranslationActive(messageId, finalRequestGeneration)) {
                     return;
                 }
-                if (finalSkyblockCacheLookup != null
-                        && finalSkyblockCacheLookup.status() == TranslationStatus.TRANSLATED
-                        && finalPreparedTranslation != null) {
-                    String cachedTranslation = finalSkyblockCacheLookup.translation();
-                    Component finalStyledText = rebuildTranslatedText(cachedTranslation, finalPreparedTranslation);
+                ChatTranslateConfig.ChatOutputTranslateConfig chatOutputConfig = Translate_AllinOne.getConfig().chatTranslate.output;
+                boolean skyblockNpcMessage = isSkyblockNpcMessage(originalMessage);
+                PreparedChatTranslation preparedTranslation = prepareTranslationPayload(originalMessage);
+                String chatOutputCacheKey = buildChatOutputCacheKey(
+                        chatOutputConfig.target_language,
+                        preparedTranslation.textToTranslate()
+                );
+                String skyblockCacheKey = !skyblockNpcMessage
+                        ? null
+                        : buildSkyblockNpcCacheKey(chatOutputConfig.target_language, preparedTranslation.textToTranslate());
+                if (finalForceRefresh) {
+                    if (chatOutputCacheKey != null) {
+                        ChatOutputTranslationCache.getInstance().forceRefresh(List.of(chatOutputCacheKey));
+                    }
+                    if (skyblockCacheKey != null) {
+                        SkyblockNpcTranslationCache.getInstance().forceRefresh(List.of(skyblockCacheKey));
+                    }
+                }
+                LookupResult chatOutputCacheLookup = chatOutputCacheKey == null
+                        ? null
+                        : ChatOutputTranslationCache.getInstance().peek(chatOutputCacheKey);
+                LookupResult skyblockCacheLookup = skyblockCacheKey == null
+                        ? null
+                        : SkyblockNpcTranslationCache.getInstance().peek(skyblockCacheKey);
+                ApiProviderProfile providerProfile = ProviderRouteResolver.resolve(
+                        Translate_AllinOne.getConfig(),
+                        ProviderRouteResolver.Route.CHAT_OUTPUT
+                );
+
+                if (skyblockCacheLookup != null
+                        && skyblockCacheLookup.status() == TranslationStatus.TRANSLATED) {
+                    String cachedTranslation = skyblockCacheLookup.translation();
+                    Component finalStyledText = rebuildTranslatedText(cachedTranslation, preparedTranslation);
                     logReflowResult(
                             messageId,
                             false,
                             cachedTranslation,
                             cachedTranslation,
                             finalStyledText,
-                            finalPreparedTranslation.styleMap()
+                            preparedTranslation.styleMap()
                     );
                     updateChatLineWithFinalText(messageId, finalRequestGeneration, finalStyledText);
                     return;
                 }
 
-                if (finalChatOutputCacheLookup != null
-                        && finalChatOutputCacheLookup.status() == TranslationStatus.TRANSLATED
-                        && finalPreparedTranslation != null) {
-                    String cachedTranslation = finalChatOutputCacheLookup.translation();
-                    Component finalStyledText = rebuildTranslatedText(cachedTranslation, finalPreparedTranslation);
+                if (chatOutputCacheLookup != null
+                        && chatOutputCacheLookup.status() == TranslationStatus.TRANSLATED) {
+                    String cachedTranslation = chatOutputCacheLookup.translation();
+                    Component finalStyledText = rebuildTranslatedText(cachedTranslation, preparedTranslation);
                     logReflowResult(
                             messageId,
                             false,
                             cachedTranslation,
                             cachedTranslation,
                             finalStyledText,
-                            finalPreparedTranslation.styleMap()
+                            preparedTranslation.styleMap()
                     );
                     updateChatLineWithFinalText(messageId, finalRequestGeneration, finalStyledText);
                     return;
                 }
 
                 if (providerProfile == null) {
+                    LOGGER.warn("No routed model selected for chat output translation; showing temporary error for messageId={}", messageId);
                     showTemporaryRouteError(messageId, chatHudAccessor, messages, lineIndex, targetLine);
                     return;
                 }
@@ -317,14 +307,16 @@ public class ChatOutputTranslateManager {
                 ProviderSettings settings = ProviderSettings.fromProviderProfile(providerProfile);
                 LLM llm = new LLM(settings);
 
-                String textToTranslate = finalPreparedTranslation.textToTranslate();
-                Map<Integer, Style> styleMap = finalPreparedTranslation.styleMap();
+                String textToTranslate = preparedTranslation.textToTranslate();
+                Map<Integer, Style> styleMap = preparedTranslation.styleMap();
 
                 List<OpenAIRequest.Message> apiMessages = getMessages(providerProfile, chatOutputConfig.target_language, textToTranslate);
                 requestContext = buildRequestContext(providerProfile, chatOutputConfig.target_language, textToTranslate, apiMessages, chatOutputConfig.streaming_response, messageId);
                 logLlmSubmission(messageId, providerProfile, chatOutputConfig, originalMessage, textToTranslate, styleMap, apiMessages, requestContext);
 
-                LOGGER.info("Starting translation for message ID: {}. Marked text: {}", messageId, textToTranslate);
+                if (shouldLogReflowMapping()) {
+                    LOGGER.info("Starting translation for message ID: {}. Marked text: {}", messageId, textToTranslate);
+                }
                 watchdogRequestId = TranslationQueueWatchdog.requestStarted(
                         "chat_output",
                         List.of(messageId.toString())
@@ -346,13 +338,13 @@ public class ChatOutputTranslateManager {
                                 if (endTagIndex != -1) {
                                     inThinkTag.set(false);
                                     rawResponseBuffer.delete(0, endTagIndex + "</think>".length());
-                                    updateInProgressChatLine(messageId, finalRequestGeneration, Component.literal(visibleContentBuffer.toString().replaceAll("</?s\\d+>", "")));
+                                    scheduleInProgressChatLineUpdate(messageId, finalRequestGeneration, Component.literal(visibleContentBuffer.toString().replaceAll("</?s\\d+>", "")));
                                     continue;
                                 } else {
                                     int startTagIndex = rawResponseBuffer.indexOf("<think>");
                                     if (startTagIndex != -1) {
                                         String thinkContent = rawResponseBuffer.substring(startTagIndex + "<think>".length());
-                                        updateInProgressChatLine(messageId, finalRequestGeneration, Component.literal("Thinking: ").append(thinkContent).withStyle(ChatFormatting.GRAY));
+                                        scheduleInProgressChatLineUpdate(messageId, finalRequestGeneration, Component.literal("Thinking: ").append(thinkContent).withStyle(ChatFormatting.GRAY));
                                     }
                                     break;
                                 }
@@ -361,7 +353,7 @@ public class ChatOutputTranslateManager {
                                 if (startTagIndex != -1) {
                                     String translationPart = rawResponseBuffer.substring(0, startTagIndex);
                                     visibleContentBuffer.append(translationPart);
-                                    updateInProgressChatLine(messageId, finalRequestGeneration, Component.literal(visibleContentBuffer.toString().replaceAll("</?s\\d+>", "")));
+                                    scheduleInProgressChatLineUpdate(messageId, finalRequestGeneration, Component.literal(visibleContentBuffer.toString().replaceAll("</?s\\d+>", "")));
 
                                     rawResponseBuffer.delete(0, startTagIndex);
                                     inThinkTag.set(true);
@@ -369,7 +361,7 @@ public class ChatOutputTranslateManager {
                                 } else {
                                     visibleContentBuffer.append(rawResponseBuffer.toString());
                                     rawResponseBuffer.setLength(0);
-                                    updateInProgressChatLine(messageId, finalRequestGeneration, Component.literal(visibleContentBuffer.toString().replaceAll("</?s\\d+>", "")));
+                                    scheduleInProgressChatLineUpdate(messageId, finalRequestGeneration, Component.literal(visibleContentBuffer.toString().replaceAll("</?s\\d+>", "")));
                                     break;
                                 }
                             }
@@ -387,7 +379,7 @@ public class ChatOutputTranslateManager {
                         return;
                     }
 
-                    Component finalStyledText = rebuildTranslatedText(visibleContentBuffer.toString().stripLeading(), finalPreparedTranslation);
+                    Component finalStyledText = rebuildTranslatedText(visibleContentBuffer.toString().stripLeading(), preparedTranslation);
                     String finalTranslation = visibleContentBuffer.toString().stripLeading();
                     logReflowResult(
                             messageId,
@@ -397,8 +389,11 @@ public class ChatOutputTranslateManager {
                             finalStyledText,
                             styleMap
                     );
-                    cacheSkyblockNpcTranslation(finalSkyblockCacheKey, finalTranslation);
-                    cacheChatOutputTranslation(finalChatOutputCacheKey, finalTranslation);
+                    if (skyblockCacheKey != null) {
+                        cacheSkyblockNpcTranslation(skyblockCacheKey, finalTranslation);
+                    } else {
+                        cacheChatOutputTranslation(chatOutputCacheKey, finalTranslation);
+                    }
                     updateChatLineWithFinalText(messageId, finalRequestGeneration, finalStyledText);
                 } else {
                     String result = llm.getCompletion(apiMessages, requestContext).join();
@@ -412,12 +407,17 @@ public class ChatOutputTranslateManager {
                     if (!isTranslationActive(messageId, finalRequestGeneration)) {
                         return;
                     }
-                    LOGGER.info("Finished translation for message ID: {}. Result: {}", messageId, result);
+                    if (shouldLogReflowMapping()) {
+                        LOGGER.info("Finished translation for message ID: {}. Result: {}", messageId, result);
+                    }
                     final String finalTranslation = result.stripLeading();
-                    Component finalStyledText = rebuildTranslatedText(finalTranslation, finalPreparedTranslation);
+                    Component finalStyledText = rebuildTranslatedText(finalTranslation, preparedTranslation);
                     logReflowResult(messageId, false, result, finalTranslation, finalStyledText, styleMap);
-                    cacheSkyblockNpcTranslation(finalSkyblockCacheKey, finalTranslation);
-                    cacheChatOutputTranslation(finalChatOutputCacheKey, finalTranslation);
+                    if (skyblockCacheKey != null) {
+                        cacheSkyblockNpcTranslation(skyblockCacheKey, finalTranslation);
+                    } else {
+                        cacheChatOutputTranslation(chatOutputCacheKey, finalTranslation);
+                    }
                     updateChatLineWithFinalText(messageId, finalRequestGeneration, finalStyledText);
                 }
             } catch (Exception e) {
@@ -477,6 +477,16 @@ public class ChatOutputTranslateManager {
             chatHudAccessor.setScrolledLines(scrolledLines);
             MessageUtils.markShowingOriginal(messageId);
         });
+    }
+
+    private static void scheduleInProgressChatLineUpdate(UUID messageId, long requestGeneration, Component newContent) {
+        long now = System.currentTimeMillis();
+        Long lastApplied = streamingUpdateLastApplied.get(messageId);
+        if (lastApplied != null && now - lastApplied < STREAMING_UPDATE_INTERVAL_MS) {
+            return;
+        }
+        streamingUpdateLastApplied.put(messageId, now);
+        updateInProgressChatLine(messageId, requestGeneration, newContent);
     }
 
     private static void updateInProgressChatLine(UUID messageId, long requestGeneration, Component newContent) {
@@ -559,6 +569,26 @@ public class ChatOutputTranslateManager {
         }
     }
 
+    private static int splitLineCount(Font font, int lineWidth, GuiMessage message) {
+        synchronized (splitLineCountCache) {
+            if (cachedSplitFont != font || cachedSplitLineWidth != lineWidth) {
+                splitLineCountCache.clear();
+                cachedSplitFont = font;
+                cachedSplitLineWidth = lineWidth;
+            }
+            Integer cached = splitLineCountCache.get(message);
+            if (cached != null) {
+                return cached;
+            }
+            if (splitLineCountCache.size() >= SPLIT_LINE_COUNT_CACHE_CAP) {
+                splitLineCountCache.clear();
+            }
+            int computed = message.splitLines(font, lineWidth).size();
+            splitLineCountCache.put(message, computed);
+            return computed;
+        }
+    }
+
     private static void updateVisibleChatLine(
             Minecraft client,
             ChatHudAccessor chatHudAccessor,
@@ -572,10 +602,11 @@ public class ChatOutputTranslateManager {
         );
         List<GuiMessage.Line> visibleMessages = chatHudAccessor.getTrimmedMessages();
         List<FormattedCharSequence> visibleLines = line.splitLines(client.font, lineWidth);
-        int visibleLineIndex = 0;
-        for (int i = 0; i < lineIndex; i++) {
-            visibleLineIndex += messages.get(i).splitLines(client.font, lineWidth).size();
+        int linesAfter = 0;
+        for (int i = lineIndex + 1; i < messages.size(); i++) {
+            linesAfter += splitLineCount(client.font, lineWidth, messages.get(i));
         }
+        int visibleLineIndex = visibleMessages.size() - linesAfter - visibleLines.size();
 
         for (int i = 0; i < visibleLines.size(); i++) {
             int targetVisibleIndex = visibleLineIndex + visibleLines.size() - 1 - i;
@@ -600,6 +631,7 @@ public class ChatOutputTranslateManager {
         }
         pendingAnimationSources.remove(messageId);
         lineLocateRetryCounts.remove(messageId);
+        streamingUpdateLastApplied.remove(messageId);
         GuiMessage lineToUpdate = activeTranslationLines.remove(messageId);
         translationGenerations.remove(messageId, requestGeneration);
         if (lineToUpdate == null) {
@@ -812,6 +844,7 @@ public class ChatOutputTranslateManager {
         translationGenerations.clear();
         activeTranslationLines.clear();
         pendingAnimationSources.clear();
+        streamingUpdateLastApplied.clear();
         if (pendingLines.isEmpty()) {
             return;
         }
@@ -1149,18 +1182,14 @@ public class ChatOutputTranslateManager {
     }
 
     private static Component muteForSubtitle(Component original) {
-        MutableComponent muted = original.copy();
-        applyMutedStyle(muted);
-        return muted;
-    }
-
-    private static void applyMutedStyle(MutableComponent component) {
-        component.setStyle(component.getStyle().withColor(ChatFormatting.GRAY).withItalic(true));
-        for (Component sibling : component.getSiblings()) {
-            if (sibling instanceof MutableComponent mutableSibling) {
-                applyMutedStyle(mutableSibling);
+        MutableComponent muted = Component.empty();
+        original.visit((style, text) -> {
+            if (!text.isEmpty()) {
+                muted.append(Component.literal(text).setStyle(style.withColor(ChatFormatting.GRAY).withItalic(true)));
             }
-        }
+            return Optional.empty();
+        }, Style.EMPTY);
+        return muted;
     }
 
     private static Component attachOriginalHover(Component translatedMessage, Component originalMessage) {
@@ -1201,10 +1230,36 @@ public class ChatOutputTranslateManager {
                     translate(messageId, original);
                     return true;
                 }
+            } else if (CHAT_RESTORE_ACTION.equalsIgnoreCase(action)) {
+                restoreShownLineAsOriginal(messageId, line, chatHudAccessor, messages);
             }
             return true;
         }
         return false;
+    }
+
+    private static void restoreShownLineAsOriginal(UUID messageId, GuiMessage line, ChatHudAccessor chatHudAccessor, List<GuiMessage> messages) {
+        Component subtitleOriginal = extractSubtitleOriginal(line.content());
+        if (subtitleOriginal == null) {
+            return;
+        }
+        MessageUtils.putTrackedMessage(messageId, subtitleOriginal);
+        MessageUtils.markShowingOriginal(messageId);
+        int scrolledLines = chatHudAccessor.getScrolledLines();
+        int lineIndex = messages.indexOf(line);
+        if (lineIndex == -1) {
+            return;
+        }
+        GuiMessage restoredLine = new GuiMessage(
+                line.addedTime(),
+                buildOriginalMessageWithToggle(messageId, subtitleOriginal),
+                line.signature(),
+                line.source(),
+                line.tag()
+        );
+        messages.set(lineIndex, restoredLine);
+        chatHudAccessor.invokeRefresh();
+        chatHudAccessor.setScrolledLines(scrolledLines);
     }
 
     private static boolean containsToggleCommand(Component content, String commandPrefix) {
@@ -1233,8 +1288,25 @@ public class ChatOutputTranslateManager {
         if (root == null || root.getSiblings().isEmpty()) {
             return null;
         }
+        Component subtitleOriginal = extractSubtitleOriginal(root);
+        if (subtitleOriginal != null) {
+            return subtitleOriginal;
+        }
         Component first = root.getSiblings().get(0);
         return first == null ? null : first.copy();
+    }
+
+    private static Component extractSubtitleOriginal(Component root) {
+        if (root == null || root.getSiblings().isEmpty()) {
+            return null;
+        }
+        Component first = root.getSiblings().get(0);
+        List<Component> parts = first.getSiblings();
+        if (parts.size() < 3 || !"\n".equals(parts.get(1).getString())) {
+            return null;
+        }
+        Component subtitle = parts.get(2);
+        return subtitle == null || subtitle.getString().isEmpty() ? null : subtitle.copy();
     }
 
     @NotNull
