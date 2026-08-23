@@ -1182,18 +1182,14 @@ public class ChatOutputTranslateManager {
     }
 
     private static Component muteForSubtitle(Component original) {
-        MutableComponent muted = original.copy();
-        applyMutedStyle(muted);
-        return muted;
-    }
-
-    private static void applyMutedStyle(MutableComponent component) {
-        component.setStyle(component.getStyle().withColor(ChatFormatting.GRAY).withItalic(true));
-        for (Component sibling : component.getSiblings()) {
-            if (sibling instanceof MutableComponent mutableSibling) {
-                applyMutedStyle(mutableSibling);
+        MutableComponent muted = Component.empty();
+        original.visit((style, text) -> {
+            if (!text.isEmpty()) {
+                muted.append(Component.literal(text).setStyle(style.withColor(ChatFormatting.GRAY).withItalic(true)));
             }
-        }
+            return Optional.empty();
+        }, Style.EMPTY);
+        return muted;
     }
 
     private static Component attachOriginalHover(Component translatedMessage, Component originalMessage) {
