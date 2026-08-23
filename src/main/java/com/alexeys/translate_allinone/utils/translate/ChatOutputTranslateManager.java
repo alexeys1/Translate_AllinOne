@@ -24,6 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -42,6 +43,7 @@ import java.util.stream.Collectors;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.multiplayer.chat.GuiMessage;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.components.ChatComponent;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
@@ -64,6 +66,12 @@ public class ChatOutputTranslateManager {
     private static int currentConcurrentRequests = -1;
     private static final int MAX_LINE_LOCATE_RETRIES = 4;
     private static final long LINE_LOCATE_RETRY_DELAY_MS = 40L;
+    private static final int SPLIT_LINE_COUNT_CACHE_CAP = 512;
+    private static final long STREAMING_UPDATE_INTERVAL_MS = 100L;
+    private static final Map<GuiMessage, Integer> splitLineCountCache = new IdentityHashMap<>();
+    private static Font cachedSplitFont;
+    private static int cachedSplitLineWidth = Integer.MIN_VALUE;
+    private static final Map<UUID, Long> streamingUpdateLastApplied = new ConcurrentHashMap<>();
     private static final long ROUTE_ERROR_DISPLAY_MS = 2_000L;
     private static final String TRANSLATION_ERROR_KEY = "text.translate_allinone.chat.output_translation_error";
     private static final String NO_ROUTED_MODEL_ERROR_KEY = "text.translate_allinone.translation.error.no_routed_model";
@@ -346,13 +354,13 @@ public class ChatOutputTranslateManager {
                                 if (endTagIndex != -1) {
                                     inThinkTag.set(false);
                                     rawResponseBuffer.delete(0, endTagIndex + "</think>".length());
-                                    updateInProgressChatLine(messageId, finalRequestGeneration, Component.literal(visibleContentBuffer.toString().replaceAll("</?s\\d+>", "")));
+                                    scheduleInProgressChatLineUpdate(messageId, finalRequestGeneration, Component.literal(visibleContentBuffer.toString().replaceAll("</?s\\d+>", "")));
                                     continue;
                                 } else {
                                     int startTagIndex = rawResponseBuffer.indexOf("<think>");
                                     if (startTagIndex != -1) {
                                         String thinkContent = rawResponseBuffer.substring(startTagIndex + "<think>".length());
-                                        updateInProgressChatLine(messageId, finalRequestGeneration, Component.literal("Thinking: ").append(thinkContent).withStyle(ChatFormatting.GRAY));
+                                        scheduleInProgressChatLineUpdate(messageId, finalRequestGeneration, Component.literal("Thinking: ").append(thinkContent).withStyle(ChatFormatting.GRAY));
                                     }
                                     break;
                                 }
@@ -361,7 +369,7 @@ public class ChatOutputTranslateManager {
                                 if (startTagIndex != -1) {
                                     String translationPart = rawResponseBuffer.substring(0, startTagIndex);
                                     visibleContentBuffer.append(translationPart);
-                                    updateInProgressChatLine(messageId, finalRequestGeneration, Component.literal(visibleContentBuffer.toString().replaceAll("</?s\\d+>", "")));
+                                    scheduleInProgressChatLineUpdate(messageId, finalRequestGeneration, Component.literal(visibleContentBuffer.toString().replaceAll("</?s\\d+>", "")));
 
                                     rawResponseBuffer.delete(0, startTagIndex);
                                     inThinkTag.set(true);
@@ -369,7 +377,7 @@ public class ChatOutputTranslateManager {
                                 } else {
                                     visibleContentBuffer.append(rawResponseBuffer.toString());
                                     rawResponseBuffer.setLength(0);
-                                    updateInProgressChatLine(messageId, finalRequestGeneration, Component.literal(visibleContentBuffer.toString().replaceAll("</?s\\d+>", "")));
+                                    scheduleInProgressChatLineUpdate(messageId, finalRequestGeneration, Component.literal(visibleContentBuffer.toString().replaceAll("</?s\\d+>", "")));
                                     break;
                                 }
                             }
@@ -479,6 +487,16 @@ public class ChatOutputTranslateManager {
         });
     }
 
+    private static void scheduleInProgressChatLineUpdate(UUID messageId, long requestGeneration, Component newContent) {
+        long now = System.currentTimeMillis();
+        Long lastApplied = streamingUpdateLastApplied.get(messageId);
+        if (lastApplied != null && now - lastApplied < STREAMING_UPDATE_INTERVAL_MS) {
+            return;
+        }
+        streamingUpdateLastApplied.put(messageId, now);
+        updateInProgressChatLine(messageId, requestGeneration, newContent);
+    }
+
     private static void updateInProgressChatLine(UUID messageId, long requestGeneration, Component newContent) {
         if (!isTranslationActive(messageId, requestGeneration)) {
             return;
@@ -559,6 +577,26 @@ public class ChatOutputTranslateManager {
         }
     }
 
+    private static int splitLineCount(Font font, int lineWidth, GuiMessage message) {
+        synchronized (splitLineCountCache) {
+            if (cachedSplitFont != font || cachedSplitLineWidth != lineWidth) {
+                splitLineCountCache.clear();
+                cachedSplitFont = font;
+                cachedSplitLineWidth = lineWidth;
+            }
+            Integer cached = splitLineCountCache.get(message);
+            if (cached != null) {
+                return cached;
+            }
+            if (splitLineCountCache.size() >= SPLIT_LINE_COUNT_CACHE_CAP) {
+                splitLineCountCache.clear();
+            }
+            int computed = message.splitLines(font, lineWidth).size();
+            splitLineCountCache.put(message, computed);
+            return computed;
+        }
+    }
+
     private static void updateVisibleChatLine(
             Minecraft client,
             ChatHudAccessor chatHudAccessor,
@@ -574,7 +612,7 @@ public class ChatOutputTranslateManager {
         List<FormattedCharSequence> visibleLines = line.splitLines(client.font, lineWidth);
         int visibleLineIndex = 0;
         for (int i = 0; i < lineIndex; i++) {
-            visibleLineIndex += messages.get(i).splitLines(client.font, lineWidth).size();
+            visibleLineIndex += splitLineCount(client.font, lineWidth, messages.get(i));
         }
 
         for (int i = 0; i < visibleLines.size(); i++) {
@@ -600,6 +638,7 @@ public class ChatOutputTranslateManager {
         }
         pendingAnimationSources.remove(messageId);
         lineLocateRetryCounts.remove(messageId);
+        streamingUpdateLastApplied.remove(messageId);
         GuiMessage lineToUpdate = activeTranslationLines.remove(messageId);
         translationGenerations.remove(messageId, requestGeneration);
         if (lineToUpdate == null) {
@@ -812,6 +851,7 @@ public class ChatOutputTranslateManager {
         translationGenerations.clear();
         activeTranslationLines.clear();
         pendingAnimationSources.clear();
+        streamingUpdateLastApplied.clear();
         if (pendingLines.isEmpty()) {
             return;
         }
