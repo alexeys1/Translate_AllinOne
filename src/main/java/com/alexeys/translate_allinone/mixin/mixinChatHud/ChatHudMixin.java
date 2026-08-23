@@ -76,8 +76,8 @@ public abstract class ChatHudMixin {
                 return;
             }
             client.execute(() -> {
-                if (client.player != null && client.player.connection != null) {
-                    client.player.connection.sendCommand("translate_allinone translatechatline " + messageId);
+                if (client.player != null) {
+                    ChatOutputTranslateManager.translate(messageId, MessageUtils.getTrackedMessage(messageId));
                 }
             });
         });

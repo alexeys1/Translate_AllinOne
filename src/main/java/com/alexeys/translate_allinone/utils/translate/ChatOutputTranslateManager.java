@@ -389,8 +389,11 @@ public class ChatOutputTranslateManager {
                             finalStyledText,
                             styleMap
                     );
-                    cacheSkyblockNpcTranslation(skyblockCacheKey, finalTranslation);
-                    cacheChatOutputTranslation(chatOutputCacheKey, finalTranslation);
+                    if (skyblockCacheKey != null) {
+                        cacheSkyblockNpcTranslation(skyblockCacheKey, finalTranslation);
+                    } else {
+                        cacheChatOutputTranslation(chatOutputCacheKey, finalTranslation);
+                    }
                     updateChatLineWithFinalText(messageId, finalRequestGeneration, finalStyledText);
                 } else {
                     String result = llm.getCompletion(apiMessages, requestContext).join();
@@ -410,8 +413,11 @@ public class ChatOutputTranslateManager {
                     final String finalTranslation = result.stripLeading();
                     Component finalStyledText = rebuildTranslatedText(finalTranslation, preparedTranslation);
                     logReflowResult(messageId, false, result, finalTranslation, finalStyledText, styleMap);
-                    cacheSkyblockNpcTranslation(skyblockCacheKey, finalTranslation);
-                    cacheChatOutputTranslation(chatOutputCacheKey, finalTranslation);
+                    if (skyblockCacheKey != null) {
+                        cacheSkyblockNpcTranslation(skyblockCacheKey, finalTranslation);
+                    } else {
+                        cacheChatOutputTranslation(chatOutputCacheKey, finalTranslation);
+                    }
                     updateChatLineWithFinalText(messageId, finalRequestGeneration, finalStyledText);
                 }
             } catch (Exception e) {
