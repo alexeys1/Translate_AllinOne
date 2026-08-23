@@ -1230,10 +1230,36 @@ public class ChatOutputTranslateManager {
                     translate(messageId, original);
                     return true;
                 }
+            } else if (CHAT_RESTORE_ACTION.equalsIgnoreCase(action)) {
+                restoreShownLineAsOriginal(messageId, line, chatHudAccessor, messages);
             }
             return true;
         }
         return false;
+    }
+
+    private static void restoreShownLineAsOriginal(UUID messageId, GuiMessage line, ChatHudAccessor chatHudAccessor, List<GuiMessage> messages) {
+        Component subtitleOriginal = extractSubtitleOriginal(line.content());
+        if (subtitleOriginal == null) {
+            return;
+        }
+        MessageUtils.putTrackedMessage(messageId, subtitleOriginal);
+        MessageUtils.markShowingOriginal(messageId);
+        int scrolledLines = chatHudAccessor.getScrolledLines();
+        int lineIndex = messages.indexOf(line);
+        if (lineIndex == -1) {
+            return;
+        }
+        GuiMessage restoredLine = new GuiMessage(
+                line.addedTime(),
+                buildOriginalMessageWithToggle(messageId, subtitleOriginal),
+                line.signature(),
+                line.source(),
+                line.tag()
+        );
+        messages.set(lineIndex, restoredLine);
+        chatHudAccessor.invokeRefresh();
+        chatHudAccessor.setScrolledLines(scrolledLines);
     }
 
     private static boolean containsToggleCommand(Component content, String commandPrefix) {
@@ -1262,8 +1288,25 @@ public class ChatOutputTranslateManager {
         if (root == null || root.getSiblings().isEmpty()) {
             return null;
         }
+        Component subtitleOriginal = extractSubtitleOriginal(root);
+        if (subtitleOriginal != null) {
+            return subtitleOriginal;
+        }
         Component first = root.getSiblings().get(0);
         return first == null ? null : first.copy();
+    }
+
+    private static Component extractSubtitleOriginal(Component root) {
+        if (root == null || root.getSiblings().isEmpty()) {
+            return null;
+        }
+        Component first = root.getSiblings().get(0);
+        List<Component> parts = first.getSiblings();
+        if (parts.size() < 3 || !"\n".equals(parts.get(1).getString())) {
+            return null;
+        }
+        Component subtitle = parts.get(2);
+        return subtitle == null || subtitle.getString().isEmpty() ? null : subtitle.copy();
     }
 
     @NotNull
