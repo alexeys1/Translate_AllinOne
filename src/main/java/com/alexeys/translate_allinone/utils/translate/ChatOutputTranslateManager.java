@@ -100,7 +100,16 @@ public class ChatOutputTranslateManager {
     }
 
     public static Component buildTranslatedMessageWithToggle(UUID messageId, Component translatedMessage) {
-        return appendToggleButton(messageId, translatedMessage, CHAT_RESTORE_ACTION, "text.translate_allinone.restore_button_hover");
+        return buildTranslatedMessageWithToggle(messageId, translatedMessage, null);
+    }
+
+    public static Component buildTranslatedMessageWithToggle(UUID messageId, Component translatedMessage, Component originalMessage) {
+        return appendToggleButton(
+                messageId,
+                applyOriginalDisplayMode(translatedMessage, originalMessage),
+                CHAT_RESTORE_ACTION,
+                "text.translate_allinone.restore_button_hover"
+        );
     }
 
     public static void logInterceptedMessage(UUID messageId, Component originalMessage, String plainText, boolean autoTranslate) {
@@ -612,7 +621,7 @@ public class ChatOutputTranslateManager {
             int lineIndex = messages.indexOf(lineToUpdate);
 
             if (lineIndex != -1) {
-                Component finalLineContent = buildTranslatedMessageWithToggle(messageId, finalContent);
+                Component finalLineContent = buildTranslatedMessageWithToggle(messageId, finalContent, MessageUtils.getTrackedMessage(messageId));
                 GuiMessage newLine = new GuiMessage(lineToUpdate.addedTime(), finalLineContent, lineToUpdate.signature(), lineToUpdate.source(), lineToUpdate.tag());
                 messages.set(lineIndex, newLine);
                 chatHudAccessor.invokeRefresh();
@@ -1101,6 +1110,72 @@ public class ChatOutputTranslateManager {
         toggleButton.setStyle(toggleStyle);
         root.append(toggleButton);
         return root;
+    }
+
+    private static Component applyOriginalDisplayMode(Component translatedMessage, Component originalMessage) {
+        if (translatedMessage == null) {
+            return null;
+        }
+        if (originalMessage == null || originalMessage.getString().isBlank()) {
+            return translatedMessage;
+        }
+        String mode = resolveOriginalDisplayMode();
+        if (ChatTranslateConfig.ChatOutputTranslateConfig.ORIGINAL_DISPLAY_OFF.equals(mode)
+                || isSamePlainText(translatedMessage, originalMessage)) {
+            return translatedMessage;
+        }
+        boolean useSubtitle = ChatTranslateConfig.ChatOutputTranslateConfig.ORIGINAL_DISPLAY_SUBTITLE.equals(mode)
+                && originalMessage.getString().length() <= Translate_AllinOne.getConfig().chatTranslate.output.original_subtitle_max_length;
+        if (useSubtitle) {
+            return buildSubtitleContent(translatedMessage, originalMessage);
+        }
+        return attachOriginalHover(translatedMessage, originalMessage);
+    }
+
+    private static String resolveOriginalDisplayMode() {
+        ChatTranslateConfig.ChatOutputTranslateConfig output = Translate_AllinOne.getConfig().chatTranslate.output;
+        if (output == null || output.original_display_mode == null || output.original_display_mode.isBlank()) {
+            return ChatTranslateConfig.ChatOutputTranslateConfig.DEFAULT_ORIGINAL_DISPLAY_MODE;
+        }
+        return output.original_display_mode;
+    }
+
+    private static Component buildSubtitleContent(Component translatedMessage, Component originalMessage) {
+        MutableComponent root = Component.empty();
+        root.append(translatedMessage.copy());
+        root.append(Component.literal("\n"));
+        root.append(muteForSubtitle(originalMessage));
+        return root;
+    }
+
+    private static Component muteForSubtitle(Component original) {
+        MutableComponent muted = original.copy();
+        applyMutedStyle(muted);
+        return muted;
+    }
+
+    private static void applyMutedStyle(MutableComponent component) {
+        component.setStyle(component.getStyle().withColor(ChatFormatting.GRAY).withItalic(true));
+        for (Component sibling : component.getSiblings()) {
+            if (sibling instanceof MutableComponent mutableSibling) {
+                applyMutedStyle(mutableSibling);
+            }
+        }
+    }
+
+    private static Component attachOriginalHover(Component translatedMessage, Component originalMessage) {
+        MutableComponent copy = translatedMessage.copy();
+        copy.setStyle(copy.getStyle().withHoverEvent(new HoverEvent.ShowText(originalMessage)));
+        return copy;
+    }
+
+    private static boolean isSamePlainText(Component a, Component b) {
+        if (a == null || b == null) {
+            return false;
+        }
+        String left = a.getString().trim();
+        String right = b.getString().trim();
+        return !left.isEmpty() && left.equals(right);
     }
 
     public static boolean handleToggleCommandWithMissingTracking(UUID messageId, String action) {
