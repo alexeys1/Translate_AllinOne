@@ -24,7 +24,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -43,7 +42,6 @@ import java.util.stream.Collectors;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.multiplayer.chat.GuiMessage;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.components.ChatComponent;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
@@ -67,11 +65,8 @@ public class ChatOutputTranslateManager {
     private static int currentConcurrentRequests = -1;
     private static final int MAX_LINE_LOCATE_RETRIES = 4;
     private static final long LINE_LOCATE_RETRY_DELAY_MS = 40L;
-    private static final int SPLIT_LINE_COUNT_CACHE_CAP = 512;
+    private static final int MAX_TRIMMED_LINES = 100;
     private static final long STREAMING_UPDATE_INTERVAL_MS = 100L;
-    private static final Map<GuiMessage, Integer> splitLineCountCache = new IdentityHashMap<>();
-    private static Font cachedSplitFont;
-    private static int cachedSplitLineWidth = Integer.MIN_VALUE;
     private static final Map<UUID, Long> streamingUpdateLastApplied = new ConcurrentHashMap<>();
     private static final long ROUTE_ERROR_DISPLAY_MS = 2_000L;
     private static final String TRANSLATION_ERROR_KEY = "text.translate_allinone.chat.output_translation_error";
@@ -201,36 +196,46 @@ public class ChatOutputTranslateManager {
         ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
         List<GuiMessage> messages = chatHudAccessor.getMessages();
         LineSearchResult searchResult = findTargetLine(messages, lineToLocate);
-
-        if (searchResult == null) {
-            if (scheduleLineLocateRetry(messageId, originalMessage, lineToLocate, forceRefresh)) {
+        GuiMessage targetLine;
+        int lineIndex = -1;
+        if (searchResult != null) {
+            targetLine = searchResult.line();
+            lineIndex = searchResult.lineIndex();
+        } else {
+            targetLine = findTrimmedTargetByCommandPrefix(chatHudAccessor, messageId, CHAT_TRANSLATE_ACTION);
+            if (targetLine == null) {
+                if (scheduleLineLocateRetry(messageId, originalMessage, lineToLocate, forceRefresh)) {
+                    return;
+                }
+                LOGGER.error("Could not find chat line to update for messageId: {} after {} retries", messageId, MAX_LINE_LOCATE_RETRIES);
+                lineLocateRetryCounts.remove(messageId);
+                if (!isLineContentStillPresent(messages, lineToLocate)) {
+                    MessageUtils.removeTrackedMessage(messageId);
+                }
                 return;
             }
-            LOGGER.error("Could not find chat line to update for messageId: {} after {} retries", messageId, MAX_LINE_LOCATE_RETRIES);
-            lineLocateRetryCounts.remove(messageId);
-            if (!isLineContentStillPresent(messages, lineToLocate)) {
-                MessageUtils.removeTrackedMessage(messageId);
-            }
-            return;
+            lineIndex = messages.indexOf(targetLine);
         }
         lineLocateRetryCounts.remove(messageId);
-        int lineIndex = searchResult.lineIndex();
-        GuiMessage targetLine = searchResult.line();
         logChatLineMapping(messageId, "locate_original", lineIndex, targetLine.content());
 
         updateExecutorServiceIfNeeded();
 
         Component placeholderText = AnimationManager.getAnimatedStyledText(originalMessage);
         GuiMessage newLine = new GuiMessage(targetLine.addedTime(), placeholderText, targetLine.signature(), targetLine.source(), targetLine.tag());
-        messages.set(lineIndex, newLine);
+        if (lineIndex != -1) {
+            messages.set(lineIndex, newLine);
+        }
         activeTranslationLines.put(messageId, newLine);
         pendingAnimationSources.put(messageId, originalMessage);
         long requestGeneration = translationGeneration.incrementAndGet();
         translationGenerations.put(messageId, requestGeneration);
-        updateVisibleChatLine(client, chatHudAccessor, messages, lineIndex, newLine);
+        replaceTrimmedLines(chatHudAccessor, targetLine, newLine);
 
         final long finalRequestGeneration = requestGeneration;
         final boolean finalForceRefresh = forceRefresh;
+        final int finalLineIndex = lineIndex;
+        final GuiMessage finalTargetLine = targetLine;
         translationExecutor.submit(() -> {
             String requestContext = "route=chat_output,messageId=" + messageId;
             long watchdogRequestId = 0L;
@@ -301,7 +306,7 @@ public class ChatOutputTranslateManager {
 
                 if (providerProfile == null) {
                     LOGGER.warn("No routed model selected for chat output translation; showing temporary error for messageId={}", messageId);
-                    showTemporaryRouteError(messageId, chatHudAccessor, messages, lineIndex, targetLine);
+                    showTemporaryRouteError(messageId, chatHudAccessor, messages, finalLineIndex, finalTargetLine);
                     return;
                 }
 
@@ -465,17 +470,23 @@ public class ChatOutputTranslateManager {
             ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
             List<GuiMessage> messages = chatHudAccessor.getMessages();
             LineSearchResult searchResult = findTargetLine(messages, translatedMessage);
-            if (searchResult == null) {
-                return;
+            GuiMessage targetLine;
+            if (searchResult != null) {
+                targetLine = searchResult.line();
+            } else {
+                targetLine = findTrimmedTargetByCommandPrefix(chatHudAccessor, messageId, CHAT_RESTORE_ACTION);
+                if (targetLine == null) {
+                    return;
+                }
             }
+            int lineIndex = messages.indexOf(targetLine);
 
-            int scrolledLines = chatHudAccessor.getScrolledLines();
             Component restoredContent = buildOriginalMessageWithToggle(messageId, originalMessage);
-            GuiMessage targetLine = searchResult.line();
             GuiMessage restoredLine = new GuiMessage(targetLine.addedTime(), restoredContent, targetLine.signature(), targetLine.source(), targetLine.tag());
-            messages.set(searchResult.lineIndex(), restoredLine);
-            chatHudAccessor.invokeRefresh();
-            chatHudAccessor.setScrolledLines(scrolledLines);
+            if (lineIndex != -1) {
+                messages.set(lineIndex, restoredLine);
+            }
+            replaceTrimmedLines(chatHudAccessor, targetLine, restoredLine);
             MessageUtils.markShowingOriginal(messageId);
         });
     }
@@ -507,17 +518,14 @@ public class ChatOutputTranslateManager {
 
             ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
             List<GuiMessage> messages = chatHudAccessor.getMessages();
-            int scrolledLines = chatHudAccessor.getScrolledLines();
 
             int lineIndex = messages.indexOf(lineToUpdate);
-
+            GuiMessage newLine = new GuiMessage(lineToUpdate.addedTime(), newContent, lineToUpdate.signature(), lineToUpdate.source(), lineToUpdate.tag());
             if (lineIndex != -1) {
-                GuiMessage newLine = new GuiMessage(lineToUpdate.addedTime(), newContent, lineToUpdate.signature(), lineToUpdate.source(), lineToUpdate.tag());
                 messages.set(lineIndex, newLine);
-                activeTranslationLines.put(messageId, newLine);
-                chatHudAccessor.invokeRefresh();
-                chatHudAccessor.setScrolledLines(scrolledLines);
             }
+            activeTranslationLines.put(messageId, newLine);
+            replaceTrimmedLines(chatHudAccessor, lineToUpdate, newLine);
         });
     }
 
@@ -553,9 +561,6 @@ public class ChatOutputTranslateManager {
             }
 
             int lineIndex = messages.indexOf(activeLine);
-            if (lineIndex == -1) {
-                continue;
-            }
 
             GuiMessage animatedLine = new GuiMessage(
                     activeLine.addedTime(),
@@ -564,67 +569,47 @@ public class ChatOutputTranslateManager {
                     activeLine.source(),
                     activeLine.tag()
             );
-            messages.set(lineIndex, animatedLine);
+            if (lineIndex != -1) {
+                messages.set(lineIndex, animatedLine);
+            }
             activeTranslationLines.put(messageId, animatedLine);
-            updateVisibleChatLine(client, chatHudAccessor, messages, lineIndex, animatedLine);
+            replaceTrimmedLines(chatHudAccessor, activeLine, animatedLine);
         }
     }
 
-    private static int splitLineCount(Font font, int lineWidth, GuiMessage message) {
-        synchronized (splitLineCountCache) {
-            if (cachedSplitFont != font || cachedSplitLineWidth != lineWidth) {
-                splitLineCountCache.clear();
-                cachedSplitFont = font;
-                cachedSplitLineWidth = lineWidth;
+    private static boolean replaceTrimmedLines(ChatHudAccessor chatHudAccessor, GuiMessage oldLine, GuiMessage newLine) {
+        List<GuiMessage.Line> trimmedMessages = chatHudAccessor.getTrimmedMessages();
+        int firstIndex = -1;
+        for (int i = 0; i < trimmedMessages.size(); i++) {
+            if (trimmedMessages.get(i).parent() == oldLine) {
+                firstIndex = i;
+                break;
             }
-            Integer cached = splitLineCountCache.get(message);
-            if (cached != null) {
-                return cached;
-            }
-            if (splitLineCountCache.size() >= SPLIT_LINE_COUNT_CACHE_CAP) {
-                splitLineCountCache.clear();
-            }
-            int computed = message.splitLines(font, lineWidth).size();
-            splitLineCountCache.put(message, computed);
-            return computed;
         }
-    }
-
-    private static void updateVisibleChatLine(
-            Minecraft client,
-            ChatHudAccessor chatHudAccessor,
-            List<GuiMessage> messages,
-            int lineIndex,
-            GuiMessage line
-    ) {
+        if (firstIndex == -1) {
+            return false;
+        }
+        int lastIndex = firstIndex;
+        while (lastIndex + 1 < trimmedMessages.size() && trimmedMessages.get(lastIndex + 1).parent() == oldLine) {
+            lastIndex++;
+        }
+        Minecraft client = Minecraft.getInstance();
         int lineWidth = Mth.floor(
                 ChatComponent.getWidth(client.options.chatWidth().get())
                         / client.options.chatScale().get()
         );
-        List<GuiMessage.Line> visibleMessages = chatHudAccessor.getTrimmedMessages();
-        List<FormattedCharSequence> visibleLines = line.splitLines(client.font, lineWidth);
-        int linesAfter = 0;
-        for (int i = lineIndex + 1; i < messages.size(); i++) {
-            linesAfter += splitLineCount(client.font, lineWidth, messages.get(i));
+        List<GuiMessage.Line> replacement = new ArrayList<>();
+        List<FormattedCharSequence> splitLines = newLine.splitLines(client.font, lineWidth);
+        for (int i = splitLines.size() - 1; i >= 0; i--) {
+            replacement.add(new GuiMessage.Line(newLine, splitLines.get(i), i == splitLines.size() - 1));
         }
-        int visibleLineIndex = visibleMessages.size() - linesAfter - visibleLines.size();
-
-        for (int i = 0; i < visibleLines.size(); i++) {
-            int targetVisibleIndex = visibleLineIndex + visibleLines.size() - 1 - i;
-            if (targetVisibleIndex < 0 || targetVisibleIndex >= visibleMessages.size()) {
-                continue;
-            }
-            visibleMessages.set(
-                    targetVisibleIndex,
-                    new GuiMessage.Line(
-                            line,
-                            visibleLines.get(i),
-                            i == visibleLines.size() - 1
-                    )
-            );
+        trimmedMessages.subList(firstIndex, lastIndex + 1).clear();
+        trimmedMessages.addAll(firstIndex, replacement);
+        while (trimmedMessages.size() > MAX_TRIMMED_LINES) {
+            trimmedMessages.remove(trimmedMessages.size() - 1);
         }
+        return true;
     }
-
 
     private static void updateChatLineWithFinalText(UUID messageId, long requestGeneration, Component finalContent) {
         if (!isTranslationActive(messageId, requestGeneration)) {
@@ -649,16 +634,14 @@ public class ChatOutputTranslateManager {
 
             ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
             List<GuiMessage> messages = chatHudAccessor.getMessages();
-            int scrolledLines = chatHudAccessor.getScrolledLines();
 
             int lineIndex = messages.indexOf(lineToUpdate);
-
+            Component finalLineContent = buildTranslatedMessageWithToggle(messageId, finalContent, MessageUtils.getTrackedMessage(messageId));
+            GuiMessage newLine = new GuiMessage(lineToUpdate.addedTime(), finalLineContent, lineToUpdate.signature(), lineToUpdate.source(), lineToUpdate.tag());
             if (lineIndex != -1) {
-                Component finalLineContent = buildTranslatedMessageWithToggle(messageId, finalContent, MessageUtils.getTrackedMessage(messageId));
-                GuiMessage newLine = new GuiMessage(lineToUpdate.addedTime(), finalLineContent, lineToUpdate.signature(), lineToUpdate.source(), lineToUpdate.tag());
                 messages.set(lineIndex, newLine);
-                chatHudAccessor.invokeRefresh();
-                chatHudAccessor.setScrolledLines(scrolledLines);
+            }
+            if (replaceTrimmedLines(chatHudAccessor, lineToUpdate, newLine)) {
                 MessageUtils.setTranslatedMessage(messageId, finalLineContent);
                 logChatLineMapping(messageId, "final_update", lineIndex, finalLineContent);
             } else {
@@ -674,12 +657,12 @@ public class ChatOutputTranslateManager {
             int lineIndex,
             GuiMessage originalLine
     ) {
-        int scrolledLines = chatHudAccessor.getScrolledLines();
         Component errorText = Component.translatable(NO_ROUTED_MODEL_ERROR_KEY).withStyle(ChatFormatting.RED);
         GuiMessage errorLine = new GuiMessage(originalLine.addedTime(), errorText, originalLine.signature(), originalLine.source(), originalLine.tag());
-        messages.set(lineIndex, errorLine);
-        chatHudAccessor.invokeRefresh();
-        chatHudAccessor.setScrolledLines(scrolledLines);
+        if (lineIndex != -1) {
+            messages.set(lineIndex, errorLine);
+        }
+        replaceTrimmedLines(chatHudAccessor, originalLine, errorLine);
 
         CompletableFuture.delayedExecutor(ROUTE_ERROR_DISPLAY_MS, TimeUnit.MILLISECONDS).execute(() -> {
             Minecraft client = Minecraft.getInstance();
@@ -705,11 +688,9 @@ public class ChatOutputTranslateManager {
         List<GuiMessage> messages = chatHudAccessor.getMessages();
         int lineIndex = messages.indexOf(errorLine);
         if (lineIndex != -1) {
-            int scrolledLines = chatHudAccessor.getScrolledLines();
             messages.set(lineIndex, originalLine);
-            chatHudAccessor.invokeRefresh();
-            chatHudAccessor.setScrolledLines(scrolledLines);
         }
+        replaceTrimmedLines(chatHudAccessor, errorLine, originalLine);
 
         lineLocateRetryCounts.remove(messageId);
     }
@@ -901,8 +882,6 @@ public class ChatOutputTranslateManager {
 
         ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
         List<GuiMessage> messages = chatHudAccessor.getMessages();
-        int scrolledLines = chatHudAccessor.getScrolledLines();
-        boolean restored = false;
         for (Map.Entry<UUID, GuiMessage> entry : pendingLines.entrySet()) {
             MessageUtils.TrackedChatMessage trackedMessage = MessageUtils.getTrackedChatMessage(entry.getKey());
             if (trackedMessage == null || trackedMessage.originalMessage() == null) {
@@ -910,11 +889,6 @@ public class ChatOutputTranslateManager {
             }
 
             GuiMessage pendingLine = entry.getValue();
-            int lineIndex = messages.indexOf(pendingLine);
-            if (lineIndex == -1) {
-                continue;
-            }
-
             GuiMessage restoredLine = new GuiMessage(
                     pendingLine.addedTime(),
                     trackedMessage.originalMessage().copy(),
@@ -922,13 +896,13 @@ public class ChatOutputTranslateManager {
                     pendingLine.source(),
                     pendingLine.tag()
             );
-            messages.set(lineIndex, restoredLine);
-            MessageUtils.markShowingOriginal(entry.getKey());
-            restored = true;
-        }
-        if (restored) {
-            chatHudAccessor.invokeRefresh();
-            chatHudAccessor.setScrolledLines(scrolledLines);
+            int lineIndex = messages.indexOf(pendingLine);
+            if (lineIndex != -1) {
+                messages.set(lineIndex, restoredLine);
+            }
+            if (replaceTrimmedLines(chatHudAccessor, pendingLine, restoredLine)) {
+                MessageUtils.markShowingOriginal(entry.getKey());
+            }
         }
     }
 
@@ -1250,23 +1224,40 @@ public class ChatOutputTranslateManager {
         List<GuiMessage> messages = chatHudAccessor.getMessages();
         String commandPrefix = "/translate_allinone translatechatline " + messageId + " " + action;
         for (GuiMessage line : messages) {
-            Component content = line.content();
-            if (content == null || !containsToggleCommand(content, commandPrefix)) {
-                continue;
+            if (handleToggleLine(messageId, action, chatHudAccessor, messages, line, commandPrefix)) {
+                return true;
             }
-            if (CHAT_TRANSLATE_ACTION.equalsIgnoreCase(action)) {
-                Component original = extractToggleMessageContent(content);
-                if (original != null) {
-                    MessageUtils.putTrackedMessage(messageId, original);
-                    translate(messageId, original);
-                    return true;
-                }
-            } else if (CHAT_RESTORE_ACTION.equalsIgnoreCase(action)) {
-                restoreShownLineAsOriginal(messageId, line, chatHudAccessor, messages);
+        }
+        GuiMessage displayLine = findTrimmedTargetByCommandPrefix(chatHudAccessor, messageId, action);
+        return displayLine != null
+                && handleToggleLine(messageId, action, chatHudAccessor, messages, displayLine, commandPrefix);
+    }
+
+    private static boolean handleToggleLine(
+            UUID messageId,
+            String action,
+            ChatHudAccessor chatHudAccessor,
+            List<GuiMessage> messages,
+            GuiMessage line,
+            String commandPrefix
+    ) {
+        Component content = line.content();
+        if (content == null || !containsToggleCommand(content, commandPrefix)) {
+            return false;
+        }
+        if (CHAT_TRANSLATE_ACTION.equalsIgnoreCase(action)) {
+            Component original = extractToggleMessageContent(content);
+            if (original != null) {
+                MessageUtils.putTrackedMessage(messageId, original);
+                translate(messageId, original);
+                return true;
             }
             return true;
+        } else if (CHAT_RESTORE_ACTION.equalsIgnoreCase(action)) {
+            restoreShownLineAsOriginal(messageId, line, chatHudAccessor, messages);
+            return true;
         }
-        return false;
+        return true;
     }
 
     private static void restoreShownLineAsOriginal(UUID messageId, GuiMessage line, ChatHudAccessor chatHudAccessor, List<GuiMessage> messages) {
@@ -1276,11 +1267,7 @@ public class ChatOutputTranslateManager {
         }
         MessageUtils.putTrackedMessage(messageId, subtitleOriginal);
         MessageUtils.markShowingOriginal(messageId);
-        int scrolledLines = chatHudAccessor.getScrolledLines();
         int lineIndex = messages.indexOf(line);
-        if (lineIndex == -1) {
-            return;
-        }
         GuiMessage restoredLine = new GuiMessage(
                 line.addedTime(),
                 buildOriginalMessageWithToggle(messageId, subtitleOriginal),
@@ -1288,9 +1275,28 @@ public class ChatOutputTranslateManager {
                 line.source(),
                 line.tag()
         );
-        messages.set(lineIndex, restoredLine);
-        chatHudAccessor.invokeRefresh();
-        chatHudAccessor.setScrolledLines(scrolledLines);
+        if (lineIndex != -1) {
+            messages.set(lineIndex, restoredLine);
+        }
+        replaceTrimmedLines(chatHudAccessor, line, restoredLine);
+    }
+
+    private static GuiMessage findTrimmedTargetByCommandPrefix(ChatHudAccessor chatHudAccessor, UUID messageId, String action) {
+        if (chatHudAccessor == null || messageId == null || action == null) {
+            return null;
+        }
+        String commandPrefix = "/translate_allinone translatechatline " + messageId + " " + action;
+        List<GuiMessage.Line> trimmedLines = chatHudAccessor.getTrimmedMessages();
+        if (trimmedLines == null) {
+            return null;
+        }
+        for (GuiMessage.Line trimmedLine : trimmedLines) {
+            GuiMessage parent = trimmedLine.parent();
+            if (parent != null && parent.content() != null && containsToggleCommand(parent.content(), commandPrefix)) {
+                return parent;
+            }
+        }
+        return null;
     }
 
     private static boolean containsToggleCommand(Component content, String commandPrefix) {
