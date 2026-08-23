@@ -98,6 +98,7 @@ public class LifecycleEventManager {
                 readinessGracePeriodTicks--;
                 if (readinessGracePeriodTicks == 0) {
                     isReadyForTranslation = true;
+                    ChatOutputTranslateManager.flushPendingAutoTranslations();
                     LOGGER.info("Grace period over. Translations are now active.");
                 }
             }
@@ -169,5 +170,6 @@ public class LifecycleEventManager {
         isReadyForTranslation = false;
         awaitingReadinessCheck = false;
         readinessGracePeriodTicks = -1;
+        ChatOutputTranslateManager.clearPendingAutoTranslations();
     }
 }
