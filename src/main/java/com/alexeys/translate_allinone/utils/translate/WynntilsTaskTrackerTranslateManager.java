@@ -20,6 +20,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -242,16 +243,23 @@ public final class WynntilsTaskTrackerTranslateManager {
                 requestContext,
                 userPrompt);
 
-        llm.getCompletion(messages, requestContext).whenComplete((response, error) -> {
+        CompletableFuture<String> completion = llm.getCompletion(messages, requestContext);
+        long watchdogRequestId = TranslationQueueWatchdog.requestStarted("wynntils_task_tracker", originalTexts);
+        completion.whenComplete((response, error) -> {
             if (!isSessionActive(batchSessionEpoch)) {
+                TranslationQueueWatchdog.requestSuperseded(watchdogRequestId);
                 cache.releaseInProgress(Set.copyOf(originalTexts));
                 return;
             }
 
             List<RetryRequest> deferredRetries = new ArrayList<>();
+            Set<String> failedTaskKeys = ConcurrentHashMap.newKeySet();
+            boolean requestSuperseded = false;
+            boolean retriesExhausted = false;
 
             if (error != null) {
                 if (TranslateExceptionUtils.isInternalPostprocessError(error) && originalTexts.size() > 1) {
+                    requestSuperseded = true;
                     Translate_AllinOne.LOGGER.warn(
                             "Wynntils task tracker batch hit internal post-process error, retrying as single-item batches. context={} batchSize={}",
                             requestContext,
@@ -261,6 +269,8 @@ public final class WynntilsTaskTrackerTranslateManager {
                         deferredRetries.add(new RetryRequest(List.of(text), 0));
                     }
                 } else {
+                    failedTaskKeys.addAll(originalTexts);
+                    retriesExhausted = TranslateExceptionUtils.isInternalPostprocessError(error);
                     cache.requeueFailed(Set.copyOf(originalTexts), error.getMessage());
                     Translate_AllinOne.LOGGER.error(
                             "Failed to translate Wynntils task tracker batch. context={}",
@@ -287,8 +297,11 @@ public final class WynntilsTaskTrackerTranslateManager {
 
                     if (hasKeyMismatch(translatedMapFromAI, originalTexts.size())) {
                         if (keyMismatchRetryCount < TranslateStringUtils.MAX_KEY_MISMATCH_BATCH_RETRIES) {
+                            requestSuperseded = true;
                             deferredRetries.add(new RetryRequest(originalTexts, keyMismatchRetryCount + 1));
                         } else {
+                            failedTaskKeys.addAll(originalTexts);
+                            retriesExhausted = true;
                             Translate_AllinOne.LOGGER.warn(
                                     "Wynntils task tracker keys mismatched after retries, re-queueing full batch. context={}",
                                     requestContext
@@ -357,6 +370,7 @@ public final class WynntilsTaskTrackerTranslateManager {
                         missingTranslations.addAll(itemsToRequeueForColor);
                         missingTranslations.addAll(itemsToRequeueForEmpty);
                         if (!missingTranslations.isEmpty()) {
+                            failedTaskKeys.addAll(missingTranslations);
                             Translate_AllinOne.LOGGER.warn(
                                     "Wynntils task tracker LLM response missing {} keys. context={}",
                                     missingTranslations.size(),
@@ -366,18 +380,30 @@ public final class WynntilsTaskTrackerTranslateManager {
                         }
                     }
                 } catch (JsonSyntaxException e) {
+                    failedTaskKeys.addAll(originalTexts);
                     cache.requeueFailed(Set.copyOf(originalTexts), "Invalid JSON response");
                     Translate_AllinOne.LOGGER.error(
                             "Failed to parse Wynntils task tracker translation response. context={}",
                             requestContext,
                             e);
                 } catch (Throwable t) {
+                    failedTaskKeys.addAll(originalTexts);
                     cache.requeueFailed(Set.copyOf(originalTexts), "Translation post-processing failure");
                     Translate_AllinOne.LOGGER.error(
                             "Unexpected Wynntils task tracker post-processing error. context={}",
                             requestContext,
                             t);
                 }
+            }
+
+            if (requestSuperseded) {
+                TranslationQueueWatchdog.requestSuperseded(watchdogRequestId);
+            } else {
+                TranslationQueueWatchdog.requestCompleted(
+                        watchdogRequestId,
+                        failedTaskKeys,
+                        retriesExhausted
+                );
             }
 
             for (RetryRequest retryRequest : deferredRetries) {
