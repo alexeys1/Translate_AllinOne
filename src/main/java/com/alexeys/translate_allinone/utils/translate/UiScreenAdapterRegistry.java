@@ -1,15 +1,26 @@
 package com.alexeys.translate_allinone.utils.translate;
 
+import com.alexeys.translate_allinone.Translate_AllinOne;
 import net.fabricmc.loader.api.FabricLoader;
+import net.fabricmc.loader.api.ModContainer;
 import net.minecraft.client.gui.screen.Screen;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class UiScreenAdapterRegistry {
     private static final List<SoftAdapterRegistration> REGISTRATIONS = new ArrayList<>();
+    private static final Map<Class<?>, Optional<UiScreenAdapter>> RESOLVED_CLASSES = new ConcurrentHashMap<>();
+    private static final Set<String> AUTOMATIC_MOD_EXCLUSIONS = Set.of(
+            "minecraft",
+            "fabricloader",
+            Translate_AllinOne.MOD_ID
+    );
 
     static {
         registerMod(
@@ -90,21 +101,43 @@ public final class UiScreenAdapterRegistry {
                 backend,
                 roles == null ? Set.of(UiTextRole.values()) : Set.copyOf(roles)
         ));
+        RESOLVED_CLASSES.clear();
     }
 
     public static UiScreenAdapter resolve(Screen screen) {
-        return screen == null ? null : resolveClassName(screen.getClass().getName());
+        return screen == null ? null : resolve(screen.getClass());
     }
 
     public static UiScreenAdapter resolve(Class<?> screenClass) {
-        return screenClass == null ? null : resolveClassName(screenClass.getName());
+        if (screenClass == null) {
+            return null;
+        }
+        return RESOLVED_CLASSES.computeIfAbsent(
+                screenClass,
+                type -> Optional.ofNullable(resolveClass(type))
+        ).orElse(null);
     }
 
     public static UiScreenAdapter resolve(String className) {
-        return resolveClassName(className);
+        return resolveRegistered(className);
     }
 
-    private static UiScreenAdapter resolveClassName(String className) {
+    private static UiScreenAdapter resolveClass(Class<?> screenClass) {
+        UiScreenAdapter registered = resolveRegistered(screenClass.getName());
+        if (registered != null) {
+            return registered;
+        }
+        try {
+            return resolveAutomatic(screenClass, FabricLoader.getInstance().getAllMods());
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private static UiScreenAdapter resolveRegistered(String className) {
+        if (className == null || className.isBlank()) {
+            return null;
+        }
         for (SoftAdapterRegistration registration : REGISTRATIONS) {
             if (!isModLoaded(registration.modId())) {
                 continue;
@@ -116,6 +149,35 @@ public final class UiScreenAdapterRegistry {
                         registration.backend(),
                         registration.roles()
                 );
+            }
+        }
+        return null;
+    }
+
+    static UiScreenAdapter resolveAutomatic(Class<?> screenClass, Iterable<ModContainer> containers) {
+        if (screenClass == null || containers == null) {
+            return null;
+        }
+        String className = screenClass.getName();
+        if (className.startsWith("net.minecraft.")
+                || className.startsWith("com.alexeys.translate_allinone.")) {
+            return null;
+        }
+        String classResource = className.replace('.', '/') + ".class";
+        for (ModContainer container : containers) {
+            try {
+                String modId = container.getMetadata().getId().trim().toLowerCase(Locale.ROOT);
+                if (AUTOMATIC_MOD_EXCLUSIONS.contains(modId)
+                        || container.findPath(classResource).isEmpty()) {
+                    continue;
+                }
+                return new UiScreenAdapter(
+                        modId,
+                        className,
+                        UiScreenAdapter.Backend.MINECRAFT_FONT,
+                        Set.of(UiTextRole.values())
+                );
+            } catch (RuntimeException ignored) {
             }
         }
         return null;

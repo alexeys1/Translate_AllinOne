@@ -4,7 +4,6 @@ import com.alexeys.translate_allinone.gui.configui.model.ConfigSection;
 import com.alexeys.translate_allinone.gui.configui.model.RouteSlot;
 import com.alexeys.translate_allinone.utils.cache.CacheStats;
 import com.alexeys.translate_allinone.utils.cache.ItemTemplateCache;
-import com.alexeys.translate_allinone.utils.cache.ScoreboardTextCache;
 import com.alexeys.translate_allinone.utils.cache.SkyblockNpcTranslationCache;
 import com.alexeys.translate_allinone.utils.cache.WynnDialogueTextCache;
 import com.alexeys.translate_allinone.utils.cache.WynntilsTaskTrackerTextCache;
@@ -61,6 +60,7 @@ public final class ConfigSectionContentSupport {
             HotkeyAction hotkeyStartBinding,
             HotkeyAction hotkeyClearBinding,
             HotkeyAction hotkeyCycleMode,
+            Runnable originalDisplayModeCycle,
             DictionaryFilePickerAction dictionaryFilePickerAction,
             Runnable openDictionaryDirectoryAction,
             Runnable openCacheDirectoryAction,
@@ -105,6 +105,27 @@ public final class ConfigSectionContentSupport {
                         true
                 );
                 y += ROW_STEP;
+                    actionAdder.add(
+                            x,
+                            y,
+                            width,
+                            translator.t("label.original_display_mode", originalDisplayModeText(translator, output.original_display_mode)),
+                            originalDisplayModeCycle,
+                            tooltip(translator, "label.original_display_mode")
+                    );
+                    y += ROW_STEP;
+                    sliderAdder.add(
+                            x,
+                            y,
+                            width,
+                            translator.t("label.original_subtitle_max_length"),
+                            1,
+                            ChatTranslateConfig.ChatOutputTranslateConfig.MAX_ORIGINAL_SUBTITLE_MAX_LENGTH,
+                            () -> output.original_subtitle_max_length,
+                            value -> output.original_subtitle_max_length = value,
+                            tooltip(translator, "label.original_subtitle_max_length")
+                    );
+                    y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.basic"), x, width, basicStart, y);
 
                 y += GROUP_GAP;
@@ -1368,6 +1389,16 @@ public final class ConfigSectionContentSupport {
         int groupWidth = width + GROUP_PADDING_SIDE * 2;
         int groupHeight = (contentBottom - contentStartY) + GROUP_PADDING_TOP + GROUP_PADDING_BOTTOM;
         groupBoxAdder.add(groupX, groupY, groupWidth, groupHeight, title);
+    }
+
+    private static Text originalDisplayModeText(Translator translator, String mode) {
+        if (ChatTranslateConfig.ChatOutputTranslateConfig.ORIGINAL_DISPLAY_HOVER.equals(mode)) {
+            return translator.t("state.original_display_hover");
+        }
+        if (ChatTranslateConfig.ChatOutputTranslateConfig.ORIGINAL_DISPLAY_SUBTITLE.equals(mode)) {
+            return translator.t("state.original_display_subtitle");
+        }
+        return translator.t("state.original_display_off");
     }
 
     private static Text modeText(Translator translator, String modeName) {

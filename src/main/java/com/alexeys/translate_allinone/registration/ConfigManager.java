@@ -90,6 +90,12 @@ public class ConfigManager {
         updateProviderConfigurationFingerprint(true);
     }
 
+    private static boolean isValidOriginalDisplayMode(String mode) {
+        return ChatTranslateConfig.ChatOutputTranslateConfig.ORIGINAL_DISPLAY_OFF.equals(mode)
+                || ChatTranslateConfig.ChatOutputTranslateConfig.ORIGINAL_DISPLAY_HOVER.equals(mode)
+                || ChatTranslateConfig.ChatOutputTranslateConfig.ORIGINAL_DISPLAY_SUBTITLE.equals(mode);
+    }
+
     public static synchronized void setGlobalTranslationEnabled(boolean enabled) {
         ensureRegistered();
         config.providerManager.ensureDefaults();
@@ -312,6 +318,18 @@ public class ConfigManager {
         configToUse.chatTranslate.output.max_concurrent_requests = Math.max(
                 1,
                 configToUse.chatTranslate.output.max_concurrent_requests
+        );
+        if (configToUse.chatTranslate.output.original_display_mode == null
+                || !isValidOriginalDisplayMode(configToUse.chatTranslate.output.original_display_mode)) {
+            configToUse.chatTranslate.output.original_display_mode =
+                    ChatTranslateConfig.ChatOutputTranslateConfig.DEFAULT_ORIGINAL_DISPLAY_MODE;
+        }
+        configToUse.chatTranslate.output.original_subtitle_max_length = Math.max(
+                1,
+                Math.min(
+                        ChatTranslateConfig.ChatOutputTranslateConfig.MAX_ORIGINAL_SUBTITLE_MAX_LENGTH,
+                        configToUse.chatTranslate.output.original_subtitle_max_length
+                )
         );
         if (configToUse.chatTranslate.input.keybinding == null) {
             configToUse.chatTranslate.input.keybinding = new InputBindingConfig();

@@ -44,6 +44,7 @@ import com.alexeys.translate_allinone.utils.config.ModConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderType;
 import com.alexeys.translate_allinone.utils.config.pojos.CacheBackupConfig;
+import com.alexeys.translate_allinone.utils.config.pojos.ChatTranslateConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.CustomParameterEntry;
 import com.alexeys.translate_allinone.utils.config.pojos.DictionaryConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.InputBindingConfig;
@@ -710,6 +711,7 @@ public class ModConfigScreen extends Screen {
                 this::startHotkeyCapture,
                 this::clearHotkeyBinding,
                 this::cycleHotkeyMode,
+                this::cycleOriginalDisplayMode,
                 this::openDictionaryFilesModal,
                 this::openDictionaryDirectory,
                 this::openCacheDirectory,
@@ -1680,6 +1682,29 @@ public class ModConfigScreen extends Screen {
         KeybindingManager.clear(binding);
         setStatus(t("status.hotkey_cleared", sectionLabel(target)), COLOR_STATUS_OK);
         rebuildActionBlocks();
+    }
+
+    private void cycleOriginalDisplayMode() {
+        ChatTranslateConfig.ChatOutputTranslateConfig output = Translate_AllinOne.getConfig().chatTranslate.output;
+        if (ChatTranslateConfig.ChatOutputTranslateConfig.ORIGINAL_DISPLAY_HOVER.equals(output.original_display_mode)) {
+            output.original_display_mode = ChatTranslateConfig.ChatOutputTranslateConfig.ORIGINAL_DISPLAY_SUBTITLE;
+        } else if (ChatTranslateConfig.ChatOutputTranslateConfig.ORIGINAL_DISPLAY_SUBTITLE.equals(output.original_display_mode)) {
+            output.original_display_mode = ChatTranslateConfig.ChatOutputTranslateConfig.ORIGINAL_DISPLAY_OFF;
+        } else {
+            output.original_display_mode = ChatTranslateConfig.ChatOutputTranslateConfig.ORIGINAL_DISPLAY_HOVER;
+        }
+        setStatus(t("status.original_display_mode_changed", originalDisplayModeLabel(output.original_display_mode)), COLOR_STATUS_OK);
+        rebuildActionBlocks();
+    }
+
+    private Text originalDisplayModeLabel(String mode) {
+        if (ChatTranslateConfig.ChatOutputTranslateConfig.ORIGINAL_DISPLAY_HOVER.equals(mode)) {
+            return t("state.original_display_hover");
+        }
+        if (ChatTranslateConfig.ChatOutputTranslateConfig.ORIGINAL_DISPLAY_SUBTITLE.equals(mode)) {
+            return t("state.original_display_subtitle");
+        }
+        return t("state.original_display_off");
     }
 
     private void cycleHotkeyMode(ConfigSectionContentSupport.HotkeyTarget target) {

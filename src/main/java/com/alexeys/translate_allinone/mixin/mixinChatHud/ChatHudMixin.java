@@ -38,7 +38,6 @@ public abstract class ChatHudMixin {
     @ModifyVariable(method = "addMessage(Lnet/minecraft/text/Text;Lnet/minecraft/network/message/MessageSignatureData;Lnet/minecraft/client/gui/hud/MessageIndicator;)V", at = @At("HEAD"), argsOnly = true)
     private Text onAddMessage(Text message) {
         if (isModifyingMessage.get()
-                || !LifecycleEventManager.isReadyForTranslation
                 || !TranslationFeatureGate.isEnabled()) {
             return message;
         }
@@ -47,6 +46,9 @@ public abstract class ChatHudMixin {
             isModifyingMessage.set(true);
 
             ModConfig config = Translate_AllinOne.getConfig();
+            if (config == null || config.chatTranslate == null || config.chatTranslate.output == null) {
+                return message;
+            }
             WynnDialogueTranslationSupport.traceChatEntry(message);
             WynnDialogueTranslationSupport.handleChatMessage(message);
             if (config.chatTranslate.output.enabled) {
@@ -63,8 +65,12 @@ public abstract class ChatHudMixin {
                 MessageUtils.putTrackedMessage(messageId, message);
 
                 if (autoTranslate) {
-                    queueAutoTranslateCommand(messageId);
-                    return message;
+                    if (LifecycleEventManager.isReadyForTranslation) {
+                        queueAutoTranslateCommand(messageId);
+                        return message;
+                    }
+                    ChatOutputTranslateManager.queuePendingAutoTranslation(messageId, message);
+                    return ChatOutputTranslateManager.buildOriginalMessageWithToggle(messageId, message);
                 } else {
                     return ChatOutputTranslateManager.buildOriginalMessageWithToggle(messageId, message);
                 }
@@ -83,8 +89,8 @@ public abstract class ChatHudMixin {
                 return;
             }
             client.execute(() -> {
-                if (client.player != null && client.player.networkHandler != null) {
-                    client.player.networkHandler.sendChatCommand("translate_allinone translatechatline " + messageId);
+                if (client.player != null) {
+                    ChatOutputTranslateManager.translate(messageId, MessageUtils.getTrackedMessage(messageId));
                 }
             });
         });

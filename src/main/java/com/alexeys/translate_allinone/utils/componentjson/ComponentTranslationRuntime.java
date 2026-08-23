@@ -11,6 +11,7 @@ import net.minecraft.text.Text;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
@@ -44,12 +45,23 @@ public final class ComponentTranslationRuntime {
             String context,
             String policyVersion
     ) {
+        return prepare(component, route, context, policyVersion, Set.of());
+    }
+
+    public static ComponentTranslationDocument prepare(
+            Text component,
+            ComponentTranslationRoute route,
+            String context,
+            String policyVersion,
+            Set<String> privateTokens
+    ) {
         if (route == null) {
             throw new IllegalArgumentException("Component translation document input is incomplete.");
         }
         String resolvedContext = context == null || context.isBlank() ? route.wireName() : context.trim();
         String resolvedPolicyVersion = policyVersion == null || policyVersion.isBlank() ? "1" : policyVersion.trim();
         ComponentTranslationPolicy policy = ComponentTranslationPolicy.forRoute(route)
+                .withPrivateTokens(privateTokens)
                 .withContext(resolvedContext)
                 .withSemanticSetting("route_policy", resolvedPolicyVersion);
         return prepare(component, policy);
