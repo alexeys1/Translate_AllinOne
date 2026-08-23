@@ -11,8 +11,8 @@ public class ChatTranslateConfig {
         public static final String ORIGINAL_DISPLAY_HOVER = "hover";
         public static final String ORIGINAL_DISPLAY_SUBTITLE = "subtitle";
         public static final String DEFAULT_ORIGINAL_DISPLAY_MODE = ORIGINAL_DISPLAY_OFF;
-        public static final int DEFAULT_ORIGINAL_SUBTITLE_MAX_LENGTH = 30;
-        public static final int MAX_ORIGINAL_SUBTITLE_MAX_LENGTH = 100;
+        public static final int DEFAULT_ORIGINAL_SUBTITLE_MAX_LENGTH = 120;
+        public static final int MAX_ORIGINAL_SUBTITLE_MAX_LENGTH = 255;
         public boolean enabled = false;
         public boolean auto_translate = false;
         public boolean skyblock_npc_auto_translate = false;
