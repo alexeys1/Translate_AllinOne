@@ -75,7 +75,7 @@ public class WynnCraftConfig {
     }
 
     public static class KeybindingConfig {
-        public KeybindingMode mode = KeybindingMode.DISABLED;
+        public KeybindingMode mode = KeybindingMode.HOLD_TO_TRANSLATE;
         public InputBindingConfig binding = new InputBindingConfig();
         public InputBindingConfig refreshBinding = new InputBindingConfig();
     }
