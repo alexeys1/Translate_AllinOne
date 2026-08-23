@@ -31,7 +31,6 @@ public abstract class ChatHudMixin {
     @ModifyVariable(method = "addMessage(Lnet/minecraft/network/chat/Component;Lnet/minecraft/network/chat/MessageSignature;Lnet/minecraft/client/multiplayer/chat/GuiMessageSource;Lnet/minecraft/client/multiplayer/chat/GuiMessageTag;)V", at = @At("HEAD"), argsOnly = true)
     private Component onAddMessage(Component message) {
         if (isModifyingMessage.get()
-                || !LifecycleEventManager.isReadyForTranslation
                 || !TranslationFeatureGate.isEnabled()) {
             return message;
         }
@@ -40,6 +39,9 @@ public abstract class ChatHudMixin {
             isModifyingMessage.set(true);
 
             ModConfig config = Translate_AllinOne.getConfig();
+            if (config == null || config.chatTranslate == null || config.chatTranslate.output == null) {
+                return message;
+            }
             WynnDialogueTranslationSupport.traceChatEntry(message);
             WynnDialogueTranslationSupport.handleChatMessage(message);
             if (config.chatTranslate.output.enabled) {
@@ -56,8 +58,12 @@ public abstract class ChatHudMixin {
                 MessageUtils.putTrackedMessage(messageId, message);
 
                 if (autoTranslate) {
-                    queueAutoTranslateCommand(messageId);
-                    return message;
+                    if (LifecycleEventManager.isReadyForTranslation) {
+                        queueAutoTranslateCommand(messageId);
+                        return message;
+                    }
+                    ChatOutputTranslateManager.queuePendingAutoTranslation(messageId, message);
+                    return ChatOutputTranslateManager.buildOriginalMessageWithToggle(messageId, message);
                 } else {
                     return ChatOutputTranslateManager.buildOriginalMessageWithToggle(messageId, message);
                 }

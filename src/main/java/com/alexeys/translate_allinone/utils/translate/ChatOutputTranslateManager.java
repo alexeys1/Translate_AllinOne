@@ -63,6 +63,7 @@ public class ChatOutputTranslateManager {
     private static final Map<UUID, Integer> lineLocateRetryCounts = new ConcurrentHashMap<>();
     private static final Map<UUID, Component> pendingAnimationSources = new ConcurrentHashMap<>();
     private static final Map<UUID, AnimationManager.AnimatedSegment[]> preparedAnimationCache = new ConcurrentHashMap<>();
+    private static final Map<UUID, Component> pendingAutoTranslateMessages = new ConcurrentHashMap<>();
     private static ExecutorService translationExecutor;
     private static int currentConcurrentRequests = -1;
     private static final int MAX_LINE_LOCATE_RETRIES = 4;
@@ -843,6 +844,26 @@ public class ChatOutputTranslateManager {
         ChatOutputTranslationCache.getInstance().updateTranslations(Map.of(cacheKey, translation));
     }
 
+    public static void queuePendingAutoTranslation(UUID messageId, Component originalMessage) {
+        if (messageId == null || originalMessage == null) {
+            return;
+        }
+        pendingAutoTranslateMessages.put(messageId, originalMessage);
+    }
+
+    public static void flushPendingAutoTranslations() {
+        if (pendingAutoTranslateMessages.isEmpty()) {
+            return;
+        }
+        Map<UUID, Component> pending = Map.copyOf(pendingAutoTranslateMessages);
+        pendingAutoTranslateMessages.clear();
+        pending.forEach((messageId, originalMessage) -> translate(messageId, originalMessage));
+    }
+
+    public static void clearPendingAutoTranslations() {
+        pendingAutoTranslateMessages.clear();
+    }
+
     public static void cancelPendingTranslations() {
         Map<UUID, GuiMessage> pendingLines = Map.copyOf(activeTranslationLines);
         lineLocateRetryCounts.clear();
@@ -851,6 +872,7 @@ public class ChatOutputTranslateManager {
         pendingAnimationSources.clear();
         preparedAnimationCache.clear();
         streamingUpdateLastApplied.clear();
+        pendingAutoTranslateMessages.clear();
         if (pendingLines.isEmpty()) {
             return;
         }
