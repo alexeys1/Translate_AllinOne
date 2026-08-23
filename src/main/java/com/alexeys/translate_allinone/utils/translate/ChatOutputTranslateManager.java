@@ -62,6 +62,7 @@ public class ChatOutputTranslateManager {
     private static final AtomicLong translationGeneration = new AtomicLong();
     private static final Map<UUID, Integer> lineLocateRetryCounts = new ConcurrentHashMap<>();
     private static final Map<UUID, Component> pendingAnimationSources = new ConcurrentHashMap<>();
+    private static final Map<UUID, AnimationManager.AnimatedSegment[]> preparedAnimationCache = new ConcurrentHashMap<>();
     private static ExecutorService translationExecutor;
     private static int currentConcurrentRequests = -1;
     private static final int MAX_LINE_LOCATE_RETRIES = 4;
@@ -219,7 +220,8 @@ public class ChatOutputTranslateManager {
 
         updateExecutorServiceIfNeeded();
 
-        Component placeholderText = AnimationManager.getAnimatedStyledText(originalMessage);
+        AnimationManager.AnimatedSegment[] preparedSegments = preparedAnimationCache.computeIfAbsent(messageId, id -> AnimationManager.prepareAnimatedSegments(originalMessage));
+        Component placeholderText = AnimationManager.getAnimatedStyledText(preparedSegments);
         GuiMessage newLine = new GuiMessage(targetLine.addedTime(), placeholderText, targetLine.signature(), targetLine.source(), targetLine.tag());
         messages.set(lineIndex, newLine);
         activeTranslationLines.put(messageId, newLine);
@@ -494,6 +496,7 @@ public class ChatOutputTranslateManager {
             return;
         }
         pendingAnimationSources.remove(messageId);
+        preparedAnimationCache.remove(messageId);
         GuiMessage lineToUpdate = activeTranslationLines.get(messageId);
         if (lineToUpdate == null) return;
 
@@ -542,6 +545,7 @@ public class ChatOutputTranslateManager {
             UUID messageId = entry.getKey();
             if (!isTranslationActive(messageId)) {
                 pendingAnimationSources.remove(messageId);
+                preparedAnimationCache.remove(messageId);
                 continue;
             }
 
@@ -558,7 +562,7 @@ public class ChatOutputTranslateManager {
 
             GuiMessage animatedLine = new GuiMessage(
                     activeLine.addedTime(),
-                    AnimationManager.getAnimatedStyledText(source),
+                    AnimationManager.getAnimatedStyledText(preparedAnimationCache.computeIfAbsent(messageId, id -> AnimationManager.prepareAnimatedSegments(source))),
                     activeLine.signature(),
                     activeLine.source(),
                     activeLine.tag()
@@ -630,6 +634,7 @@ public class ChatOutputTranslateManager {
             return;
         }
         pendingAnimationSources.remove(messageId);
+        preparedAnimationCache.remove(messageId);
         lineLocateRetryCounts.remove(messageId);
         streamingUpdateLastApplied.remove(messageId);
         GuiMessage lineToUpdate = activeTranslationLines.remove(messageId);
@@ -844,6 +849,7 @@ public class ChatOutputTranslateManager {
         translationGenerations.clear();
         activeTranslationLines.clear();
         pendingAnimationSources.clear();
+        preparedAnimationCache.clear();
         streamingUpdateLastApplied.clear();
         if (pendingLines.isEmpty()) {
             return;
