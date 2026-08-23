@@ -1190,9 +1190,18 @@ public class ChatOutputTranslateManager {
     private static Component muteForSubtitle(Component original) {
         MutableComponent muted = Component.empty();
         original.visit((style, text) -> {
-            if (!text.isEmpty()) {
-                muted.append(Component.literal(text).setStyle(style.withColor(ChatFormatting.GRAY).withItalic(true)));
+            if (text.isEmpty()) {
+                return Optional.empty();
             }
+            Style base = style == null ? Style.EMPTY : style;
+            StylePreserver.fromLegacyText(text).visit((resolvedStyle, resolvedText) -> {
+                if (!resolvedText.isEmpty()) {
+                    muted.append(Component.literal(resolvedText).setStyle(
+                            resolvedStyle.withColor(ChatFormatting.GRAY).withItalic(true)
+                    ));
+                }
+                return Optional.empty();
+            }, base);
             return Optional.empty();
         }, Style.EMPTY);
         return muted;
