@@ -6,6 +6,9 @@ import com.alexeys.translate_allinone.utils.llmapi.LlmRequestLifecycle;
 import com.alexeys.translate_allinone.utils.config.ModConfig;
 import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationDebugLogger;
 import com.alexeys.translate_allinone.utils.translate.TranslationFeatureGate;
+import com.alexeys.translate_allinone.utils.translate.ChatOutputTranslateManager;
+import com.alexeys.translate_allinone.utils.translate.WynnDialogueTranslateManager;
+import com.alexeys.translate_allinone.utils.translate.WynntilsTaskTrackerTranslateManager;
 import com.alexeys.translate_allinone.utils.config.pojos.ChatTranslateConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.CacheBackupConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.DebugConfig;
@@ -183,6 +186,9 @@ public class ConfigManager {
         if (notifyRuntime && changed) {
             LlmRequestLifecycle.cancelActiveRequests();
             ComponentTranslationRuntime.providerConfigurationChanged();
+            ChatOutputTranslateManager.clearTranslationQueue();
+            WynnDialogueTranslateManager.getInstance().clearTranslationQueue();
+            WynntilsTaskTrackerTranslateManager.getInstance().clearTranslationQueue();
         }
     }
 

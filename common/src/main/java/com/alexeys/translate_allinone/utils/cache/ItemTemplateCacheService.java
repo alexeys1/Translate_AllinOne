@@ -544,6 +544,21 @@ public class ItemTemplateCacheService {
         return refreshedCount;
     }
 
+    public synchronized boolean markInvalidTranslation(String originalTemplate, String errorMessage) {
+        if (originalTemplate == null || originalTemplate.isBlank()) {
+            return false;
+        }
+        String resolvedMessage = errorMessage == null || errorMessage.isBlank()
+                ? "Invalid cached translation"
+                : errorMessage;
+        boolean removed = runtimeState.markInvalidTranslation(originalTemplate, resolvedMessage);
+        if (removed) {
+            persistence.markDirty();
+            scheduleSave();
+        }
+        return removed;
+    }
+
     public synchronized CacheStats getCacheStats() {
         return new CacheStats((int) runtimeState.translatedCount(), runtimeState.totalCount());
     }
@@ -635,7 +650,7 @@ public class ItemTemplateCacheService {
         }
         runtimeState.queues().markErrored(failedKeys, errorMessage, errorMessage);
         LOGGER.warn(
-                "Marked {} keys as errored. They will be retried later. queue={} error=\"{}\"",
+                "Marked {} keys as errored. Manual refresh or runtime reset is required. queue={} error=\"{}\"",
                 failedKeys.size(),
                 formatQueueSnapshot(snapshotQueuesUnsafe()),
                 TranslateStringUtils.truncateForLog(errorMessage, 220)
