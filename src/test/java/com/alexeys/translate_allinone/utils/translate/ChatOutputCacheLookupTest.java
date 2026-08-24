@@ -31,4 +31,20 @@ class ChatOutputCacheLookupTest {
 
         assertNull(ChatOutputTranslateManager.resolveCachedTranslation(pending, missing));
     }
+
+    @Test
+    void returnsStickyFailureWhenNoTranslationExists() {
+        LookupResult failed = new LookupResult(TranslationStatus.ERROR, "", "failed");
+        LookupResult missing = new LookupResult(TranslationStatus.NOT_CACHED, "", null);
+
+        assertEquals("failed", ChatOutputTranslateManager.resolveCachedFailure(failed, missing));
+    }
+
+    @Test
+    void ignoresFailureWhenAnotherCacheHasTranslation() {
+        LookupResult failed = new LookupResult(TranslationStatus.ERROR, "", "failed");
+        LookupResult translated = new LookupResult(TranslationStatus.TRANSLATED, "translated", null);
+
+        assertEquals("translated", ChatOutputTranslateManager.resolveCachedTranslation(failed, translated));
+    }
 }
