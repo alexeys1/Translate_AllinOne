@@ -14,6 +14,7 @@ import com.alexeys.translate_allinone.utils.config.ProviderRouteResolver;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.alexeys.translate_allinone.utils.config.pojos.ChatTranslateConfig;
 import com.alexeys.translate_allinone.utils.llmapi.LLM;
+import com.alexeys.translate_allinone.utils.llmapi.LlmRequestLifecycle;
 import com.alexeys.translate_allinone.utils.llmapi.ProviderSettings;
 import com.alexeys.translate_allinone.utils.llmapi.openai.OpenAIRequest;
 import com.alexeys.translate_allinone.utils.text.StylePreserver;
@@ -336,7 +337,7 @@ public class ChatOutputTranslateManager {
                     final StringBuilder visibleContentBuffer = new StringBuilder();
                     final AtomicBoolean inThinkTag = new AtomicBoolean(false);
 
-                    llm.getStreamingCompletion(apiMessages, requestContext).forEach(chunk -> {
+                    LlmRequestLifecycle.consume(llm.getStreamingCompletion(apiMessages, requestContext), chunk -> {
                         fullResponseBuffer.append(chunk);
                         rawResponseBuffer.append(chunk);
 

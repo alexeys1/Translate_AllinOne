@@ -9,6 +9,7 @@ import com.alexeys.translate_allinone.utils.cache.SkyblockNpcTranslationCache;
 import com.alexeys.translate_allinone.utils.cache.component.ComponentTranslationStoreRegistry;
 import com.alexeys.translate_allinone.utils.cache.component.ComponentCacheMigrationManager;
 import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationRuntime;
+import com.alexeys.translate_allinone.utils.llmapi.LlmRequestLifecycle;
 import com.alexeys.translate_allinone.utils.translate.BookTranslationSupport;
 import com.alexeys.translate_allinone.utils.translate.ChatOutputTranslateManager;
 import com.alexeys.translate_allinone.utils.translate.ContinuousSignTranslationCoordinator;
@@ -43,6 +44,7 @@ public class LifecycleEventManager {
     }
 
     public static synchronized void globalTranslationFeatureChanged(boolean enabled) {
+        LlmRequestLifecycle.cancelActiveRequests();
         ComponentTranslationRuntime.providerConfigurationChanged();
         BookTranslationSupport.resetSession();
         ContinuousSignTranslationCoordinator.reset();
@@ -143,6 +145,7 @@ public class LifecycleEventManager {
     }
 
     private static void stopTranslationManagers() {
+        LlmRequestLifecycle.cancelActiveRequests();
         WynnDialogueTranslateManager.getInstance().stop();
         WynntilsTaskTrackerTranslateManager.getInstance().stop();
         WynnDialogueTranslationSupport.resetSession();
