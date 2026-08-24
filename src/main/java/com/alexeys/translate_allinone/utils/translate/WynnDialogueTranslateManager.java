@@ -27,6 +27,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -39,6 +40,7 @@ public final class WynnDialogueTranslateManager {
     private static final int RETRY_INTERVAL_SECONDS = 10;
     private static final int MAX_BATCH_SIZE = 4;
     private static final int WORKER_COUNT = 1;
+    private static final int MAX_IN_FLIGHT_REQUESTS = 1;
 
     private record RetryRequest(
             List<String> originalKeys,
@@ -47,10 +49,11 @@ public final class WynnDialogueTranslateManager {
 
     private final WynnDialogueTextCache cache = WynnDialogueTextCache.getInstance();
     private final AtomicLong sessionEpoch = new AtomicLong(0L);
+    private final TranslationRequestLimiter requestLimiter = new TranslationRequestLimiter(MAX_IN_FLIGHT_REQUESTS);
 
     private ExecutorService workerExecutor;
     private ScheduledExecutorService collectorExecutor;
-    private ScheduledExecutorService retryExecutor;
+    private volatile ScheduledExecutorService retryExecutor;
 
     private WynnDialogueTranslateManager() {
     }
@@ -190,7 +193,7 @@ public final class WynnDialogueTranslateManager {
         }
     }
 
-    private void translateBatch(List<String> originalKeys, String targetLanguage, long batchSessionEpoch) {
+    private void translateBatch(List<String> originalKeys, String targetLanguage, long batchSessionEpoch) throws InterruptedException {
         translateBatch(originalKeys, targetLanguage, 0, batchSessionEpoch);
     }
 
@@ -199,7 +202,7 @@ public final class WynnDialogueTranslateManager {
             String targetLanguage,
             int keyMismatchRetryCount,
             long batchSessionEpoch
-    ) {
+    ) throws InterruptedException {
         if (originalKeys == null || originalKeys.isEmpty()) {
             return;
         }
@@ -248,9 +251,24 @@ public final class WynnDialogueTranslateManager {
                 userPrompt == null ? "" : userPrompt.replace("\n", "\\n")
         );
 
-        CompletableFuture<String> completion = llm.getCompletion(messages, requestContext);
-        long watchdogRequestId = TranslationQueueWatchdog.requestStarted("wynn_dialogue", originalKeys);
+        TranslationRequestLimiter.Permit requestPermit = requestLimiter.acquire();
+        if (!isSessionActive(batchSessionEpoch)) {
+            requestPermit.close();
+            cache.releaseInProgress(Set.copyOf(originalKeys));
+            return;
+        }
+
+        CompletableFuture<String> completion;
+        long watchdogRequestId;
+        try {
+            completion = llm.getCompletion(messages, requestContext);
+            watchdogRequestId = TranslationQueueWatchdog.requestStarted("wynn_dialogue", originalKeys);
+        } catch (RuntimeException | Error startError) {
+            requestPermit.close();
+            throw startError;
+        }
         completion.whenComplete((response, error) -> {
+            requestPermit.close();
             if (!isSessionActive(batchSessionEpoch)) {
                 TranslationQueueWatchdog.requestSuperseded(watchdogRequestId);
                 cache.releaseInProgress(Set.copyOf(originalKeys));
@@ -406,9 +424,33 @@ public final class WynnDialogueTranslateManager {
             }
 
             for (RetryRequest retryRequest : deferredRetries) {
-                dispatchRetryRequest(retryRequest, targetLanguage, batchSessionEpoch);
+                scheduleRetryRequest(retryRequest, targetLanguage, batchSessionEpoch);
             }
         });
+    }
+
+    private void scheduleRetryRequest(
+            RetryRequest retryRequest,
+            String targetLanguage,
+            long batchSessionEpoch
+    ) {
+        if (retryRequest == null || retryRequest.originalKeys() == null || retryRequest.originalKeys().isEmpty()) {
+            return;
+        }
+        ScheduledExecutorService executor = retryExecutor;
+        if (executor == null || executor.isShutdown() || !isSessionActive(batchSessionEpoch)) {
+            cache.releaseInProgress(Set.copyOf(retryRequest.originalKeys()));
+            return;
+        }
+        try {
+            executor.execute(() -> dispatchRetryRequest(retryRequest, targetLanguage, batchSessionEpoch));
+        } catch (RejectedExecutionException e) {
+            if (isSessionActive(batchSessionEpoch)) {
+                cache.requeueFailed(Set.copyOf(retryRequest.originalKeys()), "Retry executor unavailable");
+            } else {
+                cache.releaseInProgress(Set.copyOf(retryRequest.originalKeys()));
+            }
+        }
     }
 
     private void dispatchRetryRequest(
@@ -427,7 +469,11 @@ public final class WynnDialogueTranslateManager {
                     batchSessionEpoch
             );
         } catch (Exception e) {
-            cache.requeueFailed(Set.copyOf(retryRequest.originalKeys()), "Retry dispatch failed: " + e.getMessage());
+            if (isSessionActive(batchSessionEpoch)) {
+                cache.requeueFailed(Set.copyOf(retryRequest.originalKeys()), "Retry dispatch failed: " + e.getMessage());
+            } else {
+                cache.releaseInProgress(Set.copyOf(retryRequest.originalKeys()));
+            }
             Translate_AllinOne.LOGGER.error(
                     "Failed to dispatch Wynn dialogue retry request. keys={}",
                     retryRequest.originalKeys().size(),

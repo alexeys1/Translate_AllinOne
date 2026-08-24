@@ -6,6 +6,7 @@ import com.alexeys.translate_allinone.utils.config.ProviderRouteResolver;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.alexeys.translate_allinone.utils.config.pojos.ChatTranslateConfig;
 import com.alexeys.translate_allinone.utils.llmapi.LLM;
+import com.alexeys.translate_allinone.utils.llmapi.LlmRequestLifecycle;
 import com.alexeys.translate_allinone.utils.llmapi.ProviderSettings;
 import com.alexeys.translate_allinone.utils.llmapi.openai.OpenAIRequest;
 import net.minecraft.client.MinecraftClient;
@@ -205,7 +206,7 @@ public class ChatInputTranslateManager {
                         }
                     });
 
-                    llm.getStreamingCompletion(apiMessages, requestContext).forEach(chunk -> {
+                    LlmRequestLifecycle.consume(llm.getStreamingCompletion(apiMessages, requestContext), chunk -> {
                         if (!isTransformActive(mode, translationGeneration)) {
                             return;
                         }

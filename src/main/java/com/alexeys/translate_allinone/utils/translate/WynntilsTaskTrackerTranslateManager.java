@@ -24,6 +24,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -34,6 +35,7 @@ public final class WynntilsTaskTrackerTranslateManager {
     private static final Gson GSON = LlmPayloadJsonSupport.gson();
     private static final int MAX_BATCH_SIZE = 4;
     private static final int WORKER_COUNT = 1;
+    private static final int MAX_IN_FLIGHT_REQUESTS = 1;
 
     private record RetryRequest(
             List<String> originalTexts,
@@ -42,10 +44,11 @@ public final class WynntilsTaskTrackerTranslateManager {
 
     private final WynntilsTaskTrackerTextCache cache = WynntilsTaskTrackerTextCache.getInstance();
     private final AtomicLong sessionEpoch = new AtomicLong(0L);
+    private final TranslationRequestLimiter requestLimiter = new TranslationRequestLimiter(MAX_IN_FLIGHT_REQUESTS);
 
     private ExecutorService workerExecutor;
     private ScheduledExecutorService collectorExecutor;
-    private ScheduledExecutorService retryExecutor;
+    private volatile ScheduledExecutorService retryExecutor;
 
     private WynntilsTaskTrackerTranslateManager() {
     }
@@ -190,7 +193,7 @@ public final class WynntilsTaskTrackerTranslateManager {
         }
     }
 
-    private void translateBatch(List<String> originalTexts, String targetLanguage, long batchSessionEpoch) {
+    private void translateBatch(List<String> originalTexts, String targetLanguage, long batchSessionEpoch) throws InterruptedException {
         translateBatch(originalTexts, targetLanguage, 0, batchSessionEpoch);
     }
 
@@ -199,7 +202,7 @@ public final class WynntilsTaskTrackerTranslateManager {
             String targetLanguage,
             int keyMismatchRetryCount,
             long batchSessionEpoch
-    ) {
+    ) throws InterruptedException {
         if (originalTexts == null || originalTexts.isEmpty()) {
             return;
         }
@@ -243,9 +246,24 @@ public final class WynntilsTaskTrackerTranslateManager {
                 requestContext,
                 userPrompt);
 
-        CompletableFuture<String> completion = llm.getCompletion(messages, requestContext);
-        long watchdogRequestId = TranslationQueueWatchdog.requestStarted("wynntils_task_tracker", originalTexts);
+        TranslationRequestLimiter.Permit requestPermit = requestLimiter.acquire();
+        if (!isSessionActive(batchSessionEpoch)) {
+            requestPermit.close();
+            cache.releaseInProgress(Set.copyOf(originalTexts));
+            return;
+        }
+
+        CompletableFuture<String> completion;
+        long watchdogRequestId;
+        try {
+            completion = llm.getCompletion(messages, requestContext);
+            watchdogRequestId = TranslationQueueWatchdog.requestStarted("wynntils_task_tracker", originalTexts);
+        } catch (RuntimeException | Error startError) {
+            requestPermit.close();
+            throw startError;
+        }
         completion.whenComplete((response, error) -> {
+            requestPermit.close();
             if (!isSessionActive(batchSessionEpoch)) {
                 TranslationQueueWatchdog.requestSuperseded(watchdogRequestId);
                 cache.releaseInProgress(Set.copyOf(originalTexts));
@@ -407,9 +425,33 @@ public final class WynntilsTaskTrackerTranslateManager {
             }
 
             for (RetryRequest retryRequest : deferredRetries) {
-                dispatchRetryRequest(retryRequest, targetLanguage, batchSessionEpoch);
+                scheduleRetryRequest(retryRequest, targetLanguage, batchSessionEpoch);
             }
         });
+    }
+
+    private void scheduleRetryRequest(
+            RetryRequest retryRequest,
+            String targetLanguage,
+            long batchSessionEpoch
+    ) {
+        if (retryRequest == null || retryRequest.originalTexts() == null || retryRequest.originalTexts().isEmpty()) {
+            return;
+        }
+        ScheduledExecutorService executor = retryExecutor;
+        if (executor == null || executor.isShutdown() || !isSessionActive(batchSessionEpoch)) {
+            cache.releaseInProgress(Set.copyOf(retryRequest.originalTexts()));
+            return;
+        }
+        try {
+            executor.execute(() -> dispatchRetryRequest(retryRequest, targetLanguage, batchSessionEpoch));
+        } catch (RejectedExecutionException e) {
+            if (isSessionActive(batchSessionEpoch)) {
+                cache.requeueFailed(Set.copyOf(retryRequest.originalTexts()), "Retry executor unavailable");
+            } else {
+                cache.releaseInProgress(Set.copyOf(retryRequest.originalTexts()));
+            }
+        }
     }
 
     private void dispatchRetryRequest(
@@ -428,7 +470,11 @@ public final class WynntilsTaskTrackerTranslateManager {
                     batchSessionEpoch
             );
         } catch (Exception e) {
-            cache.requeueFailed(Set.copyOf(retryRequest.originalTexts()), "Retry dispatch failed: " + e.getMessage());
+            if (isSessionActive(batchSessionEpoch)) {
+                cache.requeueFailed(Set.copyOf(retryRequest.originalTexts()), "Retry dispatch failed: " + e.getMessage());
+            } else {
+                cache.releaseInProgress(Set.copyOf(retryRequest.originalTexts()));
+            }
             Translate_AllinOne.LOGGER.error(
                     "Failed to dispatch Wynntils task tracker retry request. keys={}",
                     retryRequest.originalTexts().size(),

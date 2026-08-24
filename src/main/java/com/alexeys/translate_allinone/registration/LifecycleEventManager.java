@@ -7,6 +7,7 @@ import com.alexeys.translate_allinone.utils.cache.component.ComponentCacheMigrat
 import com.alexeys.translate_allinone.utils.cache.component.ComponentTranslationStoreRegistry;
 import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationRuntime;
 import com.alexeys.translate_allinone.utils.cache.WynnDialogueTextCache;
+import com.alexeys.translate_allinone.utils.llmapi.LlmRequestLifecycle;
 import com.alexeys.translate_allinone.utils.cache.ItemTemplateCache;
 import com.alexeys.translate_allinone.utils.cache.WynntilsTaskTrackerTextCache;
 import com.alexeys.translate_allinone.utils.translate.ItemTranslateManager;
@@ -43,6 +44,7 @@ public class LifecycleEventManager {
     }
 
     public static synchronized void globalTranslationFeatureChanged(boolean enabled) {
+        LlmRequestLifecycle.cancelActiveRequests();
         ComponentTranslationRuntime.providerConfigurationChanged();
         BookTranslationSupport.resetSession();
         ContinuousSignTranslationCoordinator.reset();
@@ -137,6 +139,7 @@ public class LifecycleEventManager {
     }
 
     private static void stopTranslationManagers() {
+        LlmRequestLifecycle.cancelActiveRequests();
         ItemTranslateManager.getInstance().stop();
         WynnDialogueTranslateManager.getInstance().stop();
         WynntilsTaskTrackerTranslateManager.getInstance().stop();
