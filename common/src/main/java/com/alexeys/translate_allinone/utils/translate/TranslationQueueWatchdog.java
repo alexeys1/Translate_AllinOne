@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 public final class TranslationQueueWatchdog {
-    static final int STALLED_TASK_THRESHOLD = 6;
+    static final int STALLED_TASK_THRESHOLD = 1;
     static final long STALL_TIMEOUT_MILLIS = TimeUnit.MINUTES.toMillis(2);
     static final int FAILURE_ATTEMPT_THRESHOLD = 3;
     static final int EXHAUSTED_TASK_THRESHOLD = 3;
@@ -175,19 +175,15 @@ public final class TranslationQueueWatchdog {
         }
 
         synchronized Trip checkStalled(long nowMillis) {
-            int activeTaskCount = activeRequests.values().stream()
+            long cutoff = nowMillis - stallTimeoutMillis;
+            int stalledTaskCount = activeRequests.values().stream()
+                    .filter(request -> request.startedAtMillis() <= cutoff)
                     .mapToInt(request -> request.identitiesByKey().size())
                     .sum();
-            if (activeTaskCount < stalledTaskThreshold) {
+            if (stalledTaskCount < stalledTaskThreshold) {
                 return null;
             }
-            long cutoff = nowMillis - stallTimeoutMillis;
-            for (ActiveRequest request : activeRequests.values()) {
-                if (request.startedAtMillis() > cutoff) {
-                    return null;
-                }
-            }
-            Trip trip = new Trip(Reason.STALLED_TASKS, activeTaskCount);
+            Trip trip = new Trip(Reason.STALLED_TASKS, stalledTaskCount);
             reset();
             return trip;
         }

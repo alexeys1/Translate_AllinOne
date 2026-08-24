@@ -3,6 +3,7 @@ package com.alexeys.translate_allinone.utils.llmapi.openai;
 import com.alexeys.translate_allinone.utils.TranslateStringUtils;
 import com.alexeys.translate_allinone.utils.TranslateExceptionUtils;
 import com.alexeys.translate_allinone.utils.llmapi.LLMApiException;
+import com.alexeys.translate_allinone.utils.llmapi.LlmRequestLifecycle;
 import com.alexeys.translate_allinone.utils.llmapi.LlmCompletion;
 import com.alexeys.translate_allinone.utils.llmapi.LlmPayloadJsonSupport;
 import com.alexeys.translate_allinone.utils.llmapi.ProviderSettings;
@@ -65,22 +66,25 @@ public class OpenAIClient {
 
         HttpRequest httpRequest = HttpRequest.newBuilder()
                 .uri(URI.create(endpoint))
+                .timeout(LlmRequestLifecycle.requestTimeout())
                 .header("Content-Type", "application/json")
                 .header("Authorization", "Bearer " + settings.apiKey())
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                 .build();
 
-        CompletableFuture<OpenAIChatCompletion> future = SHARED_HTTP_CLIENT.sendAsync(httpRequest, HttpResponse.BodyHandlers.ofString())
-                .thenApply(response -> {
+        CompletableFuture<OpenAIChatCompletion> future = LlmRequestLifecycle.track(
+                SHARED_HTTP_CLIENT.sendAsync(httpRequest, HttpResponse.BodyHandlers.ofString()),
+                response -> {
                     if (response.statusCode() != 200) {
                         String message = resolveApiErrorMessage(response.body());
                         logApiError(response, endpoint, requestSummary, response.body());
                         throw new LLMApiException("API returned error: " + response.statusCode() + " - " + message);
                     }
                     return GSON.fromJson(response.body(), OpenAIChatCompletion.class);
-                });
+                }
+        );
 
-        return future.whenComplete((ignored, throwable) -> {
+        future.whenComplete((ignored, throwable) -> {
             if (throwable == null) {
                 return;
             }
@@ -91,6 +95,7 @@ public class OpenAIClient {
             LOGGER.error("OpenAI request failed before receiving valid API response. endpoint={} summary={}",
                     endpoint, requestSummary, root);
         });
+        return future;
     }
 
     /**
@@ -106,22 +111,25 @@ public class OpenAIClient {
 
         HttpRequest httpRequest = HttpRequest.newBuilder()
                 .uri(URI.create(endpoint))
+                .timeout(LlmRequestLifecycle.requestTimeout())
                 .header("Content-Type", "application/json")
                 .header("Authorization", "Bearer " + settings.apiKey())
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                 .build();
 
+        LlmRequestLifecycle.StreamingRequest streamingRequest = LlmRequestLifecycle.startStreamingRequest();
         try {
             HttpResponse<Stream<String>> response = SHARED_HTTP_CLIENT.send(httpRequest, HttpResponse.BodyHandlers.ofLines());
+            Stream<String> responseBody = streamingRequest.attach(response.body());
 
             if (response.statusCode() != 200) {
-                String errorBody = response.body().collect(Collectors.joining("\n"));
+                String errorBody = responseBody.collect(Collectors.joining("\n"));
                 String message = resolveApiErrorMessage(errorBody);
                 logApiError(response, endpoint, requestSummary, errorBody);
                 throw new LLMApiException("API returned error: " + response.statusCode() + " - " + message);
             }
 
-            return response.body()
+            return responseBody
                     .filter(line -> line.startsWith("data: "))
                     .map(line -> line.substring("data: ".length()))
                     .filter(data -> !data.equals("[DONE]"))
@@ -129,6 +137,10 @@ public class OpenAIClient {
                     .filter(chunk -> chunk != null && chunk.choices != null && !chunk.choices.isEmpty() && chunk.choices.get(0).delta != null && chunk.choices.get(0).delta.content != null);
 
         } catch (Exception e) {
+            RuntimeException cancellationFailure = streamingRequest.cancellationFailure(e);
+            if (cancellationFailure != null) {
+                throw cancellationFailure;
+            }
             if (e instanceof LLMApiException llmApiException) {
                 throw llmApiException;
             }
@@ -141,7 +153,7 @@ public class OpenAIClient {
      * 发送非流式请求到 OpenAI Responses API。
      */
     public CompletableFuture<String> getResponsesCompletion(OpenAIResponsesRequest request) {
-        return getResponsesCompletionDetail(request).thenApply(LlmCompletion::content);
+        return LlmRequestLifecycle.map(getResponsesCompletionDetail(request), LlmCompletion::content);
     }
 
     public CompletableFuture<LlmCompletion> getResponsesCompletionDetail(OpenAIResponsesRequest request) {
@@ -152,13 +164,15 @@ public class OpenAIClient {
 
         HttpRequest httpRequest = HttpRequest.newBuilder()
                 .uri(URI.create(endpoint))
+                .timeout(LlmRequestLifecycle.requestTimeout())
                 .header("Content-Type", "application/json")
                 .header("Authorization", "Bearer " + settings.apiKey())
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                 .build();
 
-        CompletableFuture<LlmCompletion> future = SHARED_HTTP_CLIENT.sendAsync(httpRequest, HttpResponse.BodyHandlers.ofString())
-                .thenApply(response -> {
+        CompletableFuture<LlmCompletion> future = LlmRequestLifecycle.track(
+                SHARED_HTTP_CLIENT.sendAsync(httpRequest, HttpResponse.BodyHandlers.ofString()),
+                response -> {
                     if (response.statusCode() != 200) {
                         String message = resolveApiErrorMessage(response.body());
                         logApiError(response, endpoint, requestSummary, response.body());
@@ -171,9 +185,10 @@ public class OpenAIClient {
                         throw new LLMApiException("Responses API returned empty output text");
                     }
                     return new LlmCompletion(content, extractResponsesFinishReason(responseJson));
-                });
+                }
+        );
 
-        return future.whenComplete((ignored, throwable) -> {
+        future.whenComplete((ignored, throwable) -> {
             if (throwable == null) {
                 return;
             }
@@ -184,6 +199,7 @@ public class OpenAIClient {
             LOGGER.error("OpenAI Responses request failed before receiving valid API response. endpoint={} summary={}",
                     endpoint, requestSummary, root);
         });
+        return future;
     }
 
     /**
@@ -197,15 +213,18 @@ public class OpenAIClient {
 
         HttpRequest httpRequest = HttpRequest.newBuilder()
                 .uri(URI.create(endpoint))
+                .timeout(LlmRequestLifecycle.requestTimeout())
                 .header("Content-Type", "application/json")
                 .header("Authorization", "Bearer " + settings.apiKey())
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                 .build();
 
+        LlmRequestLifecycle.StreamingRequest streamingRequest = LlmRequestLifecycle.startStreamingRequest();
         try {
             HttpResponse<Stream<String>> response = SHARED_HTTP_CLIENT.send(httpRequest, HttpResponse.BodyHandlers.ofLines());
+            Stream<String> responseBody = streamingRequest.attach(response.body());
             if (response.statusCode() != 200) {
-                String errorBody = response.body().collect(Collectors.joining("\n"));
+                String errorBody = responseBody.collect(Collectors.joining("\n"));
                 String message = resolveApiErrorMessage(errorBody);
                 logApiError(response, endpoint, requestSummary, errorBody);
                 throw new LLMApiException("API returned error: " + response.statusCode() + " - " + message);
@@ -214,7 +233,7 @@ public class OpenAIClient {
             AtomicBoolean sawDelta = new AtomicBoolean(false);
             AtomicBoolean emittedFallback = new AtomicBoolean(false);
 
-            return response.body()
+            return responseBody
                     .filter(line -> line.startsWith("data: "))
                     .map(line -> line.substring("data: ".length()))
                     .map(String::trim)
@@ -224,6 +243,10 @@ public class OpenAIClient {
                     .filter(chunk -> chunk != null && !chunk.isEmpty());
 
         } catch (Exception e) {
+            RuntimeException cancellationFailure = streamingRequest.cancellationFailure(e);
+            if (cancellationFailure != null) {
+                throw cancellationFailure;
+            }
             if (e instanceof LLMApiException llmApiException) {
                 throw llmApiException;
             }

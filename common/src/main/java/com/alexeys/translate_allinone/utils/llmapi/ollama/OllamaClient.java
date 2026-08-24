@@ -2,6 +2,7 @@ package com.alexeys.translate_allinone.utils.llmapi.ollama;
 
 import com.alexeys.translate_allinone.utils.llmapi.LLMApiException;
 import com.alexeys.translate_allinone.utils.llmapi.LlmPayloadJsonSupport;
+import com.alexeys.translate_allinone.utils.llmapi.LlmRequestLifecycle;
 import com.alexeys.translate_allinone.utils.llmapi.ProviderSettings;
 import com.alexeys.translate_allinone.utils.llmapi.openai.OpenAIError;
 import com.google.gson.Gson;
@@ -33,8 +34,9 @@ public class OllamaClient {
 
         HttpRequest httpRequest = buildRequest(requestBody);
 
-        return SHARED_HTTP_CLIENT.sendAsync(httpRequest, HttpResponse.BodyHandlers.ofString())
-                .thenApply(response -> {
+        return LlmRequestLifecycle.track(
+                SHARED_HTTP_CLIENT.sendAsync(httpRequest, HttpResponse.BodyHandlers.ofString()),
+                response -> {
                     if (response.statusCode() != 200) {
                         // Ollama的错误格式可能不同，但我们尝试用OpenAI的格式解析
                         OpenAIError error = GSON.fromJson(response.body(), OpenAIError.class);
@@ -42,7 +44,8 @@ public class OllamaClient {
                         throw new LLMApiException("API returned error: " + response.statusCode() + " - " + message);
                     }
                     return GSON.fromJson(response.body(), OllamaChatResponse.class);
-                });
+                }
+        );
     }
 
     public Stream<OllamaChatResponse> getStreamingChatCompletion(OllamaChatRequest request) {
@@ -51,20 +54,26 @@ public class OllamaClient {
 
         HttpRequest httpRequest = buildRequest(requestBody);
 
+        LlmRequestLifecycle.StreamingRequest streamingRequest = LlmRequestLifecycle.startStreamingRequest();
         try {
             HttpResponse<Stream<String>> response = SHARED_HTTP_CLIENT.send(httpRequest, HttpResponse.BodyHandlers.ofLines());
+            Stream<String> responseBody = streamingRequest.attach(response.body());
 
             if (response.statusCode() != 200) {
-                String errorBody = response.body().collect(Collectors.joining("\n"));
+                String errorBody = responseBody.collect(Collectors.joining("\n"));
                 OpenAIError error = GSON.fromJson(errorBody, OpenAIError.class);
                 String message = error != null && error.error != null ? error.error.message : errorBody;
                 throw new LLMApiException("API returned error: " + response.statusCode() + " - " + message);
             }
 
-            return response.body()
+            return responseBody
                     .map(line -> GSON.fromJson(line, OllamaChatResponse.class))
                     .filter(chunk -> chunk != null && chunk.message != null && chunk.message.content != null);
         } catch (Exception e) {
+            RuntimeException cancellationFailure = streamingRequest.cancellationFailure(e);
+            if (cancellationFailure != null) {
+                throw cancellationFailure;
+            }
             if (e instanceof LLMApiException) {
                 throw (LLMApiException) e;
             }
@@ -75,6 +84,7 @@ public class OllamaClient {
     private HttpRequest buildRequest(String requestBody) {
         HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create(settings.baseUrl()))
+                .timeout(LlmRequestLifecycle.requestTimeout())
                 .header("Content-Type", "application/json");
         if (settings.apiKey() != null && !settings.apiKey().isBlank()) {
             builder.header("Authorization", "Bearer " + settings.apiKey());
