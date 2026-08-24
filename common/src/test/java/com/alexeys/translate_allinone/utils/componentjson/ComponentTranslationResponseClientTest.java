@@ -11,12 +11,13 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ComponentTranslationResponseClientTest {
     @Test
@@ -66,53 +67,41 @@ class ComponentTranslationResponseClientTest {
     }
 
     @Test
-    void requestsCorrectionAfterRejectedResponse() {
+    void doesNotResendAfterRejectedResponse() {
         AtomicInteger calls = new AtomicInteger();
-        AtomicReference<List<OpenAIRequest.Message>> correctionMessages = new AtomicReference<>();
         ComponentTranslationResponseClient client = client((messages, context, observer, schema) -> {
-            int attempt = calls.incrementAndGet();
-            if (attempt == 1) {
-                return CompletableFuture.completedFuture(completion(
-                        "{\"protocol\":\"taio-component-v1\",\"translations\":{}}"
-                ));
-            }
-            correctionMessages.set(messages);
-            return CompletableFuture.completedFuture(completion(validResponse("你好")));
+            calls.incrementAndGet();
+            return CompletableFuture.completedFuture(completion(
+                    "{\"protocol\":\"taio-component-v1\",\"translations\":{}}"
+            ));
         });
 
-        ComponentTranslationResponse response = client.translate(
-                document(textUnits()),
-                "Chinese",
-                profile(),
-                "chat-output"
-        ).join();
+        assertThrows(CompletionException.class, () -> client.translate(
+                        document(textUnits()),
+                        "Chinese",
+                        profile(),
+                        "chat-output"
+                ).join());
 
-        assertEquals(Map.of("u0", "你好"), response.translations());
-        assertEquals(2, calls.get());
-        List<OpenAIRequest.Message> messages = correctionMessages.get();
-        assertNotNull(messages);
-        assertTrue(messages.get(messages.size() - 1).content.contains("previous component translation response was rejected"));
+        assertEquals(1, calls.get());
     }
 
     @Test
-    void retriesTransientProviderFailure() {
+    void doesNotRetryTransientProviderFailure() {
         AtomicInteger calls = new AtomicInteger();
         ComponentTranslationResponseClient client = client((messages, context, observer, schema) -> {
-            if (calls.incrementAndGet() == 1) {
-                return CompletableFuture.failedFuture(new LLMApiException("503 temporarily unavailable"));
-            }
-            return CompletableFuture.completedFuture(completion(validResponse("你好")));
+            calls.incrementAndGet();
+            return CompletableFuture.failedFuture(new LLMApiException("503 temporarily unavailable"));
         });
 
-        ComponentTranslationResponse response = client.translate(
-                document(textUnits()),
-                "Chinese",
-                profile(),
-                "chat-output"
-        ).join();
+        assertThrows(CompletionException.class, () -> client.translate(
+                        document(textUnits()),
+                        "Chinese",
+                        profile(),
+                        "chat-output"
+                ).join());
 
-        assertEquals(Map.of("u0", "你好"), response.translations());
-        assertEquals(2, calls.get());
+        assertEquals(1, calls.get());
     }
 
     private static ComponentTranslationResponseClient client(
@@ -122,7 +111,6 @@ class ComponentTranslationResponseClientTest {
                 new ComponentResponseParser(),
                 new ComponentTranslationValidator(),
                 settings -> requester,
-                0L,
                 null,
                 null
         );

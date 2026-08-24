@@ -22,16 +22,19 @@ class ComponentTranslationClientTest {
     @Test
     void convertsCommonResponseToMinecraftComponent() {
         ComponentTranslationClient client = new ComponentTranslationClient(
-                new ComponentResponseParser(),
-                new ComponentTranslationValidator(),
-                new ComponentTranslationApplier(),
-                settings -> (messages, context, observer, schema) -> CompletableFuture.completedFuture(
-                        new LlmCompletion(
-                                "{\"protocol\":\"taio-component-v1\",\"translations\":{\"u0\":\"你好\"}}",
-                                "stop"
-                        )
+                new ComponentTranslationResponseClient(
+                        new ComponentResponseParser(),
+                        new ComponentTranslationValidator(),
+                        settings -> (messages, context, observer, schema) -> CompletableFuture.completedFuture(
+                                new LlmCompletion(
+                                        "{\"protocol\":\"taio-component-v1\",\"translations\":{\"u0\":\"你好\"}}",
+                                        "stop"
+                                )
+                        ),
+                        (route, message, arguments) -> {},
+                        (route, message, arguments) -> {}
                 ),
-                0L
+                new ComponentTranslationApplier()
         );
         ComponentTranslationDocument document = new ComponentDocumentBuilder().build(
                 Component.literal("Hello"),

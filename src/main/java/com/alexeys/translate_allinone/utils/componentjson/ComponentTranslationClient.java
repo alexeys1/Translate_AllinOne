@@ -1,17 +1,12 @@
 package com.alexeys.translate_allinone.utils.componentjson;
 
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
-import com.alexeys.translate_allinone.utils.llmapi.LLM;
-import com.alexeys.translate_allinone.utils.llmapi.LlmCompletion;
-import com.alexeys.translate_allinone.utils.llmapi.ProviderSettings;
-import com.alexeys.translate_allinone.utils.llmapi.StructuredOutputSpec;
 import com.alexeys.translate_allinone.utils.llmapi.openai.OpenAIRequest;
 import com.alexeys.translate_allinone.versionapi.MinecraftComponentCodec;
 import net.minecraft.network.chat.Component;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Function;
 
 public final class ComponentTranslationClient {
     private final ComponentTranslationResponseClient responseClient;
@@ -44,29 +39,6 @@ public final class ComponentTranslationClient {
     }
 
     ComponentTranslationClient(
-            ComponentResponseParser parser,
-            ComponentTranslationValidator validator,
-            ComponentTranslationApplier applier,
-            Function<ProviderSettings, CompletionRequester> completionRequesterFactory,
-            long retryDelayMillis
-    ) {
-        this(
-                new ComponentTranslationResponseClient(
-                        parser,
-                        validator,
-                        settings -> {
-                            CompletionRequester requester = completionRequesterFactory.apply(settings);
-                            return requester::request;
-                        },
-                        retryDelayMillis,
-                        ComponentTranslationDebugLogger::flow,
-                        ComponentTranslationDebugLogger::error
-                ),
-                applier
-        );
-    }
-
-    private ComponentTranslationClient(
             ComponentTranslationResponseClient responseClient,
             ComponentTranslationApplier applier
     ) {
@@ -108,29 +80,6 @@ public final class ComponentTranslationClient {
         return responseClient.translate(document, targetLanguage, providerProfile, requestContext);
     }
 
-    static boolean retriesExhausted(Throwable error) {
-        return ComponentTranslationResponseClient.retriesExhausted(error);
-    }
-
-    static List<OpenAIRequest.Message> buildCorrectionMessages(
-            List<OpenAIRequest.Message> previousMessages,
-            Throwable validationError
-    ) {
-        return ComponentTranslationResponseClient.buildCorrectionMessages(previousMessages, validationError);
-    }
-
-    static List<OpenAIRequest.Message> buildCorrectionMessages(
-            List<OpenAIRequest.Message> previousMessages,
-            Throwable validationError,
-            ComponentTranslationRoute route
-    ) {
-        return ComponentTranslationResponseClient.buildCorrectionMessages(
-                previousMessages,
-                validationError,
-                route
-        );
-    }
-
     public static List<OpenAIRequest.Message> buildMessages(
             ComponentTranslationRoute route,
             ComponentTranslationRequest request,
@@ -145,13 +94,4 @@ public final class ComponentTranslationClient {
     ) {
     }
 
-    @FunctionalInterface
-    interface CompletionRequester {
-        CompletableFuture<LlmCompletion> request(
-                List<OpenAIRequest.Message> messages,
-                String requestContext,
-                LLM.CompletionObserver observer,
-                StructuredOutputSpec responseSchema
-        );
-    }
 }

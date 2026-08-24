@@ -73,6 +73,26 @@ class ComponentTranslationRuntimeCoreTest {
         assertEquals(1, commits.get());
     }
 
+    @Test
+    void keepsEveryFailureUntilAnExplicitReset() {
+        assertEquals(
+                Long.MAX_VALUE,
+                ComponentTranslationRuntimeCore.failureExpiresAtMillis(
+                        ComponentTranslationRoute.SCOREBOARD,
+                        ComponentTranslationRuntimeCore.FailureDisposition.TERMINAL_CONTENT_FAILURE,
+                        100L
+                )
+        );
+        assertEquals(
+                Long.MAX_VALUE,
+                ComponentTranslationRuntimeCore.failureExpiresAtMillis(
+                        ComponentTranslationRoute.SIGN_FACE,
+                        ComponentTranslationRuntimeCore.FailureDisposition.INFRASTRUCTURE_FAILURE,
+                        100L
+                )
+        );
+    }
+
     private static ComponentTranslationDocument emptyDocument() {
         return new ComponentTranslationDocument(
                 ComponentTranslationDocument.PROTOCOL,
@@ -115,11 +135,6 @@ class ComponentTranslationRuntimeCoreTest {
                 String requestContext
         ) {
             throw new AssertionError("Provider access was not expected");
-        }
-
-        @Override
-        public boolean retriesExhausted(Throwable error) {
-            return false;
         }
 
         @Override
