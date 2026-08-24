@@ -1,10 +1,8 @@
 package com.alexeys.translate_allinone.utils.componentjson;
 
 import com.alexeys.translate_allinone.utils.TranslateExceptionUtils;
-import com.alexeys.translate_allinone.utils.TranslateStringUtils;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.alexeys.translate_allinone.utils.llmapi.LLM;
-import com.alexeys.translate_allinone.utils.llmapi.LLMApiException;
 import com.alexeys.translate_allinone.utils.llmapi.LlmCompletion;
 import com.alexeys.translate_allinone.utils.llmapi.ProviderSettings;
 import com.alexeys.translate_allinone.utils.llmapi.StructuredOutputSpec;
@@ -18,16 +16,11 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class ComponentTranslationResponseClient {
-    private static final int MAX_PROVIDER_CALLS_PER_WORK = 3;
-    private static final long RETRY_DELAY_MILLIS = 250;
-    private static final int MAX_CORRECTION_REASON_CHARS = 480;
     private static final Pattern LEGACY_FORMATTING_CODE_PATTERN = Pattern.compile("\\x{00A7}[0-9A-FK-ORa-fk-or]");
     private static final Pattern LEGACY_FORMATTING_RUN_PATTERN = Pattern.compile("(?:\\x{00A7}[0-9A-FK-ORa-fk-or])+");
     private static final Pattern STYLE_TAG_PATTERN = Pattern.compile("<s(\\d+)>");
@@ -56,7 +49,6 @@ public final class ComponentTranslationResponseClient {
     private final ComponentResponseParser parser;
     private final ComponentTranslationValidator validator;
     private final Function<ProviderSettings, CompletionRequester> completionRequesterFactory;
-    private final long retryDelayMillis;
     private final LogSink flowLogSink;
     private final LogSink errorLogSink;
 
@@ -69,7 +61,6 @@ public final class ComponentTranslationResponseClient {
                 new ComponentResponseParser(),
                 new ComponentTranslationValidator(),
                 ComponentTranslationResponseClient::createCompletionRequester,
-                RETRY_DELAY_MILLIS,
                 flowLogSink,
                 errorLogSink
         );
@@ -85,7 +76,6 @@ public final class ComponentTranslationResponseClient {
                 parser,
                 validator,
                 ComponentTranslationResponseClient::createCompletionRequester,
-                RETRY_DELAY_MILLIS,
                 flowLogSink,
                 errorLogSink
         );
@@ -95,14 +85,12 @@ public final class ComponentTranslationResponseClient {
             ComponentResponseParser parser,
             ComponentTranslationValidator validator,
             Function<ProviderSettings, CompletionRequester> completionRequesterFactory,
-            long retryDelayMillis,
             LogSink flowLogSink,
             LogSink errorLogSink
     ) {
         this.parser = parser;
         this.validator = validator;
         this.completionRequesterFactory = completionRequesterFactory;
-        this.retryDelayMillis = Math.max(0L, retryDelayMillis);
         this.flowLogSink = flowLogSink == null ? NO_OP_LOG_SINK : flowLogSink;
         this.errorLogSink = errorLogSink == null ? NO_OP_LOG_SINK : errorLogSink;
     }
@@ -141,7 +129,6 @@ public final class ComponentTranslationResponseClient {
                 document.units().size()
         );
         long startedAt = System.nanoTime();
-        AttemptBudget attemptBudget = new AttemptBudget(MAX_PROVIDER_CALLS_PER_WORK);
 
         CompletableFuture<ComponentTranslationResponse> future = requestValidResponse(
                 document,
@@ -149,8 +136,7 @@ public final class ComponentTranslationResponseClient {
                 completionRequester,
                 responseSchema,
                 requestContext,
-                protectedTokenMask,
-                attemptBudget
+                protectedTokenMask
         ).thenApply(response -> {
             long elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000L;
             flowLogSink.log(
@@ -182,18 +168,27 @@ public final class ComponentTranslationResponseClient {
             CompletionRequester completionRequester,
             StructuredOutputSpec responseSchema,
             String requestContext,
-            ProtectedTokenMask protectedTokenMask,
-            AttemptBudget attemptBudget
+            ProtectedTokenMask protectedTokenMask
     ) {
-        return requestCompletion(
-                document,
+        return completionRequester.request(
                 messages,
-                completionRequester,
                 requestContext,
-                responseSchema,
-                attemptBudget
+                (structuredOutput, fallback) -> {
+                    if (structuredOutput) {
+                        ComponentTranslationMetrics.record(
+                                document,
+                                ComponentTranslationMetrics.Outcome.PROVIDER_STRUCTURED_OUTPUT
+                        );
+                    }
+                    if (fallback) {
+                        ComponentTranslationMetrics.record(
+                                document,
+                                ComponentTranslationMetrics.Outcome.PROVIDER_FALLBACK_OUTPUT
+                        );
+                    }
+                },
+                responseSchema
         ).thenCompose(completion -> {
-            int attempt = attemptBudget.attemptsUsed();
             String providerResponse = completion.content();
             String rawResponse = providerResponse;
             try {
@@ -217,181 +212,27 @@ public final class ComponentTranslationResponseClient {
                 return CompletableFuture.completedFuture(response);
             } catch (Throwable error) {
                 Throwable cause = TranslateExceptionUtils.unwrapThrowable(error);
-                if (!isRetryableResponseFailure(cause)) {
-                    return CompletableFuture.failedFuture(cause);
-                }
-
                 ComponentTranslationMetrics.record(
                         document,
                         ComponentTranslationMetrics.Outcome.RESPONSE_REJECTED
                 );
                 errorLogSink.log(
                         document.route(),
-                        "provider response rejected route={} attempt={}/{} finishReason={} reason={} responseBytes={} response={}",
+                        "provider response rejected route={} finishReason={} reason={} responseBytes={} response={}",
                         document.route().wireName(),
-                        attempt,
-                        attemptBudget.maxAttempts(),
                         completion.finishReason(),
                         cause.getMessage(),
                         rawResponse.getBytes(StandardCharsets.UTF_8).length,
                         responsePreview(rawResponse)
                 );
-
-                if (!attemptBudget.hasRemaining()) {
-                    return CompletableFuture.failedFuture(markRetriesExhausted(cause));
-                }
-
-                return retryAfterDelay(() -> requestValidResponse(
-                        document,
-                        buildCorrectionMessages(messages, cause, document.route()),
-                        completionRequester,
-                        responseSchema,
-                        requestContext,
-                        protectedTokenMask,
-                        attemptBudget
-                ));
-            }
-        });
-    }
-
-    private CompletableFuture<LlmCompletion> requestCompletion(
-            ComponentTranslationDocument document,
-            List<OpenAIRequest.Message> messages,
-            CompletionRequester completionRequester,
-            String requestContext,
-            StructuredOutputSpec responseSchema,
-            AttemptBudget attemptBudget
-    ) {
-        int attempt = attemptBudget.acquire();
-        if (attempt == 0) {
-            return CompletableFuture.failedFuture(new IllegalStateException("Component provider attempt budget exhausted."));
-        }
-        return completionRequester.request(
-                messages,
-                requestContext,
-                (structuredOutput, fallback) -> {
-                    if (structuredOutput) {
-                        ComponentTranslationMetrics.record(
-                                document,
-                                ComponentTranslationMetrics.Outcome.PROVIDER_STRUCTURED_OUTPUT
-                        );
-                    }
-                    if (fallback) {
-                        ComponentTranslationMetrics.record(
-                                document,
-                                ComponentTranslationMetrics.Outcome.PROVIDER_FALLBACK_OUTPUT
-                        );
-                    }
-                },
-                responseSchema
-        ).exceptionallyCompose(error -> {
-            Throwable cause = TranslateExceptionUtils.unwrapThrowable(error);
-            if (!attemptBudget.hasRemaining() || !isRetryableProviderFailure(cause)) {
                 return CompletableFuture.failedFuture(cause);
             }
-
-            errorLogSink.log(
-                    document.route(),
-                    "provider request failed route={} attempt={}/{} reason={}, retrying after {}ms",
-                    document.route().wireName(),
-                    attempt,
-                    attemptBudget.maxAttempts(),
-                    cause.getMessage(),
-                    RETRY_DELAY_MILLIS
-            );
-            return retryAfterDelay(() -> requestCompletion(
-                    document,
-                    messages,
-                    completionRequester,
-                    requestContext,
-                    responseSchema,
-                    attemptBudget
-            ));
         });
-    }
-
-    private static boolean isRetryableResponseFailure(Throwable error) {
-        if (!(error instanceof ComponentJsonException componentError)) {
-            return false;
-        }
-        return switch (componentError.kind()) {
-            case RESPONSE, VALIDATION, LIMIT -> true;
-            case APPLY, CODEC, DOCUMENT -> false;
-        };
-    }
-
-    private static boolean isRetryableProviderFailure(Throwable error) {
-        if (!(error instanceof LLMApiException) || error.getMessage() == null) {
-            return false;
-        }
-
-        String message = error.getMessage().toLowerCase(java.util.Locale.ROOT);
-        return message.contains("408")
-                || message.contains("429")
-                || message.contains("500")
-                || message.contains("502")
-                || message.contains("503")
-                || message.contains("504")
-                || message.contains("connection")
-                || message.contains("rate limit")
-                || message.contains("temporarily")
-                || message.contains("timeout");
-    }
-
-    static boolean retriesExhausted(Throwable error) {
-        Throwable cause = TranslateExceptionUtils.unwrapThrowable(error);
-        return cause instanceof ComponentJsonException componentError && componentError.retriesExhausted()
-                || isRetryableProviderFailure(cause);
-    }
-
-    private <T> CompletableFuture<T> retryAfterDelay(Supplier<CompletableFuture<T>> operation) {
-        return CompletableFuture.runAsync(
-                        () -> {},
-                        CompletableFuture.delayedExecutor(retryDelayMillis, TimeUnit.MILLISECONDS)
-                )
-                .thenCompose(ignored -> operation.get());
-    }
-
-    private static Throwable markRetriesExhausted(Throwable error) {
-        return error instanceof ComponentJsonException componentError
-                ? componentError.withRetriesExhausted()
-                : error;
     }
 
     private static CompletionRequester createCompletionRequester(ProviderSettings settings) {
         LLM llm = new LLM(settings);
         return llm::getCompletion;
-    }
-
-    static List<OpenAIRequest.Message> buildCorrectionMessages(
-            List<OpenAIRequest.Message> previousMessages,
-            Throwable validationError
-    ) {
-        return buildCorrectionMessages(previousMessages, validationError, null);
-    }
-
-    static List<OpenAIRequest.Message> buildCorrectionMessages(
-            List<OpenAIRequest.Message> previousMessages,
-            Throwable validationError,
-            ComponentTranslationRoute route
-    ) {
-        List<OpenAIRequest.Message> messages = new ArrayList<>(previousMessages == null ? List.of() : previousMessages);
-        String reason = validationError == null || validationError.getMessage() == null
-                ? "the response did not satisfy the required JSON response contract"
-                : TranslateStringUtils.truncate(validationError.getMessage(), MAX_CORRECTION_REASON_CHARS);
-        reason = LEGACY_FORMATTING_CODE_PATTERN.matcher(reason).replaceAll("[formatting-code]");
-        String paragraphCorrection = route == ComponentTranslationRoute.TOOLTIP_PARAGRAPH
-                ? "For tooltip_paragraph, restore every required hard token exactly and return one complete coherent paragraph."
-                : "";
-        messages.add(new OpenAIRequest.Message(
-                "user",
-                "Your previous component translation response was rejected. Reason: " + reason + "\n"
-                        + paragraphCorrection
-                        + (paragraphCorrection.isEmpty() ? "" : "\n")
-                        + "Return one complete replacement response now. Output only the required JSON object; "
-                        + "do not explain the error and do not include Markdown."
-        ));
-        return List.copyOf(messages);
     }
 
     public static List<OpenAIRequest.Message> buildMessages(
@@ -477,38 +318,6 @@ public final class ComponentTranslationResponseClient {
         return route == ComponentTranslationRoute.TOOLTIP_LINE
                 || route == ComponentTranslationRoute.TOOLTIP_STRUCTURED
                 || route == ComponentTranslationRoute.TOOLTIP_PARAGRAPH;
-    }
-
-    static final class AttemptBudget {
-        private final int maxAttempts;
-        private int attemptsUsed;
-
-        AttemptBudget(int maxAttempts) {
-            if (maxAttempts < 1) {
-                throw new IllegalArgumentException("Component provider attempt budget must be positive.");
-            }
-            this.maxAttempts = maxAttempts;
-        }
-
-        synchronized int acquire() {
-            if (attemptsUsed >= maxAttempts) {
-                return 0;
-            }
-            attemptsUsed++;
-            return attemptsUsed;
-        }
-
-        synchronized boolean hasRemaining() {
-            return attemptsUsed < maxAttempts;
-        }
-
-        synchronized int attemptsUsed() {
-            return attemptsUsed;
-        }
-
-        int maxAttempts() {
-            return maxAttempts;
-        }
     }
 
     @FunctionalInterface

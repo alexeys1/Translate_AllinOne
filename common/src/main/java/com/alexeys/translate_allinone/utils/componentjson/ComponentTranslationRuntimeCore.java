@@ -27,7 +27,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 public final class ComponentTranslationRuntimeCore {
-    private static final long INFRASTRUCTURE_FAILURE_COOLDOWN_MILLIS = 30_000L;
     private static final long ITEM_BATCH_COLLECT_DELAY_MILLIS = 10L;
     private static final long REQUEST_RATE_WINDOW_MILLIS = TimeUnit.MINUTES.toMillis(1);
     private static final int OTHER_TRANSLATIONS_REQUESTS_PER_MINUTE = 60;
@@ -694,7 +693,7 @@ public final class ComponentTranslationRuntimeCore {
                 if (error != null) {
                     TranslationQueueWatchdog.requestFailed(
                             watchdogRequestId,
-                            access().retriesExhausted(error)
+                            false
                     );
                     failBatch(route, batch, error.getMessage(), error, classifyFailure(error));
                     return;
@@ -759,7 +758,7 @@ public final class ComponentTranslationRuntimeCore {
                 if (error != null) {
                     TranslationQueueWatchdog.requestFailed(
                             watchdogRequestId,
-                            access().retriesExhausted(error)
+                            false
                     );
                     failBatch(route, batch, error.getMessage(), error, classifyFailure(error));
                     return;
@@ -963,30 +962,6 @@ public final class ComponentTranslationRuntimeCore {
         if (request.epoch() == STATE.epoch()) {
             String resolvedMessage = message == null || message.isBlank() ? "Component translation failed" : message;
             Throwable cause = error == null ? null : TranslateExceptionUtils.unwrapThrowable(error);
-            if (restoresMissAfterRetryExhaustion(cause)) {
-                STATE.removeFailure(request.cacheKey());
-                ComponentTranslationMetrics.record(
-                        request.document(),
-                        ComponentTranslationMetrics.Outcome.RESPONSE_REJECTED
-                );
-                ComponentTranslationDebugLogger.flow(
-                        request.document().route(),
-                        "provider route={} result=retry_exhausted state=MISS key={} epoch={} reason={}",
-                        request.document().route().wireName(),
-                        request.cacheKey(),
-                        request.epoch(),
-                        resolvedMessage
-                );
-                ComponentTranslationDebugLogger.error(
-                        request.document().route(),
-                        "route response retries exhausted: route={} context={} state=MISS reason={}",
-                        request.document().route().wireName(),
-                        request.requestContext(),
-                        resolvedMessage,
-                        error
-                );
-                return;
-            }
             STATE.putFailure(
                     request.cacheKey(),
                     new ComponentTranslationRuntimeState.FailureState<>(
@@ -1027,17 +1002,6 @@ public final class ComponentTranslationRuntimeCore {
         }
     }
 
-    static boolean restoresMissAfterRetryExhaustion(Throwable error) {
-        Throwable cause = error == null ? null : TranslateExceptionUtils.unwrapThrowable(error);
-        if (!(cause instanceof ComponentJsonException componentError) || !componentError.retriesExhausted()) {
-            return false;
-        }
-        return switch (componentError.kind()) {
-            case RESPONSE, VALIDATION, LIMIT -> true;
-            case APPLY, CODEC, DOCUMENT -> false;
-        };
-    }
-
     private static void finishRequest(DispatchRoute route, PendingBatch batch) {
         DispatchState state = DISPATCH.get(route);
         synchronized (state) {
@@ -1051,10 +1015,7 @@ public final class ComponentTranslationRuntimeCore {
             FailureDisposition disposition,
             long nowMillis
     ) {
-        return isTooltipLegacyCompatibilityRoute(route)
-                && disposition == FailureDisposition.TERMINAL_CONTENT_FAILURE
-                ? Long.MAX_VALUE
-                : nowMillis + INFRASTRUCTURE_FAILURE_COOLDOWN_MILLIS;
+        return Long.MAX_VALUE;
     }
 
     private static FailureDisposition classifyFailure(Throwable error) {
@@ -1273,8 +1234,6 @@ public final class ComponentTranslationRuntimeCore {
                 ApiProviderProfile provider,
                 String requestContext
         );
-
-        boolean retriesExhausted(Throwable error);
 
         void onNoRoutedModel(ProviderSurface surface);
 
