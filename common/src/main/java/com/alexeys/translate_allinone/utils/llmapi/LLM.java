@@ -84,7 +84,7 @@ public class LLM {
                                 buildOpenAIResponsesRequest(messages, false)
                         )
                 );
-                return withInternalPostprocessRetry(primaryCall, "OpenAI Responses");
+                return invokeCompletionSupplier(primaryCall);
             }
 
             CompletionSupplier primaryCall = instrumentCompletionSupplier(
@@ -100,7 +100,7 @@ public class LLM {
                             response -> response.choices.get(0).message.content
                     )
             );
-            return withInternalPostprocessRetry(primaryCall, "OpenAI");
+            return invokeCompletionSupplier(primaryCall);
         }
 
         if (ollamaClient != null) {
@@ -117,7 +117,7 @@ public class LLM {
                             response -> response.message.content
                     )
             );
-            return withInternalPostprocessRetry(primaryCall, "Ollama");
+            return invokeCompletionSupplier(primaryCall);
         }
 
         return CompletableFuture.failedFuture(new IllegalStateException("当前供应商不支持聊天消息补全接口。"));
@@ -168,9 +168,9 @@ public class LLM {
                         )
                 );
                 return withComponentStructuredOutputFallback(
-                        () -> withInternalPostprocessRetry(schemaCall, "OpenAI Responses"),
-                        () -> withInternalPostprocessRetry(jsonObjectCall, "OpenAI Responses"),
-                        () -> withInternalPostprocessRetry(promptOnlyCall, "OpenAI Responses"),
+                        schemaCall,
+                        jsonObjectCall,
+                        promptOnlyCall,
                         "OpenAI Responses",
                         observer,
                         capabilityKey
@@ -199,9 +199,9 @@ public class LLM {
                     )
             );
             return withComponentStructuredOutputFallback(
-                    () -> withInternalPostprocessRetry(schemaCall, "OpenAI"),
-                    () -> withInternalPostprocessRetry(jsonObjectCall, "OpenAI"),
-                    () -> withInternalPostprocessRetry(promptOnlyCall, "OpenAI"),
+                    schemaCall,
+                    jsonObjectCall,
+                    promptOnlyCall,
                     "OpenAI",
                     observer,
                     capabilityKey
@@ -231,9 +231,9 @@ public class LLM {
                     )
             );
             return withComponentStructuredOutputFallback(
-                    () -> withInternalPostprocessRetry(schemaCall, "Ollama"),
-                    () -> withInternalPostprocessRetry(jsonObjectCall, "Ollama"),
-                    () -> withInternalPostprocessRetry(promptOnlyCall, "Ollama"),
+                    schemaCall,
+                    jsonObjectCall,
+                    promptOnlyCall,
                     "Ollama",
                     observer,
                     capabilityKey
@@ -515,47 +515,6 @@ public class LLM {
         return result;
     }
 
-    private CompletableFuture<LlmCompletion> withInternalPostprocessRetry(
-            DetailedCompletionSupplier supplier,
-            String providerName
-    ) {
-        CompletableFuture<LlmCompletion> firstAttempt = invokeDetailedSupplier(supplier);
-        CompletableFuture<LlmCompletion> result = new CompletableFuture<>();
-        AtomicReference<CompletableFuture<LlmCompletion>> activeRequest = new AtomicReference<>(firstAttempt);
-        propagateCancellation(result, activeRequest);
-        firstAttempt.whenComplete((value, throwable) -> {
-            if (result.isDone()) {
-                return;
-            }
-            if (throwable == null) {
-                result.complete(value);
-                return;
-            }
-
-            Throwable rootCause = TranslateExceptionUtils.unwrapThrowable(throwable);
-            if (!TranslateExceptionUtils.isInternalPostprocessError(rootCause)) {
-                result.completeExceptionally(rootCause);
-                return;
-            }
-
-            LOGGER.warn("{} request failed with internal postprocess error, retrying once: {}", providerName, rootCause.getMessage());
-            CompletableFuture<LlmCompletion> retryRequest = invokeDetailedSupplier(supplier);
-            activeRequest.set(retryRequest);
-            if (result.isCancelled()) {
-                retryRequest.cancel(true);
-                return;
-            }
-            retryRequest.whenComplete((retryValue, retryThrowable) -> {
-                if (retryThrowable == null) {
-                    result.complete(retryValue);
-                } else {
-                    result.completeExceptionally(TranslateExceptionUtils.unwrapThrowable(retryThrowable));
-                }
-            });
-        });
-        return result;
-    }
-
     private CompletableFuture<LlmCompletion> invokeDetailedSupplier(DetailedCompletionSupplier supplier) {
         try {
             return supplier.get();
@@ -611,6 +570,9 @@ public class LLM {
         }
 
         String message = throwable.getMessage().toLowerCase(Locale.ROOT);
+        if (!message.startsWith("api returned error:")) {
+            return false;
+        }
         if (message.contains("response_format") || message.contains("json_schema") || message.contains("json_object")) {
             return true;
         }
@@ -631,52 +593,12 @@ public class LLM {
         return settings.openAISettings().providerType() == ApiProviderType.OPENAI_RESPONSE;
     }
 
-    private CompletableFuture<String> withInternalPostprocessRetry(CompletionSupplier supplier, String providerName) {
-        CompletableFuture<String> firstAttempt;
+    private CompletableFuture<String> invokeCompletionSupplier(CompletionSupplier supplier) {
         try {
-            firstAttempt = supplier.get();
+            return supplier.get();
         } catch (Throwable e) {
             return CompletableFuture.failedFuture(TranslateExceptionUtils.unwrapThrowable(e));
         }
-
-        CompletableFuture<String> result = new CompletableFuture<>();
-        AtomicReference<CompletableFuture<String>> activeRequest = new AtomicReference<>(firstAttempt);
-        propagateCancellation(result, activeRequest);
-        firstAttempt.whenComplete((value, throwable) -> {
-            if (result.isDone()) {
-                return;
-            }
-            if (throwable == null) {
-                result.complete(value);
-                return;
-            }
-
-            Throwable rootCause = TranslateExceptionUtils.unwrapThrowable(throwable);
-            if (!TranslateExceptionUtils.isInternalPostprocessError(rootCause)) {
-                result.completeExceptionally(rootCause);
-                return;
-            }
-
-            LOGGER.warn("{} request failed with internal postprocess error, retrying once: {}", providerName, rootCause.getMessage());
-            try {
-                CompletableFuture<String> retryRequest = supplier.get();
-                activeRequest.set(retryRequest);
-                if (result.isCancelled()) {
-                    retryRequest.cancel(true);
-                    return;
-                }
-                retryRequest.whenComplete((retryValue, retryThrowable) -> {
-                    if (retryThrowable == null) {
-                        result.complete(retryValue);
-                    } else {
-                        result.completeExceptionally(TranslateExceptionUtils.unwrapThrowable(retryThrowable));
-                    }
-                });
-            } catch (Throwable retryStartError) {
-                result.completeExceptionally(TranslateExceptionUtils.unwrapThrowable(retryStartError));
-            }
-        });
-        return result;
     }
 
     private CompletionSupplier instrumentCompletionSupplier(

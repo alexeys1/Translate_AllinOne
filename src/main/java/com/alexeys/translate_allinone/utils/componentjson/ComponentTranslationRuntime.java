@@ -239,10 +239,6 @@ public final class ComponentTranslationRuntime {
         );
     }
 
-    static boolean restoresMissAfterRetryExhaustion(Throwable error) {
-        return ComponentTranslationRuntimeCore.restoresMissAfterRetryExhaustion(error);
-    }
-
     static long failureExpiresAtMillis(
             ComponentTranslationRoute route,
             FailureDisposition disposition,
@@ -366,11 +362,6 @@ public final class ComponentTranslationRuntime {
                 String requestContext
         ) {
             return client.translateResponse(document, targetLanguage, provider, requestContext);
-        }
-
-        @Override
-        public boolean retriesExhausted(Throwable error) {
-            return ComponentTranslationClient.retriesExhausted(error);
         }
 
         @Override
