@@ -50,4 +50,26 @@ class TextTranslationCacheServiceTest {
         assertEquals(1, backupCalls.get());
         assertEquals("value", cache.snapshotTranslations().get("new"));
     }
+
+    @Test
+    void keepsFailuresStickyUntilForceRefresh() {
+        TextTranslationCacheService cache = new TextTranslationCacheService(
+                cacheRoot.resolve("translate_cache").resolve("sticky.json"),
+                false,
+                "sticky.json",
+                List.of(),
+                "sticky-cache-test-save",
+                "sticky translation",
+                (path, label) -> {
+                }
+        );
+
+        assertEquals(TranslationStatus.PENDING, cache.lookupOrQueue("key").status());
+        cache.markAsInProgress(cache.drainAllPendingItems());
+        cache.requeueFailed(java.util.Set.of("key"), "failed");
+
+        assertEquals(TranslationStatus.ERROR, cache.lookupOrQueue("key").status());
+        assertEquals(1, cache.forceRefresh(List.of("key")));
+        assertEquals(TranslationStatus.PENDING, cache.lookupOrQueue("key").status());
+    }
 }

@@ -44,6 +44,7 @@ final class TooltipTemplateRuntime {
     private static final int CACHE_MIGRATION_LOG_THROTTLE_STATE_LIMIT = 4096;
     private static final long FORCE_REFRESH_COMPAT_BYPASS_MILLIS = 300_000L;
     private static final int FORCE_REFRESH_COMPAT_BYPASS_STATE_LIMIT = 4096;
+    private static final String UNRESOLVED_PLACEHOLDER_ERROR = "Cached translation contains unresolved placeholders";
     static final Pattern STYLE_TAG_ID_PATTERN = Pattern.compile("</?s(\\d+)>");
     private static final Pattern NUMERIC_PLACEHOLDER_ID_PATTERN = Pattern.compile("\\{d(\\d+)}");
     private static final Pattern GLYPH_PLACEHOLDER_ID_PATTERN = Pattern.compile("\\{g(\\d+)}");
@@ -1199,10 +1200,13 @@ final class TooltipTemplateRuntime {
 
         if (shouldBypassCompatibilityFallback(preparedTemplate.translationTemplateKey())) {
             if (invalidCurrentTranslation) {
-                cache.forceRefresh(List.of(preparedTemplate.translationTemplateKey()));
+                cache.markInvalidTranslation(
+                        preparedTemplate.translationTemplateKey(),
+                        UNRESOLVED_PLACEHOLDER_ERROR
+                );
                 registerForceRefreshCompatBypass(List.of(preparedTemplate.translationTemplateKey()));
                 return new ResolvedTemplateLookup(
-                        new LookupResult(TranslationStatus.PENDING, "", null),
+                        new LookupResult(TranslationStatus.ERROR, "", UNRESOLVED_PLACEHOLDER_ERROR),
                         currentFormat,
                         null
                 );
@@ -1330,9 +1334,12 @@ final class TooltipTemplateRuntime {
         }
 
         if (invalidCurrentTranslation) {
-            cache.forceRefresh(List.of(preparedTemplate.translationTemplateKey()));
+            cache.markInvalidTranslation(
+                    preparedTemplate.translationTemplateKey(),
+                    UNRESOLVED_PLACEHOLDER_ERROR
+            );
             return new ResolvedTemplateLookup(
-                    new LookupResult(TranslationStatus.PENDING, "", null),
+                    new LookupResult(TranslationStatus.ERROR, "", UNRESOLVED_PLACEHOLDER_ERROR),
                     currentFormat,
                     null
             );
