@@ -58,6 +58,7 @@ class UiScreenAdapterRegistryTest {
         return type.getName().replace('.', '/') + ".class";
     }
 
+    @SuppressWarnings("deprecation")
     private static ModContainer container(String modId, String ownedResource) {
         ModMetadata metadata = (ModMetadata) Proxy.newProxyInstance(
                 ModMetadata.class.getClassLoader(),
