@@ -5,7 +5,6 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import com.google.gson.Strictness;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 import org.slf4j.Logger;
@@ -232,7 +231,7 @@ public final class CacheBackupService {
             return null;
         }
         try (JsonReader reader = new JsonReader(Files.newBufferedReader(manifestPath, StandardCharsets.UTF_8))) {
-            reader.setStrictness(Strictness.STRICT);
+            reader.setLenient(false);
             requireToken(reader, JsonToken.BEGIN_OBJECT, "Cache backup manifest");
             boolean createdAt = false;
             List<ManifestEntry> entries = null;

@@ -4,7 +4,6 @@ import com.alexeys.translate_allinone.utils.TranslateStringUtils;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonParseException;
-import com.google.gson.Strictness;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 import org.slf4j.Logger;
@@ -305,7 +304,7 @@ public class ItemTemplateCacheService {
         int replacementCharCount = 0;
 
         try (JsonReader reader = new JsonReader(Files.newBufferedReader(sourcePath, charset))) {
-            reader.setStrictness(Strictness.LENIENT);
+            reader.setLenient(true);
             JsonToken rootToken = reader.peek();
 
             if (rootToken == JsonToken.NULL) {

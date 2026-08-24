@@ -1,6 +1,5 @@
 package com.alexeys.translate_allinone.utils.componentjson;
 
-import com.google.gson.Strictness;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 
@@ -46,7 +45,7 @@ public final class ComponentResponseParser {
         }
 
         try (JsonReader reader = new JsonReader(new StringReader(rawResponse))) {
-            reader.setStrictness(Strictness.STRICT);
+            reader.setLenient(false);
             if (reader.peek() != JsonToken.BEGIN_OBJECT) {
                 throw responseError(
                         "Component translation response must be one JSON object: expected=BEGIN_OBJECT"
