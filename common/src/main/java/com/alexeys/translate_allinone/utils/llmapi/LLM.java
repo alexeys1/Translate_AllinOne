@@ -19,6 +19,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -68,11 +69,13 @@ public class LLM {
             String requestContext,
             CompletionObserver observer
     ) {
+        long requestEpoch = LlmRequestLifecycle.currentEpoch();
         if (openAIClient != null) {
             if (useResponsesApi()) {
                 CompletionSupplier primaryCall = instrumentCompletionSupplier(
                         "openai_responses",
                         requestContext,
+                        requestEpoch,
                         messages,
                         false,
                         false,
@@ -87,13 +90,15 @@ public class LLM {
             CompletionSupplier primaryCall = instrumentCompletionSupplier(
                     "openai_chat",
                     requestContext,
+                    requestEpoch,
                     messages,
                     false,
                     false,
                     "primary",
-                    () -> openAIClient.getChatCompletion(
-                            buildOpenAIRequest(messages, false)
-                    ).thenApply(response -> response.choices.get(0).message.content)
+                    () -> LlmRequestLifecycle.map(
+                            openAIClient.getChatCompletion(buildOpenAIRequest(messages, false)),
+                            response -> response.choices.get(0).message.content
+                    )
             );
             return withInternalPostprocessRetry(primaryCall, "OpenAI");
         }
@@ -102,13 +107,15 @@ public class LLM {
             CompletionSupplier primaryCall = instrumentCompletionSupplier(
                     "ollama_chat",
                     requestContext,
+                    requestEpoch,
                     messages,
                     false,
                     false,
                     "primary",
-                    () -> ollamaClient.getChatCompletion(
-                            buildOllamaRequest(messages, false)
-                    ).thenApply(response -> response.message.content)
+                    () -> LlmRequestLifecycle.map(
+                            ollamaClient.getChatCompletion(buildOllamaRequest(messages, false)),
+                            response -> response.message.content
+                    )
             );
             return withInternalPostprocessRetry(primaryCall, "Ollama");
         }
@@ -132,27 +139,30 @@ public class LLM {
             StructuredOutputSpec schema
     ) {
         if (schema == null) {
-            return getCompletion(messages, requestContext, observer)
-                    .thenApply(content -> new LlmCompletion(content, ""));
+            return LlmRequestLifecycle.map(
+                    getCompletion(messages, requestContext, observer),
+                    content -> new LlmCompletion(content, "")
+            );
         }
+        long requestEpoch = LlmRequestLifecycle.currentEpoch();
         String capabilityKey = componentOutputCapabilityKey();
 
         if (openAIClient != null) {
             if (useResponsesApi()) {
                 DetailedCompletionSupplier schemaCall = instrumentDetailedCompletionSupplier(
-                        "openai_responses", requestContext, messages, true, "component_json_schema",
+                        "openai_responses", requestContext, requestEpoch, messages, true, "component_json_schema",
                         () -> openAIClient.getResponsesCompletionDetail(
                                 buildOpenAIResponsesRequest(messages, false, OutputFormat.JSON_SCHEMA, schema)
                         )
                 );
                 DetailedCompletionSupplier jsonObjectCall = instrumentDetailedCompletionSupplier(
-                        "openai_responses", requestContext, messages, true, "component_json_object_fallback",
+                        "openai_responses", requestContext, requestEpoch, messages, true, "component_json_object_fallback",
                         () -> openAIClient.getResponsesCompletionDetail(
                                 buildOpenAIResponsesRequest(messages, false, OutputFormat.JSON_OBJECT, null)
                         )
                 );
                 DetailedCompletionSupplier promptOnlyCall = instrumentDetailedCompletionSupplier(
-                        "openai_responses", requestContext, messages, false, "component_prompt_fallback",
+                        "openai_responses", requestContext, requestEpoch, messages, false, "component_prompt_fallback",
                         () -> openAIClient.getResponsesCompletionDetail(
                                 buildOpenAIResponsesRequest(messages, false, OutputFormat.NONE, null)
                         )
@@ -168,22 +178,25 @@ public class LLM {
             }
 
             DetailedCompletionSupplier schemaCall = instrumentDetailedCompletionSupplier(
-                    "openai_chat", requestContext, messages, true, "component_json_schema",
-                    () -> openAIClient.getChatCompletion(
-                            buildOpenAIRequest(messages, false, OutputFormat.JSON_SCHEMA, schema)
-                    ).thenApply(LLM::toDetailedChatCompletion)
+                    "openai_chat", requestContext, requestEpoch, messages, true, "component_json_schema",
+                    () -> LlmRequestLifecycle.map(
+                            openAIClient.getChatCompletion(buildOpenAIRequest(messages, false, OutputFormat.JSON_SCHEMA, schema)),
+                            LLM::toDetailedChatCompletion
+                    )
             );
             DetailedCompletionSupplier jsonObjectCall = instrumentDetailedCompletionSupplier(
-                    "openai_chat", requestContext, messages, true, "component_json_object_fallback",
-                    () -> openAIClient.getChatCompletion(
-                            buildOpenAIRequest(messages, false, OutputFormat.JSON_OBJECT, null)
-                    ).thenApply(LLM::toDetailedChatCompletion)
+                    "openai_chat", requestContext, requestEpoch, messages, true, "component_json_object_fallback",
+                    () -> LlmRequestLifecycle.map(
+                            openAIClient.getChatCompletion(buildOpenAIRequest(messages, false, OutputFormat.JSON_OBJECT, null)),
+                            LLM::toDetailedChatCompletion
+                    )
             );
             DetailedCompletionSupplier promptOnlyCall = instrumentDetailedCompletionSupplier(
-                    "openai_chat", requestContext, messages, false, "component_prompt_fallback",
-                    () -> openAIClient.getChatCompletion(
-                            buildOpenAIRequest(messages, false, OutputFormat.NONE, null)
-                    ).thenApply(LLM::toDetailedChatCompletion)
+                    "openai_chat", requestContext, requestEpoch, messages, false, "component_prompt_fallback",
+                    () -> LlmRequestLifecycle.map(
+                            openAIClient.getChatCompletion(buildOpenAIRequest(messages, false, OutputFormat.NONE, null)),
+                            LLM::toDetailedChatCompletion
+                    )
             );
             return withComponentStructuredOutputFallback(
                     () -> withInternalPostprocessRetry(schemaCall, "OpenAI"),
@@ -197,22 +210,25 @@ public class LLM {
 
         if (ollamaClient != null) {
             DetailedCompletionSupplier schemaCall = instrumentDetailedCompletionSupplier(
-                    "ollama_chat", requestContext, messages, true, "component_json_schema",
-                    () -> ollamaClient.getChatCompletion(
-                            buildOllamaRequest(messages, false, OutputFormat.JSON_SCHEMA, schema)
-                    ).thenApply(LLM::toDetailedOllamaCompletion)
+                    "ollama_chat", requestContext, requestEpoch, messages, true, "component_json_schema",
+                    () -> LlmRequestLifecycle.map(
+                            ollamaClient.getChatCompletion(buildOllamaRequest(messages, false, OutputFormat.JSON_SCHEMA, schema)),
+                            LLM::toDetailedOllamaCompletion
+                    )
             );
             DetailedCompletionSupplier jsonObjectCall = instrumentDetailedCompletionSupplier(
-                    "ollama_chat", requestContext, messages, true, "component_json_object_fallback",
-                    () -> ollamaClient.getChatCompletion(
-                            buildOllamaRequest(messages, false, OutputFormat.JSON_OBJECT, null)
-                    ).thenApply(LLM::toDetailedOllamaCompletion)
+                    "ollama_chat", requestContext, requestEpoch, messages, true, "component_json_object_fallback",
+                    () -> LlmRequestLifecycle.map(
+                            ollamaClient.getChatCompletion(buildOllamaRequest(messages, false, OutputFormat.JSON_OBJECT, null)),
+                            LLM::toDetailedOllamaCompletion
+                    )
             );
             DetailedCompletionSupplier promptOnlyCall = instrumentDetailedCompletionSupplier(
-                    "ollama_chat", requestContext, messages, false, "component_prompt_fallback",
-                    () -> ollamaClient.getChatCompletion(
-                            buildOllamaRequest(messages, false, OutputFormat.NONE, null)
-                    ).thenApply(LLM::toDetailedOllamaCompletion)
+                    "ollama_chat", requestContext, requestEpoch, messages, false, "component_prompt_fallback",
+                    () -> LlmRequestLifecycle.map(
+                            ollamaClient.getChatCompletion(buildOllamaRequest(messages, false, OutputFormat.NONE, null)),
+                            LLM::toDetailedOllamaCompletion
+                    )
             );
             return withComponentStructuredOutputFallback(
                     () -> withInternalPostprocessRetry(schemaCall, "Ollama"),
@@ -232,11 +248,13 @@ public class LLM {
     }
 
     public Stream<String> getStreamingCompletion(List<OpenAIRequest.Message> messages, String requestContext) {
+        long requestEpoch = LlmRequestLifecycle.currentEpoch();
         if (openAIClient != null) {
             if (useResponsesApi()) {
                 return executeStreamingSupplier(
                         "openai_responses",
                         requestContext,
+                        requestEpoch,
                         messages,
                         true,
                         false,
@@ -250,6 +268,7 @@ public class LLM {
             return executeStreamingSupplier(
                     "openai_chat",
                     requestContext,
+                    requestEpoch,
                     messages,
                     true,
                     false,
@@ -264,6 +283,7 @@ public class LLM {
             return executeStreamingSupplier(
                     "ollama_chat",
                     requestContext,
+                    requestEpoch,
                     messages,
                     true,
                     false,
@@ -448,7 +468,12 @@ public class LLM {
         }
 
         CompletableFuture<LlmCompletion> result = new CompletableFuture<>();
+        AtomicReference<CompletableFuture<LlmCompletion>> activeRequest = new AtomicReference<>(current);
+        propagateCancellation(result, activeRequest);
         current.whenComplete((completion, throwable) -> {
+            if (result.isDone()) {
+                return;
+            }
             if (throwable == null) {
                 result.complete(completion);
                 return;
@@ -470,7 +495,13 @@ public class LLM {
                 onUnsupported.run();
             }
             try {
-                fallback.get().whenComplete((fallbackCompletion, fallbackError) -> {
+                CompletableFuture<LlmCompletion> fallbackRequest = fallback.get();
+                activeRequest.set(fallbackRequest);
+                if (result.isCancelled()) {
+                    fallbackRequest.cancel(true);
+                    return;
+                }
+                fallbackRequest.whenComplete((fallbackCompletion, fallbackError) -> {
                     if (fallbackError == null) {
                         result.complete(fallbackCompletion);
                     } else {
@@ -490,7 +521,12 @@ public class LLM {
     ) {
         CompletableFuture<LlmCompletion> firstAttempt = invokeDetailedSupplier(supplier);
         CompletableFuture<LlmCompletion> result = new CompletableFuture<>();
+        AtomicReference<CompletableFuture<LlmCompletion>> activeRequest = new AtomicReference<>(firstAttempt);
+        propagateCancellation(result, activeRequest);
         firstAttempt.whenComplete((value, throwable) -> {
+            if (result.isDone()) {
+                return;
+            }
             if (throwable == null) {
                 result.complete(value);
                 return;
@@ -503,7 +539,13 @@ public class LLM {
             }
 
             LOGGER.warn("{} request failed with internal postprocess error, retrying once: {}", providerName, rootCause.getMessage());
-            invokeDetailedSupplier(supplier).whenComplete((retryValue, retryThrowable) -> {
+            CompletableFuture<LlmCompletion> retryRequest = invokeDetailedSupplier(supplier);
+            activeRequest.set(retryRequest);
+            if (result.isCancelled()) {
+                retryRequest.cancel(true);
+                return;
+            }
+            retryRequest.whenComplete((retryValue, retryThrowable) -> {
                 if (retryThrowable == null) {
                     result.complete(retryValue);
                 } else {
@@ -598,7 +640,12 @@ public class LLM {
         }
 
         CompletableFuture<String> result = new CompletableFuture<>();
+        AtomicReference<CompletableFuture<String>> activeRequest = new AtomicReference<>(firstAttempt);
+        propagateCancellation(result, activeRequest);
         firstAttempt.whenComplete((value, throwable) -> {
+            if (result.isDone()) {
+                return;
+            }
             if (throwable == null) {
                 result.complete(value);
                 return;
@@ -612,7 +659,13 @@ public class LLM {
 
             LOGGER.warn("{} request failed with internal postprocess error, retrying once: {}", providerName, rootCause.getMessage());
             try {
-                supplier.get().whenComplete((retryValue, retryThrowable) -> {
+                CompletableFuture<String> retryRequest = supplier.get();
+                activeRequest.set(retryRequest);
+                if (result.isCancelled()) {
+                    retryRequest.cancel(true);
+                    return;
+                }
+                retryRequest.whenComplete((retryValue, retryThrowable) -> {
                     if (retryThrowable == null) {
                         result.complete(retryValue);
                     } else {
@@ -629,6 +682,7 @@ public class LLM {
     private CompletionSupplier instrumentCompletionSupplier(
             String api,
             String requestContext,
+            long requestEpoch,
             List<OpenAIRequest.Message> messages,
             boolean streaming,
             boolean structuredOutputEnabled,
@@ -636,7 +690,7 @@ public class LLM {
             CompletionSupplier delegate
     ) {
         AtomicInteger sendAttemptCounter = new AtomicInteger(0);
-        return () -> {
+        return () -> LlmRequestLifecycle.invoke(requestEpoch, () -> {
             int sendAttempt = sendAttemptCounter.incrementAndGet();
             LlmRequestDebugLogger.logIfEnabled(
                     api,
@@ -649,19 +703,20 @@ public class LLM {
                     requestContext
             );
             return delegate.get();
-        };
+        });
     }
 
     private DetailedCompletionSupplier instrumentDetailedCompletionSupplier(
             String api,
             String requestContext,
+            long requestEpoch,
             List<OpenAIRequest.Message> messages,
             boolean structuredOutputEnabled,
             String dispatchReason,
             DetailedCompletionSupplier delegate
     ) {
         AtomicInteger sendAttemptCounter = new AtomicInteger(0);
-        return () -> {
+        return () -> LlmRequestLifecycle.invoke(requestEpoch, () -> {
             int sendAttempt = sendAttemptCounter.incrementAndGet();
             LlmRequestDebugLogger.logIfEnabled(
                     api,
@@ -674,29 +729,47 @@ public class LLM {
                     requestContext
             );
             return delegate.get();
-        };
+        });
     }
 
     private Stream<String> executeStreamingSupplier(
             String api,
             String requestContext,
+            long requestEpoch,
             List<OpenAIRequest.Message> messages,
             boolean streaming,
             boolean structuredOutputEnabled,
             String dispatchReason,
             StreamingSupplier delegate
     ) {
-        LlmRequestDebugLogger.logIfEnabled(
-                api,
-                settings,
-                messages,
-                streaming,
-                structuredOutputEnabled,
-                dispatchReason,
-                1,
-                requestContext
-        );
-        return delegate.get();
+        Stream<String> stream = LlmRequestLifecycle.invoke(requestEpoch, () -> {
+            LlmRequestDebugLogger.logIfEnabled(
+                    api,
+                    settings,
+                    messages,
+                    streaming,
+                    structuredOutputEnabled,
+                    dispatchReason,
+                    1,
+                    requestContext
+            );
+            return delegate.get();
+        });
+        return LlmRequestLifecycle.guard(stream);
+    }
+
+    private static <T> void propagateCancellation(
+            CompletableFuture<T> result,
+            AtomicReference<CompletableFuture<T>> activeRequest
+    ) {
+        result.whenComplete((value, error) -> {
+            if (result.isCancelled()) {
+                CompletableFuture<T> request = activeRequest.get();
+                if (request != null) {
+                    request.cancel(true);
+                }
+            }
+        });
     }
 
     @FunctionalInterface
