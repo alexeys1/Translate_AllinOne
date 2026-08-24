@@ -8,14 +8,12 @@ import com.alexeys.translate_allinone.utils.llmapi.LLM;
 import com.alexeys.translate_allinone.utils.llmapi.LlmPayloadJsonSupport;
 import com.alexeys.translate_allinone.utils.llmapi.ProviderSettings;
 import com.alexeys.translate_allinone.utils.TranslateStringUtils;
-import com.alexeys.translate_allinone.utils.TranslateExceptionUtils;
 import com.alexeys.translate_allinone.utils.llmapi.openai.OpenAIRequest;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
 
 import java.lang.reflect.Type;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,7 +22,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -37,18 +34,12 @@ public final class WynntilsTaskTrackerTranslateManager {
     private static final int WORKER_COUNT = 1;
     private static final int MAX_IN_FLIGHT_REQUESTS = 1;
 
-    private record RetryRequest(
-            List<String> originalTexts,
-            int keyMismatchRetryCount
-    ) {}
-
     private final WynntilsTaskTrackerTextCache cache = WynntilsTaskTrackerTextCache.getInstance();
     private final AtomicLong sessionEpoch = new AtomicLong(0L);
     private final TranslationRequestLimiter requestLimiter = new TranslationRequestLimiter(MAX_IN_FLIGHT_REQUESTS);
 
     private ExecutorService workerExecutor;
     private ScheduledExecutorService collectorExecutor;
-    private volatile ScheduledExecutorService retryExecutor;
 
     private WynntilsTaskTrackerTranslateManager() {
     }
@@ -76,10 +67,6 @@ public final class WynntilsTaskTrackerTranslateManager {
             collectorExecutor.scheduleAtFixedRate(this::collectAndBatchItems, 0, 1, TimeUnit.SECONDS);
         }
 
-        if (retryExecutor == null || retryExecutor.isShutdown()) {
-            retryExecutor = Executors.newSingleThreadScheduledExecutor();
-            retryExecutor.scheduleAtFixedRate(this::requeueErroredItems, 15, 15, TimeUnit.SECONDS);
-        }
     }
 
     public synchronized void stop() {
@@ -103,9 +90,6 @@ public final class WynntilsTaskTrackerTranslateManager {
             collectorExecutor.shutdownNow();
         }
 
-        if (retryExecutor != null && !retryExecutor.isShutdown()) {
-            retryExecutor.shutdownNow();
-        }
     }
 
     public synchronized void cancelPendingTranslations() {
@@ -176,31 +160,9 @@ public final class WynntilsTaskTrackerTranslateManager {
         }
     }
 
-    private void requeueErroredItems() {
-        try {
-            if (!WynntilsTaskTrackerTranslationSupport.isTrackerTranslationEnabled()) {
-                return;
-            }
-            Set<String> erroredKeys = cache.getErroredKeys();
-            for (String key : erroredKeys) {
-                cache.requeueFromError(key);
-            }
-            if (!erroredKeys.isEmpty()) {
-                WynntilsTaskTrackerTranslationSupport.devLog("requeued_errors count={}", erroredKeys.size());
-            }
-        } catch (Exception e) {
-            Translate_AllinOne.LOGGER.error("Error while re-queueing Wynntils task tracker translation errors.", e);
-        }
-    }
-
-    private void translateBatch(List<String> originalTexts, String targetLanguage, long batchSessionEpoch) throws InterruptedException {
-        translateBatch(originalTexts, targetLanguage, 0, batchSessionEpoch);
-    }
-
     private void translateBatch(
             List<String> originalTexts,
             String targetLanguage,
-            int keyMismatchRetryCount,
             long batchSessionEpoch
     ) throws InterruptedException {
         if (originalTexts == null || originalTexts.isEmpty()) {
@@ -270,31 +232,15 @@ public final class WynntilsTaskTrackerTranslateManager {
                 return;
             }
 
-            List<RetryRequest> deferredRetries = new ArrayList<>();
             Set<String> failedTaskKeys = ConcurrentHashMap.newKeySet();
-            boolean requestSuperseded = false;
-            boolean retriesExhausted = false;
 
             if (error != null) {
-                if (TranslateExceptionUtils.isInternalPostprocessError(error) && originalTexts.size() > 1) {
-                    requestSuperseded = true;
-                    Translate_AllinOne.LOGGER.warn(
-                            "Wynntils task tracker batch hit internal post-process error, retrying as single-item batches. context={} batchSize={}",
-                            requestContext,
-                            originalTexts.size()
-                    );
-                    for (String text : originalTexts) {
-                        deferredRetries.add(new RetryRequest(List.of(text), 0));
-                    }
-                } else {
-                    failedTaskKeys.addAll(originalTexts);
-                    retriesExhausted = TranslateExceptionUtils.isInternalPostprocessError(error);
-                    cache.requeueFailed(Set.copyOf(originalTexts), error.getMessage());
-                    Translate_AllinOne.LOGGER.error(
-                            "Failed to translate Wynntils task tracker batch. context={}",
-                            requestContext,
-                            error);
-                }
+                failedTaskKeys.addAll(originalTexts);
+                cache.requeueFailed(Set.copyOf(originalTexts), error.getMessage());
+                Translate_AllinOne.LOGGER.error(
+                        "Failed to translate Wynntils task tracker batch. context={}",
+                        requestContext,
+                        error);
             } else {
                 try {
                     Matcher matcher = TranslateStringUtils.JSON_EXTRACT_PATTERN.matcher(response);
@@ -314,18 +260,12 @@ public final class WynntilsTaskTrackerTranslateManager {
                     }
 
                     if (hasKeyMismatch(translatedMapFromAI, originalTexts.size())) {
-                        if (keyMismatchRetryCount < TranslateStringUtils.MAX_KEY_MISMATCH_BATCH_RETRIES) {
-                            requestSuperseded = true;
-                            deferredRetries.add(new RetryRequest(originalTexts, keyMismatchRetryCount + 1));
-                        } else {
-                            failedTaskKeys.addAll(originalTexts);
-                            retriesExhausted = true;
-                            Translate_AllinOne.LOGGER.warn(
-                                    "Wynntils task tracker keys mismatched after retries, re-queueing full batch. context={}",
-                                    requestContext
-                            );
-                            cache.requeueFailed(Set.copyOf(originalTexts), "LLM response key mismatch");
-                        }
+                        failedTaskKeys.addAll(originalTexts);
+                        Translate_AllinOne.LOGGER.warn(
+                                "Wynntils task tracker response keys mismatched. context={}",
+                                requestContext
+                        );
+                        cache.requeueFailed(Set.copyOf(originalTexts), "LLM response key mismatch");
                     } else {
                         Map<String, String> finalTranslatedMap = new ConcurrentHashMap<>();
                         Set<String> itemsToRequeueForEmpty = ConcurrentHashMap.newKeySet();
@@ -414,73 +354,12 @@ public final class WynntilsTaskTrackerTranslateManager {
                 }
             }
 
-            if (requestSuperseded) {
-                TranslationQueueWatchdog.requestSuperseded(watchdogRequestId);
-            } else {
-                TranslationQueueWatchdog.requestCompleted(
-                        watchdogRequestId,
-                        failedTaskKeys,
-                        retriesExhausted
-                );
-            }
-
-            for (RetryRequest retryRequest : deferredRetries) {
-                scheduleRetryRequest(retryRequest, targetLanguage, batchSessionEpoch);
-            }
+            TranslationQueueWatchdog.requestCompleted(
+                    watchdogRequestId,
+                    failedTaskKeys,
+                    false
+            );
         });
-    }
-
-    private void scheduleRetryRequest(
-            RetryRequest retryRequest,
-            String targetLanguage,
-            long batchSessionEpoch
-    ) {
-        if (retryRequest == null || retryRequest.originalTexts() == null || retryRequest.originalTexts().isEmpty()) {
-            return;
-        }
-        ScheduledExecutorService executor = retryExecutor;
-        if (executor == null || executor.isShutdown() || !isSessionActive(batchSessionEpoch)) {
-            cache.releaseInProgress(Set.copyOf(retryRequest.originalTexts()));
-            return;
-        }
-        try {
-            executor.execute(() -> dispatchRetryRequest(retryRequest, targetLanguage, batchSessionEpoch));
-        } catch (RejectedExecutionException e) {
-            if (isSessionActive(batchSessionEpoch)) {
-                cache.requeueFailed(Set.copyOf(retryRequest.originalTexts()), "Retry executor unavailable");
-            } else {
-                cache.releaseInProgress(Set.copyOf(retryRequest.originalTexts()));
-            }
-        }
-    }
-
-    private void dispatchRetryRequest(
-            RetryRequest retryRequest,
-            String targetLanguage,
-            long batchSessionEpoch
-    ) {
-        if (retryRequest == null || retryRequest.originalTexts() == null || retryRequest.originalTexts().isEmpty()) {
-            return;
-        }
-        try {
-            translateBatch(
-                    retryRequest.originalTexts(),
-                    targetLanguage,
-                    retryRequest.keyMismatchRetryCount(),
-                    batchSessionEpoch
-            );
-        } catch (Exception e) {
-            if (isSessionActive(batchSessionEpoch)) {
-                cache.requeueFailed(Set.copyOf(retryRequest.originalTexts()), "Retry dispatch failed: " + e.getMessage());
-            } else {
-                cache.releaseInProgress(Set.copyOf(retryRequest.originalTexts()));
-            }
-            Translate_AllinOne.LOGGER.error(
-                    "Failed to dispatch Wynntils task tracker retry request. keys={}",
-                    retryRequest.originalTexts().size(),
-                    e
-            );
-        }
     }
 
     private boolean isSessionActive(long expectedEpoch) {
