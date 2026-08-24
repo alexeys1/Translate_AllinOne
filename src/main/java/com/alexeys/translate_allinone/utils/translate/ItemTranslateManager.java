@@ -58,15 +58,8 @@ public class ItemTranslateManager {
             long cacheUpdateElapsedNanos
     ) {}
 
-    private record RetryRequest(
-            List<String> originalTexts,
-            BatchRequestContext batchContext,
-            int keyMismatchRetryCount
-    ) {}
-
     private ExecutorService workerExecutor;
     private ScheduledExecutorService collectorExecutor;
-    private ScheduledExecutorService retryExecutor;
     private final ScheduledExecutorService runtimeRefreshExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
         Thread thread = new Thread(r, "translate_allinone-item-runtime-refresh");
         thread.setDaemon(true);
@@ -114,12 +107,6 @@ public class ItemTranslateManager {
             Translate_AllinOne.LOGGER.info("Item translation collector started.");
         }
 
-        if (retryExecutor == null || retryExecutor.isShutdown()) {
-            retryExecutor = Executors.newSingleThreadScheduledExecutor();
-            retryExecutor.scheduleAtFixedRate(this::requeueErroredItems, 15, 15, TimeUnit.SECONDS);
-            Translate_AllinOne.LOGGER.info("Item translation retry scheduler started.");
-        }
-
     }
 
     public synchronized void stop() {
@@ -146,12 +133,12 @@ public class ItemTranslateManager {
             collectorExecutor.shutdownNow();
             Translate_AllinOne.LOGGER.info("Item translation collector stopped.");
         }
-        if (retryExecutor != null && !retryExecutor.isShutdown()) {
-            retryExecutor.shutdownNow();
-            Translate_AllinOne.LOGGER.info("Item translation retry scheduler stopped.");
-        }
         requestPermitLimiter = null;
         runtimeRefreshPending.set(false);
+    }
+
+    public synchronized void clearTranslationQueue() {
+        cache.clearTranslationQueue();
     }
 
     public void requestRuntimeRefresh() {
@@ -229,36 +216,10 @@ public class ItemTranslateManager {
         }
     }
 
-    private void requeueErroredItems() {
-        try {
-            java.util.Set<String> erroredKeys = cache.getErroredKeys();
-            ItemTranslateConfig config = Translate_AllinOne.getConfig().itemTranslate;
-            if (!isAnyItemTranslationFeatureEnabled(config)) {
-                return;
-            }
-            if (!erroredKeys.isEmpty()) {
-                Translate_AllinOne.LOGGER.info("Re-queueing {} errored items for another attempt.", erroredKeys.size());
-                erroredKeys.forEach(cache::requeueFromError);
-            }
-        } catch (Exception e) {
-            Translate_AllinOne.LOGGER.error("Error during scheduled re-queue of errored items", e);
-        }
-    }
-
     private void translateBatch(
             List<String> originalTexts,
             ItemTranslateConfig config,
             BatchRequestContext batchContext,
-            long batchSessionEpoch
-    ) throws InterruptedException {
-        translateBatch(originalTexts, config, batchContext, 0, batchSessionEpoch);
-    }
-
-    private void translateBatch(
-            List<String> originalTexts,
-            ItemTranslateConfig config,
-            BatchRequestContext batchContext,
-            int keyMismatchRetryCount,
             long batchSessionEpoch
     ) throws InterruptedException {
         if (originalTexts.isEmpty()) {
@@ -347,7 +308,6 @@ public class ItemTranslateManager {
             int missingCount = 0;
             String phase = "callback";
             Throwable phaseError = error;
-            List<RetryRequest> deferredRetries = new ArrayList<>();
             try {
                 if (!isSessionActive(batchSessionEpoch)) {
                     cache.releaseInProgress(new java.util.HashSet<>(originalTexts));
@@ -359,27 +319,11 @@ public class ItemTranslateManager {
                             requestContext
                     );
                 } else if (error != null) {
-                    if (TranslateExceptionUtils.isInternalPostprocessError(error) && originalTexts.size() > 1) {
-                        phase = "retry-single";
-                        Translate_AllinOne.LOGGER.warn(
-                                "Item batch translation hit internal post-process error, retrying as single-item batches. context={} batchSize={}",
-                                requestContext,
-                                originalTexts.size()
-                        );
-                        for (String text : originalTexts) {
-                            deferredRetries.add(new RetryRequest(
-                                    List.of(text),
-                                    createRetryBatchRequestContext(batchContext, "retry-single"),
-                                    0
-                            ));
-                        }
-                    } else {
-                        phase = "error";
-                        requeueCount = originalTexts.size();
-                        missingCount = originalTexts.size();
-                        Translate_AllinOne.LOGGER.error("Failed to get translation from LLM. context={}", requestContext, error);
-                        cache.requeueFailed(new java.util.HashSet<>(originalTexts), error.getMessage());
-                    }
+                    phase = "error";
+                    requeueCount = originalTexts.size();
+                    missingCount = originalTexts.size();
+                    Translate_AllinOne.LOGGER.error("Failed to get translation from LLM. context={}", requestContext, error);
+                    cache.requeueFailed(new java.util.HashSet<>(originalTexts), error.getMessage());
                 } else {
                     try {
                         long jsonExtractStartedAtNanos = System.nanoTime();
@@ -399,31 +343,14 @@ public class ItemTranslateManager {
                         }
 
                         if (hasKeyMismatch(translatedMapFromAI, originalTexts.size())) {
-                            if (keyMismatchRetryCount < TranslateStringUtils.MAX_KEY_MISMATCH_BATCH_RETRIES) {
-                                int nextAttempt = keyMismatchRetryCount + 1;
-                                phase = "retry-batch";
-                                missingCount = originalTexts.size();
-                                Translate_AllinOne.LOGGER.warn(
-                                        "Item translation keys mismatched, retrying full batch. attempt={}/{} context={}",
-                                        nextAttempt,
-                                        TranslateStringUtils.MAX_KEY_MISMATCH_BATCH_RETRIES,
-                                        requestContext
-                                );
-                                deferredRetries.add(new RetryRequest(
-                                        new java.util.ArrayList<>(originalTexts),
-                                        createRetryBatchRequestContext(batchContext, "retry-batch"),
-                                        nextAttempt
-                                ));
-                            } else {
-                                phase = "key-mismatch";
-                                requeueCount = originalTexts.size();
-                                missingCount = originalTexts.size();
-                                Translate_AllinOne.LOGGER.warn(
-                                        "Item translation keys mismatched after retries, re-queueing full batch. context={}",
-                                        requestContext
-                                );
-                                cache.requeueFailed(new java.util.HashSet<>(originalTexts), "LLM response key mismatch");
-                            }
+                            phase = "key-mismatch";
+                            requeueCount = originalTexts.size();
+                            missingCount = originalTexts.size();
+                            Translate_AllinOne.LOGGER.warn(
+                                    "Item translation keys mismatched, marking full batch failed. context={}",
+                                    requestContext
+                            );
+                            cache.requeueFailed(new java.util.HashSet<>(originalTexts), "LLM response key mismatch");
                         } else {
                             long validationStartedAtNanos = System.nanoTime();
                             Map<String, String> finalTranslatedMap = new java.util.HashMap<>();
@@ -536,11 +463,6 @@ public class ItemTranslateManager {
                     cache.snapshotQueues(),
                     phaseError
             );
-            if (!deferredRetries.isEmpty()) {
-                for (RetryRequest retryRequest : deferredRetries) {
-                    dispatchRetryRequest(retryRequest, config, batchSessionEpoch, requestContext);
-                }
-            }
         });
     }
 
@@ -753,50 +675,6 @@ public class ItemTranslateManager {
                 workItem.enqueuedAtNanos(),
                 dequeuedAtNanos
         );
-    }
-
-    private BatchRequestContext createRetryBatchRequestContext(BatchRequestContext parentContext, String reason) {
-        long now = System.nanoTime();
-        return new BatchRequestContext(
-                parentContext == null ? 0L : parentContext.batchId(),
-                requestIdSequence.incrementAndGet(),
-                parentContext == null ? 1 : parentContext.attempt() + 1,
-                reason == null ? "" : reason,
-                parentContext == null ? null : parentContext.requestId(),
-                now,
-                now,
-                now
-        );
-    }
-
-    private void dispatchRetryRequest(
-            RetryRequest retryRequest,
-            ItemTranslateConfig config,
-            long batchSessionEpoch,
-            String parentRequestContext
-    ) {
-        if (retryRequest == null || retryRequest.originalTexts() == null || retryRequest.originalTexts().isEmpty()) {
-            return;
-        }
-        try {
-            translateBatch(
-                    retryRequest.originalTexts(),
-                    config,
-                    retryRequest.batchContext(),
-                    retryRequest.keyMismatchRetryCount(),
-                    batchSessionEpoch
-            );
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            cache.requeueFailed(new java.util.HashSet<>(retryRequest.originalTexts()), "Retry dispatch interrupted");
-            Translate_AllinOne.LOGGER.warn(
-                    "Interrupted while dispatching item translation retry. parentContext={} retryRequestId={} retryReason={}",
-                    parentRequestContext,
-                    retryRequest.batchContext() == null ? 0L : retryRequest.batchContext().requestId(),
-                    retryRequest.batchContext() == null ? "" : retryRequest.batchContext().reason(),
-                    e
-            );
-        }
     }
 
     private void scheduleRuntimeRefreshCheck(long delayMillis) {

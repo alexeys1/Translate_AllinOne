@@ -10,14 +10,12 @@ import com.alexeys.translate_allinone.utils.llmapi.LLM;
 import com.alexeys.translate_allinone.utils.llmapi.LlmPayloadJsonSupport;
 import com.alexeys.translate_allinone.utils.llmapi.ProviderSettings;
 import com.alexeys.translate_allinone.utils.TranslateStringUtils;
-import com.alexeys.translate_allinone.utils.TranslateExceptionUtils;
 import com.alexeys.translate_allinone.utils.llmapi.openai.OpenAIRequest;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
 
 import java.lang.reflect.Type;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,7 +25,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -37,15 +34,9 @@ public final class WynnDialogueTranslateManager {
     private static final WynnDialogueTranslateManager INSTANCE = new WynnDialogueTranslateManager();
     private static final Gson GSON = LlmPayloadJsonSupport.gson();
     private static final int COLLECT_INTERVAL_MILLIS = 200;
-    private static final int RETRY_INTERVAL_SECONDS = 10;
     private static final int MAX_BATCH_SIZE = 4;
     private static final int WORKER_COUNT = 1;
     private static final int MAX_IN_FLIGHT_REQUESTS = 1;
-
-    private record RetryRequest(
-            List<String> originalKeys,
-            int keyMismatchRetryCount
-    ) {}
 
     private final WynnDialogueTextCache cache = WynnDialogueTextCache.getInstance();
     private final AtomicLong sessionEpoch = new AtomicLong(0L);
@@ -53,7 +44,6 @@ public final class WynnDialogueTranslateManager {
 
     private ExecutorService workerExecutor;
     private ScheduledExecutorService collectorExecutor;
-    private volatile ScheduledExecutorService retryExecutor;
 
     private WynnDialogueTranslateManager() {
     }
@@ -82,15 +72,6 @@ public final class WynnDialogueTranslateManager {
             );
         }
 
-        if (retryExecutor == null || retryExecutor.isShutdown()) {
-            retryExecutor = Executors.newSingleThreadScheduledExecutor();
-            retryExecutor.scheduleAtFixedRate(
-                    this::requeueErroredItems,
-                    RETRY_INTERVAL_SECONDS,
-                    RETRY_INTERVAL_SECONDS,
-                    TimeUnit.SECONDS
-            );
-        }
     }
 
     public synchronized void stop() {
@@ -109,9 +90,6 @@ public final class WynnDialogueTranslateManager {
             collectorExecutor.shutdownNow();
         }
 
-        if (retryExecutor != null && !retryExecutor.isShutdown()) {
-            retryExecutor.shutdownNow();
-        }
     }
 
     public synchronized void cancelPendingTranslations() {
@@ -178,29 +156,9 @@ public final class WynnDialogueTranslateManager {
         }
     }
 
-    private void requeueErroredItems() {
-        try {
-            if (!WynnDialogueTranslationSupport.isTranslationFeatureEnabled()
-                    || !WynnDialogueTranslationSupport.hasConfiguredRoute()) {
-                return;
-            }
-
-            for (String key : cache.getErroredKeys()) {
-                cache.requeueFromError(key);
-            }
-        } catch (Exception e) {
-            Translate_AllinOne.LOGGER.error("Error while re-queueing Wynn dialogue cache errors", e);
-        }
-    }
-
-    private void translateBatch(List<String> originalKeys, String targetLanguage, long batchSessionEpoch) throws InterruptedException {
-        translateBatch(originalKeys, targetLanguage, 0, batchSessionEpoch);
-    }
-
     private void translateBatch(
             List<String> originalKeys,
             String targetLanguage,
-            int keyMismatchRetryCount,
             long batchSessionEpoch
     ) throws InterruptedException {
         if (originalKeys == null || originalKeys.isEmpty()) {
@@ -275,39 +233,23 @@ public final class WynnDialogueTranslateManager {
                 return;
             }
 
-            List<RetryRequest> deferredRetries = new ArrayList<>();
             Set<String> failedTaskKeys = ConcurrentHashMap.newKeySet();
-            boolean requestSuperseded = false;
-            boolean retriesExhausted = false;
 
             if (error != null) {
-                if (TranslateExceptionUtils.isInternalPostprocessError(error) && originalKeys.size() > 1) {
-                    requestSuperseded = true;
-                    Translate_AllinOne.LOGGER.warn(
-                            "Wynn dialogue batch hit internal post-process error, retrying as single-item batches. context={} batchSize={}",
-                            requestContext,
-                            originalKeys.size()
-                    );
-                    for (String key : originalKeys) {
-                        deferredRetries.add(new RetryRequest(List.of(key), 0));
-                    }
-                } else {
-                    failedTaskKeys.addAll(originalKeys);
-                    retriesExhausted = TranslateExceptionUtils.isInternalPostprocessError(error);
-                    cache.requeueFailed(Set.copyOf(originalKeys), error.getMessage());
-                    WynnDialogueTranslationSupport.throttledDevLog(
-                            "llm_error",
-                            1000L,
-                            "llm_error context={} error=\"{}\"",
-                            requestContext,
-                            error.getMessage() == null ? "" : error.getMessage()
-                    );
-                    Translate_AllinOne.LOGGER.error(
-                            "Failed to translate Wynn dialogue batch. context={}",
-                            requestContext,
-                            error
-                    );
-                }
+                failedTaskKeys.addAll(originalKeys);
+                cache.requeueFailed(Set.copyOf(originalKeys), error.getMessage());
+                WynnDialogueTranslationSupport.throttledDevLog(
+                        "llm_error",
+                        1000L,
+                        "llm_error context={} error=\"{}\"",
+                        requestContext,
+                        error.getMessage() == null ? "" : error.getMessage()
+                );
+                Translate_AllinOne.LOGGER.error(
+                        "Failed to translate Wynn dialogue batch. context={}",
+                        requestContext,
+                        error
+                );
             } else {
                 try {
                     Matcher matcher = TranslateStringUtils.JSON_EXTRACT_PATTERN.matcher(response);
@@ -331,18 +273,12 @@ public final class WynnDialogueTranslateManager {
                     );
 
                     if (hasKeyMismatch(translatedMapFromAI, originalKeys.size())) {
-                        if (keyMismatchRetryCount < TranslateStringUtils.MAX_KEY_MISMATCH_BATCH_RETRIES) {
-                            requestSuperseded = true;
-                            deferredRetries.add(new RetryRequest(originalKeys, keyMismatchRetryCount + 1));
-                        } else {
-                            failedTaskKeys.addAll(originalKeys);
-                            retriesExhausted = true;
-                            Translate_AllinOne.LOGGER.warn(
-                                    "Wynn dialogue keys mismatched after retries, re-queueing full batch. context={}",
-                                    requestContext
-                            );
-                            cache.requeueFailed(Set.copyOf(originalKeys), "LLM response key mismatch");
-                        }
+                        failedTaskKeys.addAll(originalKeys);
+                        Translate_AllinOne.LOGGER.warn(
+                                "Wynn dialogue response keys mismatched. context={}",
+                                requestContext
+                        );
+                        cache.requeueFailed(Set.copyOf(originalKeys), "LLM response key mismatch");
                     } else {
                         Map<String, String> finalTranslatedMap = new ConcurrentHashMap<>();
                         Set<String> missingTranslations = ConcurrentHashMap.newKeySet();
@@ -413,73 +349,12 @@ public final class WynnDialogueTranslateManager {
                 }
             }
 
-            if (requestSuperseded) {
-                TranslationQueueWatchdog.requestSuperseded(watchdogRequestId);
-            } else {
-                TranslationQueueWatchdog.requestCompleted(
-                        watchdogRequestId,
-                        failedTaskKeys,
-                        retriesExhausted
-                );
-            }
-
-            for (RetryRequest retryRequest : deferredRetries) {
-                scheduleRetryRequest(retryRequest, targetLanguage, batchSessionEpoch);
-            }
+            TranslationQueueWatchdog.requestCompleted(
+                    watchdogRequestId,
+                    failedTaskKeys,
+                    false
+            );
         });
-    }
-
-    private void scheduleRetryRequest(
-            RetryRequest retryRequest,
-            String targetLanguage,
-            long batchSessionEpoch
-    ) {
-        if (retryRequest == null || retryRequest.originalKeys() == null || retryRequest.originalKeys().isEmpty()) {
-            return;
-        }
-        ScheduledExecutorService executor = retryExecutor;
-        if (executor == null || executor.isShutdown() || !isSessionActive(batchSessionEpoch)) {
-            cache.releaseInProgress(Set.copyOf(retryRequest.originalKeys()));
-            return;
-        }
-        try {
-            executor.execute(() -> dispatchRetryRequest(retryRequest, targetLanguage, batchSessionEpoch));
-        } catch (RejectedExecutionException e) {
-            if (isSessionActive(batchSessionEpoch)) {
-                cache.requeueFailed(Set.copyOf(retryRequest.originalKeys()), "Retry executor unavailable");
-            } else {
-                cache.releaseInProgress(Set.copyOf(retryRequest.originalKeys()));
-            }
-        }
-    }
-
-    private void dispatchRetryRequest(
-            RetryRequest retryRequest,
-            String targetLanguage,
-            long batchSessionEpoch
-    ) {
-        if (retryRequest == null || retryRequest.originalKeys() == null || retryRequest.originalKeys().isEmpty()) {
-            return;
-        }
-        try {
-            translateBatch(
-                    retryRequest.originalKeys(),
-                    targetLanguage,
-                    retryRequest.keyMismatchRetryCount(),
-                    batchSessionEpoch
-            );
-        } catch (Exception e) {
-            if (isSessionActive(batchSessionEpoch)) {
-                cache.requeueFailed(Set.copyOf(retryRequest.originalKeys()), "Retry dispatch failed: " + e.getMessage());
-            } else {
-                cache.releaseInProgress(Set.copyOf(retryRequest.originalKeys()));
-            }
-            Translate_AllinOne.LOGGER.error(
-                    "Failed to dispatch Wynn dialogue retry request. keys={}",
-                    retryRequest.originalKeys().size(),
-                    e
-            );
-        }
     }
 
     private Map<String, String> retainAcceptedCacheTranslations(Map<String, String> translations) {

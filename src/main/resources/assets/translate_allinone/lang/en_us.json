@@ -110,7 +110,7 @@
   "key.translate_allinone.chat_input_translate_key": "Chat Input Translation Key",
   "text.translate_allinone.item.tooltip_refresh_forced": "Current tooltip cache was force-refreshed",
   "text.translate_allinone.item.tooltip_translating": "Translating...",
-  "text.translate_allinone.item.tooltip_key_mismatch_retrying": "Item translation key mismatch, retrying...",
+  "text.translate_allinone.item.tooltip_key_mismatch_retrying": "Item translation key mismatch. Refresh to try again.",
   "text.translate_allinone.item.tooltip_translation_error": "Error: %s",
   "text.translate_allinone.translation.status.translating": "Translating...",
   "text.translate_allinone.translation.error.no_routed_model": "Error: No routed model selected",
