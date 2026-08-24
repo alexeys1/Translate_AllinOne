@@ -110,7 +110,7 @@
   "key.translate_allinone.chat_input_translate_key": "聊天输入翻译快捷键",
   "text.translate_allinone.item.tooltip_refresh_forced": "当前tooltip缓存已强制刷新",
   "text.translate_allinone.item.tooltip_translating": "翻译中...",
-  "text.translate_allinone.item.tooltip_key_mismatch_retrying": "物品翻译键不匹配，正在重试...",
+  "text.translate_allinone.item.tooltip_key_mismatch_retrying": "物品翻译键不匹配，请手动刷新后重试。",
   "text.translate_allinone.item.tooltip_translation_error": "错误：%s",
   "text.translate_allinone.translation.status.translating": "翻译中...",
   "text.translate_allinone.translation.error.no_routed_model": "错误：未选择路由模型",

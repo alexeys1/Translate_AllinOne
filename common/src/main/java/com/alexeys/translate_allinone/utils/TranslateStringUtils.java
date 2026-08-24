@@ -12,7 +12,6 @@ public final class TranslateStringUtils {
 
     public static final Pattern JSON_EXTRACT_PATTERN = Pattern.compile("\\{.*\\}", Pattern.DOTALL);
 
-    public static final int MAX_KEY_MISMATCH_BATCH_RETRIES = 1;
 
     public static String normalizeWhitespace(String value) {
         if (value == null) {
