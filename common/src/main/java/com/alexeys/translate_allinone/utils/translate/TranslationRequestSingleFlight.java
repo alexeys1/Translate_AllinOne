@@ -20,16 +20,19 @@ public final class TranslationRequestSingleFlight<K, V> {
         if (claim == null || !claim.owner()) {
             return false;
         }
+        boolean completed = claim.future().complete(value);
         inFlight.remove(key, claim.future());
-        return claim.future().complete(value);
+        return completed;
     }
 
     public boolean fail(K key, Claim<V> claim, Throwable error) {
         if (claim == null || !claim.owner()) {
             return false;
         }
+        Throwable failure = Objects.requireNonNull(error, "error");
+        boolean completed = claim.future().completeExceptionally(failure);
         inFlight.remove(key, claim.future());
-        return claim.future().completeExceptionally(Objects.requireNonNull(error, "error"));
+        return completed;
     }
 
     public void cancelAll() {
