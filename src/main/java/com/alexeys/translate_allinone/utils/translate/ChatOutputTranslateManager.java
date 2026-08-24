@@ -14,6 +14,7 @@ import com.alexeys.translate_allinone.utils.config.ProviderRouteResolver;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.alexeys.translate_allinone.utils.config.pojos.ChatTranslateConfig;
 import com.alexeys.translate_allinone.utils.llmapi.LLM;
+import com.alexeys.translate_allinone.utils.llmapi.LlmRequestLifecycle;
 import com.alexeys.translate_allinone.utils.llmapi.ProviderSettings;
 import com.alexeys.translate_allinone.utils.llmapi.openai.OpenAIRequest;
 import com.alexeys.translate_allinone.utils.text.StylePreserver;
@@ -213,6 +214,39 @@ public class ChatOutputTranslateManager {
         ChatHudLine targetLine = searchResult.line();
         logChatLineMapping(messageId, "locate_original", lineIndex, targetLine.content());
 
+        ChatTranslateConfig.ChatOutputTranslateConfig chatOutputConfig = Translate_AllinOne.getConfig().chatTranslate.output;
+        boolean skyblockNpcMessage = isSkyblockNpcMessage(originalMessage);
+        PreparedChatTranslation preparedTranslation = prepareTranslationPayload(originalMessage);
+        String chatOutputCacheKey = buildChatOutputCacheKey(
+                chatOutputConfig.target_language,
+                preparedTranslation.textToTranslate()
+        );
+        String skyblockCacheKey = !skyblockNpcMessage
+                ? null
+                : buildSkyblockNpcCacheKey(chatOutputConfig.target_language, preparedTranslation.textToTranslate());
+        if (forceRefresh) {
+            if (chatOutputCacheKey != null) {
+                ChatOutputTranslationCache.getInstance().forceRefresh(List.of(chatOutputCacheKey));
+            }
+            if (skyblockCacheKey != null) {
+                SkyblockNpcTranslationCache.getInstance().forceRefresh(List.of(skyblockCacheKey));
+            }
+        }
+        LookupResult chatOutputCacheLookup = chatOutputCacheKey == null
+                ? null
+                : ChatOutputTranslationCache.getInstance().peek(chatOutputCacheKey);
+        LookupResult skyblockCacheLookup = skyblockCacheKey == null
+                ? null
+                : SkyblockNpcTranslationCache.getInstance().peek(skyblockCacheKey);
+        String cachedTranslation = resolveCachedTranslation(skyblockCacheLookup, chatOutputCacheLookup);
+        if (cachedTranslation != null) {
+            long requestGeneration = translationGeneration.incrementAndGet();
+            activeTranslationLines.put(messageId, targetLine);
+            translationGenerations.put(messageId, requestGeneration);
+            completeCachedTranslation(messageId, requestGeneration, cachedTranslation, preparedTranslation);
+            return;
+        }
+
         updateExecutorServiceIfNeeded();
 
         Text placeholderText = AnimationManager.getAnimatedStyledText(originalMessage);
@@ -229,7 +263,6 @@ public class ChatOutputTranslateManager {
         chatHudAccessor.setScrolledLines(scrolledLines);
 
         final long finalRequestGeneration = requestGeneration;
-        final boolean finalForceRefresh = forceRefresh;
         translationExecutor.submit(() -> {
             String requestContext = "route=chat_output,messageId=" + messageId;
             long watchdogRequestId = 0L;
@@ -237,66 +270,21 @@ public class ChatOutputTranslateManager {
                 if (!isTranslationActive(messageId, finalRequestGeneration)) {
                     return;
                 }
-                ChatTranslateConfig.ChatOutputTranslateConfig chatOutputConfig = Translate_AllinOne.getConfig().chatTranslate.output;
-                boolean skyblockNpcMessage = isSkyblockNpcMessage(originalMessage);
-                PreparedChatTranslation preparedTranslation = prepareTranslationPayload(originalMessage);
-                String chatOutputCacheKey = buildChatOutputCacheKey(
-                        chatOutputConfig.target_language,
-                        preparedTranslation.textToTranslate()
-                );
-                String skyblockCacheKey = !skyblockNpcMessage
-                        ? null
-                        : buildSkyblockNpcCacheKey(chatOutputConfig.target_language, preparedTranslation.textToTranslate());
-                if (finalForceRefresh) {
-                    if (chatOutputCacheKey != null) {
-                        ChatOutputTranslationCache.getInstance().forceRefresh(List.of(chatOutputCacheKey));
-                    }
-                    if (skyblockCacheKey != null) {
-                        SkyblockNpcTranslationCache.getInstance().forceRefresh(List.of(skyblockCacheKey));
-                    }
-                }
-                LookupResult chatOutputCacheLookup = chatOutputCacheKey == null
+                LookupResult lateChatOutputCacheLookup = chatOutputCacheKey == null
                         ? null
                         : ChatOutputTranslationCache.getInstance().peek(chatOutputCacheKey);
-                LookupResult skyblockCacheLookup = skyblockCacheKey == null
+                LookupResult lateSkyblockCacheLookup = skyblockCacheKey == null
                         ? null
                         : SkyblockNpcTranslationCache.getInstance().peek(skyblockCacheKey);
+                String lateCachedTranslation = resolveCachedTranslation(lateSkyblockCacheLookup, lateChatOutputCacheLookup);
+                if (lateCachedTranslation != null) {
+                    completeCachedTranslation(messageId, finalRequestGeneration, lateCachedTranslation, preparedTranslation);
+                    return;
+                }
                 ApiProviderProfile providerProfile = ProviderRouteResolver.resolve(
                         Translate_AllinOne.getConfig(),
                         ProviderRouteResolver.Route.CHAT_OUTPUT
                 );
-
-                if (skyblockCacheLookup != null
-                        && skyblockCacheLookup.status() == TranslationStatus.TRANSLATED) {
-                    String cachedTranslation = skyblockCacheLookup.translation();
-                    Text finalStyledText = rebuildTranslatedText(cachedTranslation, preparedTranslation);
-                    logReflowResult(
-                            messageId,
-                            false,
-                            cachedTranslation,
-                            cachedTranslation,
-                            finalStyledText,
-                            preparedTranslation.styleMap()
-                    );
-                    updateChatLineWithFinalText(messageId, finalRequestGeneration, finalStyledText);
-                    return;
-                }
-
-                if (chatOutputCacheLookup != null
-                        && chatOutputCacheLookup.status() == TranslationStatus.TRANSLATED) {
-                    String cachedTranslation = chatOutputCacheLookup.translation();
-                    Text finalStyledText = rebuildTranslatedText(cachedTranslation, preparedTranslation);
-                    logReflowResult(
-                            messageId,
-                            false,
-                            cachedTranslation,
-                            cachedTranslation,
-                            finalStyledText,
-                            preparedTranslation.styleMap()
-                    );
-                    updateChatLineWithFinalText(messageId, finalRequestGeneration, finalStyledText);
-                    return;
-                }
 
                 if (providerProfile == null) {
                     LOGGER.warn("No routed model selected for chat output translation; showing temporary error for messageId={}", messageId);
@@ -326,7 +314,7 @@ public class ChatOutputTranslateManager {
                     final StringBuilder visibleContentBuffer = new StringBuilder();
                     final AtomicBoolean inThinkTag = new AtomicBoolean(false);
 
-                    llm.getStreamingCompletion(apiMessages, requestContext).forEach(chunk -> {
+                    LlmRequestLifecycle.consume(llm.getStreamingCompletion(apiMessages, requestContext), chunk -> {
                         fullResponseBuffer.append(chunk);
                         rawResponseBuffer.append(chunk);
 
@@ -922,6 +910,34 @@ public class ChatOutputTranslateManager {
 
     private static String buildSkyblockNpcCacheKey(String targetLanguage, String textToTranslate) {
         return buildChatOutputCacheKey(targetLanguage, textToTranslate);
+    }
+
+    static String resolveCachedTranslation(LookupResult skyblockCacheLookup, LookupResult chatOutputCacheLookup) {
+        if (skyblockCacheLookup != null && skyblockCacheLookup.status() == TranslationStatus.TRANSLATED) {
+            return skyblockCacheLookup.translation();
+        }
+        if (chatOutputCacheLookup != null && chatOutputCacheLookup.status() == TranslationStatus.TRANSLATED) {
+            return chatOutputCacheLookup.translation();
+        }
+        return null;
+    }
+
+    private static void completeCachedTranslation(
+            UUID messageId,
+            long requestGeneration,
+            String cachedTranslation,
+            PreparedChatTranslation preparedTranslation
+    ) {
+        Text finalStyledText = rebuildTranslatedText(cachedTranslation, preparedTranslation);
+        logReflowResult(
+                messageId,
+                false,
+                cachedTranslation,
+                cachedTranslation,
+                finalStyledText,
+                preparedTranslation.styleMap()
+        );
+        updateChatLineWithFinalText(messageId, requestGeneration, finalStyledText);
     }
 
     private static void cacheChatOutputTranslation(String cacheKey, String translation) {

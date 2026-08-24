@@ -4,6 +4,7 @@ import com.alexeys.translate_allinone.Translate_AllinOne;
 import com.alexeys.translate_allinone.utils.config.ModConfig;
 import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationDebugLogger;
 import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationRuntime;
+import com.alexeys.translate_allinone.utils.llmapi.LlmRequestLifecycle;
 import com.alexeys.translate_allinone.utils.translate.TranslationFeatureGate;
 import com.alexeys.translate_allinone.utils.config.pojos.ChatTranslateConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.CacheBackupConfig;
@@ -180,6 +181,7 @@ public class ConfigManager {
         providerConfigurationFingerprint = currentFingerprint;
         providerConfigurationFingerprintInitialized = true;
         if (notifyRuntime && changed) {
+            LlmRequestLifecycle.cancelActiveRequests();
             ComponentTranslationRuntime.providerConfigurationChanged();
         }
     }

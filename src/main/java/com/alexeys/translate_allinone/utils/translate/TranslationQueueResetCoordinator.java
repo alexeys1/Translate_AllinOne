@@ -5,6 +5,7 @@ import com.alexeys.translate_allinone.utils.cache.ChatOutputTranslationCache;
 import com.alexeys.translate_allinone.utils.cache.ItemTemplateCache;
 import com.alexeys.translate_allinone.utils.cache.SkyblockNpcTranslationCache;
 import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationRuntime;
+import com.alexeys.translate_allinone.utils.llmapi.LlmRequestLifecycle;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -23,6 +24,7 @@ public final class TranslationQueueResetCoordinator {
             return;
         }
         try {
+            LlmRequestLifecycle.cancelActiveRequests();
             Translate_AllinOne.LOGGER.warn(
                     "Clearing all translation queues after watchdog trip. reason={} affectedTasks={}",
                     trip.reason(),
