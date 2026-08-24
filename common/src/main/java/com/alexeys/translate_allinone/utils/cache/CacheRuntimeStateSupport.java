@@ -132,6 +132,17 @@ final class CacheRuntimeStateSupport<K, B> {
         return refreshedCount;
     }
 
+    boolean markInvalidTranslation(K key, String errorMessage) {
+        if (key == null) {
+            return false;
+        }
+        boolean removed = templateCache.remove(key) != null;
+        refreshAfterInProgress.remove(key);
+        keyQueueSupport.finishKeys(Set.of(key));
+        keyQueueSupport.markErrored(Set.of(key), errorMessage, "Invalid cached translation");
+        return removed;
+    }
+
     long translatedCount() {
         return templateCache.values().stream()
                 .filter(value -> value != null && !value.isEmpty())

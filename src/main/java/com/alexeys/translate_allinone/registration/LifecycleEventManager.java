@@ -52,7 +52,7 @@ public class LifecycleEventManager {
         ExternalScoreboardTranslationSupport.resetSession();
         ScoreboardTranslationInputSupport.reset();
         WynnDialogueTranslationSupport.resetSession();
-        ChatOutputTranslateManager.cancelPendingTranslations();
+        ChatOutputTranslateManager.clearTranslationQueue();
 
         if (!enabled) {
             WynnDialogueTranslateManager.getInstance().cancelPendingTranslations();
@@ -61,6 +61,8 @@ public class LifecycleEventManager {
         }
 
         if (isReadyForTranslation) {
+            WynnDialogueTranslateManager.getInstance().clearTranslationQueue();
+            WynntilsTaskTrackerTranslateManager.getInstance().clearTranslationQueue();
             WynnDialogueTranslateManager.getInstance().start();
             WynntilsTaskTrackerTranslateManager.getInstance().start();
         }
