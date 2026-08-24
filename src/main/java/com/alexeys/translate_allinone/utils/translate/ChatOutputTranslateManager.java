@@ -344,6 +344,29 @@ public class ChatOutputTranslateManager {
                     return;
                 }
 
+                LookupResult ownerChatOutputCacheLookup = chatOutputCacheKey == null
+                        ? null
+                        : ChatOutputTranslationCache.getInstance().peek(chatOutputCacheKey);
+                LookupResult ownerSkyblockCacheLookup = skyblockCacheKey == null
+                        ? null
+                        : SkyblockNpcTranslationCache.getInstance().peek(skyblockCacheKey);
+                String ownerCachedTranslation = resolveCachedTranslation(ownerSkyblockCacheLookup, ownerChatOutputCacheLookup);
+                if (ownerCachedTranslation != null) {
+                    inFlightTranslations.complete(requestSingleFlightKey, sharedClaim, ownerCachedTranslation);
+                    completeCachedTranslation(messageId, finalRequestGeneration, ownerCachedTranslation, preparedTranslation);
+                    return;
+                }
+                String ownerCachedFailure = resolveCachedFailure(ownerSkyblockCacheLookup, ownerChatOutputCacheLookup);
+                if (ownerCachedFailure != null) {
+                    inFlightTranslations.fail(
+                            requestSingleFlightKey,
+                            sharedClaim,
+                            new IllegalStateException(ownerCachedFailure)
+                    );
+                    completeCachedFailure(messageId, finalRequestGeneration, ownerCachedFailure);
+                    return;
+                }
+
                 ProviderSettings settings = ProviderSettings.fromProviderProfile(providerProfile);
                 LLM llm = new LLM(settings);
 
