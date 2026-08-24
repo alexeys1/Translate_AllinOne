@@ -69,7 +69,18 @@ public final class ComponentRenderTranslationSupport {
             String policyVersion,
             OtherTranslationsConfig config
     ) {
-        return translate(original, route, context, policyVersion, config, false);
+        return translate(original, route, context, policyVersion, config, false, Set.of());
+    }
+
+    static TranslationResult translate(
+            Component original,
+            ComponentTranslationRoute route,
+            String context,
+            String policyVersion,
+            OtherTranslationsConfig config,
+            Set<String> privateTokens
+    ) {
+        return translate(original, route, context, policyVersion, config, false, privateTokens);
     }
 
     static TranslationResult translate(
@@ -80,16 +91,29 @@ public final class ComponentRenderTranslationSupport {
             OtherTranslationsConfig config,
             boolean allowForceRefresh
     ) {
+        return translate(original, route, context, policyVersion, config, allowForceRefresh, Set.of());
+    }
+
+    private static TranslationResult translate(
+            Component original,
+            ComponentTranslationRoute route,
+            String context,
+            String policyVersion,
+            OtherTranslationsConfig config,
+            boolean allowForceRefresh,
+            Set<String> privateTokens
+    ) {
         if (!TranslationFeatureGate.isEnabled() || original == null || config == null) {
             return TranslationResult.original(original, null);
         }
         try {
-            ComponentDynamicTemplate template = ComponentDynamicTemplate.prepare(original);
+            ComponentDynamicTemplate template = ComponentDynamicTemplate.prepare(original, privateTokens);
             ComponentTranslationDocument document = ComponentTranslationRuntime.prepare(
                     template.templateComponent(),
                     route,
                     context,
-                    policyVersion
+                    policyVersion,
+                    template.privatePlaceholders()
             );
             if (document.units().isEmpty()) {
                 return TranslationResult.original(original, document);
