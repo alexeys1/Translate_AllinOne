@@ -1,6 +1,5 @@
 package com.alexeys.translate_allinone.utils.translate;
 
-import com.alexeys.translate_allinone.utils.TranslateExceptionUtils;
 import com.alexeys.translate_allinone.utils.TranslateStringUtils;
 
 import org.slf4j.Logger;
@@ -22,13 +21,10 @@ public abstract class AbstractTranslateManager {
     protected final AtomicLong sessionEpoch = new AtomicLong(0);
     protected ExecutorService workerExecutor;
     protected ScheduledExecutorService collectorExecutor;
-    protected ScheduledExecutorService retryExecutor;
 
     protected abstract int workerCount();
 
     protected abstract long collectIntervalMs();
-
-    protected abstract long retryIntervalSec();
 
     protected abstract int maxBatchSize();
 
@@ -43,10 +39,6 @@ public abstract class AbstractTranslateManager {
     protected abstract void releaseBatchInProgress(Set<String> keys);
 
     protected abstract void submitBatch(List<String> batch);
-
-    protected abstract Set<String> getErroredKeys();
-
-    protected abstract void requeueErroredKey(String key);
 
     protected abstract void requeueFailedBatch(List<String> batch, String errorMessage);
 
@@ -92,10 +84,6 @@ public abstract class AbstractTranslateManager {
         return true;
     }
 
-    protected boolean isInternalPostprocessError(Throwable throwable) {
-        return TranslateExceptionUtils.isInternalPostprocessError(throwable);
-    }
-
     public synchronized void start() {
         long newSessionEpoch = sessionEpoch.incrementAndGet();
         LOGGER.info("{} translation session started. epoch={}", managerLabel(), newSessionEpoch);
@@ -118,13 +106,6 @@ public abstract class AbstractTranslateManager {
             LOGGER.info("{} translation collector started.", managerLabel());
         }
 
-        if (retryExecutor == null || retryExecutor.isShutdown()) {
-            retryExecutor = Executors.newSingleThreadScheduledExecutor();
-            long interval = retryIntervalSec();
-            retryExecutor.scheduleAtFixedRate(
-                    this::requeueErroredItems, interval, interval, TimeUnit.SECONDS);
-            LOGGER.info("{} translation retry scheduler started.", managerLabel());
-        }
     }
 
     public synchronized void stop() {
@@ -133,8 +114,6 @@ public abstract class AbstractTranslateManager {
 
         shutdownExecutor(workerExecutor, managerLabel() + "TranslateManager's processing threads");
         shutdownExecutor(collectorExecutor, managerLabel() + " translation collector");
-        shutdownExecutor(retryExecutor, managerLabel() + " translation retry scheduler");
-
         afterStop();
     }
 
@@ -217,22 +196,4 @@ public abstract class AbstractTranslateManager {
 
     protected abstract List<String> drainAllPendingItemsFromCache();
 
-    protected void requeueErroredItems() {
-        try {
-            Set<String> erroredKeys = getErroredKeys();
-            if (erroredKeys == null || erroredKeys.isEmpty()) {
-                return;
-            }
-            int count = 0;
-            for (String key : erroredKeys) {
-                requeueErroredKey(key);
-                count++;
-            }
-            if (count > 0) {
-                LOGGER.info("{} retry scheduler requeued {} errored items.", managerLabel(), count);
-            }
-        } catch (Exception e) {
-            LOGGER.error("Error requeueing {} errored items.", managerLabel(), e);
-        }
-    }
 }

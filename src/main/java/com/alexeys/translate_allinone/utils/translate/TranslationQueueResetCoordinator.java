@@ -1,10 +1,6 @@
 package com.alexeys.translate_allinone.utils.translate;
 
 import com.alexeys.translate_allinone.Translate_AllinOne;
-import com.alexeys.translate_allinone.utils.cache.ChatOutputTranslationCache;
-import com.alexeys.translate_allinone.utils.cache.ItemTemplateCache;
-import com.alexeys.translate_allinone.utils.cache.SkyblockNpcTranslationCache;
-import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationRuntime;
 import com.alexeys.translate_allinone.utils.llmapi.LlmRequestLifecycle;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -26,17 +22,10 @@ public final class TranslationQueueResetCoordinator {
         try {
             LlmRequestLifecycle.cancelActiveRequests();
             Translate_AllinOne.LOGGER.warn(
-                    "Clearing all translation queues after watchdog trip. reason={} affectedTasks={}",
+                    "Canceling active translation requests after watchdog trip. reason={} affectedTasks={}",
                     trip.reason(),
                     trip.affectedTaskCount()
             );
-            ComponentTranslationRuntime.cancelPendingTranslations();
-            ChatOutputTranslateManager.clearTranslationQueue();
-            WynnDialogueTranslateManager.getInstance().clearTranslationQueue();
-            WynntilsTaskTrackerTranslateManager.getInstance().clearTranslationQueue();
-            ItemTemplateCache.getInstance().clearTranslationQueue();
-            ChatOutputTranslationCache.getInstance().clearTranslationQueue();
-            SkyblockNpcTranslationCache.getInstance().clearTranslationQueue();
         } finally {
             CLEARING.set(false);
         }
