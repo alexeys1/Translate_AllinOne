@@ -9,30 +9,27 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 class TranslationQueueWatchdogTest {
     @Test
-    void tripsOnlyAfterEveryActiveTaskHasStalled() {
+    void tripsWhenSingleActiveTaskStalls() {
         TranslationQueueWatchdog.State state = state();
-        state.start(1L, "item", List.of("1", "2", "3"), 0L);
-        state.start(2L, "scoreboard", List.of("4", "5", "6"), 1_000L);
+        state.start(1L, "chat", List.of("1"), 0L);
 
-        assertNull(state.checkStalled(120_999L));
+        assertNull(state.checkStalled(119_999L));
 
-        TranslationQueueWatchdog.Trip trip = state.checkStalled(121_000L);
+        TranslationQueueWatchdog.Trip trip = state.checkStalled(120_000L);
         assertEquals(TranslationQueueWatchdog.Reason.STALLED_TASKS, trip.reason());
-        assertEquals(6, trip.affectedTaskCount());
+        assertEquals(1, trip.affectedTaskCount());
         assertNull(state.checkStalled(300_000L));
     }
 
     @Test
-    void rechecksOldTasksWhenAYoungerRequestFinishes() {
+    void tripsForOldRequestWhileYoungerRequestIsActive() {
         TranslationQueueWatchdog.State state = state();
-        state.start(1L, "item", List.of("1", "2", "3", "4", "5", "6"), 0L);
-        state.start(2L, "chat", List.of("7"), 119_000L);
+        state.start(1L, "item", List.of("1", "2", "3"), 0L);
+        state.start(2L, "chat", List.of("4"), 119_000L);
 
-        assertNull(state.checkStalled(120_000L));
-
-        TranslationQueueWatchdog.Trip trip = state.finish(2L, false, List.of(), false, 120_001L);
+        TranslationQueueWatchdog.Trip trip = state.checkStalled(120_000L);
         assertEquals(TranslationQueueWatchdog.Reason.STALLED_TASKS, trip.reason());
-        assertEquals(6, trip.affectedTaskCount());
+        assertEquals(3, trip.affectedTaskCount());
     }
 
     @Test
@@ -79,7 +76,7 @@ class TranslationQueueWatchdogTest {
     }
 
     private static TranslationQueueWatchdog.State state() {
-        return new TranslationQueueWatchdog.State(6, 120_000L, 3, 3, 60_000L);
+        return new TranslationQueueWatchdog.State(1, 120_000L, 3, 3, 60_000L);
     }
 
     private static TranslationQueueWatchdog.Trip fail(
