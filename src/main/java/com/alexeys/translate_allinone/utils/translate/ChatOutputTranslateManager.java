@@ -1305,7 +1305,9 @@ public class ChatOutputTranslateManager {
 
     private static Component attachOriginalHover(Component translatedMessage, Component originalMessage) {
         MutableComponent copy = translatedMessage.copy();
-        copy.setStyle(copy.getStyle().withHoverEvent(new HoverEvent.ShowText(originalMessage)));
+        copy.setStyle(copy.getStyle().withHoverEvent(new HoverEvent.ShowText(
+                ChatOutputOriginalHoverStyle.markComponent(originalMessage)
+        )));
         return copy;
     }
 
