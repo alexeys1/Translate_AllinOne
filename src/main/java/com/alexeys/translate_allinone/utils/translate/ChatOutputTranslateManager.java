@@ -1326,7 +1326,10 @@ public class ChatOutputTranslateManager {
 
     private static Text attachOriginalHover(Text translatedMessage, Text originalMessage) {
         MutableText copy = translatedMessage.copy();
-        copy.setStyle(copy.getStyle().withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, originalMessage)));
+        copy.setStyle(copy.getStyle().withHoverEvent(new HoverEvent(
+                HoverEvent.Action.SHOW_TEXT,
+                ChatOutputOriginalHoverStyle.markComponent(originalMessage)
+        )));
         return copy;
     }
 
