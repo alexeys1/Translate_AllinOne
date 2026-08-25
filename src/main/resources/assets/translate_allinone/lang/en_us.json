@@ -590,6 +590,7 @@
   "text.translate_allinone.configscreen.button.continue": "Continue",
   "text.translate_allinone.configscreen.modal.prompt_editor_warning_title": "Warning",
   "text.translate_allinone.configscreen.modal.prompt_editor_warning_message": "You need to understand how prompts work before modifying them. Otherwise, do not change the prompt content.",
+  "text.translate_allinone.configscreen.modal.screen_translation_warning_message": "This feature is not yet complete and may cause unforeseen issues.",
   "text.translate_allinone.configscreen.modal.prompt_editor_title": "Edit Prompts",
   "text.translate_allinone.configscreen.prompt_editor.route.item": "Item Tooltip",
   "text.translate_allinone.configscreen.prompt_editor.route.scoreboard": "Scoreboard",
