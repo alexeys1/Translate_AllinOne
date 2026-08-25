@@ -61,6 +61,7 @@ public final class ConfigSectionContentSupport {
             HotkeyAction hotkeyClearBinding,
             HotkeyAction hotkeyCycleMode,
             Runnable originalDisplayModeCycle,
+            Consumer<Boolean> screenTranslationEnabledSetter,
             DictionaryFilePickerAction dictionaryFilePickerAction,
             Runnable openDictionaryDirectoryAction,
             Runnable openCacheDirectoryAction,
@@ -659,7 +660,7 @@ public final class ConfigSectionContentSupport {
                         width,
                         translator.t("label.screen_translation_enabled"),
                         () -> otherTranslations.enabled_screen_translation,
-                        value -> otherTranslations.enabled_screen_translation = value,
+                        screenTranslationEnabledSetter,
                         translator.t("desc.screen_translation_enabled")
                 );
                 y += ROW_STEP;
