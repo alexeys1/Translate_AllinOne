@@ -1298,7 +1298,7 @@ public class ChatOutputTranslateManager {
             StylePreserver.fromLegacyText(text).visit((resolvedStyle, resolvedText) -> {
                 if (!resolvedText.isEmpty()) {
                     muted.append(Component.literal(resolvedText).setStyle(
-                            resolvedStyle.withColor(ChatFormatting.GRAY).withItalic(true)
+                            resolvedStyle.withColor(ChatFormatting.GRAY).withItalic(true).withHoverEvent(null)
                     ));
                 }
                 return Optional.empty();
