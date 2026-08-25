@@ -576,6 +576,7 @@
   "text.translate_allinone.configscreen.button.continue": "继续",
   "text.translate_allinone.configscreen.modal.prompt_editor_warning_title": "警告",
   "text.translate_allinone.configscreen.modal.prompt_editor_warning_message": "您需要知晓提示词的编写方式，否则不要修改提示词内容。",
+  "text.translate_allinone.configscreen.modal.screen_translation_warning_message": "该功能尚未完善，可能会出现不可预料的问题。",
   "text.translate_allinone.configscreen.modal.prompt_editor_title": "编辑提示词",
   "text.translate_allinone.configscreen.prompt_editor.route.item": "物品 Tooltip",
   "text.translate_allinone.configscreen.prompt_editor.route.scoreboard": "计分板",
