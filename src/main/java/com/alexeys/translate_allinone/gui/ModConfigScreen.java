@@ -268,6 +268,7 @@ public class ModConfigScreen extends Screen {
     private final Screen parent;
     private final ModConfig originalConfigSnapshot;
     private final String originalConfigSnapshotJson;
+    private final boolean screenTranslationInitiallyEnabled;
     private final String modVersion;
     private final String repositoryUrl;
     private final List<ActionBlock> actionBlocks = new ArrayList<>();
@@ -331,7 +332,7 @@ public class ModConfigScreen extends Screen {
     private boolean resetConfirmModalOpen;
     private boolean updateNoticeModalOpen;
     private boolean unsavedChangesConfirmModalOpen;
-    private boolean promptEditorWarningOpen;
+    private WarningConfirmation warningConfirmation;
     private String promptEditorProviderId = "";
     private boolean updateNoticeAutoPrompted;
     private String selectedCustomParameterPath = "";
@@ -374,6 +375,8 @@ public class ModConfigScreen extends Screen {
         this.parent = parent;
         this.originalConfigSnapshot = ConfigManager.copyCurrentConfig();
         this.originalConfigSnapshotJson = CONFIG_STATE_GSON.toJson(this.originalConfigSnapshot);
+        this.screenTranslationInitiallyEnabled = this.originalConfigSnapshot.otherTranslations != null
+                && this.originalConfigSnapshot.otherTranslations.enabled_screen_translation;
         this.providerApiKeyVisible = isProviderApiKeyVisible(this.originalConfigSnapshot.providerManager);
         this.modVersion = resolveCurrentVersion();
         this.repositoryUrl = resolveRepositoryUrl();
@@ -507,7 +510,7 @@ public class ModConfigScreen extends Screen {
                 resetConfirmModalOpen,
                 updateNoticeModalOpen,
                 unsavedChangesConfirmModalOpen,
-                promptEditorWarningOpen
+                isWarningConfirmationOpen()
         );
     }
 
@@ -525,7 +528,7 @@ public class ModConfigScreen extends Screen {
                 resetConfirmModalOpen,
                 updateNoticeModalOpen,
                 unsavedChangesConfirmModalOpen,
-                promptEditorWarningOpen
+                isWarningConfirmationOpen()
         );
     }
 
@@ -634,8 +637,8 @@ public class ModConfigScreen extends Screen {
             addResetConfirmModal();
         } else if (unsavedChangesConfirmModalOpen) {
             addUnsavedChangesConfirmModal();
-        } else if (promptEditorWarningOpen) {
-            addPromptEditorWarning();
+        } else if (isWarningConfirmationOpen()) {
+            addWarningConfirmation();
         }
         ConfigUiFocusSupport.applyPendingFocus(
                 this,
@@ -718,6 +721,7 @@ public class ModConfigScreen extends Screen {
                 this::cycleHotkeyMode,
                 this::cycleExternalScoreboardMode,
                 this::cycleOriginalDisplayMode,
+                this::setScreenTranslationEnabled,
                 this::openDictionaryFilesModal,
                 this::openDictionaryDirectory,
                 this::openCacheDirectory,
@@ -1293,23 +1297,47 @@ public class ModConfigScreen extends Screen {
     }
 
     private void openPromptEditorWarning(ApiProviderProfile profile) {
-        promptEditorWarningOpen = true;
+        warningConfirmation = WarningConfirmation.PROMPT_EDITOR;
         promptEditorProviderId = profile.id;
     }
 
-    private void closePromptEditorWarning() {
-        promptEditorWarningOpen = false;
+    private void setScreenTranslationEnabled(boolean enabled) {
+        if (!enabled || screenTranslationInitiallyEnabled) {
+            Translate_AllinOne.getConfig().otherTranslations.enabled_screen_translation = enabled;
+            return;
+        }
+
+        warningConfirmation = WarningConfirmation.SCREEN_TRANSLATION;
+        rebuildActionBlocks();
+    }
+
+    private boolean isWarningConfirmationOpen() {
+        return warningConfirmation != null;
+    }
+
+    private void closeWarningConfirmation() {
+        warningConfirmation = null;
         promptEditorProviderId = "";
     }
 
     private void openPromptEditorScreen() {
-        promptEditorWarningOpen = false;
+        warningConfirmation = null;
         if (this.minecraft != null) {
             this.minecraft.setScreen(new PromptEditorScreen(this, promptEditorProviderId));
         }
     }
 
-    private void addPromptEditorWarning() {
+    private void confirmWarning() {
+        if (warningConfirmation == WarningConfirmation.SCREEN_TRANSLATION) {
+            Translate_AllinOne.getConfig().otherTranslations.enabled_screen_translation = true;
+            closeWarningConfirmation();
+            rebuildActionBlocks();
+            return;
+        }
+        openPromptEditorScreen();
+    }
+
+    private void addWarningConfirmation() {
         UiRect rect = ConfigUiModalSupport.promptEditorWarningRect(this.width, this.height);
         int buttonsY = rect.y + rect.height - 32;
         int half = (rect.width - 44) / 2;
@@ -1323,7 +1351,7 @@ public class ModConfigScreen extends Screen {
                 20,
                 () -> t("button.cancel"),
                 () -> {
-                    closePromptEditorWarning();
+                    closeWarningConfirmation();
                     rebuildActionBlocks();
                 },
                 COLOR_BLOCK,
@@ -1338,7 +1366,7 @@ public class ModConfigScreen extends Screen {
                 half,
                 20,
                 () -> t("button.continue"),
-                this::openPromptEditorScreen,
+                this::confirmWarning,
                 COLOR_BLOCK_ACCENT,
                 COLOR_BLOCK_ACCENT_HOVER,
                 COLOR_TEXT,
@@ -2597,12 +2625,15 @@ public class ModConfigScreen extends Screen {
         }
     }
 
-    private void renderPromptEditorWarningMessage(GuiGraphicsExtractor context) {
+    private void renderWarningConfirmationMessage(GuiGraphicsExtractor context) {
         UiRect rect = ConfigUiModalSupport.promptEditorWarningRect(this.width, this.height);
         int textX = rect.x + 16;
         int textY = rect.y + 48;
         int maxWidth = Math.max(10, rect.width - 32);
-        List<FormattedCharSequence> lines = this.font.split(t("modal.prompt_editor_warning_message"), maxWidth);
+        Component message = warningConfirmation == WarningConfirmation.SCREEN_TRANSLATION
+                ? t("modal.screen_translation_warning_message")
+                : t("modal.prompt_editor_warning_message");
+        List<FormattedCharSequence> lines = this.font.split(message, maxWidth);
         int lineY = textY;
         for (FormattedCharSequence line : lines) {
             context.text(this.font, line, textX, lineY, COLOR_STATUS_ERROR, false);
@@ -2640,7 +2671,7 @@ public class ModConfigScreen extends Screen {
                 resetConfirmModalOpen,
                 updateNoticeModalOpen,
                 unsavedChangesConfirmModalOpen,
-                promptEditorWarningOpen
+                isWarningConfirmationOpen()
         );
 
         switch (action) {
@@ -2660,7 +2691,7 @@ public class ModConfigScreen extends Screen {
                 return;
             }
             case CLOSE_PROMPT_EDITOR_WARNING -> {
-                closePromptEditorWarning();
+                closeWarningConfirmation();
                 rebuildActionBlocks();
                 return;
             }
@@ -2753,7 +2784,7 @@ public class ModConfigScreen extends Screen {
                         resetConfirmModalOpen,
                         updateNoticeModalOpen,
                         unsavedChangesConfirmModalOpen,
-                        promptEditorWarningOpen
+                        isWarningConfirmationOpen()
                 );
                 switch (action) {
                     case CLOSE_UPDATE_NOTICE -> {
@@ -2772,7 +2803,7 @@ public class ModConfigScreen extends Screen {
                         return true;
                     }
                     case CLOSE_PROMPT_EDITOR_WARNING -> {
-                        closePromptEditorWarning();
+                        closeWarningConfirmation();
                         rebuildActionBlocks();
                         return true;
                     }
@@ -3106,7 +3137,7 @@ public class ModConfigScreen extends Screen {
                 resetConfirmModalOpen,
                 updateNoticeModalOpen,
                 unsavedChangesConfirmModalOpen,
-                promptEditorWarningOpen,
+                isWarningConfirmationOpen(),
                 t("modal.add_provider.title"),
                 t("modal.model.title"),
                 t("custom_params.title"),
@@ -3125,8 +3156,8 @@ public class ModConfigScreen extends Screen {
             renderResetConfirmModalMessage(context);
         } else if (unsavedChangesConfirmModalOpen) {
             renderUnsavedChangesConfirmModalMessage(context);
-        } else if (promptEditorWarningOpen) {
-            renderPromptEditorWarningMessage(context);
+        } else if (isWarningConfirmationOpen()) {
+            renderWarningConfirmationMessage(context);
         }
 
         if (modalOpen) {
@@ -3225,6 +3256,11 @@ public class ModConfigScreen extends Screen {
     }
 
     private record PersistedScreenState(String selectedSectionKey) {
+    }
+
+    private enum WarningConfirmation {
+        PROMPT_EDITOR,
+        SCREEN_TRANSLATION
     }
 
 }
