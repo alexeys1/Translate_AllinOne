@@ -4,6 +4,7 @@ import com.alexeys.translate_allinone.Translate_AllinOne;
 import com.alexeys.translate_allinone.utils.cache.CacheStats;
 import com.alexeys.translate_allinone.utils.config.pojos.ItemTranslateConfig;
 import com.alexeys.translate_allinone.utils.input.KeybindingManager;
+import com.alexeys.translate_allinone.utils.translate.ChatOutputOriginalHoverStyle;
 import com.alexeys.translate_allinone.utils.translate.TooltipDecorativeContextSupport;
 import com.alexeys.translate_allinone.utils.translate.TooltipInternalLineSupport;
 import com.alexeys.translate_allinone.utils.translate.TooltipRecentRenderGuardSupport;
@@ -375,7 +376,8 @@ public abstract class DrawContextTooltipMixin {
 
     @Unique
     private boolean translate_allinone$isChatScreenHoverStyle(Style style) {
-        if (style == null || style.getHoverEvent() == null) {
+        if (style == null || style.getHoverEvent() == null
+                || ChatOutputOriginalHoverStyle.isMarkedHoverEvent(style.getHoverEvent())) {
             return false;
         }
 
