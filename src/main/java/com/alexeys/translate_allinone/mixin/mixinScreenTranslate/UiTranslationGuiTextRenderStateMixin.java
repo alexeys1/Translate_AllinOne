@@ -29,7 +29,7 @@ public abstract class UiTranslationGuiTextRenderStateMixin {
             boolean includeEmpty,
             int background
     ) {
-        FormattedCharSequence visible = UiTranslationRuntime.translateFormattedCharSequenceInCurrentScreen(
+        FormattedCharSequence visible = UiTranslationRuntime.translateFormattedCharSequence(
                 text,
                 UiTranslationScope.role()
         );
