@@ -166,6 +166,15 @@ public final class ComponentTranslationRuntimeState<F> {
         }
     }
 
+    public boolean isWorkInFlight(String cacheKey) {
+        synchronized (workLock) {
+            TranslationWork work = works.get(cacheKey);
+            return work != null
+                    && work.epoch() == sessionEpoch.get()
+                    && work.state() == WorkState.IN_FLIGHT;
+        }
+    }
+
     public boolean markWorkInFlight(String cacheKey, long epoch) {
         synchronized (workLock) {
             TranslationWork work = works.get(cacheKey);

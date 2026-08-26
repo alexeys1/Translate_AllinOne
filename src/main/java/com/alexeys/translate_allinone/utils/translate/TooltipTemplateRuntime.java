@@ -323,6 +323,7 @@ final class TooltipTemplateRuntime {
         TranslationStatus status = lookupResult.status();
         boolean pending = status == TranslationStatus.PENDING
                 || status == TranslationStatus.IN_PROGRESS;
+        boolean inFlight = status == TranslationStatus.IN_PROGRESS;
         boolean missingKeyIssue = false;
 
         String translatedTemplate = lookupResult.translation();
@@ -358,11 +359,13 @@ final class TooltipTemplateRuntime {
                 finalTooltipLine = originalTextObject;
             }
         } else {
-            finalTooltipLine = AnimationManager.getAnimatedStyledText(
+            finalTooltipLine = inFlight
+                    ? AnimationManager.getAnimatedStyledText(
                     originalTextObject,
                     preparedTemplate.translationTemplateKey(),
                     false
-            );
+                    )
+                    : originalTextObject;
         }
 
         return new TooltipTranslationSupport.TooltipLineResult(finalTooltipLine, pending, missingKeyIssue, errorMessage);

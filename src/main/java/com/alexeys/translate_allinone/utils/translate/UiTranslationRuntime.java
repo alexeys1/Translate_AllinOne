@@ -143,7 +143,8 @@ public final class UiTranslationRuntime {
                     && translated.displayed() != null) {
                 visible = translated.displayed();
             } else if (translated.state()
-                    == com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationRuntime.State.PENDING) {
+                    == com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationRuntime.State.PENDING
+                    && translated.inFlight()) {
                 visible = ComponentRenderTranslationSupport.animatePending(safeSource, animationKey);
             } else {
                 visible = safeSource;
