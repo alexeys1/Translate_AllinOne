@@ -414,6 +414,10 @@ public final class ComponentTranslationRuntimeCore {
         return preparedRequest(document, targetLanguage).identity().key();
     }
 
+    public static boolean isWorkInFlight(String cacheKey) {
+        return STATE.isWorkInFlight(cacheKey);
+    }
+
     public static <T> T promoteCompatibleResponse(
             ComponentTranslationDocument currentDocument,
             ComponentTranslationDocument legacyDocument,
@@ -1171,16 +1175,35 @@ public final class ComponentTranslationRuntimeCore {
             T value,
             String cacheKey,
             String errorMessage,
-            FailureDisposition failureDisposition
+            FailureDisposition failureDisposition,
+            boolean inFlight
     ) {
         public Resolution(State state, T value, String cacheKey, String errorMessage) {
             this(state, value, cacheKey, errorMessage, defaultDisposition(state));
+        }
+
+        public Resolution(
+                State state,
+                T value,
+                String cacheKey,
+                String errorMessage,
+                FailureDisposition failureDisposition
+        ) {
+            this(
+                    state,
+                    value,
+                    cacheKey,
+                    errorMessage,
+                    failureDisposition,
+                    state == State.PENDING && isWorkInFlight(cacheKey)
+            );
         }
 
         public Resolution {
             cacheKey = cacheKey == null ? "" : cacheKey;
             errorMessage = errorMessage == null ? "" : errorMessage;
             failureDisposition = failureDisposition == null ? defaultDisposition(state) : failureDisposition;
+            inFlight = state == State.PENDING && isWorkInFlight(cacheKey);
         }
 
         public boolean allowsTooltipFallback() {
