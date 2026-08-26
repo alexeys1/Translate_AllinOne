@@ -110,12 +110,17 @@ public final class LlmRequestLifecycle {
         java.util.Objects.requireNonNull(source);
         Iterator<T> delegate = source.iterator();
         Iterator<T> managed = new Iterator<>() {
+            private boolean finished;
+
             @Override
             public boolean hasNext() {
+                if (finished) {
+                    return false;
+                }
                 try {
                     boolean hasNext = delegate.hasNext();
                     if (!hasNext) {
-                        source.close();
+                        finished = true;
                     }
                     return hasNext;
                 } catch (RuntimeException | Error error) {
@@ -126,6 +131,9 @@ public final class LlmRequestLifecycle {
 
             @Override
             public T next() {
+                if (finished) {
+                    throw new java.util.NoSuchElementException();
+                }
                 try {
                     return delegate.next();
                 } catch (RuntimeException | Error error) {
@@ -279,15 +287,20 @@ public final class LlmRequestLifecycle {
                     ? body.iterator()
                     : java.util.Collections.emptyIterator();
             Iterator<T> managed = new Iterator<>() {
+                private boolean finished;
+
                 @Override
                 public boolean hasNext() {
+                    if (finished) {
+                        return false;
+                    }
                     consumerThread.set(Thread.currentThread());
                     throwIfStopped(null);
                     try {
                         boolean hasNext = delegate.hasNext();
                         if (!hasNext) {
+                            finished = true;
                             throwIfStopped(null);
-                            complete();
                         }
                         return hasNext;
                     } catch (RuntimeException error) {
@@ -297,6 +310,9 @@ public final class LlmRequestLifecycle {
 
                 @Override
                 public T next() {
+                    if (finished) {
+                        throw new java.util.NoSuchElementException();
+                    }
                     consumerThread.set(Thread.currentThread());
                     throwIfStopped(null);
                     try {
