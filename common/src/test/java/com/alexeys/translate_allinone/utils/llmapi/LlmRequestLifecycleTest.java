@@ -3,12 +3,17 @@ package com.alexeys.translate_allinone.utils.llmapi;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Spliterators;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -83,9 +88,10 @@ class LlmRequestLifecycleTest {
         AtomicBoolean closed = new AtomicBoolean();
         List<Runnable> deadlines = new ArrayList<>();
         LlmRequestLifecycle.StreamingRequest request = LlmRequestLifecycle.startStreamingRequest(deadlines::add);
-        Stream<String> stream = request.attach(Stream.of("chunk").onClose(() -> closed.set(true)));
 
-        assertEquals(List.of("chunk"), stream.toList());
+        try (Stream<String> stream = request.attach(Stream.of("chunk").onClose(() -> closed.set(true)))) {
+            assertEquals(List.of("chunk"), stream.toList());
+        }
 
         assertTrue(closed.get());
         assertFalse(Thread.currentThread().isInterrupted());
@@ -148,6 +154,42 @@ class LlmRequestLifecycleTest {
 
         assertTrue(closed.get());
         assertThrows(LLMApiException.class, () -> stream.iterator().hasNext());
+        assertFalse(Thread.currentThread().isInterrupted());
+    }
+
+    @Test
+    void guardedStreamAfterExhaustionDoesNotTouchClosedStream() {
+        AtomicBoolean closed = new AtomicBoolean();
+        List<Runnable> deadlines = new ArrayList<>();
+        Iterator<String> raw = new Iterator<>() {
+            private boolean hasNext = true;
+
+            @Override
+            public boolean hasNext() {
+                if (closed.get()) {
+                    throw new UncheckedIOException(new IOException("closed"));
+                }
+                return hasNext;
+            }
+
+            @Override
+            public String next() {
+                if (closed.get()) {
+                    throw new UncheckedIOException(new IOException("closed"));
+                }
+                hasNext = false;
+                return "chunk";
+            }
+        };
+        Stream<String> body = StreamSupport.stream(Spliterators.spliteratorUnknownSize(raw, 0), false)
+                .onClose(() -> closed.set(true));
+        LlmRequestLifecycle.StreamingRequest request = LlmRequestLifecycle.startStreamingRequest(deadlines::add);
+        Stream<String> attached = request.attach(body);
+        Stream<String> stream = LlmRequestLifecycle.guard(attached.filter(line -> true).map(line -> line));
+
+        LlmRequestLifecycle.consume(stream, value -> assertEquals("chunk", value));
+
+        assertTrue(closed.get());
         assertFalse(Thread.currentThread().isInterrupted());
     }
 }
