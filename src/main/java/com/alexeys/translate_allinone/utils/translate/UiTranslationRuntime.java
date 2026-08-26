@@ -78,6 +78,7 @@ public final class UiTranslationRuntime {
         Text safeSource = source == null ? Text.empty() : source;
 
         if (!UiTranslationScope.isActive()
+                || UiTranslationScope.isInternal()
                 || adapter == null
                 || !adapter.supports(role)
                 || config == null

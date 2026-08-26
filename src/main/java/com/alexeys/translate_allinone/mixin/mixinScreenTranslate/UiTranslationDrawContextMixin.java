@@ -27,7 +27,7 @@ public abstract class UiTranslationDrawContextMixin {
             require = 0
     )
     private OrderedText translate_allinone$translateFormattedSequence(OrderedText source) {
-        return UiTranslationRuntime.translateFormattedCharSequenceInCurrentScreen(source, UiTextRole.OPTION);
+        return UiTranslationRuntime.translateFormattedCharSequence(source, UiTextRole.OPTION);
     }
 
     @ModifyVariable(
@@ -42,7 +42,7 @@ public abstract class UiTranslationDrawContextMixin {
             require = 0
     )
     private Text translate_allinone$translateComponent(Text source) {
-        Text visible = UiTranslationRuntime.translateComponentInCurrentScreen(source, UiTextRole.OPTION);
+        Text visible = UiTranslationRuntime.translateComponent(source, UiTextRole.OPTION);
         UiTranslationRuntime.markFormattedSequenceHandled(visible.asOrderedText());
         return visible;
     }
@@ -59,7 +59,7 @@ public abstract class UiTranslationDrawContextMixin {
             require = 0
     )
     private String translate_allinone$translateString(String source) {
-        return UiTranslationRuntime.translateStringAnimatedInCurrentScreen(source, UiTextRole.OPTION);
+        return UiTranslationRuntime.translateStringAnimated(source, UiTextRole.OPTION);
     }
 
     @ModifyVariable(
@@ -73,7 +73,7 @@ public abstract class UiTranslationDrawContextMixin {
             require = 0
     )
     private StringVisitable translate_allinone$translateWrapped(StringVisitable source) {
-        return UiTranslationRuntime.translateFormattedTextInCurrentScreen(source, UiTextRole.DESCRIPTION);
+        return UiTranslationRuntime.translateFormattedText(source, UiTextRole.DESCRIPTION);
     }
 
     @ModifyVariable(
@@ -92,7 +92,7 @@ public abstract class UiTranslationDrawContextMixin {
         }
         List<OrderedText> translated = new java.util.ArrayList<>(source.size());
         for (OrderedText sequence : source) {
-            translated.add(UiTranslationRuntime.translateFormattedCharSequenceInCurrentScreen(sequence, UiTextRole.TOOLTIP));
+            translated.add(UiTranslationRuntime.translateFormattedCharSequence(sequence, UiTextRole.TOOLTIP));
         }
         return java.util.Collections.unmodifiableList(translated);
     }
