@@ -35,7 +35,7 @@ public abstract class UiTranslationFontMixin {
             require = 0
     )
     private FormattedText translate_allinone$translatedFormattedText(FormattedText source) {
-        return UiTranslationRuntime.translateFormattedTextInCurrentScreen(source, UiTranslationScope.role());
+        return UiTranslationRuntime.translateFormattedText(source, UiTranslationScope.role());
     }
 
     @Inject(
@@ -69,7 +69,7 @@ public abstract class UiTranslationFontMixin {
             require = 0
     )
     private FormattedCharSequence translate_allinone$translatedSequenceWidth(FormattedCharSequence source) {
-        return UiTranslationRuntime.translateFormattedCharSequenceInCurrentScreen(source, UiTranslationScope.role());
+        return UiTranslationRuntime.translateFormattedCharSequence(source, UiTranslationScope.role());
     }
 
     @ModifyVariable(
@@ -83,7 +83,7 @@ public abstract class UiTranslationFontMixin {
             require = 0
     )
     private String translate_allinone$translatedPlainText(String source) {
-        return UiTranslationRuntime.translateStringInCurrentScreen(source, UiTranslationScope.role());
+        return UiTranslationRuntime.translateString(source, UiTranslationScope.role());
     }
 
     @ModifyVariable(
@@ -94,7 +94,7 @@ public abstract class UiTranslationFontMixin {
             require = 0
     )
     private FormattedCharSequence translate_allinone$translatedSequence(FormattedCharSequence source) {
-        FormattedCharSequence visible = UiTranslationRuntime.translateFormattedCharSequenceInCurrentScreen(source, UiTranslationScope.role());
+        FormattedCharSequence visible = UiTranslationRuntime.translateFormattedCharSequence(source, UiTranslationScope.role());
         if (visible != source) {
             UiTranslationRuntime.markFormattedSequenceHandled(visible);
         }
@@ -109,7 +109,7 @@ public abstract class UiTranslationFontMixin {
             require = 0
     )
     private FormattedCharSequence translate_allinone$translatedOutlineSequence(FormattedCharSequence source) {
-        return UiTranslationRuntime.translateFormattedCharSequenceInCurrentScreen(source, UiTranslationScope.role());
+        return UiTranslationRuntime.translateFormattedCharSequence(source, UiTranslationScope.role());
     }
 
     @ModifyVariable(
@@ -120,7 +120,7 @@ public abstract class UiTranslationFontMixin {
             require = 0
     )
     private FormattedCharSequence translate_allinone$translatedPreparedSequence(FormattedCharSequence source) {
-        return UiTranslationRuntime.translateFormattedCharSequenceInCurrentScreen(source, UiTranslationScope.role());
+        return UiTranslationRuntime.translateFormattedCharSequence(source, UiTranslationScope.role());
     }
 
     @Redirect(
@@ -141,7 +141,7 @@ public abstract class UiTranslationFontMixin {
                 && isNoammAddonsSortingWidthCall()) {
             return splitter.stringWidth(source);
         }
-        String visible = UiTranslationRuntime.translateStringInCurrentScreen(source, UiTranslationScope.role());
+        String visible = UiTranslationRuntime.translateString(source, UiTranslationScope.role());
         return splitter.stringWidth(visible);
     }
 
@@ -179,7 +179,7 @@ public abstract class UiTranslationFontMixin {
             int background
     ) {
         Component sourceComponent = source.indexOf('搂') >= 0 ? LegacyComponentTextCodec.decode(source) : Component.literal(source);
-        Component visible = UiTranslationRuntime.translateComponentInCurrentScreen(sourceComponent, UiTranslationScope.role());
+        Component visible = UiTranslationRuntime.translateComponent(sourceComponent, UiTranslationScope.role());
         return UiTranslationScope.withInternal(() -> font.prepareText(visible.getVisualOrderText(), x, y, color, shadow, false, background));
     }
 
@@ -192,7 +192,7 @@ public abstract class UiTranslationFontMixin {
             require = 0
     )
     private FormattedCharSequence translate_allinone$translatedComponent(Component source) {
-        FormattedCharSequence sequence = UiTranslationRuntime.translateComponentInCurrentScreen(source, UiTextRole.OPTION)
+        FormattedCharSequence sequence = UiTranslationRuntime.translateComponent(source, UiTextRole.OPTION)
                 .getVisualOrderText();
         UiTranslationRuntime.markFormattedSequenceHandled(sequence);
         return sequence;
