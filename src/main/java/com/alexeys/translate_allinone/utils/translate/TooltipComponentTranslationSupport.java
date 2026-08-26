@@ -311,12 +311,13 @@ final class TooltipComponentTranslationSupport {
         }
 
         boolean pending = resolution.state() == ComponentTranslationRuntime.State.PENDING;
+        boolean inFlight = resolution.inFlight();
         boolean failed = resolution.state() == ComponentTranslationRuntime.State.FAILED
                 || resolution.state() == ComponentTranslationRuntime.State.INELIGIBLE;
         List<TooltipTranslationSupport.TooltipLineResult> fallback = new ArrayList<>(lines.size());
         for (int index = 0; index < lines.size(); index++) {
             Text line = lines.get(index);
-            Text rendered = pending
+            Text rendered = pending && inFlight
                     ? AnimationManager.getAnimatedStyledText(line, cacheKey + "#" + index, false)
                     : line;
             fallback.add(new TooltipTranslationSupport.TooltipLineResult(
@@ -739,8 +740,11 @@ final class TooltipComponentTranslationSupport {
             return new TooltipTranslationSupport.TooltipLineResult(resolution.value(), false, false);
         }
         if (resolution.state() == ComponentTranslationRuntime.State.PENDING) {
+            Text rendered = resolution.inFlight()
+                    ? AnimationManager.getAnimatedStyledText(prepared.sourceLine(), cacheKey, false)
+                    : prepared.sourceLine();
             return new TooltipTranslationSupport.TooltipLineResult(
-                    AnimationManager.getAnimatedStyledText(prepared.sourceLine(), cacheKey, false),
+                    rendered,
                     true,
                     false
             );

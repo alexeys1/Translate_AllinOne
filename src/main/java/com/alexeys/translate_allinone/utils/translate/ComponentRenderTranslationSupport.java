@@ -131,9 +131,21 @@ public final class ComponentRenderTranslationSupport {
                     context
             );
             if (resolution.state() == ComponentTranslationRuntime.State.CACHE_HIT && resolution.value() != null) {
-                return new TranslationResult(original, resolution.value(), document, resolution.state());
+                return new TranslationResult(
+                        original,
+                        resolution.value(),
+                        document,
+                        resolution.state(),
+                        resolution.inFlight()
+                );
             }
-            return new TranslationResult(original, original, document, resolution.state());
+            return new TranslationResult(
+                    original,
+                    original,
+                    document,
+                    resolution.state(),
+                    resolution.inFlight()
+            );
         } catch (RuntimeException ignored) {
             return TranslationResult.original(original, null);
         }
@@ -282,10 +294,11 @@ public final class ComponentRenderTranslationSupport {
             Text original,
             Text displayed,
             ComponentTranslationDocument document,
-            ComponentTranslationRuntime.State state
+            ComponentTranslationRuntime.State state,
+            boolean inFlight
     ) {
         static TranslationResult original(Text text, ComponentTranslationDocument document) {
-            return new TranslationResult(text, text, document, ComponentTranslationRuntime.State.INELIGIBLE);
+            return new TranslationResult(text, text, document, ComponentTranslationRuntime.State.INELIGIBLE, false);
         }
 
         boolean isTranslated() {
