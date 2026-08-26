@@ -194,6 +194,10 @@ public final class ComponentTranslationRuntime {
         return ComponentTranslationRuntimeCore.cacheKey(document, targetLanguage);
     }
 
+    public static boolean isWorkInFlight(String cacheKey) {
+        return ComponentTranslationRuntimeCore.isWorkInFlight(cacheKey);
+    }
+
     public static <T> T promoteCompatibleResponse(
             ComponentTranslationDocument currentDocument,
             ComponentTranslationDocument legacyDocument,
@@ -265,7 +269,8 @@ public final class ComponentTranslationRuntime {
                 resolution.value(),
                 resolution.cacheKey(),
                 resolution.errorMessage(),
-                FailureDisposition.valueOf(resolution.failureDisposition().name())
+                FailureDisposition.valueOf(resolution.failureDisposition().name()),
+                resolution.inFlight()
         );
     }
 
@@ -274,16 +279,35 @@ public final class ComponentTranslationRuntime {
             T value,
             String cacheKey,
             String errorMessage,
-            FailureDisposition failureDisposition
+            FailureDisposition failureDisposition,
+            boolean inFlight
     ) {
         public Resolution(State state, T value, String cacheKey, String errorMessage) {
             this(state, value, cacheKey, errorMessage, defaultDisposition(state));
+        }
+
+        public Resolution(
+                State state,
+                T value,
+                String cacheKey,
+                String errorMessage,
+                FailureDisposition failureDisposition
+        ) {
+            this(
+                    state,
+                    value,
+                    cacheKey,
+                    errorMessage,
+                    failureDisposition,
+                    state == State.PENDING && isWorkInFlight(cacheKey)
+            );
         }
 
         public Resolution {
             cacheKey = cacheKey == null ? "" : cacheKey;
             errorMessage = errorMessage == null ? "" : errorMessage;
             failureDisposition = failureDisposition == null ? defaultDisposition(state) : failureDisposition;
+            inFlight = state == State.PENDING && isWorkInFlight(cacheKey);
         }
 
         public boolean allowsTooltipFallback() {

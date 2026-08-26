@@ -67,6 +67,37 @@ class ComponentTranslationRuntimeStateTest {
     }
 
     @Test
+    void exposesQueuedAndInFlightWorkState() {
+        ComponentTranslationRuntimeState<String> state = new ComponentTranslationRuntimeState<>();
+        ComponentTranslationPreparedRequest request = state.preparedRequest(document(), "zh_cn");
+        long epoch = state.advanceSession();
+
+        assertTrue(state.registerQueued(request, "test", epoch));
+        assertFalse(state.isWorkInFlight(request.identity().key()));
+
+        assertTrue(state.markWorkInFlight(request.identity().key(), epoch));
+        assertTrue(state.isWorkInFlight(request.identity().key()));
+
+        ComponentTranslationRuntimeState.WorkCompletion stored = state.complete(
+                request,
+                response(),
+                epoch,
+                true,
+                false,
+                "hash",
+                "test",
+                () -> true
+        );
+        assertTrue(stored.stored());
+        assertFalse(state.isWorkInFlight(request.identity().key()));
+
+        assertTrue(state.registerQueued(request, "test", epoch));
+        assertTrue(state.markWorkInFlight(request.identity().key(), epoch));
+        state.advanceSession();
+        assertFalse(state.isWorkInFlight(request.identity().key()));
+    }
+
+    @Test
     void expiresFailuresAndScopesFallbackClaimsToSession() {
         ComponentTranslationRuntimeState<String> state = new ComponentTranslationRuntimeState<>();
         state.putFailure("key", new ComponentTranslationRuntimeState.FailureState<>("failed", 20L, "terminal"));
