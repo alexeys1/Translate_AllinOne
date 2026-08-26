@@ -33,7 +33,7 @@ public abstract class UiTranslationFontMixin {
             require = 0
     )
     private StringVisitable translate_allinone$translatedFormattedText(StringVisitable source) {
-        return UiTranslationRuntime.translateFormattedTextInCurrentScreen(source, UiTranslationScope.role());
+        return UiTranslationRuntime.translateFormattedText(source, UiTranslationScope.role());
     }
 
     @Inject(
@@ -67,7 +67,7 @@ public abstract class UiTranslationFontMixin {
             require = 0
     )
     private OrderedText translate_allinone$translatedSequenceWidth(OrderedText source) {
-        return UiTranslationRuntime.translateFormattedCharSequenceInCurrentScreen(source, UiTranslationScope.role());
+        return UiTranslationRuntime.translateFormattedCharSequence(source, UiTranslationScope.role());
     }
 
     @ModifyVariable(
@@ -81,7 +81,7 @@ public abstract class UiTranslationFontMixin {
             require = 0
     )
     private String translate_allinone$translatedPlainText(String source) {
-        return UiTranslationRuntime.translateStringInCurrentScreen(source, UiTranslationScope.role());
+        return UiTranslationRuntime.translateString(source, UiTranslationScope.role());
     }
 
     @ModifyVariable(
@@ -95,7 +95,7 @@ public abstract class UiTranslationFontMixin {
             require = 0
     )
     private OrderedText translate_allinone$translatedSequence(OrderedText source) {
-        OrderedText visible = UiTranslationRuntime.translateFormattedCharSequenceInCurrentScreen(source, UiTranslationScope.role());
+        OrderedText visible = UiTranslationRuntime.translateFormattedCharSequence(source, UiTranslationScope.role());
         if (visible != source) {
             UiTranslationRuntime.markFormattedSequenceHandled(visible);
         }
@@ -112,7 +112,7 @@ public abstract class UiTranslationFontMixin {
             require = 0
     )
     private String translate_allinone$translatedStringDraw(String source) {
-        return UiTranslationRuntime.translateStringAnimatedInCurrentScreen(source, UiTranslationScope.role());
+        return UiTranslationRuntime.translateStringAnimated(source, UiTranslationScope.role());
     }
 
     @ModifyVariable(
@@ -125,7 +125,7 @@ public abstract class UiTranslationFontMixin {
             require = 0
     )
     private Text translate_allinone$translatedComponent(Text source) {
-        Text visible = UiTranslationRuntime.translateComponentInCurrentScreen(source, UiTextRole.OPTION);
+        Text visible = UiTranslationRuntime.translateComponent(source, UiTextRole.OPTION);
         UiTranslationRuntime.markFormattedSequenceHandled(visible.asOrderedText());
         return visible;
     }
@@ -148,7 +148,7 @@ public abstract class UiTranslationFontMixin {
                 && isNoammAddonsSortingWidthCall()) {
             return splitter.getWidth(source);
         }
-        String visible = UiTranslationRuntime.translateStringInCurrentScreen(source, UiTranslationScope.role());
+        String visible = UiTranslationRuntime.translateString(source, UiTranslationScope.role());
         return splitter.getWidth(visible);
     }
 
