@@ -23,7 +23,7 @@ public interface UiTranslationActiveTextCollectorMixin {
             require = 0
     )
     private Component translate_allinone$translateComponent(Component source) {
-        Component visible = UiTranslationRuntime.translateComponentInCurrentScreen(source, UiTextRole.OPTION);
+        Component visible = UiTranslationRuntime.translateComponent(source, UiTextRole.OPTION);
         UiTranslationRuntime.markFormattedSequenceHandled(visible.getVisualOrderText());
         return visible;
     }
@@ -39,6 +39,6 @@ public interface UiTranslationActiveTextCollectorMixin {
             require = 0
     )
     private FormattedCharSequence translate_allinone$translateSequence(FormattedCharSequence source) {
-        return UiTranslationRuntime.translateFormattedCharSequenceInCurrentScreen(source, UiTextRole.OPTION);
+        return UiTranslationRuntime.translateFormattedCharSequence(source, UiTextRole.OPTION);
     }
 }

@@ -3,6 +3,7 @@ package com.alexeys.translate_allinone.mixin.mixinScreenTranslate;
 import com.alexeys.translate_allinone.utils.translate.UiTextRole;
 import com.alexeys.translate_allinone.utils.translate.UiTranslationLazySplitList;
 import com.alexeys.translate_allinone.utils.translate.UiTranslationRuntime;
+import com.alexeys.translate_allinone.utils.translate.UiTranslationScope;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
@@ -29,7 +30,7 @@ public abstract class UiTranslationGuiGraphicsExtractorMixin {
             require = 0
     )
     private FormattedCharSequence translate_allinone$translateFormattedSequence(FormattedCharSequence source) {
-        return UiTranslationRuntime.translateFormattedCharSequenceInCurrentScreen(source, UiTextRole.OPTION);
+        return UiTranslationRuntime.translateFormattedCharSequence(source, UiTextRole.OPTION);
     }
 
     @ModifyVariable(
@@ -49,7 +50,7 @@ public abstract class UiTranslationGuiGraphicsExtractorMixin {
         }
         List<FormattedCharSequence> translated = new java.util.ArrayList<>(source.size());
         for (FormattedCharSequence sequence : source) {
-            translated.add(UiTranslationRuntime.translateFormattedCharSequenceInCurrentScreen(sequence, UiTextRole.TOOLTIP));
+            translated.add(UiTranslationRuntime.translateFormattedCharSequence(sequence, UiTextRole.TOOLTIP));
         }
         return java.util.Collections.unmodifiableList(translated);
     }
@@ -66,7 +67,7 @@ public abstract class UiTranslationGuiGraphicsExtractorMixin {
             require = 0
     )
     private FormattedCharSequence translate_allinone$translateComponent(Component source) {
-        Component visible = UiTranslationRuntime.translateComponentInCurrentScreen(source, UiTextRole.OPTION);
+        Component visible = UiTranslationRuntime.translateComponent(source, UiTextRole.OPTION);
         FormattedCharSequence sequence = visible.getVisualOrderText();
         UiTranslationRuntime.markFormattedSequenceHandled(sequence);
         return sequence;
@@ -86,7 +87,7 @@ public abstract class UiTranslationGuiGraphicsExtractorMixin {
             require = 0
     )
     private FormattedCharSequence translate_allinone$translateTooltip(Component source) {
-        Component visible = UiTranslationRuntime.translateComponentInCurrentScreen(source, UiTextRole.TOOLTIP);
+        Component visible = UiTranslationRuntime.translateComponent(source, UiTextRole.TOOLTIP);
         FormattedCharSequence sequence = visible.getVisualOrderText();
         UiTranslationRuntime.markFormattedSequenceHandled(sequence);
         return sequence;
@@ -101,7 +102,7 @@ public abstract class UiTranslationGuiGraphicsExtractorMixin {
             require = 0
     )
     private int translate_allinone$translatedCenteredWidth(Font font, String source) {
-        String visible = UiTranslationRuntime.translateStringInCurrentScreen(source, UiTextRole.OPTION);
+        String visible = UiTranslationRuntime.translateString(source, UiTextRole.OPTION);
         return UiTranslationRuntime.withoutNestedTranslation(() -> font.width(visible));
     }
 
@@ -118,6 +119,9 @@ public abstract class UiTranslationGuiGraphicsExtractorMixin {
             FormattedText source,
             int width
     ) {
+        if (!UiTranslationScope.isActive() || UiTranslationScope.isInternal()) {
+            return font.split(source, width);
+        }
         return new UiTranslationLazySplitList(font, source, width, UiTextRole.DESCRIPTION);
     }
 }

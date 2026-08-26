@@ -33,7 +33,7 @@ public abstract class UiTranslationFontMixin {
             require = 0
     )
     private FormattedText translate_allinone$translatedFormattedText(FormattedText source) {
-        return UiTranslationRuntime.translateFormattedTextInCurrentScreen(source, UiTranslationScope.role());
+        return UiTranslationRuntime.translateFormattedText(source, UiTranslationScope.role());
     }
 
     @Inject(
@@ -67,7 +67,7 @@ public abstract class UiTranslationFontMixin {
             require = 0
     )
     private FormattedCharSequence translate_allinone$translatedSequenceWidth(FormattedCharSequence source) {
-        return UiTranslationRuntime.translateFormattedCharSequenceInCurrentScreen(source, UiTranslationScope.role());
+        return UiTranslationRuntime.translateFormattedCharSequence(source, UiTranslationScope.role());
     }
 
     @ModifyVariable(
@@ -81,7 +81,7 @@ public abstract class UiTranslationFontMixin {
             require = 0
     )
     private String translate_allinone$translatedPlainText(String source) {
-        return UiTranslationRuntime.translateStringInCurrentScreen(source, UiTranslationScope.role());
+        return UiTranslationRuntime.translateString(source, UiTranslationScope.role());
     }
 
 
@@ -93,7 +93,7 @@ public abstract class UiTranslationFontMixin {
             require = 0
     )
     private FormattedCharSequence translate_allinone$translatedPreparedSequence(FormattedCharSequence source) {
-        return UiTranslationRuntime.translateFormattedCharSequenceInCurrentScreen(source, UiTextRole.OPTION);
+        return UiTranslationRuntime.translateFormattedCharSequence(source, UiTextRole.OPTION);
     }
 
     @Redirect(
@@ -114,7 +114,7 @@ public abstract class UiTranslationFontMixin {
                 && isNoammAddonsSortingWidthCall()) {
             return splitter.stringWidth(source);
         }
-        String visible = UiTranslationRuntime.translateStringInCurrentScreen(source, UiTranslationScope.role());
+        String visible = UiTranslationRuntime.translateString(source, UiTranslationScope.role());
         return splitter.stringWidth(visible);
     }
 
