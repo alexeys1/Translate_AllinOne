@@ -40,6 +40,7 @@ public class ChatInputTranslateManager {
     private static final long ROUTE_ERROR_DISPLAY_MS = 3_000L;
     private static final String TRANSLATING_KEY = "text.translate_allinone.translation.status.translating";
     private static final String TRANSLATION_ERROR_KEY = "text.translate_allinone.chat.input_translation_error";
+    private static final String UNACCEPTABLE_INPUT_KEY = "text.translate_allinone.chat.input_translation_unacceptable";
     private static final String NO_ROUTED_MODEL_ERROR_KEY = "text.translate_allinone.translation.error.no_routed_model";
 
     public enum PanelAvailability {
@@ -222,7 +223,7 @@ public class ChatInputTranslateManager {
                                     // Restore the visible content so far
                                     String currentTranslation = visibleContentBuffer.toString().stripLeading();
                                     MinecraftClient.getInstance().execute(() -> {
-                                        if (!isTransformActive(mode, translationGeneration)) {
+                    if (!isTransformActive(mode, translationGeneration)) {
                                             return;
                                         }
                                         chatField.setText(currentTranslation);
@@ -254,7 +255,7 @@ public class ChatInputTranslateManager {
                                     rawResponseBuffer.setLength(0);
                                     String currentTranslation = visibleContentBuffer.toString().stripLeading();
                                     MinecraftClient.getInstance().execute(() -> {
-                                        if (!isTransformActive(mode, translationGeneration)) {
+                    if (!isTransformActive(mode, translationGeneration)) {
                                             return;
                                         }
                                         chatField.setText(currentTranslation);
@@ -266,12 +267,18 @@ public class ChatInputTranslateManager {
                         }
                     });
 
-                    // Final update after stream is complete, using the accumulated visible content
+                    if (!isTransformActive(mode, translationGeneration)) {
+                        return;
+                    }
+                    String finalTranslation = sanitizeChatInputResult(visibleContentBuffer.toString().stripLeading());
+                    if (!isAcceptableChatInputResult(finalTranslation, originalTextRef.get())) {
+                        rejectChatInputResult(chatField, originalTextRef.get());
+                        return;
+                    }
                     MinecraftClient.getInstance().execute(() -> {
                         if (!isTransformActive(mode, translationGeneration)) {
                             return;
                         }
-                        String finalTranslation = visibleContentBuffer.toString().stripLeading();
                         chatField.setText(finalTranslation);
                         chatField.setCursor(finalTranslation.length(), false);
                     });
@@ -288,7 +295,11 @@ public class ChatInputTranslateManager {
                     if (!isTransformActive(mode, translationGeneration)) {
                         return;
                     }
-                    final String finalTranslation = result.stripLeading();
+                    final String finalTranslation = sanitizeChatInputResult(result.stripLeading());
+                    if (!isAcceptableChatInputResult(finalTranslation, originalTextRef.get())) {
+                        rejectChatInputResult(chatField, originalTextRef.get());
+                        return;
+                    }
                     MinecraftClient.getInstance().execute(() -> {
                         if (!isTransformActive(mode, translationGeneration)) {
                             return;
@@ -420,6 +431,69 @@ public class ChatInputTranslateManager {
             return true;
         }
         return providerProfile.activeSupportsSystemMessage();
+    }
+
+    private static String sanitizeChatInputResult(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        String value = raw.trim();
+        if (value.startsWith("```")) {
+            int newline = value.indexOf('\n');
+            if (newline >= 0) {
+                String body = value.substring(newline + 1);
+                int fenceEnd = body.lastIndexOf("```");
+                if (fenceEnd >= 0) {
+                    value = body.substring(0, fenceEnd).trim();
+                }
+            }
+        }
+        if (value.length() >= 2
+                && ((value.startsWith("\"") && value.endsWith("\""))
+                || (value.startsWith("'") && value.endsWith("'")))) {
+            value = value.substring(1, value.length() - 1).trim();
+        }
+        return value;
+    }
+
+    private static boolean isAcceptableChatInputResult(String candidate, String source) {
+        if (candidate == null || candidate.isBlank()) {
+            return false;
+        }
+        if (source != null && candidate.equals(source)) {
+            return false;
+        }
+        if (looksLikeStructuredArtifact(candidate)) {
+            return false;
+        }
+        return true;
+    }
+
+    private static boolean looksLikeStructuredArtifact(String value) {
+        String trimmed = value.trim();
+        if (trimmed.startsWith("```")) {
+            return true;
+        }
+        if (trimmed.startsWith("\"translation\"") || trimmed.startsWith("\"text\"")) {
+            return true;
+        }
+        if (trimmed.startsWith("{") && trimmed.endsWith("}") && trimmed.contains("\":")) {
+            return true;
+        }
+        if (trimmed.startsWith("[") && trimmed.endsWith("]") && trimmed.length() > 2) {
+            char second = trimmed.charAt(1);
+            return second == '"' || second == '{' || second == '[';
+        }
+        return false;
+    }
+
+    private static void rejectChatInputResult(TextFieldWidget chatField, String originalText) {
+        MinecraftClient.getInstance().execute(() -> {
+            Text errorMessage = Text.translatable(UNACCEPTABLE_INPUT_KEY).formatted(Formatting.RED);
+            MinecraftClient.getInstance().inGameHud.getChatHud().addMessage(errorMessage);
+            chatField.setText(originalText);
+            chatField.setCursor(originalText.length(), false);
+        });
     }
 
     private static void showTemporaryRouteError(TextFieldWidget chatField, String originalText) {
