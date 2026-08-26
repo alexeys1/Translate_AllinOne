@@ -33,11 +33,7 @@ public final class PromptMessageBuilder {
         String safeUser = userPrompt == null ? "" : userPrompt;
 
         if (!supportsSystemMessage) {
-            if (injectSystemPromptIntoUserMessage) {
-                String mergedPrompt = mergeSystemIntoUserPrompt(safeSystem, safeUser);
-                return List.of(new OpenAIRequest.Message("user", mergedPrompt));
-            }
-            return List.of(new OpenAIRequest.Message("user", safeUser));
+            return List.of(new OpenAIRequest.Message("user", mergeSystemIntoUserPrompt(safeSystem, safeUser)));
         }
 
         return List.of(
