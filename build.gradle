@@ -3,12 +3,17 @@ plugins {
 	id 'maven-publish'
 }
 
-version = "${project.mod_version}+mc${project.minecraft_version}"
+if (project.hasProperty("beta")) {
+	def randomTestId = UUID.randomUUID().toString().replace("-", "").take(7)
+	version = "${project.mod_version}-beta-${randomTestId}+mc${project.minecraft_version}"
+} else {
+	version = "${project.mod_version}+mc${project.minecraft_version}"
+}
 group = project.maven_group
 
 evaluationDependsOn(":common")
 
-def modArchiveVersion = "${project.mod_version}+mc${project.minecraft_version}"
+def modArchiveVersion = version
 
 base {
 	archivesName = project.archives_base_name
