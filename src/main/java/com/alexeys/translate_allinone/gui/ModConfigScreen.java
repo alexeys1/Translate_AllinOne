@@ -1579,7 +1579,8 @@ public class ModConfigScreen extends Screen {
             Component placeholder,
             Consumer<String> changed,
             Predicate<String> textPredicate,
-            boolean editable
+            boolean editable,
+            Component tooltip
     ) {
         if (!editable) {
             addStaticTextRow(x, y, width, label, Component.literal(initialValue == null ? "" : initialValue));
@@ -1592,7 +1593,7 @@ public class ModConfigScreen extends Screen {
         int fieldWidth = Math.max(72, width - labelWidth - fieldGap);
 
         contentActionBlockRegistry.add(x, y, labelWidth, 20, label, () -> {
-        });
+        }, tooltip);
         addTextField(
                 fieldX,
                 y,

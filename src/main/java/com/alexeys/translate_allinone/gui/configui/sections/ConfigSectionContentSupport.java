@@ -3,10 +3,10 @@ package com.alexeys.translate_allinone.gui.configui.sections;
 import com.alexeys.translate_allinone.gui.configui.model.ConfigSection;
 import com.alexeys.translate_allinone.gui.configui.model.RouteSlot;
 import com.alexeys.translate_allinone.utils.cache.CacheStats;
+import com.alexeys.translate_allinone.utils.cache.ChatOutputTranslationCache;
 import com.alexeys.translate_allinone.utils.cache.ItemTemplateCache;
 import com.alexeys.translate_allinone.utils.cache.WynnDialogueTextCache;
 import com.alexeys.translate_allinone.utils.cache.WynntilsTaskTrackerTextCache;
-import com.alexeys.translate_allinone.utils.cache.SkyblockNpcTranslationCache;
 import com.alexeys.translate_allinone.utils.cache.component.ComponentCacheModule;
 import com.alexeys.translate_allinone.utils.cache.component.ComponentTranslationStoreRegistry;
 import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationDebugLogger;
@@ -104,7 +104,8 @@ public final class ConfigSectionContentSupport {
                         translator.t("placeholder.target_language"),
                         value -> output.target_language = sanitizeLanguage(value),
                         value -> true,
-                        true
+                        true,
+                        tooltip(translator, "label.target_language")
                 );
                 y += ROW_STEP;
                     actionAdder.add(
@@ -169,7 +170,8 @@ public final class ConfigSectionContentSupport {
                         translator.t("placeholder.target_language"),
                         value -> input.target_language = sanitizeLanguage(value),
                         value -> true,
-                        true
+                        true,
+                        tooltip(translator, "label.target_language")
                 );
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.basic"), x, width, basicStart, y);
@@ -220,7 +222,8 @@ public final class ConfigSectionContentSupport {
                         translator.t("placeholder.target_language"),
                         value -> item.target_language = sanitizeLanguage(value),
                         value -> true,
-                        true
+                        true,
+                        tooltip(translator, "label.target_language")
                 );
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.basic"), x, width, basicStart, y);
@@ -662,7 +665,8 @@ public final class ConfigSectionContentSupport {
                         translator.t("placeholder.target_language"),
                         value -> scoreboard.target_language = sanitizeLanguage(value),
                         value -> true,
-                        true
+                        true,
+                        tooltip(translator, "label.target_language")
                 );
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.basic"), x, width, basicStart, y);
@@ -863,7 +867,8 @@ public final class ConfigSectionContentSupport {
                         translator.t("placeholder.target_language"),
                         value -> otherTranslations.target_language = sanitizeLanguage(value),
                         value -> true,
-                        true
+                        true,
+                        tooltip(translator, "label.target_language")
                 );
                 y += ROW_STEP;
                 routeSelectorAdder.add(config.providerManager, RouteSlot.OTHER_TRANSLATIONS, x, y, width);
@@ -1036,7 +1041,8 @@ public final class ConfigSectionContentSupport {
                         translator.t("placeholder.target_language"),
                         value -> wynnCraft.target_language = sanitizeLanguage(value),
                         value -> true,
-                        true
+                        true,
+                        tooltip(translator, "label.target_language")
                 );
                 y += ROW_STEP;
                 routeSelectorAdder.add(config.providerManager, RouteSlot.WYNNCRAFT, x, y, width);
@@ -1214,7 +1220,7 @@ public final class ConfigSectionContentSupport {
                         .getCacheStats();
                 CacheStats dialogueStats = WynnDialogueTextCache.getInstance().getCacheStats();
                 CacheStats taskTrackerStats = WynntilsTaskTrackerTextCache.getInstance().getCacheStats();
-                CacheStats skyblockNpcStats = SkyblockNpcTranslationCache.getInstance().getCacheStats();
+                CacheStats chatStats = ChatOutputTranslationCache.getInstance().getCacheStats();
 
                 int statsStart = y;
                 textFieldRowAdder.add(
@@ -1291,9 +1297,9 @@ public final class ConfigSectionContentSupport {
                         x,
                         y,
                         width,
-                        translator.t("label.cache_entries_skyblock_npc"),
+                        translator.t("label.cache_entries_chat"),
                         64,
-                        translator.t("value.cache_entries", skyblockNpcStats.translated()).getString(),
+                        translator.t("value.cache_entries", chatStats.translated()).getString(),
                         Component.empty(),
                         value -> {
                         },
@@ -1538,8 +1544,24 @@ public final class ConfigSectionContentSupport {
                 Component placeholder,
                 Consumer<String> changed,
                 Predicate<String> textPredicate,
-                boolean editable
+                boolean editable,
+                Component tooltip
         );
+
+        default void add(
+                int x,
+                int y,
+                int width,
+                Component label,
+                int maxLength,
+                String initialValue,
+                Component placeholder,
+                Consumer<String> changed,
+                Predicate<String> textPredicate,
+                boolean editable
+        ) {
+            add(x, y, width, label, maxLength, initialValue, placeholder, changed, textPredicate, editable, null);
+        }
     }
 
     @FunctionalInterface
