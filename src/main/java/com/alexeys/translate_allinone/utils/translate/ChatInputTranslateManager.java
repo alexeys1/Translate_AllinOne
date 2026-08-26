@@ -223,7 +223,7 @@ public class ChatInputTranslateManager {
                                     // Restore the visible content so far
                                     String currentTranslation = visibleContentBuffer.toString().stripLeading();
                                     MinecraftClient.getInstance().execute(() -> {
-                    if (!isTransformActive(mode, translationGeneration)) {
+                                        if (!isTransformActive(mode, translationGeneration)) {
                                             return;
                                         }
                                         chatField.setText(currentTranslation);
@@ -255,7 +255,7 @@ public class ChatInputTranslateManager {
                                     rawResponseBuffer.setLength(0);
                                     String currentTranslation = visibleContentBuffer.toString().stripLeading();
                                     MinecraftClient.getInstance().execute(() -> {
-                    if (!isTransformActive(mode, translationGeneration)) {
+                                        if (!isTransformActive(mode, translationGeneration)) {
                                             return;
                                         }
                                         chatField.setText(currentTranslation);
