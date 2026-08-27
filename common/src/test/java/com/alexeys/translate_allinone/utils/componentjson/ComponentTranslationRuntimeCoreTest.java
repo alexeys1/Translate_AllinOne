@@ -75,6 +75,87 @@ class ComponentTranslationRuntimeCoreTest {
     }
 
     @Test
+    void sanitizesUnexpectedPlaceholdersBeforeCacheWrite() {
+        ComponentTranslationDocument document = new ComponentTranslationDocument(
+                ComponentTranslationDocument.PROTOCOL,
+                ComponentTranslationPolicy.CURRENT_VERSION,
+                ComponentTranslationRoute.TOOLTIP_LINE,
+                JsonParser.parseString("{\"text\":\"<s0>Hello</s0>\"}"),
+                List.of(new ComponentTextUnit(
+                        "u0",
+                        "/text",
+                        "<s0>Hello</s0>",
+                        Map.of(),
+                        "tooltip:line"
+                )),
+                Map.of()
+        );
+        ComponentTranslationPreparedRequest request = ComponentTranslationPreparedRequest.create(document, "zh_cn");
+        ComponentTranslationResponse response = new ComponentTranslationResponse(
+                ComponentTranslationDocument.PROTOCOL,
+                Map.of("u0", "<s0>你好{d1}</s0>")
+        );
+
+        ComponentTranslationResponse sanitized = ComponentTranslationRuntimeCore.sanitizeForCache(request, response);
+
+        assertEquals("<s0>你好</s0>", sanitized.translations().get("u0"));
+    }
+
+    @Test
+    void keepsExpectedPlaceholdersWhenSanitizingForCache() {
+        ComponentTranslationDocument document = new ComponentTranslationDocument(
+                ComponentTranslationDocument.PROTOCOL,
+                ComponentTranslationPolicy.CURRENT_VERSION,
+                ComponentTranslationRoute.TOOLTIP_LINE,
+                JsonParser.parseString("{\"text\":\"<s0>{d1} Hello</s0>\"}"),
+                List.of(new ComponentTextUnit(
+                        "u0",
+                        "/text",
+                        "<s0>{d1} Hello</s0>",
+                        Map.of("{d1}", 1),
+                        "tooltip:line"
+                )),
+                Map.of()
+        );
+        ComponentTranslationPreparedRequest request = ComponentTranslationPreparedRequest.create(document, "zh_cn");
+        ComponentTranslationResponse response = new ComponentTranslationResponse(
+                ComponentTranslationDocument.PROTOCOL,
+                Map.of("u0", "<s0>你好 {d1}</s0>")
+        );
+
+        ComponentTranslationResponse sanitized = ComponentTranslationRuntimeCore.sanitizeForCache(request, response);
+
+        assertEquals("<s0>你好 {d1}</s0>", sanitized.translations().get("u0"));
+    }
+
+    @Test
+    void trimsDuplicatePlaceholdersWhenSanitizingForCache() {
+        ComponentTranslationDocument document = new ComponentTranslationDocument(
+                ComponentTranslationDocument.PROTOCOL,
+                ComponentTranslationPolicy.CURRENT_VERSION,
+                ComponentTranslationRoute.TOOLTIP_LINE,
+                JsonParser.parseString("{\"text\":\"<s0>{d1}</s0>\"}"),
+                List.of(new ComponentTextUnit(
+                        "u0",
+                        "/text",
+                        "<s0>{d1}</s0>",
+                        Map.of("{d1}", 1),
+                        "tooltip:line"
+                )),
+                Map.of()
+        );
+        ComponentTranslationPreparedRequest request = ComponentTranslationPreparedRequest.create(document, "zh_cn");
+        ComponentTranslationResponse response = new ComponentTranslationResponse(
+                ComponentTranslationDocument.PROTOCOL,
+                Map.of("u0", "<s0>{d1}你好{d1}</s0>")
+        );
+
+        ComponentTranslationResponse sanitized = ComponentTranslationRuntimeCore.sanitizeForCache(request, response);
+
+        assertEquals("<s0>{d1}你好</s0>", sanitized.translations().get("u0"));
+    }
+
+    @Test
     void expiresTerminalFailuresAfterCooldownAndKeepsInfrastructureUntilReset() {
         assertEquals(
                 5100L,
