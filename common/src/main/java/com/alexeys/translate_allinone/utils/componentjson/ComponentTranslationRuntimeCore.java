@@ -32,6 +32,7 @@ import java.util.function.Supplier;
 
 public final class ComponentTranslationRuntimeCore {
     private static final long FAILURE_RETRY_COOLDOWN_MILLIS = TimeUnit.SECONDS.toMillis(5);
+    private static final int MAX_AUTOMATIC_RETRY_COUNT = 2;
     private static final Pattern EXTRA_PLACEHOLDER_PATTERN = Pattern.compile("\\{[A-Za-z][A-Za-z0-9_.:-]*}");
     private static final long ITEM_BATCH_COLLECT_DELAY_MILLIS = 10L;
     private static final long REQUEST_RATE_WINDOW_MILLIS = TimeUnit.MINUTES.toMillis(1);
@@ -163,14 +164,10 @@ public final class ComponentTranslationRuntimeCore {
                         return new Resolution<>(State.CACHE_HIT, safeCacheValue, request.identity().key(), "");
                     }
                     ComponentTranslationRuntimeState.FailureState<FailureDisposition> failure =
-                            new ComponentTranslationRuntimeState.FailureState<>(
+                            terminalFailure(
+                                    request.identity().key(),
                                     candidate.errorMessage(),
-                                    failureExpiresAtMillis(
-                                            request.document().route(),
-                                            FailureDisposition.TERMINAL_CONTENT_FAILURE,
-                                            System.currentTimeMillis()
-                                    ),
-                                    FailureDisposition.TERMINAL_CONTENT_FAILURE
+                                    request.document().route()
                             );
                     STATE.putFailure(request.identity().key(), failure);
                     return new Resolution<>(
@@ -373,6 +370,13 @@ public final class ComponentTranslationRuntimeCore {
         boolean removed = store(document.route()).remove(request);
         boolean templateRemoved = store(document.route()).removeEntityTemplate(request);
         return removed || templateRemoved || candidateRemoved || refreshRequested || failureRemoved || fallbackGenerationRemoved;
+    }
+
+    public static int clearFailures(ComponentTranslationRoute route) {
+        if (route == null) {
+            return 0;
+        }
+        return STATE.clearFailures(route);
     }
 
     public static long beginSession() {
@@ -977,18 +981,27 @@ public final class ComponentTranslationRuntimeCore {
         if (request.epoch() == STATE.epoch()) {
             String resolvedMessage = message == null || message.isBlank() ? "Component translation failed" : message;
             Throwable cause = error == null ? null : TranslateExceptionUtils.unwrapThrowable(error);
-            STATE.putFailure(
-                    request.cacheKey(),
-                    new ComponentTranslationRuntimeState.FailureState<>(
-                            resolvedMessage,
-                            failureExpiresAtMillis(
-                                    request.document().route(),
-                                    disposition,
-                                    System.currentTimeMillis()
-                            ),
-                            disposition == null ? FailureDisposition.INFRASTRUCTURE_FAILURE : disposition
-                    )
-            );
+            FailureDisposition resolvedDisposition = disposition == null
+                    ? FailureDisposition.INFRASTRUCTURE_FAILURE
+                    : disposition;
+            ComponentTranslationRuntimeState.FailureState<FailureDisposition> failure =
+                    resolvedDisposition == FailureDisposition.TERMINAL_CONTENT_FAILURE
+                            ? terminalFailure(
+                                    request.cacheKey(),
+                                    resolvedMessage,
+                                    request.document().route()
+                            )
+                            : new ComponentTranslationRuntimeState.FailureState<>(
+                                    resolvedMessage,
+                                    failureExpiresAtMillis(
+                                            request.document().route(),
+                                            resolvedDisposition,
+                                            System.currentTimeMillis()
+                                    ),
+                                    resolvedDisposition,
+                                    request.document().route()
+                            );
+            STATE.putFailure(request.cacheKey(), failure);
             ComponentTranslationMetrics.record(
                     request.document(),
                     cause instanceof ComponentJsonException
@@ -1023,6 +1036,28 @@ public final class ComponentTranslationRuntimeCore {
             state.active.remove(batch);
         }
         drain(route);
+    }
+
+    private static ComponentTranslationRuntimeState.FailureState<FailureDisposition> terminalFailure(
+            String key,
+            String message,
+            ComponentTranslationRoute route
+    ) {
+        int attempt = STATE.incrementTerminalFailureCount(key);
+        int retriesUsed = Math.max(0, attempt - 1);
+        long expiresAtMillis = retriesUsed >= MAX_AUTOMATIC_RETRY_COUNT
+                ? Long.MAX_VALUE
+                : failureExpiresAtMillis(
+                        route,
+                        FailureDisposition.TERMINAL_CONTENT_FAILURE,
+                        System.currentTimeMillis()
+                );
+        return new ComponentTranslationRuntimeState.FailureState<>(
+                message,
+                expiresAtMillis,
+                FailureDisposition.TERMINAL_CONTENT_FAILURE,
+                route
+        );
     }
 
     static long failureExpiresAtMillis(
