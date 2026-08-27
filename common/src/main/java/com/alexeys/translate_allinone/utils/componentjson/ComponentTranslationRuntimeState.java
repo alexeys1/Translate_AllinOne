@@ -11,6 +11,14 @@ public final class ComponentTranslationRuntimeState<F> {
     private static final int CACHE_LIMIT = 512;
 
     private final Map<String, FailureState<F>> failures = new ConcurrentHashMap<>();
+    private final Map<String, Integer> terminalFailureCounts = Collections.synchronizedMap(
+            new LinkedHashMap<>(64, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, Integer> eldest) {
+                    return size() > CACHE_LIMIT;
+                }
+            }
+    );
     private final Map<String, PendingCandidate> pendingCandidates = new ConcurrentHashMap<>();
     private final Map<String, Long> fallbackGenerations = Collections.synchronizedMap(
             new LinkedHashMap<>(64, 0.75f, true) {
@@ -51,6 +59,9 @@ public final class ComponentTranslationRuntimeState<F> {
 
     public void clear() {
         failures.clear();
+        synchronized (terminalFailureCounts) {
+            terminalFailureCounts.clear();
+        }
         pendingCandidates.clear();
         fallbackGenerations.clear();
         preparedRequests.clear();
@@ -107,7 +118,16 @@ public final class ComponentTranslationRuntimeState<F> {
     }
 
     public boolean removeFailure(String key) {
+        synchronized (terminalFailureCounts) {
+            terminalFailureCounts.remove(key);
+        }
         return failures.remove(key) != null;
+    }
+
+    public int incrementTerminalFailureCount(String key) {
+        synchronized (terminalFailureCounts) {
+            return terminalFailureCounts.merge(key, 1, Integer::sum);
+        }
     }
 
     public boolean hasPendingCandidate(String key) {
@@ -257,7 +277,24 @@ public final class ComponentTranslationRuntimeState<F> {
         entityTemplateSeeds.remove(key);
     }
 
-    public record FailureState<F>(String message, long expiresAtMillis, F disposition) {
+    public int clearFailures(ComponentTranslationRoute route) {
+        int removed = 0;
+        for (Map.Entry<String, FailureState<F>> entry : failures.entrySet()) {
+            FailureState<F> failure = entry.getValue();
+            if (failure.route() == route && failures.remove(entry.getKey(), failure)) {
+                synchronized (terminalFailureCounts) {
+                    terminalFailureCounts.remove(entry.getKey());
+                }
+                removed++;
+            }
+        }
+        return removed;
+    }
+
+    public record FailureState<F>(String message, long expiresAtMillis, F disposition, ComponentTranslationRoute route) {
+        public FailureState(String message, long expiresAtMillis, F disposition) {
+            this(message, expiresAtMillis, disposition, null);
+        }
     }
 
     public record PendingCandidate(

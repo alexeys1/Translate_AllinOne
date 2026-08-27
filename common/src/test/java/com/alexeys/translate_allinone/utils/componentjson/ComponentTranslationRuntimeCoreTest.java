@@ -9,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -176,6 +177,47 @@ class ComponentTranslationRuntimeCoreTest {
     }
 
     @Test
+    void capsAutomaticTerminalRetriesUntilExplicitReset() throws Exception {
+        ComponentTranslationRuntimeState<?> state = privateState();
+        Method terminalFailure = ComponentTranslationRuntimeCore.class.getDeclaredMethod(
+                "terminalFailure",
+                String.class,
+                String.class,
+                ComponentTranslationRoute.class
+        );
+        terminalFailure.setAccessible(true);
+
+        ComponentTranslationRuntimeState.FailureState<?> first = failureState(
+                terminalFailure,
+                "retry-key",
+                "first"
+        );
+        ComponentTranslationRuntimeState.FailureState<?> second = failureState(
+                terminalFailure,
+                "retry-key",
+                "second"
+        );
+        ComponentTranslationRuntimeState.FailureState<?> third = failureState(
+                terminalFailure,
+                "retry-key",
+                "third"
+        );
+
+        assertTrue(first.expiresAtMillis() < Long.MAX_VALUE);
+        assertTrue(second.expiresAtMillis() < Long.MAX_VALUE);
+        assertEquals(Long.MAX_VALUE, third.expiresAtMillis());
+
+        ((ComponentTranslationRuntimeState) state).putFailure("retry-key", third);
+        ComponentTranslationRuntimeCore.clearFailures(ComponentTranslationRoute.SCREEN_UI);
+        ComponentTranslationRuntimeState.FailureState<?> afterReset = failureState(
+                terminalFailure,
+                "retry-key",
+                "after-reset"
+        );
+        assertTrue(afterReset.expiresAtMillis() < Long.MAX_VALUE);
+    }
+
+    @Test
     void resolutionCarriesInFlightOnlyForPendingInFlightWork() throws Exception {
         ComponentTranslationRuntimeCore.Resolution<String> idle = new ComponentTranslationRuntimeCore.Resolution<>(
                 ComponentTranslationRuntimeCore.State.PENDING,
@@ -216,6 +258,19 @@ class ComponentTranslationRuntimeCoreTest {
                 ""
         );
         assertFalse(cacheHit.inFlight());
+    }
+
+    private static ComponentTranslationRuntimeState.FailureState<?> failureState(
+            Method terminalFailure,
+            String key,
+            String message
+    ) throws Exception {
+        return (ComponentTranslationRuntimeState.FailureState<?>) terminalFailure.invoke(
+                null,
+                key,
+                message,
+                ComponentTranslationRoute.SCREEN_UI
+        );
     }
 
     private static ComponentTranslationRuntimeState<?> privateState() throws Exception {

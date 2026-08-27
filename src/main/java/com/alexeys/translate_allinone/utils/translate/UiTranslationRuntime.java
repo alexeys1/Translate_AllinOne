@@ -2,8 +2,10 @@ package com.alexeys.translate_allinone.utils.translate;
 
 import com.alexeys.translate_allinone.Translate_AllinOne;
 import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationRoute;
+import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationRuntime;
 import com.alexeys.translate_allinone.utils.config.ModConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.OtherTranslationsConfig;
+import com.alexeys.translate_allinone.utils.input.KeybindingManager;
 import com.alexeys.translate_allinone.utils.text.LegacyComponentTextCodec;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
@@ -40,6 +42,7 @@ public final class UiTranslationRuntime {
     );
     private static volatile int SCREEN_TRANSLATION_VERSION = 0;
     private static int FRAME_ID = 0;
+    private static boolean translationKeyPressed;
 
     private UiTranslationRuntime() {
     }
@@ -50,6 +53,34 @@ public final class UiTranslationRuntime {
 
     public static int screenTranslationVersion() {
         return SCREEN_TRANSLATION_VERSION;
+    }
+
+    static void onScreenOpened() {
+        OtherTranslationsConfig config = currentConfig();
+        if (config == null
+                || !config.enabled
+                || !config.enabled_screen_translation
+                || config.keybinding == null
+                || config.keybinding.mode != OtherTranslationsConfig.KeybindingMode.DISABLED) {
+            return;
+        }
+        ComponentTranslationRuntime.clearFailures(ComponentTranslationRoute.SCREEN_UI);
+    }
+
+    private static void tickManualRetryTrigger(OtherTranslationsConfig config) {
+        if (config == null
+                || !config.enabled
+                || !config.enabled_screen_translation
+                || config.keybinding == null
+                || config.keybinding.mode != OtherTranslationsConfig.KeybindingMode.HOLD_TO_TRANSLATE) {
+            translationKeyPressed = false;
+            return;
+        }
+        boolean pressed = KeybindingManager.isPressed(config.keybinding.binding);
+        if (pressed && !translationKeyPressed) {
+            ComponentTranslationRuntime.clearFailures(ComponentTranslationRoute.SCREEN_UI);
+        }
+        translationKeyPressed = pressed;
     }
 
     static void notifyScreenTranslationAvailable(String source, UiTextRole role, String targetLanguage) {
@@ -76,6 +107,9 @@ public final class UiTranslationRuntime {
         String modId = adapter == null ? "" : adapter.modId();
         String screenId = adapter == null ? "" : adapter.screenId();
         Component safeSource = source == null ? Component.empty() : source;
+        if (UiTranslationScope.isActive()) {
+            tickManualRetryTrigger(config);
+        }
 
         if (!UiTranslationScope.isActive()
                 || UiTranslationScope.isInternal()
@@ -133,6 +167,7 @@ public final class UiTranslationRuntime {
                             adapter.modId() + "/" + adapter.screenId() + "/" + role.wireName(),
                             POLICY_VERSION + ":" + role.wireName(),
                             config,
+                            true,
                             decorativeGlyphs
                     );
             UiTranslationStatus status = status(translated.state());
@@ -288,12 +323,14 @@ public final class UiTranslationRuntime {
     public static void beginFrame() {
         HANDLED_FORMATTED_SEQUENCES.remove();
         FRAME_ID++;
+        tickManualRetryTrigger(currentConfig());
     }
 
     public static void reset() {
         UiLanguageResourceResolver.clear();
         UiTranslationDiagnostics.reset();
         HANDLED_FORMATTED_SEQUENCES.remove();
+        translationKeyPressed = false;
     }
 
     public static <T> T withoutNestedTranslation(Supplier<T> action) {
