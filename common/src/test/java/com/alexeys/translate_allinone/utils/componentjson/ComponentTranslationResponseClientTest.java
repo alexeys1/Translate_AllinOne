@@ -87,6 +87,29 @@ class ComponentTranslationResponseClientTest {
     }
 
     @Test
+    void allowsBatchResponseToReachPerDocumentValidation() {
+        ComponentTranslationBatch batch = ComponentTranslationBatch.create(List.of(
+                document(textUnits()),
+                document(textUnits())
+        ));
+        ComponentTranslationResponseClient client = client((messages, context, observer, schema) ->
+                CompletableFuture.completedFuture(completion(
+                        "{\"protocol\":\"taio-component-v1\",\"translations\":{\"b0:u0\":\"你好\",\"b1:u0\":\"<s0>你好</s0></s0>\"}}"
+                ))
+        );
+
+        ComponentTranslationResponse response = client.translate(
+                batch.requestDocument(),
+                "Chinese",
+                profile(),
+                "batch"
+        ).join();
+
+        assertEquals(2, response.translations().size());
+        assertEquals("你好", response.translations().get("b0:u0"));
+    }
+
+    @Test
     void doesNotRetryTransientProviderFailure() {
         AtomicInteger calls = new AtomicInteger();
         ComponentTranslationResponseClient client = client((messages, context, observer, schema) -> {
