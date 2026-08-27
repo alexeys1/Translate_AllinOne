@@ -12,14 +12,18 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.EnumMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
@@ -28,6 +32,7 @@ import java.util.function.Supplier;
 
 public final class ComponentTranslationRuntimeCore {
     private static final long FAILURE_RETRY_COOLDOWN_MILLIS = TimeUnit.SECONDS.toMillis(5);
+    private static final Pattern EXTRA_PLACEHOLDER_PATTERN = Pattern.compile("\\{[A-Za-z][A-Za-z0-9_.:-]*}");
     private static final long ITEM_BATCH_COLLECT_DELAY_MILLIS = 10L;
     private static final long REQUEST_RATE_WINDOW_MILLIS = TimeUnit.MINUTES.toMillis(1);
     private static final int OTHER_TRANSLATIONS_REQUESTS_PER_MINUTE = 60;
@@ -792,7 +797,8 @@ public final class ComponentTranslationRuntimeCore {
             ComponentTranslationResponse response,
             int batchSize
     ) {
-        String candidateHash = candidateHash(response);
+        ComponentTranslationResponse sanitized = sanitizeForCache(request.prepared(), response);
+        String candidateHash = candidateHash(sanitized);
         ComponentTranslationDebugLogger.flow(
                 request.document().route(),
                 "provider route={} phase=PROVIDER_VALIDATED key={} candidate={} epoch={}",
@@ -801,7 +807,7 @@ public final class ComponentTranslationRuntimeCore {
                 candidateHash,
                 request.epoch()
         );
-        ComponentTranslationRuntimeState.WorkCompletion completion = completeAndStore(request, response);
+        ComponentTranslationRuntimeState.WorkCompletion completion = completeAndStore(request, sanitized);
         if (!completion.current()) {
             ComponentTranslationMetrics.record(request.document(), ComponentTranslationMetrics.Outcome.STALE_SESSION);
             ComponentTranslationMetrics.record(request.document(), ComponentTranslationMetrics.Outcome.JOB_EXPIRED);
@@ -1152,6 +1158,61 @@ public final class ComponentTranslationRuntimeCore {
 
     private static boolean markWorkInFlight(String cacheKey, long epoch) {
         return STATE.markWorkInFlight(cacheKey, epoch);
+    }
+
+    static ComponentTranslationResponse sanitizeForCache(
+            ComponentTranslationPreparedRequest request,
+            ComponentTranslationResponse response
+    ) {
+        if (request == null || response == null || response.translations().isEmpty()) {
+            return response;
+        }
+        Map<String, ComponentTextUnit> unitsById = new HashMap<>();
+        for (ComponentTextUnit unit : request.document().units()) {
+            unitsById.put(unit.id(), unit);
+        }
+        Map<String, String> sanitized = new LinkedHashMap<>();
+        boolean changed = false;
+        for (Map.Entry<String, String> entry : response.translations().entrySet()) {
+            String value = entry.getValue();
+            ComponentTextUnit unit = unitsById.get(entry.getKey());
+            if (unit == null || value == null) {
+                sanitized.put(entry.getKey(), value);
+                continue;
+            }
+            String cleaned = removeExtraPlaceholders(value, unit.protectedTokens());
+            if (!cleaned.equals(value)) {
+                changed = true;
+            }
+            sanitized.put(entry.getKey(), cleaned);
+        }
+        if (!changed) {
+            return response;
+        }
+        return new ComponentTranslationResponse(response.protocol(), sanitized);
+    }
+
+    private static String removeExtraPlaceholders(
+            String value,
+            Map<String, Integer> expectedTokens
+    ) {
+        Map<String, Integer> seen = new HashMap<>();
+        Matcher matcher = EXTRA_PLACEHOLDER_PATTERN.matcher(value);
+        StringBuilder cleaned = new StringBuilder(value.length());
+        int lastEnd = 0;
+        while (matcher.find()) {
+            String token = matcher.group();
+            int allowed = expectedTokens.getOrDefault(token, 0);
+            int count = seen.merge(token, 1, Integer::sum);
+            if (count <= allowed) {
+                cleaned.append(value, lastEnd, matcher.end());
+            } else {
+                cleaned.append(value, lastEnd, matcher.start());
+            }
+            lastEnd = matcher.end();
+        }
+        cleaned.append(value, lastEnd, value.length());
+        return cleaned.toString();
     }
 
     private static ComponentTranslationRuntimeState.WorkCompletion completeAndStore(
