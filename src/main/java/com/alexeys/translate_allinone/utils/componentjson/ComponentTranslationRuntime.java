@@ -161,6 +161,10 @@ public final class ComponentTranslationRuntime {
         return ComponentTranslationRuntimeCore.forceRefresh(document, targetLanguage);
     }
 
+    public static int clearFailures(ComponentTranslationRoute route) {
+        return ComponentTranslationRuntimeCore.clearFailures(route);
+    }
+
     public static long beginSession() {
         long epoch = ComponentTranslationRuntimeCore.beginSession();
         DOCUMENTS.clear();

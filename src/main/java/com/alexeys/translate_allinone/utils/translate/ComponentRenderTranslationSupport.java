@@ -95,7 +95,7 @@ public final class ComponentRenderTranslationSupport {
         return translate(original, route, context, policyVersion, config, allowForceRefresh, Set.of());
     }
 
-    private static TranslationResult translate(
+    static TranslationResult translate(
             Text original,
             ComponentTranslationRoute route,
             String context,

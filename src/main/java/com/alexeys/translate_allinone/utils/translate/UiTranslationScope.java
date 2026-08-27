@@ -3,14 +3,20 @@ package com.alexeys.translate_allinone.utils.translate;
 import net.minecraft.client.gui.screen.Screen;
 
 import java.util.ArrayDeque;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.function.Supplier;
 
 public final class UiTranslationScope {
     private static final ThreadLocal<Deque<Frame>> FRAMES = ThreadLocal.withInitial(ArrayDeque::new);
     private static final ThreadLocal<Integer> INTERNAL_DEPTH = ThreadLocal.withInitial(() -> 0);
+    private static final Set<Object> SEEN_SCREEN_OBJECTS = Collections.synchronizedSet(
+            Collections.newSetFromMap(new WeakHashMap<>())
+    );
 
     private UiTranslationScope() {
     }
@@ -56,6 +62,9 @@ public final class UiTranslationScope {
         );
         if (adapter == null) {
             return Scope.inactive();
+        }
+        if (screenObject != null && SEEN_SCREEN_OBJECTS.add(screenObject)) {
+            UiTranslationRuntime.onScreenOpened();
         }
         Frame frame = new Frame(
                 adapter,
