@@ -115,6 +115,8 @@ public final class ComponentTranslationValidator {
                 validateInlineAnchorParagraph(unit, translation);
             } else if (document.route() == ComponentTranslationRoute.TOOLTIP_PARAGRAPH) {
                 validateParagraphProtectedTokens(unit, expectedTokens, actualTokens);
+            } else if (isLineTooltipRoute(document.route())) {
+                validateLineProtectedTokens(unit, expectedTokens, actualTokens);
             } else if (!expectedTokens.equals(actualTokens)) {
                 throwProtectedTokenMismatch(unit.id(), expectedTokens, actualTokens);
             }
@@ -124,6 +126,10 @@ public final class ComponentTranslationValidator {
             if (document.route() == ComponentTranslationRoute.TOOLTIP_PARAGRAPH
                     && !isInlineAnchorParagraph(document)) {
                 validateParagraphStyleCoverage(unit.sourceText(), translation, unit.id());
+            }
+            if (isLineTooltipRoute(document.route())
+                    && !isInlineAnchorParagraph(document)) {
+                validateLineStyleCoverage(unit.sourceText(), translation, unit.id());
             }
         }
         return response;
@@ -209,6 +215,42 @@ public final class ComponentTranslationValidator {
         Map<String, Integer> actualNonStyleTokens = withoutStyleTags(actualTokens);
         if (!expectedNonStyleTokens.equals(actualNonStyleTokens)) {
             throwProtectedTokenMismatch(unit.id(), expectedNonStyleTokens, actualNonStyleTokens);
+        }
+    }
+
+    private static void validateLineProtectedTokens(
+            ComponentTextUnit unit,
+            Map<String, Integer> expectedTokens,
+            Map<String, Integer> actualTokens
+    ) {
+        Map<String, Integer> expectedNonStyleTokens = withoutStyleTags(expectedTokens);
+        Map<String, Integer> actualNonStyleTokens = withoutStyleTags(actualTokens);
+        for (Map.Entry<String, Integer> entry : expectedNonStyleTokens.entrySet()) {
+            if (actualNonStyleTokens.getOrDefault(entry.getKey(), 0) < entry.getValue()) {
+                throwProtectedTokenMismatch(unit.id(), expectedNonStyleTokens, actualNonStyleTokens);
+            }
+        }
+    }
+
+    private static boolean isLineTooltipRoute(ComponentTranslationRoute route) {
+        return route == ComponentTranslationRoute.TOOLTIP_LINE
+                || route == ComponentTranslationRoute.TOOLTIP_STRUCTURED;
+    }
+
+    private static void validateLineStyleCoverage(String expectedValue, String actualValue, String id) {
+        Map<String, Integer> expectedCounts = styleTagSummary(expectedValue);
+        Map<String, Integer> actualCounts = styleTagSummary(actualValue);
+        Set<String> expectedIds = expectedCounts.keySet();
+        Set<String> actualIds = actualCounts.keySet();
+        Set<String> unexpected = difference(actualIds, expectedIds);
+        if (!unexpected.isEmpty()) {
+            throw validationError(
+                    "Line style ids changed for " + id
+                            + ": expected=" + formatSet(expectedIds)
+                            + ", actual=" + formatSet(actualIds)
+                            + ", missing=[]"
+                            + ", unexpected=" + formatSet(unexpected)
+            );
         }
     }
 

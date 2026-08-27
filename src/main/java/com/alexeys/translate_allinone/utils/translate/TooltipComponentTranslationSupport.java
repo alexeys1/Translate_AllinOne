@@ -7,6 +7,7 @@ import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationBu
 import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationDocument;
 import com.alexeys.translate_allinone.utils.componentjson.ComponentJsonException;
 import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationMetrics;
+import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationPolicy;
 import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationResponse;
 import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationRoute;
 import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationRuntime;
@@ -299,15 +300,12 @@ final class TooltipComponentTranslationSupport {
         if (resolution.allowsTooltipFallback()) {
             ComponentTranslationDebugLogger.flow(
                     ComponentTranslationRoute.TOOLTIP_PARAGRAPH,
-                    "tooltip paragraph fallback state=ORIGINAL key={} reason={} lines={}",
+                    "tooltip paragraph fallback state=LINE_FALLBACK key={} reason={} lines={}",
                     resolution.cacheKey(),
                     resolution.errorMessage(),
                     lines.size()
             );
-            return originalParagraphAttempt(
-                    block,
-                    resolution.errorMessage()
-            );
+            return translateParagraphLineFallback(block, config, resolution.cacheKey());
         }
 
         boolean pending = resolution.state() == ComponentTranslationRuntime.State.PENDING;
@@ -456,11 +454,15 @@ final class TooltipComponentTranslationSupport {
         if (renderTemplate == null || !hasTranslatableText(renderTemplate.normalizedTemplate())) {
             return null;
         }
+        ComponentTranslationPolicy policy = ComponentTranslationPolicy.forRoute(route)
+                .withContext(context)
+                .withSemanticSetting("route_policy", policyVersion);
+        if (RETAINED_PARAGRAPH_LINE_POLICY.equals(policyVersion)) {
+            policy = policy.withSemanticSetting("batch_context", "isolated");
+        }
         ComponentTranslationDocument document = ComponentTranslationRuntime.prepare(
                 Text.literal(renderTemplate.normalizedTemplate()),
-                route,
-                context,
-                policyVersion
+                policy
         );
         return document.units().isEmpty() ? null : new PreparedLineDocument(document, renderTemplate);
     }
@@ -804,6 +806,47 @@ final class TooltipComponentTranslationSupport {
             ));
         }
         return new TooltipParagraphSupport.ParagraphTranslationAttempt(results, false, false);
+    }
+
+    private static TooltipParagraphSupport.ParagraphTranslationAttempt translateParagraphLineFallback(
+            TooltipParagraphBlock block,
+            ItemTranslateConfig config,
+            String cacheKey
+    ) {
+        if (block == null || block.preparedLines() == null || config == null) {
+            return originalParagraphAttempt(block, "");
+        }
+        boolean queueIfMissing = ComponentTranslationRuntime.claimFallbackGeneration(cacheKey);
+        List<TooltipTranslationSupport.TooltipLineResult> results = new ArrayList<>(block.preparedLines().size());
+        boolean pending = false;
+        boolean missingKeyIssue = false;
+        for (int index = 0; index < block.preparedLines().size(); index++) {
+            PreparedTooltipTemplate prepared = block.preparedLines().get(index);
+            if (prepared == null) {
+                results.add(new TooltipTranslationSupport.TooltipLineResult(Text.empty(), false, false));
+                continue;
+            }
+            LineTranslationAttempt attempt = translatePreparedLineAttempt(
+                    prepared,
+                    ComponentTranslationRoute.TOOLTIP_LINE,
+                    retainedParagraphLineContext(index),
+                    RETAINED_PARAGRAPH_LINE_POLICY,
+                    config,
+                    queueIfMissing
+            );
+            TooltipTranslationSupport.TooltipLineResult lineResult = attempt.lineResult();
+            if (lineResult == null) {
+                lineResult = new TooltipTranslationSupport.TooltipLineResult(prepared.sourceLine(), false, false);
+            }
+            if (lineResult.pending()) {
+                pending = true;
+            }
+            if (lineResult.missingKeyIssue()) {
+                missingKeyIssue = true;
+            }
+            results.add(lineResult);
+        }
+        return new TooltipParagraphSupport.ParagraphTranslationAttempt(results, pending, missingKeyIssue);
     }
 
     private static String retainedParagraphLineContext(int index) {
