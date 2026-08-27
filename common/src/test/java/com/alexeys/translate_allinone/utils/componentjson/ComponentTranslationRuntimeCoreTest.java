@@ -75,9 +75,9 @@ class ComponentTranslationRuntimeCoreTest {
     }
 
     @Test
-    void keepsEveryFailureUntilAnExplicitReset() {
+    void expiresTerminalFailuresAfterCooldownAndKeepsInfrastructureUntilReset() {
         assertEquals(
-                Long.MAX_VALUE,
+                5100L,
                 ComponentTranslationRuntimeCore.failureExpiresAtMillis(
                         ComponentTranslationRoute.SCOREBOARD,
                         ComponentTranslationRuntimeCore.FailureDisposition.TERMINAL_CONTENT_FAILURE,

@@ -27,6 +27,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 public final class ComponentTranslationRuntimeCore {
+    private static final long FAILURE_RETRY_COOLDOWN_MILLIS = TimeUnit.SECONDS.toMillis(5);
     private static final long ITEM_BATCH_COLLECT_DELAY_MILLIS = 10L;
     private static final long REQUEST_RATE_WINDOW_MILLIS = TimeUnit.MINUTES.toMillis(1);
     private static final int OTHER_TRANSLATIONS_REQUESTS_PER_MINUTE = 60;
@@ -159,7 +160,11 @@ public final class ComponentTranslationRuntimeCore {
                     ComponentTranslationRuntimeState.FailureState<FailureDisposition> failure =
                             new ComponentTranslationRuntimeState.FailureState<>(
                                     candidate.errorMessage(),
-                                    Long.MAX_VALUE,
+                                    failureExpiresAtMillis(
+                                            request.document().route(),
+                                            FailureDisposition.TERMINAL_CONTENT_FAILURE,
+                                            System.currentTimeMillis()
+                                    ),
                                     FailureDisposition.TERMINAL_CONTENT_FAILURE
                             );
                     STATE.putFailure(request.identity().key(), failure);
@@ -1019,6 +1024,9 @@ public final class ComponentTranslationRuntimeCore {
             FailureDisposition disposition,
             long nowMillis
     ) {
+        if (disposition == FailureDisposition.TERMINAL_CONTENT_FAILURE) {
+            return nowMillis + FAILURE_RETRY_COOLDOWN_MILLIS;
+        }
         return Long.MAX_VALUE;
     }
 
