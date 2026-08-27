@@ -93,6 +93,10 @@ public record ComponentTranslationBatch(
         if (documents == null || documents.isEmpty() || candidate == null) {
             return false;
         }
+        if (documents.stream().anyMatch(ComponentTranslationBatch::requiresIsolatedBatchContext)
+                || requiresIsolatedBatchContext(candidate)) {
+            return false;
+        }
         List<ComponentTranslationDocument> combined = new ArrayList<>(documents.size() + 1);
         combined.addAll(documents);
         combined.add(candidate);
