@@ -19,6 +19,8 @@ import com.alexeys.translate_allinone.utils.config.pojos.OtherTranslationsConfig
 import com.alexeys.translate_allinone.utils.config.pojos.ProviderManagerConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ScoreboardConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.WynnCraftConfig;
+import com.alexeys.translate_allinone.utils.config.ApiKeyCipher;
+import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -26,6 +28,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.client.Minecraft;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -37,6 +40,8 @@ import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
+import java.util.Optional;
+import java.util.UUID;
 
 public class ConfigManager {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -47,6 +52,7 @@ public class ConfigManager {
     private static boolean providerConfigurationFingerprintInitialized;
     private static boolean globalTranslationEnabled = true;
     private static boolean globalTranslationEnabledInitialized;
+    private static UUID apiKeyUuidProcessed;
 
     public static synchronized void register() {
         if (registered) {
@@ -62,6 +68,7 @@ public class ConfigManager {
 
     public static synchronized ModConfig getConfig() {
         ensureRegistered();
+        ensureApiKeysForCurrentUuid();
         return config;
     }
 
@@ -138,12 +145,14 @@ public class ConfigManager {
             boolean removedOtherTranslationsRequestsPerMinute = removeOtherTranslationsRequestsPerMinute(rawConfig);
             boolean removedStructuredOutputConfig = removeStructuredOutputConfig(rawConfig);
             loadedConfig = normalizeConfig(loadedConfig);
+            boolean migratedApiKeyEncryption = prepareLoadedApiKeys(loadedConfig);
 
             if (shouldRewriteConfig) {
                 Translate_AllinOne.LOGGER.warn("Config file is empty or invalid, using defaults: {}", configPath);
             }
 
             if (shouldRewriteConfig
+                    || migratedApiKeyEncryption
                     || migratedLegacyItemDebugConfig
                     || migratedLegacyItemWynnCompatibilityConfig
                     || migratedLegacyWynnTargetLanguageConfig
@@ -169,6 +178,208 @@ public class ConfigManager {
                 .getConfigDir()
                 .resolve(Translate_AllinOne.MOD_ID)
                 .resolve(Translate_AllinOne.MOD_ID + ".json");
+    }
+
+    private static Path resolveKeyPath() {
+        return FabricLoader.getInstance()
+                .getConfigDir()
+                .getParent()
+                .resolve(".taio")
+                .resolve("key_aes.txt");
+    }
+
+    private static Optional<UUID> currentUuid() {
+        try {
+            Minecraft minecraft = Minecraft.getInstance();
+            if (minecraft != null && minecraft.getUser() != null && minecraft.getUser().getProfileId() != null) {
+                return Optional.of(minecraft.getUser().getProfileId());
+            }
+        } catch (Throwable ignored) {
+        }
+        return Optional.empty();
+    }
+
+    private static boolean keyFileExists() {
+        try {
+            return Files.exists(resolveKeyPath());
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static Optional<byte[]> loadKeyMaterial(boolean createIfMissing) {
+        try {
+            Path keyPath = resolveKeyPath();
+            if (!createIfMissing && !Files.exists(keyPath)) {
+                return Optional.empty();
+            }
+            return Optional.of(ApiKeyCipher.loadOrCreateKey(keyPath));
+        } catch (Exception e) {
+            Translate_AllinOne.LOGGER.error("Failed to load API key cipher key", e);
+            return Optional.empty();
+        }
+    }
+
+    private static boolean prepareLoadedApiKeys(ModConfig loadedConfig) {
+        if (loadedConfig == null || loadedConfig.providerManager == null) {
+            return false;
+        }
+        Optional<UUID> uuid = currentUuid();
+        Optional<byte[]> key = uuid.isPresent() ? loadKeyMaterial(true) : Optional.empty();
+        boolean changed = false;
+        for (ApiProviderProfile provider : loadedConfig.providerManager.providers) {
+            if (provider == null) {
+                continue;
+            }
+            String raw = provider.api_key;
+            if (raw == null) {
+                raw = "";
+            }
+            if (ApiKeyCipher.isCiphertext(raw)) {
+                provider.api_key_cipher = raw;
+                provider.api_key = "";
+                provider.api_key_decrypted = false;
+                if (uuid.isPresent() && key.isPresent()) {
+                    Optional<String> decrypted = ApiKeyCipher.decrypt(raw, uuid.get(), provider.id, key.get());
+                    if (decrypted.isPresent()) {
+                        provider.api_key = decrypted.get();
+                        provider.api_key_decrypted = true;
+                    }
+                }
+            } else if (!raw.isBlank()) {
+                provider.api_key = raw;
+                provider.api_key_cipher = "";
+                provider.api_key_decrypted = uuid.isPresent() && key.isPresent();
+                if (provider.api_key_decrypted) {
+                    changed = true;
+                }
+            } else {
+                provider.api_key = "";
+                provider.api_key_cipher = "";
+                provider.api_key_decrypted = false;
+            }
+        }
+        apiKeyUuidProcessed = uuid.orElse(null);
+        return changed;
+    }
+
+    private static void ensureApiKeysForCurrentUuid() {
+        if (config == null || config.providerManager == null) {
+            return;
+        }
+        Optional<UUID> uuid = currentUuid();
+        if (uuid.isEmpty()) {
+            apiKeyUuidProcessed = null;
+            return;
+        }
+        if (uuid.get().equals(apiKeyUuidProcessed)) {
+            return;
+        }
+        Optional<byte[]> key = loadKeyMaterial(true);
+        if (key.isEmpty()) {
+            apiKeyUuidProcessed = uuid.get();
+            return;
+        }
+        UUID current = uuid.get();
+        byte[] keyMaterial = key.get();
+        boolean needsRewrite = false;
+        for (ApiProviderProfile provider : config.providerManager.providers) {
+            if (provider == null) {
+                continue;
+            }
+            String raw = provider.api_key_cipher;
+            if (raw == null || raw.isBlank()) {
+                raw = provider.api_key;
+            }
+            if (ApiKeyCipher.isCiphertext(raw)) {
+                provider.api_key_cipher = raw;
+                Optional<String> decrypted = ApiKeyCipher.decrypt(raw, current, provider.id, keyMaterial);
+                if (decrypted.isPresent()) {
+                    provider.api_key = decrypted.get();
+                    provider.api_key_decrypted = true;
+                } else {
+                    provider.api_key = "";
+                    provider.api_key_decrypted = false;
+                }
+            } else if (provider.api_key != null && !provider.api_key.isBlank()) {
+                provider.api_key_decrypted = true;
+                needsRewrite = true;
+            }
+        }
+        apiKeyUuidProcessed = current;
+        if (needsRewrite) {
+            writeConfigBestEffort(
+                    resolveConfigPath(),
+                    config,
+                    "Failed to persist migrated API key encryption: {}"
+            );
+        }
+    }
+
+    private static ModConfig prepareForSerialization(ModConfig source) {
+        ModConfig copy = deepCopy(source);
+        if (copy.providerManager == null) {
+            return copy;
+        }
+        copyTransientApiKeyState(source, copy);
+        Optional<UUID> uuid = currentUuid();
+        boolean keyExists = keyFileExists();
+        Optional<byte[]> key = uuid.isPresent() ? loadKeyMaterial(true) : Optional.empty();
+        for (ApiProviderProfile provider : copy.providerManager.providers) {
+            if (provider == null) {
+                continue;
+            }
+            String raw = provider.api_key;
+            if (raw == null) {
+                raw = "";
+            }
+            if (!raw.isBlank() && !ApiKeyCipher.isCiphertext(raw)) {
+                if (uuid.isPresent() && key.isPresent()) {
+                    String cipher = ApiKeyCipher.encrypt(raw, uuid.get(), provider.id, key.get());
+                    provider.api_key = cipher;
+                    provider.api_key_cipher = "";
+                    provider.api_key_decrypted = true;
+                } else if (uuid.isEmpty()) {
+                    provider.api_key = raw;
+                    provider.api_key_cipher = "";
+                    provider.api_key_decrypted = false;
+                } else {
+                    throw new IllegalStateException("Cannot save plaintext API key without a resolvable player UUID: " + provider.id);
+                }
+            } else if (raw.isBlank()) {
+                if (provider.api_key_decrypted) {
+                    provider.api_key = "";
+                    provider.api_key_cipher = "";
+                } else if (provider.api_key_cipher != null && !provider.api_key_cipher.isBlank()) {
+                    provider.api_key = provider.api_key_cipher;
+                } else {
+                    provider.api_key = "";
+                }
+            } else {
+                provider.api_key = raw;
+                if (provider.api_key_cipher == null || provider.api_key_cipher.isBlank()) {
+                    provider.api_key_cipher = raw;
+                }
+            }
+        }
+        copyTransientApiKeyState(copy, source);
+        return copy;
+    }
+
+    private static void copyTransientApiKeyState(ModConfig source, ModConfig target) {
+        if (source.providerManager == null || source.providerManager.providers == null
+                || target.providerManager == null || target.providerManager.providers == null) {
+            return;
+        }
+        int size = Math.min(source.providerManager.providers.size(), target.providerManager.providers.size());
+        for (int i = 0; i < size; i++) {
+            ApiProviderProfile sourceProvider = source.providerManager.providers.get(i);
+            ApiProviderProfile targetProvider = target.providerManager.providers.get(i);
+            if (sourceProvider != null && targetProvider != null) {
+                targetProvider.api_key_cipher = sourceProvider.api_key_cipher;
+                targetProvider.api_key_decrypted = sourceProvider.api_key_decrypted;
+            }
+        }
     }
 
     private static void ensureRegistered() {
@@ -226,7 +437,11 @@ public class ConfigManager {
             return new ModConfig();
         }
         ModConfig copied = GSON.fromJson(GSON.toJson(source), ModConfig.class);
-        return copied == null ? new ModConfig() : copied;
+        if (copied == null) {
+            return new ModConfig();
+        }
+        copyTransientApiKeyState(source, copied);
+        return copied;
     }
 
     private static ModConfig normalizeConfig(ModConfig loadedConfig) {
@@ -496,7 +711,7 @@ public class ConfigManager {
 
         Path tempPath = parent.resolve(configPath.getFileName() + ".tmp");
         try (Writer writer = Files.newBufferedWriter(tempPath)) {
-            GSON.toJson(targetConfig, writer);
+            GSON.toJson(prepareForSerialization(targetConfig), writer);
         } catch (IOException e) {
             throw new RuntimeException("Failed to write temp config file: " + tempPath, e);
         }
