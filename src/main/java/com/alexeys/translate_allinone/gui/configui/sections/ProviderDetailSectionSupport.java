@@ -375,9 +375,7 @@ public final class ProviderDetailSectionSupport {
 
         String rawApiKey = ProviderProfileSupport.sanitizeText(profile.api_key);
         String fieldValue = providerApiKeyVisible ? rawApiKey : ProviderEditorSupport.maskApiKey(rawApiKey);
-        Component apiKeyPlaceholder = profile.api_key_cipher != null
-                && !profile.api_key_cipher.isBlank()
-                && !profile.api_key_decrypted
+        Component apiKeyPlaceholder = profile.api_key_decrypt_failed
                 ? translator.t("placeholder.api_key_decrypt_failed")
                 : translator.t("label.api_key");
         textFieldAdder.add(

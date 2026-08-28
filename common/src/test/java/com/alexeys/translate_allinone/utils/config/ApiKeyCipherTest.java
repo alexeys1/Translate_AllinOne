@@ -129,13 +129,12 @@ class ApiKeyCipherTest {
     void transientApiKeyStateIsNotSerialized() {
         ApiProviderProfile profile = new ApiProviderProfile();
         profile.api_key = "enc:v1:abc";
-        profile.api_key_cipher = "enc:v1:keep-me-in-memory-only";
-        profile.api_key_decrypted = true;
+        profile.api_key_entries.add("enc:v1:entry-one");
+        profile.api_key_decrypt_failed = true;
 
         String json = GSON.toJson(profile);
 
-        assertFalse(json.contains("api_key_cipher"));
-        assertFalse(json.contains("api_key_decrypted"));
-        assertFalse(json.contains("keep-me-in-memory-only"));
+        assertFalse(json.contains("api_key_decrypt_failed"));
+        assertTrue(json.contains("enc:v1:entry-one"));
     }
 }

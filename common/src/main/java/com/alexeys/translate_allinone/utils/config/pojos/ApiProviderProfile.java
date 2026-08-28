@@ -20,8 +20,8 @@ public class ApiProviderProfile {
     public ApiProviderType type = ApiProviderType.OPENAI_COMPAT;
     public String base_url = "https://api.openai.com/v1";
     public String api_key = "";
-    public transient String api_key_cipher = "";
-    public transient boolean api_key_decrypted = false;
+    public List<String> api_key_entries = new ArrayList<>();
+    public transient boolean api_key_decrypt_failed = false;
     public String model_id = "";
     public List<String> model_ids = new ArrayList<>();
     public List<ModelSettings> model_settings = new ArrayList<>();
