@@ -22,16 +22,13 @@ import com.alexeys.translate_allinone.utils.text.TemplateProcessor;
 import com.alexeys.translate_allinone.utils.text.LegacyComponentTextCodec;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.hud.ChatHud;
-import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.hud.ChatHudLine;
 import net.minecraft.text.ClickEvent;
 import net.minecraft.text.HoverEvent;
 import net.minecraft.text.MutableText;
-import net.minecraft.text.OrderedText;
 import net.minecraft.text.Style;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
-import net.minecraft.util.math.MathHelper;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,14 +56,11 @@ public class ChatOutputTranslateManager {
     private static final String CHAT_TRANSLATE_ACTION = "translate";
     private static final String CHAT_RESTORE_ACTION = "restore";
     private static final Map<UUID, ChatHudLine> activeTranslationLines = new ConcurrentHashMap<>();
-    private static final Map<UUID, Text> pendingAnimationSources = new ConcurrentHashMap<>();
     private static final Map<UUID, Text> pendingAutoTranslateMessages = new ConcurrentHashMap<>();
     private static final Map<UUID, Long> streamingUpdateLastApplied = new ConcurrentHashMap<>();
     private static final Map<UUID, Long> translationGenerations = new ConcurrentHashMap<>();
     private static final AtomicLong translationGeneration = new AtomicLong();
     private static final Map<UUID, Integer> lineLocateRetryCounts = new ConcurrentHashMap<>();
-    private static final Map<UUID, PendingAnimationLayout> pendingAnimationLayouts = new ConcurrentHashMap<>();
-    private static final AtomicLong chatLayoutVersion = new AtomicLong();
     private static final TranslationRequestSingleFlight<String, String> inFlightTranslations =
             new TranslationRequestSingleFlight<>();
     private static ExecutorService translationExecutor;
@@ -265,9 +259,7 @@ public class ChatOutputTranslateManager {
         ChatHudLine newLine = new ChatHudLine(targetLine.creationTick(), placeholderText, targetLine.signature(), targetLine.indicator());
         int scrolledLines = chatHudAccessor.getScrolledLines();
         messages.set(lineIndex, newLine);
-        notifyChatLayoutChanged();
         activeTranslationLines.put(messageId, newLine);
-        pendingAnimationSources.put(messageId, originalMessage);
         long requestGeneration = translationGeneration.incrementAndGet();
         translationGenerations.put(messageId, requestGeneration);
         chatHudAccessor.invokeRefresh();
@@ -308,7 +300,7 @@ public class ChatOutputTranslateManager {
 
                 if (providerProfile == null) {
                     LOGGER.warn("No routed model selected for chat output translation; showing temporary error for messageId={}", messageId);
-                    showTemporaryRouteError(messageId, chatHudAccessor, messages, lineIndex, targetLine);
+                    showTemporaryRouteError(messageId, targetLine);
                     return;
                 }
 
@@ -507,8 +499,6 @@ public class ChatOutputTranslateManager {
             ChatHudLine targetLine = searchResult.line();
             ChatHudLine restoredLine = new ChatHudLine(targetLine.creationTick(), restoredContent, targetLine.signature(), targetLine.indicator());
             messages.set(searchResult.lineIndex(), restoredLine);
-            pendingAnimationLayouts.remove(messageId);
-            notifyChatLayoutChanged();
             chatHudAccessor.invokeRefresh();
             chatHudAccessor.setScrolledLines(scrolledLines);
             MessageUtils.markShowingOriginal(messageId);
@@ -533,11 +523,6 @@ public class ChatOutputTranslateManager {
             if (!isTranslationActive(messageId, requestGeneration)) {
                 return;
             }
-            // Consume the current active line on the client thread: the animated line object
-            // is replaced every render frame, so a line captured earlier may no longer be in
-            // the messages list by the time this task runs.
-            pendingAnimationSources.remove(messageId);
-            pendingAnimationLayouts.remove(messageId);
             ChatHudLine lineToUpdate = activeTranslationLines.get(messageId);
             if (lineToUpdate == null) return;
 
@@ -548,148 +533,16 @@ public class ChatOutputTranslateManager {
             List<ChatHudLine> messages = chatHudAccessor.getMessages();
             int scrolledLines = chatHudAccessor.getScrolledLines();
 
-            int lineIndex = messages.indexOf(lineToUpdate);
+            int lineIndex = indexOfLineByIdentity(messages, lineToUpdate);
 
             if (lineIndex != -1) {
                 ChatHudLine newLine = new ChatHudLine(lineToUpdate.creationTick(), newContent, lineToUpdate.signature(), lineToUpdate.indicator());
                 messages.set(lineIndex, newLine);
-                notifyChatLayoutChanged();
                 activeTranslationLines.put(messageId, newLine);
                 chatHudAccessor.invokeRefresh();
                 chatHudAccessor.setScrolledLines(scrolledLines);
             }
         });
-    }
-
-    public static void animatePendingChatLines() {
-        if (pendingAnimationSources.isEmpty()) {
-            return;
-        }
-
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client == null || client.inGameHud == null) {
-            return;
-        }
-
-        ChatHud chatHud = client.inGameHud.getChatHud();
-        if (chatHud == null) {
-            return;
-        }
-
-        ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
-        List<ChatHudLine> messages = chatHudAccessor.getMessages();
-
-        for (Map.Entry<UUID, Text> entry : pendingAnimationSources.entrySet()) {
-            UUID messageId = entry.getKey();
-            if (!isTranslationActive(messageId)) {
-                pendingAnimationSources.remove(messageId);
-                continue;
-            }
-
-            ChatHudLine activeLine = activeTranslationLines.get(messageId);
-            Text source = entry.getValue();
-            if (activeLine == null || source == null) {
-                continue;
-            }
-
-            int lineIndex = messages.indexOf(activeLine);
-            if (lineIndex == -1) {
-                continue;
-            }
-
-            ChatHudLine animatedLine = new ChatHudLine(
-                    activeLine.creationTick(),
-                    AnimationManager.getAnimatedStyledText(source),
-                    activeLine.signature(),
-                    activeLine.indicator()
-            );
-            messages.set(lineIndex, animatedLine);
-            activeTranslationLines.put(messageId, animatedLine);
-            updateVisibleChatLine(client, chatHudAccessor, messages, lineIndex, animatedLine, messageId);
-        }
-    }
-
-    private static void updateVisibleChatLine(
-            MinecraftClient client,
-            ChatHudAccessor chatHudAccessor,
-            List<ChatHudLine> messages,
-            int lineIndex,
-            ChatHudLine line,
-            UUID messageId
-    ) {
-        int lineWidth = MathHelper.floor(
-                ChatHud.getWidth(client.options.getChatWidth().getValue())
-                        / client.options.getChatScale().getValue()
-        );
-        List<ChatHudLine.Visible> visibleMessages = chatHudAccessor.getVisibleMessages();
-        List<OrderedText> visibleLines = line.breakLines(client.textRenderer, lineWidth);
-
-        int[] visibleIndices = getCachedVisibleIndices(
-                messageId,
-                messages,
-                lineIndex,
-                visibleLines.size(),
-                client.textRenderer,
-                lineWidth
-        );
-        for (int i = 0; i < visibleLines.size(); i++) {
-            int targetVisibleIndex = visibleIndices[i];
-            if (targetVisibleIndex < 0 || targetVisibleIndex >= visibleMessages.size()) {
-                continue;
-            }
-            visibleMessages.set(
-                    targetVisibleIndex,
-                    new ChatHudLine.Visible(
-                            line.creationTick(),
-                            visibleLines.get(i),
-                            line.indicator(),
-                            i == visibleLines.size() - 1
-                    )
-            );
-        }
-    }
-
-    private static int[] getCachedVisibleIndices(
-            UUID messageId,
-            List<ChatHudLine> messages,
-            int lineIndex,
-            int visibleLineCount,
-            TextRenderer textRenderer,
-            int lineWidth
-    ) {
-        PendingAnimationLayout cached = pendingAnimationLayouts.get(messageId);
-        if (cached != null
-                && cached.lineIndex() == lineIndex
-                && cached.lineWidth() == lineWidth
-                && cached.visibleIndices().length == visibleLineCount
-                && cached.layoutVersion() == chatLayoutVersion.get()) {
-            return cached.visibleIndices();
-        }
-
-        int[] visibleIndices = computeVisibleIndices(messages, lineIndex, visibleLineCount, textRenderer, lineWidth);
-        pendingAnimationLayouts.put(
-                messageId,
-                new PendingAnimationLayout(lineIndex, visibleIndices, lineWidth, chatLayoutVersion.get())
-        );
-        return visibleIndices;
-    }
-
-    private static int[] computeVisibleIndices(
-            List<ChatHudLine> messages,
-            int lineIndex,
-            int visibleLineCount,
-            TextRenderer textRenderer,
-            int lineWidth
-    ) {
-        int visibleLineIndex = 0;
-        for (int i = 0; i < lineIndex; i++) {
-            visibleLineIndex += messages.get(i).breakLines(textRenderer, lineWidth).size();
-        }
-        int[] visibleIndices = new int[visibleLineCount];
-        for (int i = 0; i < visibleLineCount; i++) {
-            visibleIndices[i] = visibleLineIndex + visibleLineCount - 1 - i;
-        }
-        return visibleIndices;
     }
 
     private static void updateChatLineWithFinalText(UUID messageId, long requestGeneration, Text finalContent) {
@@ -700,11 +553,6 @@ public class ChatOutputTranslateManager {
             if (!TranslationFeatureGate.isEnabled()) {
                 return;
             }
-            // Consume state on the client thread: the active line is replaced every render
-            // frame during the flowing animation, so it must be captured here where the
-            // messages list is guaranteed not to be concurrently mutated for this message.
-            pendingAnimationSources.remove(messageId);
-            pendingAnimationLayouts.remove(messageId);
             lineLocateRetryCounts.remove(messageId);
             streamingUpdateLastApplied.remove(messageId);
             ChatHudLine lineToUpdate = activeTranslationLines.remove(messageId);
@@ -721,13 +569,12 @@ public class ChatOutputTranslateManager {
             List<ChatHudLine> messages = chatHudAccessor.getMessages();
             int scrolledLines = chatHudAccessor.getScrolledLines();
 
-            int lineIndex = messages.indexOf(lineToUpdate);
+            int lineIndex = indexOfLineByIdentity(messages, lineToUpdate);
 
             if (lineIndex != -1) {
                 Text finalLineContent = buildTranslatedMessageWithToggle(messageId, finalContent, MessageUtils.getTrackedMessage(messageId));
                 ChatHudLine newLine = new ChatHudLine(lineToUpdate.creationTick(), finalLineContent, lineToUpdate.signature(), lineToUpdate.indicator());
                 messages.set(lineIndex, newLine);
-                notifyChatLayoutChanged();
                 chatHudAccessor.invokeRefresh();
                 chatHudAccessor.setScrolledLines(scrolledLines);
                 MessageUtils.setTranslatedMessage(messageId, finalLineContent);
@@ -738,28 +585,54 @@ public class ChatOutputTranslateManager {
         });
     }
 
-    private static void showTemporaryRouteError(
-            UUID messageId,
-            ChatHudAccessor chatHudAccessor,
-            List<ChatHudLine> messages,
-            int lineIndex,
-            ChatHudLine originalLine
-    ) {
-        int scrolledLines = chatHudAccessor.getScrolledLines();
-        Text errorText = Text.translatable(NO_ROUTED_MODEL_ERROR_KEY).formatted(Formatting.RED);
-        ChatHudLine errorLine = new ChatHudLine(originalLine.creationTick(), errorText, originalLine.signature(), originalLine.indicator());
-        messages.set(lineIndex, errorLine);
-        notifyChatLayoutChanged();
-        chatHudAccessor.invokeRefresh();
-        chatHudAccessor.setScrolledLines(scrolledLines);
-
-        CompletableFuture.delayedExecutor(ROUTE_ERROR_DISPLAY_MS, TimeUnit.MILLISECONDS).execute(() -> {
-            MinecraftClient client = MinecraftClient.getInstance();
-            if (client == null) {
+    private static void showTemporaryRouteError(UUID messageId, ChatHudLine originalLine) {
+        MinecraftClient.getInstance().execute(() -> {
+            if (!isTranslationActive(messageId)) {
                 return;
             }
-            client.execute(() -> restoreLineAfterTemporaryError(messageId, errorLine, originalLine));
+            ChatHudLine lineToUpdate = activeTranslationLines.get(messageId);
+            if (lineToUpdate == null) {
+                return;
+            }
+            ChatHud chatHud = MinecraftClient.getInstance().inGameHud.getChatHud();
+            if (chatHud == null) {
+                return;
+            }
+            ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
+            List<ChatHudLine> messages = chatHudAccessor.getMessages();
+            int lineIndex = indexOfLineByIdentity(messages, lineToUpdate);
+            if (lineIndex == -1) {
+                return;
+            }
+
+            int scrolledLines = chatHudAccessor.getScrolledLines();
+            Text errorText = Text.translatable(NO_ROUTED_MODEL_ERROR_KEY).formatted(Formatting.RED);
+            ChatHudLine errorLine = new ChatHudLine(lineToUpdate.creationTick(), errorText, lineToUpdate.signature(), lineToUpdate.indicator());
+            messages.set(lineIndex, errorLine);
+            activeTranslationLines.put(messageId, errorLine);
+            chatHudAccessor.invokeRefresh();
+            chatHudAccessor.setScrolledLines(scrolledLines);
+
+            CompletableFuture.delayedExecutor(ROUTE_ERROR_DISPLAY_MS, TimeUnit.MILLISECONDS).execute(() -> {
+                MinecraftClient client = MinecraftClient.getInstance();
+                if (client == null) {
+                    return;
+                }
+                client.execute(() -> restoreLineAfterTemporaryError(messageId, errorLine, originalLine));
+            });
         });
+    }
+
+    static int indexOfLineByIdentity(List<ChatHudLine> messages, ChatHudLine target) {
+        if (messages == null || target == null) {
+            return -1;
+        }
+        for (int i = 0; i < messages.size(); i++) {
+            if (messages.get(i) == target) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     private static void restoreLineAfterTemporaryError(UUID messageId, ChatHudLine errorLine, ChatHudLine originalLine) {
@@ -775,15 +648,16 @@ public class ChatOutputTranslateManager {
 
         ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
         List<ChatHudLine> messages = chatHudAccessor.getMessages();
-        int lineIndex = messages.indexOf(errorLine);
+        int lineIndex = indexOfLineByIdentity(messages, errorLine);
         if (lineIndex != -1) {
             int scrolledLines = chatHudAccessor.getScrolledLines();
             messages.set(lineIndex, originalLine);
-            notifyChatLayoutChanged();
             chatHudAccessor.invokeRefresh();
             chatHudAccessor.setScrolledLines(scrolledLines);
         }
 
+        activeTranslationLines.remove(messageId);
+        translationGenerations.remove(messageId);
         lineLocateRetryCounts.remove(messageId);
     }
 
@@ -947,13 +821,6 @@ public class ChatOutputTranslateManager {
     private record SpeakerHeaderExtractionResult(String header, String bodyMarkedText) {
     }
 
-    private record PendingAnimationLayout(int lineIndex, int[] visibleIndices, int lineWidth, long layoutVersion) {
-    }
-
-    private static void notifyChatLayoutChanged() {
-        chatLayoutVersion.incrementAndGet();
-    }
-
     private static String buildChatOutputCacheKey(String targetLanguage, String textToTranslate) {
         if (textToTranslate == null || textToTranslate.isBlank()) {
             return null;
@@ -1073,8 +940,6 @@ public class ChatOutputTranslateManager {
         lineLocateRetryCounts.clear();
         translationGenerations.clear();
         activeTranslationLines.clear();
-        pendingAnimationSources.clear();
-        pendingAnimationLayouts.clear();
         pendingAutoTranslateMessages.clear();
         streamingUpdateLastApplied.clear();
         if (pendingLines.isEmpty()) {
@@ -1122,7 +987,7 @@ public class ChatOutputTranslateManager {
             }
 
             ChatHudLine pendingLine = entry.getValue();
-            int lineIndex = messages.indexOf(pendingLine);
+            int lineIndex = indexOfLineByIdentity(messages, pendingLine);
             if (lineIndex == -1) {
                 continue;
             }
@@ -1138,7 +1003,6 @@ public class ChatOutputTranslateManager {
             restored = true;
         }
         if (restored) {
-            notifyChatLayoutChanged();
             chatHudAccessor.invokeRefresh();
             chatHudAccessor.setScrolledLines(scrolledLines);
         }
@@ -1427,7 +1291,7 @@ public class ChatOutputTranslateManager {
         MessageUtils.putTrackedMessage(messageId, subtitleOriginal);
         MessageUtils.markShowingOriginal(messageId);
         int scrolledLines = chatHudAccessor.getScrolledLines();
-        int lineIndex = messages.indexOf(line);
+        int lineIndex = indexOfLineByIdentity(messages, line);
         if (lineIndex == -1) {
             return;
         }
@@ -1438,7 +1302,6 @@ public class ChatOutputTranslateManager {
                 line.indicator()
         );
         messages.set(lineIndex, restoredLine);
-        notifyChatLayoutChanged();
         chatHudAccessor.invokeRefresh();
         chatHudAccessor.setScrolledLines(scrolledLines);
     }
