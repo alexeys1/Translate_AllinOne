@@ -39,6 +39,7 @@ public final class ProviderDetailSectionSupport {
             ProviderTypeLabelProvider providerTypeLabelProvider,
             ActionBlockAdder actionBlockAdder,
             TextFieldAdder textFieldAdder,
+            SecretTextFieldAdder secretTextFieldAdder,
             Consumer<ApiProviderProfile> onToggleProviderEnabled,
             Consumer<ApiProviderProfile> onDeleteProvider,
             Runnable onToggleApiKeyVisible,
@@ -173,6 +174,7 @@ public final class ProviderDetailSectionSupport {
                 translator,
                 actionBlockAdder,
                 textFieldAdder,
+                secretTextFieldAdder,
                 onToggleApiKeyVisible,
                 onTestProviderConnection,
                 style
@@ -346,6 +348,7 @@ public final class ProviderDetailSectionSupport {
             Translator translator,
             ActionBlockAdder actionBlockAdder,
             TextFieldAdder textFieldAdder,
+            SecretTextFieldAdder secretTextFieldAdder,
             Runnable onToggleApiKeyVisible,
             Consumer<ApiProviderProfile> onTestProviderConnection,
             Style style
@@ -375,20 +378,23 @@ public final class ProviderDetailSectionSupport {
         , translator.t("desc.api_key"));
 
         String rawApiKey = ProviderProfileSupport.sanitizeText(profile.api_key);
-        String fieldValue = providerApiKeyVisible ? rawApiKey : ProviderEditorSupport.maskApiKey(rawApiKey);
-        textFieldAdder.add(
+        boolean hidden = !providerApiKeyVisible;
+        String initialValue = providerApiKeyVisible ? rawApiKey : "";
+        Text apiKeyPlaceholder = profile.api_key_decrypt_failed
+                ? translator.t("placeholder.api_key_decrypt_failed")
+                : hidden && !rawApiKey.isEmpty()
+                        ? Text.literal(ProviderEditorSupport.maskApiKey(rawApiKey))
+                        : translator.t("label.api_key");
+        secretTextFieldAdder.add(
                 fieldX,
                 y,
                 fieldWidth,
                 256,
-                fieldValue,
-                translator.t("label.api_key"),
-                value -> {
-                    if (providerApiKeyVisible) {
-                        profile.api_key = ProviderProfileSupport.sanitizeText(value);
-                    }
-                },
-                providerApiKeyVisible
+                initialValue,
+                apiKeyPlaceholder,
+                value -> profile.api_key = ProviderProfileSupport.sanitizeText(value),
+                hidden,
+                hidden && !rawApiKey.isEmpty()
         );
 
         if (stackedButtons) {
@@ -521,6 +527,21 @@ public final class ProviderDetailSectionSupport {
                 Text placeholder,
                 Consumer<String> changed,
                 boolean editable
+        );
+    }
+
+    @FunctionalInterface
+    public interface SecretTextFieldAdder {
+        void add(
+                int x,
+                int y,
+                int width,
+                int maxLength,
+                String initialValue,
+                Text placeholder,
+                Consumer<String> changed,
+                boolean masked,
+                boolean clearOnFirstEdit
         );
     }
 
