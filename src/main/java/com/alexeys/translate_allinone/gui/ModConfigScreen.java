@@ -983,6 +983,7 @@ public class ModConfigScreen extends Screen {
                 },
                 contentActionBlockRegistry::add,
                 this::addTextField,
+                this::addSecretTextField,
                 targetProfile -> {
                     targetProfile.enabled = !targetProfile.enabled;
                     rebuildActionBlocks();
@@ -1117,6 +1118,36 @@ public class ModConfigScreen extends Screen {
                 textPredicate,
                 editable,
                 floating,
+                isAnyModalOpen()
+        );
+    }
+
+    private void addSecretTextField(
+            int x,
+            int y,
+            int width,
+            int maxLength,
+            String initialValue,
+            Component placeholder,
+            Consumer<String> changed,
+            boolean masked,
+            boolean clearOnFirstEdit
+    ) {
+        ConfigUiTextFieldSupport.createSecret(
+                this.font,
+                this::addRenderableWidget,
+                providerEditorFields,
+                floatingEditorFields,
+                x,
+                y,
+                width,
+                maxLength,
+                initialValue,
+                placeholder,
+                changed,
+                masked,
+                clearOnFirstEdit,
+                false,
                 isAnyModalOpen()
         );
     }

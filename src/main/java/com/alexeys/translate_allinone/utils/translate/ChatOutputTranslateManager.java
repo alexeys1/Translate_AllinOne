@@ -140,7 +140,24 @@ public class ChatOutputTranslateManager {
             return false;
         }
 
-        Matcher matcher = SKYBLOCK_NPC_CHAT_PATTERN.matcher(LegacyComponentTextCodec.encode(message));
+        return isSkyblockNpcComponent(message) || containsSkyblockNpcComponent(message);
+    }
+
+    private static boolean containsSkyblockNpcComponent(Component component) {
+        for (Component sibling : component.getSiblings()) {
+            if (isSkyblockNpcComponent(sibling) || containsSkyblockNpcComponent(sibling)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isSkyblockNpcComponent(Component candidate) {
+        if (candidate == null) {
+            return false;
+        }
+
+        Matcher matcher = SKYBLOCK_NPC_CHAT_PATTERN.matcher(LegacyComponentTextCodec.encode(candidate));
         if (!matcher.matches()) {
             return false;
         }

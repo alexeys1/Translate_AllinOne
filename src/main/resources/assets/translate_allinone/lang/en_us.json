@@ -163,6 +163,7 @@
   "text.translate_allinone.configscreen.button.add_sibling_parameter": "ADD SIBLING",
   "text.translate_allinone.configscreen.label.api_key": "API Key",
   "text.translate_allinone.configscreen.desc.api_key": "API authentication key for this provider",
+  "text.translate_allinone.configscreen.placeholder.api_key_decrypt_failed": "Current account UUID decryption failed, please re-enter API key",
   "text.translate_allinone.configscreen.label.auto_translate": "Auto Translate",
   "text.translate_allinone.configscreen.desc.auto_translate": "Automatically translate incoming chat messages without clicking the button",
   "text.translate_allinone.configscreen.label.skyblock_npc_auto_translate": "SkyBlock NPC Auto Translate",
