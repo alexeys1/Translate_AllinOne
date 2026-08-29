@@ -162,6 +162,7 @@
   "text.translate_allinone.configscreen.button.add_sibling_parameter": "新增同级参数",
   "text.translate_allinone.configscreen.label.api_key": "API Key",
   "text.translate_allinone.configscreen.desc.api_key": "此供应商的API认证密钥",
+  "text.translate_allinone.configscreen.placeholder.api_key_decrypt_failed": "当前账号uuid解密失败，请重新填写api key",
   "text.translate_allinone.configscreen.label.auto_translate": "自动翻译",
   "text.translate_allinone.configscreen.desc.auto_translate": "自动翻译收到的聊天消息，无需点击按钮",
   "text.translate_allinone.configscreen.label.skyblock_npc_auto_translate": "SkyBlock NPC 自动翻译",
