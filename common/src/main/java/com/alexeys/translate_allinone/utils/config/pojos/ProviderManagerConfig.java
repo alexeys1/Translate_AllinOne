@@ -22,6 +22,10 @@ public class ProviderManagerConfig {
 
         providers.removeIf(provider -> provider == null || provider.type == null || provider.id == null || provider.id.isBlank());
         for (ApiProviderProfile provider : providers) {
+            if (provider.api_key_entries == null) {
+                provider.api_key_entries = new ArrayList<>();
+            }
+            provider.api_key_entries.removeIf(entry -> entry == null || entry.isBlank());
             provider.ensureModelSettings();
         }
 

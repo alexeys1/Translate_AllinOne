@@ -203,7 +203,9 @@ public final class ComponentTranslationResponseClient {
                     );
                 }
                 ComponentTranslationResponse response = parser.parse(rawResponse);
-                validator.validate(document, response);
+                if (!isRuntimeBatchDocument(document)) {
+                    validator.validate(document, response);
+                }
                 ComponentTranslationMetrics.recordValue(
                         document,
                         ComponentTranslationMetrics.Measurement.RESPONSE_BYTES,
@@ -312,6 +314,11 @@ public final class ComponentTranslationResponseClient {
     private static boolean containsProtectedTokenIdentifier(ComponentTranslationRequest request) {
         return request.items().stream()
                 .anyMatch(item -> item.text().contains("__TAIO_PROTECTED_TOKEN_"));
+    }
+
+    private static boolean isRuntimeBatchDocument(ComponentTranslationDocument document) {
+        return document != null
+                && document.semanticSettings().containsKey("batch_size");
     }
 
     private static boolean isTooltipRoute(ComponentTranslationRoute route) {
