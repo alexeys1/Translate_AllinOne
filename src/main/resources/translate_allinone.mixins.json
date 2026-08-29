@@ -39,6 +39,7 @@
     "mixinChatHud.ChatHudStyleCaptureMixin",
     "mixinChatHud.ChatHudInteractableMixin",
     "mixinChatScreen.ChatScreenMixin",
+    "mixinNetwork.ClientPlayNetworkHandlerMixin",
     "mixinScreenTranslate.UiTranslationScreenMixin",
     "mixinScreenTranslate.UiTranslationDrawContextMixin",
     "mixinScreenTranslate.UiTranslationFontMixin",

@@ -2,6 +2,7 @@ package com.alexeys.translate_allinone.mixin.mixinChatScreen;
 import java.util.UUID;
 
 import com.alexeys.translate_allinone.Translate_AllinOne;
+import com.alexeys.translate_allinone.utils.MessageUtils;
 import com.alexeys.translate_allinone.gui.chatinput.ChatInputPanelAction;
 import com.alexeys.translate_allinone.gui.chatinput.ChatInputPanelRect;
 import com.alexeys.translate_allinone.gui.configui.render.ConfigUiDraw;
@@ -9,9 +10,9 @@ import com.alexeys.translate_allinone.registration.ConfigManager;
 import com.alexeys.translate_allinone.utils.config.pojos.ChatTranslateConfig;
 import com.alexeys.translate_allinone.utils.input.KeybindingManager;
 import com.alexeys.translate_allinone.utils.translate.ChatInputTranslateManager;
-import com.alexeys.translate_allinone.utils.translate.ChatHudStyleCapture;
 import com.alexeys.translate_allinone.utils.translate.ChatOutputTranslateManager;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.font.DrawnTextConsumer;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
@@ -280,7 +281,8 @@ public class ChatScreenMixin {
     private void onMouseClicked(Click click, boolean bl, CallbackInfoReturnable<Boolean> cir) {
         panelDragging = false;
 
-        if (click.button() == GLFW.GLFW_MOUSE_BUTTON_MIDDLE && translate_allinone$handleMiddleClickOnChat(click)) {
+        if ((click.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT || click.button() == GLFW.GLFW_MOUSE_BUTTON_MIDDLE)
+                && translate_allinone$handleChatLineClick(click)) {
             cir.setReturnValue(true);
             return;
         }
@@ -366,7 +368,7 @@ public class ChatScreenMixin {
     }
 
     @Unique
-    private boolean translate_allinone$handleMiddleClickOnChat(Click click) {
+    private boolean translate_allinone$handleChatLineClick(Click click) {
         if (translate_allinone$isPanelVisible()) {
             translate_allinone$ensurePanelPosition();
             if (translate_allinone$panelRect().contains(click.x(), click.y())) {
@@ -390,24 +392,52 @@ public class ChatScreenMixin {
             return false;
         }
 
-        if (!"restore".equals(parts[3])) {
-            return false;
-        }
-
+        UUID messageId;
         try {
-            UUID messageId = UUID.fromString(parts[2]);
-            ChatOutputTranslateManager.forceRefreshTranslation(messageId);
-            return true;
+            messageId = UUID.fromString(parts[2]);
         } catch (IllegalArgumentException ignored) {
             return false;
         }
+
+        String action = parts[3];
+        if ("restore".equalsIgnoreCase(action)) {
+            if (click.button() == GLFW.GLFW_MOUSE_BUTTON_MIDDLE) {
+                ChatOutputTranslateManager.forceRefreshTranslation(messageId);
+            } else {
+                ChatOutputTranslateManager.restoreOriginal(messageId);
+            }
+            return true;
+        }
+        if ("translate".equalsIgnoreCase(action)) {
+            Text originalMessage = MessageUtils.getTrackedMessage(messageId);
+            if (originalMessage == null) {
+                return ChatOutputTranslateManager.handleToggleCommandWithMissingTracking(messageId, action);
+            }
+            ChatOutputTranslateManager.translate(messageId, originalMessage);
+            return true;
+        }
+        return false;
     }
 
     @Unique
     private Style translate_allinone$findClickableStyle(Click click) {
-        Style style = ChatHudStyleCapture.get();
-        ChatHudStyleCapture.reset();
-        return style;
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null || client.inGameHud == null || client.inGameHud.getChatHud() == null) {
+            return null;
+        }
+        DrawnTextConsumer.ClickHandler clickHandler = new DrawnTextConsumer.ClickHandler(
+                client.textRenderer,
+                (int) click.x(),
+                (int) click.y()
+        );
+        clickHandler.insert(client.isShiftPressed());
+        client.inGameHud.getChatHud().render(
+                clickHandler,
+                client.getWindow().getScaledHeight(),
+                client.inGameHud.getTicks(),
+                true
+        );
+        return clickHandler.getStyle();
     }
 
     @Unique

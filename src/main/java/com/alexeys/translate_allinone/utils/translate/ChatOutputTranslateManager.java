@@ -23,11 +23,14 @@ import com.alexeys.translate_allinone.utils.text.LegacyComponentTextCodec;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.hud.ChatHud;
 import net.minecraft.client.gui.hud.ChatHudLine;
+import net.minecraft.client.font.TextRenderer;
 import net.minecraft.text.ClickEvent;
 import net.minecraft.text.HoverEvent;
 import net.minecraft.text.MutableText;
+import net.minecraft.text.OrderedText;
 import net.minecraft.text.Style;
 import net.minecraft.text.Text;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.Formatting;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
@@ -257,13 +260,10 @@ public class ChatOutputTranslateManager {
         Text placeholderText = AnimationManager.getAnimatedStyledText(originalMessage);
 
         ChatHudLine newLine = new ChatHudLine(targetLine.creationTick(), placeholderText, targetLine.signature(), targetLine.indicator());
-        int scrolledLines = chatHudAccessor.getScrolledLines();
-        messages.set(lineIndex, newLine);
+        replaceVisibleChatLine(client, chatHudAccessor, messages, targetLine, newLine);
         activeTranslationLines.put(messageId, newLine);
         long requestGeneration = translationGeneration.incrementAndGet();
         translationGenerations.put(messageId, requestGeneration);
-        chatHudAccessor.invokeRefresh();
-        chatHudAccessor.setScrolledLines(scrolledLines);
 
         final long finalRequestGeneration = requestGeneration;
         final String requestSingleFlightKey = chatOutputCacheKey == null
@@ -494,13 +494,10 @@ public class ChatOutputTranslateManager {
                 return;
             }
 
-            int scrolledLines = chatHudAccessor.getScrolledLines();
             Text restoredContent = buildOriginalMessageWithToggle(messageId, originalMessage);
             ChatHudLine targetLine = searchResult.line();
             ChatHudLine restoredLine = new ChatHudLine(targetLine.creationTick(), restoredContent, targetLine.signature(), targetLine.indicator());
-            messages.set(searchResult.lineIndex(), restoredLine);
-            chatHudAccessor.invokeRefresh();
-            chatHudAccessor.setScrolledLines(scrolledLines);
+            replaceVisibleChatLine(client, chatHudAccessor, messages, targetLine, restoredLine);
             MessageUtils.markShowingOriginal(messageId);
         });
     }
@@ -531,16 +528,11 @@ public class ChatOutputTranslateManager {
 
             ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
             List<ChatHudLine> messages = chatHudAccessor.getMessages();
-            int scrolledLines = chatHudAccessor.getScrolledLines();
 
-            int lineIndex = indexOfLineByIdentity(messages, lineToUpdate);
-
-            if (lineIndex != -1) {
+            if (indexOfLineByIdentity(messages, lineToUpdate) != -1) {
                 ChatHudLine newLine = new ChatHudLine(lineToUpdate.creationTick(), newContent, lineToUpdate.signature(), lineToUpdate.indicator());
-                messages.set(lineIndex, newLine);
+                replaceVisibleChatLine(MinecraftClient.getInstance(), chatHudAccessor, messages, lineToUpdate, newLine);
                 activeTranslationLines.put(messageId, newLine);
-                chatHudAccessor.invokeRefresh();
-                chatHudAccessor.setScrolledLines(scrolledLines);
             }
         });
     }
@@ -567,16 +559,12 @@ public class ChatOutputTranslateManager {
 
             ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
             List<ChatHudLine> messages = chatHudAccessor.getMessages();
-            int scrolledLines = chatHudAccessor.getScrolledLines();
 
             int lineIndex = indexOfLineByIdentity(messages, lineToUpdate);
-
             if (lineIndex != -1) {
                 Text finalLineContent = buildTranslatedMessageWithToggle(messageId, finalContent, MessageUtils.getTrackedMessage(messageId));
                 ChatHudLine newLine = new ChatHudLine(lineToUpdate.creationTick(), finalLineContent, lineToUpdate.signature(), lineToUpdate.indicator());
-                messages.set(lineIndex, newLine);
-                chatHudAccessor.invokeRefresh();
-                chatHudAccessor.setScrolledLines(scrolledLines);
+                replaceVisibleChatLine(MinecraftClient.getInstance(), chatHudAccessor, messages, lineToUpdate, newLine);
                 MessageUtils.setTranslatedMessage(messageId, finalLineContent);
                 logChatLineMapping(messageId, "final_update", lineIndex, finalLineContent);
             } else {
@@ -605,13 +593,10 @@ public class ChatOutputTranslateManager {
                 return;
             }
 
-            int scrolledLines = chatHudAccessor.getScrolledLines();
             Text errorText = Text.translatable(NO_ROUTED_MODEL_ERROR_KEY).formatted(Formatting.RED);
             ChatHudLine errorLine = new ChatHudLine(lineToUpdate.creationTick(), errorText, lineToUpdate.signature(), lineToUpdate.indicator());
-            messages.set(lineIndex, errorLine);
+            replaceVisibleChatLine(MinecraftClient.getInstance(), chatHudAccessor, messages, lineToUpdate, errorLine);
             activeTranslationLines.put(messageId, errorLine);
-            chatHudAccessor.invokeRefresh();
-            chatHudAccessor.setScrolledLines(scrolledLines);
 
             CompletableFuture.delayedExecutor(ROUTE_ERROR_DISPLAY_MS, TimeUnit.MILLISECONDS).execute(() -> {
                 MinecraftClient client = MinecraftClient.getInstance();
@@ -635,6 +620,50 @@ public class ChatOutputTranslateManager {
         return -1;
     }
 
+    private static void replaceVisibleChatLine(
+            MinecraftClient client,
+            ChatHudAccessor chatHudAccessor,
+            List<ChatHudLine> messages,
+            ChatHudLine oldLine,
+            ChatHudLine newLine
+    ) {
+        int lineIndex = indexOfLineByIdentity(messages, oldLine);
+        if (lineIndex == -1) {
+            return;
+        }
+        int lineWidth = MathHelper.floor(
+                ChatHud.getWidth(client.options.getChatWidth().getValue())
+                        / client.options.getChatScale().getValue()
+        );
+        List<ChatHudLine.Visible> visibleMessages = chatHudAccessor.getVisibleMessages();
+        int visibleStart = 0;
+        for (int i = 0; i < lineIndex; i++) {
+            visibleStart += messages.get(i).breakLines(client.textRenderer, lineWidth).size();
+        }
+        int oldVisibleCount = oldLine.breakLines(client.textRenderer, lineWidth).size();
+        if (visibleStart >= visibleMessages.size()) {
+            messages.set(lineIndex, newLine);
+            return;
+        }
+        int end = Math.min(visibleStart + oldVisibleCount, visibleMessages.size());
+        List<ChatHudLine.Visible> replacement = new ArrayList<>();
+        List<OrderedText> splitLines = newLine.breakLines(client.textRenderer, lineWidth);
+        for (int i = splitLines.size() - 1; i >= 0; i--) {
+            replacement.add(new ChatHudLine.Visible(
+                    newLine.creationTick(),
+                    splitLines.get(i),
+                    newLine.indicator(),
+                    i == splitLines.size() - 1
+            ));
+        }
+        visibleMessages.subList(visibleStart, end).clear();
+        visibleMessages.addAll(visibleStart, replacement);
+        while (visibleMessages.size() > 100) {
+            visibleMessages.remove(visibleMessages.size() - 1);
+        }
+        messages.set(lineIndex, newLine);
+    }
+
     private static void restoreLineAfterTemporaryError(UUID messageId, ChatHudLine errorLine, ChatHudLine originalLine) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client == null || client.inGameHud == null) {
@@ -648,13 +677,7 @@ public class ChatOutputTranslateManager {
 
         ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
         List<ChatHudLine> messages = chatHudAccessor.getMessages();
-        int lineIndex = indexOfLineByIdentity(messages, errorLine);
-        if (lineIndex != -1) {
-            int scrolledLines = chatHudAccessor.getScrolledLines();
-            messages.set(lineIndex, originalLine);
-            chatHudAccessor.invokeRefresh();
-            chatHudAccessor.setScrolledLines(scrolledLines);
-        }
+        replaceVisibleChatLine(client, chatHudAccessor, messages, errorLine, originalLine);
 
         activeTranslationLines.remove(messageId);
         translationGenerations.remove(messageId);
@@ -978,8 +1001,6 @@ public class ChatOutputTranslateManager {
 
         ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
         List<ChatHudLine> messages = chatHudAccessor.getMessages();
-        int scrolledLines = chatHudAccessor.getScrolledLines();
-        boolean restored = false;
         for (Map.Entry<UUID, ChatHudLine> entry : pendingLines.entrySet()) {
             MessageUtils.TrackedChatMessage trackedMessage = MessageUtils.getTrackedChatMessage(entry.getKey());
             if (trackedMessage == null || trackedMessage.originalMessage() == null) {
@@ -987,24 +1008,14 @@ public class ChatOutputTranslateManager {
             }
 
             ChatHudLine pendingLine = entry.getValue();
-            int lineIndex = indexOfLineByIdentity(messages, pendingLine);
-            if (lineIndex == -1) {
-                continue;
-            }
-
             ChatHudLine restoredLine = new ChatHudLine(
                     pendingLine.creationTick(),
                     trackedMessage.originalMessage().copy(),
                     pendingLine.signature(),
                     pendingLine.indicator()
             );
-            messages.set(lineIndex, restoredLine);
+            replaceVisibleChatLine(client, chatHudAccessor, messages, pendingLine, restoredLine);
             MessageUtils.markShowingOriginal(entry.getKey());
-            restored = true;
-        }
-        if (restored) {
-            chatHudAccessor.invokeRefresh();
-            chatHudAccessor.setScrolledLines(scrolledLines);
         }
     }
 
@@ -1290,9 +1301,7 @@ public class ChatOutputTranslateManager {
         }
         MessageUtils.putTrackedMessage(messageId, subtitleOriginal);
         MessageUtils.markShowingOriginal(messageId);
-        int scrolledLines = chatHudAccessor.getScrolledLines();
-        int lineIndex = indexOfLineByIdentity(messages, line);
-        if (lineIndex == -1) {
+        if (indexOfLineByIdentity(messages, line) == -1) {
             return;
         }
         ChatHudLine restoredLine = new ChatHudLine(
@@ -1301,9 +1310,7 @@ public class ChatOutputTranslateManager {
                 line.signature(),
                 line.indicator()
         );
-        messages.set(lineIndex, restoredLine);
-        chatHudAccessor.invokeRefresh();
-        chatHudAccessor.setScrolledLines(scrolledLines);
+        replaceVisibleChatLine(MinecraftClient.getInstance(), chatHudAccessor, messages, line, restoredLine);
     }
 
     private static boolean containsToggleCommand(Text content, String commandPrefix) {
