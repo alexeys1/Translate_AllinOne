@@ -23,6 +23,7 @@ import com.alexeys.translate_allinone.utils.text.LegacyComponentTextCodec;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.hud.ChatHud;
 import net.minecraft.client.gui.hud.ChatHudLine;
+import net.minecraft.client.gui.screen.ChatScreen;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.text.ClickEvent;
 import net.minecraft.text.HoverEvent;
@@ -59,6 +60,7 @@ public class ChatOutputTranslateManager {
     private static final String CHAT_TRANSLATE_ACTION = "translate";
     private static final String CHAT_RESTORE_ACTION = "restore";
     private static final Map<UUID, ChatHudLine> activeTranslationLines = new ConcurrentHashMap<>();
+    private static final Map<UUID, Text> pendingAnimationSources = new ConcurrentHashMap<>();
     private static final Map<UUID, Text> pendingAutoTranslateMessages = new ConcurrentHashMap<>();
     private static final Map<UUID, Long> streamingUpdateLastApplied = new ConcurrentHashMap<>();
     private static final Map<UUID, Long> translationGenerations = new ConcurrentHashMap<>();
@@ -261,6 +263,7 @@ public class ChatOutputTranslateManager {
 
         ChatHudLine newLine = new ChatHudLine(targetLine.creationTick(), placeholderText, targetLine.signature(), targetLine.indicator());
         replaceVisibleChatLine(client, chatHudAccessor, messages, targetLine, newLine);
+        pendingAnimationSources.put(messageId, originalMessage);
         activeTranslationLines.put(messageId, newLine);
         long requestGeneration = translationGeneration.incrementAndGet();
         translationGenerations.put(messageId, requestGeneration);
@@ -512,6 +515,51 @@ public class ChatOutputTranslateManager {
         updateInProgressChatLine(messageId, requestGeneration, newContent);
     }
 
+    public static void animatePendingChatLines() {
+        if (pendingAnimationSources.isEmpty()) {
+            return;
+        }
+
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null || client.inGameHud == null) {
+            return;
+        }
+        if (client.currentScreen instanceof ChatScreen) {
+            return;
+        }
+
+        ChatHud chatHud = client.inGameHud.getChatHud();
+        if (chatHud == null) {
+            return;
+        }
+
+        ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
+        List<ChatHudLine> messages = chatHudAccessor.getMessages();
+
+        for (Map.Entry<UUID, Text> entry : pendingAnimationSources.entrySet()) {
+            UUID messageId = entry.getKey();
+            if (!isTranslationActive(messageId)) {
+                pendingAnimationSources.remove(messageId);
+                continue;
+            }
+
+            ChatHudLine activeLine = activeTranslationLines.get(messageId);
+            Text source = entry.getValue();
+            if (activeLine == null || source == null) {
+                continue;
+            }
+
+            ChatHudLine animatedLine = new ChatHudLine(
+                    activeLine.creationTick(),
+                    AnimationManager.getAnimatedStyledText(source),
+                    activeLine.signature(),
+                    activeLine.indicator()
+            );
+            replaceVisibleChatLine(client, chatHudAccessor, messages, activeLine, animatedLine);
+            activeTranslationLines.put(messageId, animatedLine);
+        }
+    }
+
     private static void updateInProgressChatLine(UUID messageId, long requestGeneration, Text newContent) {
         if (!isTranslationActive(messageId, requestGeneration)) {
             return;
@@ -530,6 +578,7 @@ public class ChatOutputTranslateManager {
             List<ChatHudLine> messages = chatHudAccessor.getMessages();
 
             if (indexOfLineByIdentity(messages, lineToUpdate) != -1) {
+                pendingAnimationSources.remove(messageId);
                 ChatHudLine newLine = new ChatHudLine(lineToUpdate.creationTick(), newContent, lineToUpdate.signature(), lineToUpdate.indicator());
                 replaceVisibleChatLine(MinecraftClient.getInstance(), chatHudAccessor, messages, lineToUpdate, newLine);
                 activeTranslationLines.put(messageId, newLine);
@@ -562,6 +611,7 @@ public class ChatOutputTranslateManager {
 
             int lineIndex = indexOfLineByIdentity(messages, lineToUpdate);
             if (lineIndex != -1) {
+                pendingAnimationSources.remove(messageId);
                 Text finalLineContent = buildTranslatedMessageWithToggle(messageId, finalContent, MessageUtils.getTrackedMessage(messageId));
                 ChatHudLine newLine = new ChatHudLine(lineToUpdate.creationTick(), finalLineContent, lineToUpdate.signature(), lineToUpdate.indicator());
                 replaceVisibleChatLine(MinecraftClient.getInstance(), chatHudAccessor, messages, lineToUpdate, newLine);
@@ -593,6 +643,7 @@ public class ChatOutputTranslateManager {
                 return;
             }
 
+            pendingAnimationSources.remove(messageId);
             Text errorText = Text.translatable(NO_ROUTED_MODEL_ERROR_KEY).formatted(Formatting.RED);
             ChatHudLine errorLine = new ChatHudLine(lineToUpdate.creationTick(), errorText, lineToUpdate.signature(), lineToUpdate.indicator());
             replaceVisibleChatLine(MinecraftClient.getInstance(), chatHudAccessor, messages, lineToUpdate, errorLine);
@@ -963,6 +1014,7 @@ public class ChatOutputTranslateManager {
         lineLocateRetryCounts.clear();
         translationGenerations.clear();
         activeTranslationLines.clear();
+        pendingAnimationSources.clear();
         pendingAutoTranslateMessages.clear();
         streamingUpdateLastApplied.clear();
         if (pendingLines.isEmpty()) {
