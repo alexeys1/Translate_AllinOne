@@ -6,6 +6,7 @@ import com.alexeys.translate_allinone.utils.cache.component.ComponentTranslation
 import com.alexeys.translate_allinone.utils.cache.component.ComponentTranslationStoreRegistry;
 import com.alexeys.translate_allinone.utils.config.ModConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
+import com.alexeys.translate_allinone.utils.translate.ApiKeyDecryptFailureNotifier;
 import net.minecraft.network.chat.Component;
 
 import java.util.Collections;
@@ -399,6 +400,11 @@ public final class ComponentTranslationRuntime {
                 case OTHER_TRANSLATIONS -> NoRoutedModelErrorSupport.Surface.OTHER_TRANSLATIONS;
                 case SCOREBOARD -> NoRoutedModelErrorSupport.Surface.SCOREBOARD;
             });
+        }
+
+        @Override
+        public void onApiKeyDecryptFailure(ComponentTranslationRuntimeCore.ProviderSurface surface) {
+            ApiKeyDecryptFailureNotifier.notifyRuntimeIfPresent();
         }
 
         @Override
