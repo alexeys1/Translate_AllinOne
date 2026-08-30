@@ -16,11 +16,9 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 
 public final class ApiKeyDecryptFailureNotifier {
     private static final String MESSAGE_KEY = "text.translate_allinone.chat.api_key_decrypt_failed";
-    private static final String OPEN_KEY = "text.translate_allinone.chat.api_key_decrypt_failed.open";
     private static final String HOVER_KEY = "text.translate_allinone.chat.api_key_decrypt_failed.hover";
     private static final long RUNTIME_NOTIFY_COOLDOWN_MS = TimeUnit.MINUTES.toMillis(2);
     private static final AtomicBoolean JOIN_NOTIFICATION_SENT = new AtomicBoolean(false);
@@ -81,21 +79,25 @@ public final class ApiKeyDecryptFailureNotifier {
     }
 
     private static void send(Minecraft client, List<ApiProviderProfile> failedProviders) {
-        String names = failedProviders.stream()
-                .map(ApiKeyDecryptFailureNotifier::displayName)
-                .collect(Collectors.joining("、"));
-        MutableComponent message = Component.translatable(MESSAGE_KEY, names).withStyle(ChatFormatting.GOLD);
-        MutableComponent open = Component.translatable(OPEN_KEY)
-                .setStyle(Style.EMPTY
-                        .withColor(ChatFormatting.AQUA)
-                        .withUnderlined(true)
-                        .withClickEvent(new ClickEvent.RunCommand("/taio"))
-                        .withHoverEvent(new HoverEvent.ShowText(
-                                Component.translatable(HOVER_KEY, "/taio")
-                        )));
+        MutableComponent message = Component.translatable(MESSAGE_KEY, "").withStyle(ChatFormatting.GOLD);
+        for (int i = 0; i < failedProviders.size(); i++) {
+            if (i > 0) {
+                message.append(Component.literal("、"));
+            }
+            ApiProviderProfile provider = failedProviders.get(i);
+            String command = "/taio " + provider.id;
+            Style providerStyle = Style.EMPTY
+                    .withColor(ChatFormatting.AQUA)
+                    .withUnderlined(true)
+                    .withClickEvent(new ClickEvent.RunCommand(command))
+                    .withHoverEvent(new HoverEvent.ShowText(
+                            Component.translatable(HOVER_KEY)
+                    ));
+            message.append(Component.literal(displayName(provider)).setStyle(providerStyle));
+        }
         client.execute(() -> {
             if (client.player != null) {
-                client.player.sendSystemMessage(message.append(Component.literal(" ")).append(open));
+                client.player.sendSystemMessage(message);
             }
         });
     }
