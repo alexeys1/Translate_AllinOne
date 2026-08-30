@@ -171,6 +171,10 @@ public class ChatInputTranslateManager {
                     showTemporaryRouteError(chatField, originalTextRef.get());
                     return;
                 }
+                if (ProviderRouteResolver.hasApiKeyDecryptFailure(Translate_AllinOne.getConfig(), ProviderRouteResolver.Route.CHAT_INPUT)) {
+                    ApiKeyDecryptFailureNotifier.notifyRuntimeIfPresent();
+                    return;
+                }
 
                 if (!isTransformModeSupported(providerProfile, mode)) {
                     LOGGER.info(

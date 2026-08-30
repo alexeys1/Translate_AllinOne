@@ -182,6 +182,11 @@ public final class WynnDialogueTranslateManager {
             cache.requeueFailed(Set.copyOf(originalKeys), "No routed model selected");
             return;
         }
+        if (ProviderRouteResolver.hasApiKeyDecryptFailure(Translate_AllinOne.getConfig(), ProviderRouteResolver.Route.WYNN_NPC_DIALOGUE)) {
+            ApiKeyDecryptFailureNotifier.notifyRuntimeIfPresent();
+            cache.requeueFailed(Set.copyOf(originalKeys), "API key decryption failed");
+            return;
+        }
 
         Map<String, String> batchForAI = new LinkedHashMap<>();
         for (int i = 0; i < originalKeys.size(); i++) {
