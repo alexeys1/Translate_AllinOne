@@ -41,6 +41,8 @@
     "mixinInGameGui.SkyHanniCustomScoreboardMixin",
     "mixinChatScreen.ChatScreenMixin",
     "mixinScreenTranslate.UiTranslationScreenMixin",
+    "mixinScreenTranslate.UiTranslationChatComponentMixin",
+    "mixinScreenTranslate.UiTranslationCommandSuggestionsMixin",
     "mixinScreenTranslate.UiTranslationGuiGraphicsExtractorMixin",
     "mixinScreenTranslate.UiTranslationActiveTextCollectorMixin",
     "mixinScreenTranslate.UiTranslationRenderingTextCollectorMixin",

@@ -148,6 +148,11 @@ public final class UiTranslationScope {
         return INTERNAL_DEPTH.get() > 0;
     }
 
+    public static Scope enterInternal() {
+        INTERNAL_DEPTH.set(INTERNAL_DEPTH.get() + 1);
+        return new Scope(null, true);
+    }
+
     public static void withInternal(Runnable action) {
         if (action == null) {
             return;
@@ -188,22 +193,35 @@ public final class UiTranslationScope {
 
     public static final class Scope implements AutoCloseable {
         private final Frame frame;
+        private final boolean internal;
         private boolean closed;
 
         private Scope(Frame frame) {
+            this(frame, false);
+        }
+
+        private Scope(Frame frame, boolean internal) {
             this.frame = frame;
+            this.internal = internal;
         }
 
         private static Scope inactive() {
-            return new Scope(null);
+            return new Scope(null, false);
         }
 
         @Override
         public void close() {
-            if (closed || frame == null) {
+            if (closed) {
                 return;
             }
             closed = true;
+            if (internal) {
+                decrementInternalDepth();
+                return;
+            }
+            if (frame == null) {
+                return;
+            }
             Deque<Frame> frames = FRAMES.get();
             if (frames.peek() == frame) {
                 frames.pop();
