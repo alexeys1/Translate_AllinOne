@@ -175,11 +175,10 @@ public final class WynnDialogueTranslateManager {
                 ProviderRouteResolver.Route.WYNN_NPC_DIALOGUE
         );
         if (providerProfile == null) {
-            Translate_AllinOne.LOGGER.warn(
-                    "No routed provider/model configured for Wynn dialogue translation; re-queueing {} items.",
-                    originalKeys.size()
-            );
-            cache.requeueFailed(Set.copyOf(originalKeys), "No routed model selected");
+        }
+        if (ProviderRouteResolver.hasApiKeyDecryptFailure(Translate_AllinOne.getConfig(), ProviderRouteResolver.Route.WYNN_NPC_DIALOGUE)) {
+            ApiKeyDecryptFailureNotifier.notifyRuntimeIfPresent();
+            cache.requeueFailed(Set.copyOf(originalKeys), "API key decryption failed");
             return;
         }
 

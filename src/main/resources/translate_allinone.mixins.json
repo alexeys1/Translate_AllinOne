@@ -32,6 +32,8 @@
     "mixinChatScreen.ChatScreenMixin",
     "mixinChatScreen.ScreenCharTypedMixin",
     "mixinScreenTranslate.UiTranslationScreenMixin",
+    "mixinScreenTranslate.UiTranslationChatComponentMixin",
+    "mixinScreenTranslate.UiTranslationCommandSuggestionsMixin",
     "mixinScreenTranslate.UiTranslationDrawContextMixin",
     "mixinScreenTranslate.UiTranslationFontMixin",
     "mixinScreenTranslate.UiTranslationEditBoxMixin",

@@ -22,9 +22,6 @@ public abstract class TextDisplayEntityRendererMixin {
             DisplayEntity.TextDisplayEntity.LineSplitter splitter
     ) {
         TextDisplayTranslationSnapshot snapshot = TextDisplayTranslationSupport.resolve(entity, entity.getData());
-        if (snapshot.isTranslated()) {
-            return splitter.split(snapshot.displayedText(), snapshot.originalState().lineWidth());
-        }
-        return entity.splitLines(splitter);
+        return TextDisplayTranslationSupport.resolveCachedTextLines(entity, splitter, snapshot);
     }
 }

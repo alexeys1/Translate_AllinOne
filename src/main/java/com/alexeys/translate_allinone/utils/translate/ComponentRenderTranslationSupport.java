@@ -2,8 +2,8 @@ package com.alexeys.translate_allinone.utils.translate;
 
 import com.alexeys.translate_allinone.Translate_AllinOne;
 import com.alexeys.translate_allinone.utils.AnimationManager;
-import com.alexeys.translate_allinone.utils.componentjson.ComponentDynamicTemplate;
 import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationApplier;
+import com.alexeys.translate_allinone.utils.componentjson.ComponentDynamicTemplate;
 import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationDocument;
 import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationRoute;
 import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationRuntime;
@@ -17,10 +17,25 @@ import net.minecraft.client.gui.screen.ingame.BookEditScreen;
 import net.minecraft.client.gui.screen.ingame.BookScreen;
 import net.minecraft.client.gui.screen.ingame.InventoryScreen;
 import net.minecraft.text.Text;
-
 public final class ComponentRenderTranslationSupport {
     private static final Set<String> REFRESHED_KEYS = new HashSet<>();
     private static boolean refreshHeld;
+    private static final EntityTranslationRenderCache ENTITY_RENDER_CACHE = new EntityTranslationRenderCache();
+
+    @FunctionalInterface
+    interface TranslationPipeline {
+        TranslationResult translate(
+                Text original,
+                ComponentTranslationRoute route,
+                String context,
+                String policyVersion,
+                OtherTranslationsConfig config,
+                boolean allowForceRefresh,
+                Set<String> privateTokens
+        );
+    }
+
+    private static volatile TranslationPipeline translationPipeline = ComponentRenderTranslationSupport::translateHeavy;
 
     private ComponentRenderTranslationSupport() {
     }
@@ -107,6 +122,57 @@ public final class ComponentRenderTranslationSupport {
         if (!TranslationFeatureGate.isEnabled() || original == null || config == null) {
             return TranslationResult.original(original, null);
         }
+        EntityTranslationRenderCache.Key cacheKey = null;
+        boolean entityCandidate = isEntityRenderRoute(route)
+                && (privateTokens == null || privateTokens.isEmpty());
+        if (entityCandidate) {
+            cacheKey = new EntityTranslationRenderCache.Key(
+                    original,
+                    route,
+                    context,
+                    config.target_language,
+                    policyVersion
+            );
+            if (!allowForceRefresh) {
+                TranslationResult cached = ENTITY_RENDER_CACHE.get(cacheKey);
+                if (cached != null) {
+                    return cached;
+                }
+            } else {
+                ENTITY_RENDER_CACHE.remove(cacheKey);
+            }
+        }
+        TranslationResult result = translationPipeline.translate(
+                original,
+                route,
+                context,
+                policyVersion,
+                config,
+                allowForceRefresh,
+                privateTokens
+        );
+        if (cacheKey != null
+                && !allowForceRefresh
+                && result.state() == ComponentTranslationRuntime.State.CACHE_HIT
+                && result.displayed() != null) {
+            ENTITY_RENDER_CACHE.put(cacheKey, result);
+        }
+        return result;
+    }
+
+    private static boolean isEntityRenderRoute(ComponentTranslationRoute route) {
+        return route == ComponentTranslationRoute.ENTITY_NAME || route == ComponentTranslationRoute.TEXT_DISPLAY;
+    }
+
+    private static TranslationResult translateHeavy(
+            Text original,
+            ComponentTranslationRoute route,
+            String context,
+            String policyVersion,
+            OtherTranslationsConfig config,
+            boolean allowForceRefresh,
+            Set<String> privateTokens
+    ) {
         try {
             ComponentDynamicTemplate template = ComponentDynamicTemplate.prepare(original, privateTokens);
             ComponentTranslationDocument document = ComponentTranslationRuntime.prepare(
@@ -146,7 +212,7 @@ public final class ComponentRenderTranslationSupport {
                     resolution.state(),
                     resolution.inFlight()
             );
-        } catch (RuntimeException ignored) {
+        } catch (RuntimeException error) {
             return TranslationResult.original(original, null);
         }
     }
@@ -198,11 +264,11 @@ public final class ComponentRenderTranslationSupport {
         }
     }
 
-    static boolean isEligible(Text text, int maximumCharacters) {
-        if (text == null) {
+    static boolean isEligible(Text component, int maximumCharacters) {
+        if (component == null) {
             return false;
         }
-        String plainText = text.getString();
+        String plainText = component.getString();
         if (plainText == null || plainText.isBlank() || plainText.length() > maximumCharacters) {
             return false;
         }
@@ -234,6 +300,14 @@ public final class ComponentRenderTranslationSupport {
         return AnimationManager.getAnimatedStyledText(original, resolvedKey, false);
     }
 
+    public static void resetRenderCache() {
+        ENTITY_RENDER_CACHE.clear();
+    }
+
+    static void setTranslationPipelineForTesting(TranslationPipeline pipeline) {
+        translationPipeline = pipeline == null ? ComponentRenderTranslationSupport::translateHeavy : pipeline;
+    }
+
     static void resetRefreshState() {
         synchronized (REFRESHED_KEYS) {
             REFRESHED_KEYS.clear();
@@ -246,19 +320,13 @@ public final class ComponentRenderTranslationSupport {
             resetRefreshState();
             return;
         }
-        if (!isRefreshPressed(config)) {
+        boolean pressed = isRefreshPressed(config);
+        if (!pressed) {
             synchronized (REFRESHED_KEYS) {
                 REFRESHED_KEYS.clear();
                 refreshHeld = false;
             }
         }
-    }
-
-    static boolean isRefreshPressed(OtherTranslationsConfig config) {
-        return config != null
-                && config.keybinding != null
-                && config.keybinding.refreshBinding != null
-                && KeybindingManager.isPressed(config.keybinding.refreshBinding);
     }
 
     static void maybeForceRefresh(ComponentTranslationDocument document, OtherTranslationsConfig config) {
@@ -275,12 +343,20 @@ public final class ComponentRenderTranslationSupport {
             if (!refreshHeld) {
                 REFRESHED_KEYS.clear();
                 refreshHeld = true;
+                ENTITY_RENDER_CACHE.clear();
             }
             String key = ComponentTranslationRuntime.cacheKey(document, config.target_language);
             if (REFRESHED_KEYS.add(key)) {
                 ComponentTranslationRuntime.forceRefresh(document, config.target_language);
             }
         }
+    }
+
+    static boolean isRefreshPressed(OtherTranslationsConfig config) {
+        return config != null
+                && config.keybinding != null
+                && config.keybinding.refreshBinding != null
+                && KeybindingManager.isPressed(config.keybinding.refreshBinding);
     }
 
     private static boolean isPrivateUseCodePoint(int codePoint) {
@@ -297,8 +373,14 @@ public final class ComponentRenderTranslationSupport {
             ComponentTranslationRuntime.State state,
             boolean inFlight
     ) {
-        static TranslationResult original(Text text, ComponentTranslationDocument document) {
-            return new TranslationResult(text, text, document, ComponentTranslationRuntime.State.INELIGIBLE, false);
+        static TranslationResult original(Text component, ComponentTranslationDocument document) {
+            return new TranslationResult(
+                    component,
+                    component,
+                    document,
+                    ComponentTranslationRuntime.State.INELIGIBLE,
+                    false
+            );
         }
 
         boolean isTranslated() {

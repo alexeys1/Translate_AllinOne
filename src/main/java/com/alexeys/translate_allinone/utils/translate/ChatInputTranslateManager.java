@@ -167,8 +167,9 @@ public class ChatInputTranslateManager {
                         ProviderRouteResolver.Route.CHAT_INPUT
                 );
                 if (providerProfile == null) {
-                    LOGGER.warn("No routed model selected for chat input translation; showing temporary error.");
-                    showTemporaryRouteError(chatField, originalTextRef.get());
+                }
+                if (ProviderRouteResolver.hasApiKeyDecryptFailure(Translate_AllinOne.getConfig(), ProviderRouteResolver.Route.CHAT_INPUT)) {
+                    ApiKeyDecryptFailureNotifier.notifyRuntimeIfPresent();
                     return;
                 }
 
