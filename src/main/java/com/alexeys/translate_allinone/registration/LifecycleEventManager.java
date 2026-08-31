@@ -47,6 +47,7 @@ public class LifecycleEventManager {
     public static synchronized void globalTranslationFeatureChanged(boolean enabled) {
         LlmRequestLifecycle.cancelActiveRequests();
         ComponentTranslationRuntime.providerConfigurationChanged();
+        ComponentRenderTranslationSupport.resetRenderCache();
         BookTranslationSupport.resetSession();
         ContinuousSignTranslationCoordinator.reset();
         TextDisplayTranslationSupport.resetSession();
@@ -81,6 +82,7 @@ public class LifecycleEventManager {
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             resetReadinessState();
             ComponentTranslationRuntime.beginSession();
+            ComponentRenderTranslationSupport.resetRenderCache();
             BookTranslationSupport.resetSession();
             ContinuousSignTranslationCoordinator.reset();
             TextDisplayTranslationSupport.resetSession();
@@ -136,6 +138,7 @@ public class LifecycleEventManager {
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             resetReadinessState();
             ComponentTranslationRuntime.endSession();
+            ComponentRenderTranslationSupport.resetRenderCache();
             BookTranslationSupport.resetSession();
             ContinuousSignTranslationCoordinator.reset();
             TextDisplayTranslationSupport.resetSession();
