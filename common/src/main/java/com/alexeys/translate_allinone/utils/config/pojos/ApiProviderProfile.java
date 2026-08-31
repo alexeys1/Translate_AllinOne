@@ -58,6 +58,10 @@ public class ApiProviderProfile {
         return profile;
     }
 
+    public boolean hasApiKeyDecryptFailure() {
+        return api_key_decrypt_failed;
+    }
+
     public void normalizePromptOverrides() {
         if (system_prompt_overrides == null) {
             system_prompt_overrides = new LinkedHashMap<>();

@@ -65,6 +65,18 @@ public final class ProviderRouteResolver {
         return snapshotForModel(provider, modelSettings, temperatureSceneFor(route));
     }
 
+    public static boolean hasApiKeyDecryptFailure(ModConfig config, Route route) {
+        if (config == null || config.providerManager == null || route == null) {
+            return false;
+        }
+        ApiProviderProfile snapshot = resolve(config, route);
+        if (snapshot == null) {
+            return false;
+        }
+        ApiProviderProfile original = config.providerManager.findById(snapshot.id);
+        return original != null && original.hasApiKeyDecryptFailure();
+    }
+
     private static String resolveWynncraftRouteKey(String sharedRoute, String primaryRoute, String fallbackRoute) {
         if (sharedRoute != null && !sharedRoute.isBlank()) {
             return sharedRoute;

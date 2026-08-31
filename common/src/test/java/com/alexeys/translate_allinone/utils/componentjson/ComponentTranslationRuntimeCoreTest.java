@@ -335,6 +335,10 @@ class ComponentTranslationRuntimeCoreTest {
         }
 
         @Override
+        public void onApiKeyDecryptFailure(ComponentTranslationRuntimeCore.ProviderSurface surface) {
+        }
+
+        @Override
         public void flow(ComponentTranslationRoute route, String message, Object... arguments) {
         }
 
