@@ -58,9 +58,6 @@ public class TextDisplayRendererMixin {
             Display.TextDisplay.LineSplitter splitter
     ) {
         TextDisplayTranslationSnapshot snapshot = translate_allinone$textSnapshot;
-        if (snapshot != null && snapshot.isTranslated()) {
-            return splitter.split(snapshot.displayedText(), snapshot.originalState().lineWidth());
-        }
-        return entity.cacheDisplay(splitter);
+        return TextDisplayTranslationSupport.resolveCachedInfo(entity, splitter, snapshot);
     }
 }
