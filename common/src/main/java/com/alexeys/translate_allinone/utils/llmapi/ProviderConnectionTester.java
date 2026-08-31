@@ -28,6 +28,9 @@ public final class ProviderConnectionTester {
         if (profile == null) {
             return CompletableFuture.completedFuture(TestResult.failure(FailureCategory.CONFIG, null, "Profile is null"));
         }
+        if (profile.hasApiKeyDecryptFailure()) {
+            return CompletableFuture.completedFuture(TestResult.failure(FailureCategory.CONFIG, null, "API key decryption failed"));
+        }
 
         try {
             ProviderSettings settings = ProviderSettings.fromProviderProfile(profile);
