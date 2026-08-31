@@ -8,6 +8,7 @@ import com.alexeys.translate_allinone.utils.cache.component.ComponentTranslation
 import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationRuntime;
 import com.alexeys.translate_allinone.utils.cache.WynnDialogueTextCache;
 import com.alexeys.translate_allinone.utils.llmapi.LlmRequestLifecycle;
+import com.alexeys.translate_allinone.utils.translate.ApiKeyDecryptFailureNotifier;
 import com.alexeys.translate_allinone.utils.cache.ItemTemplateCache;
 import com.alexeys.translate_allinone.utils.cache.WynntilsTaskTrackerTextCache;
 import com.alexeys.translate_allinone.utils.translate.ItemTranslateManager;
@@ -46,6 +47,7 @@ public class LifecycleEventManager {
     public static synchronized void globalTranslationFeatureChanged(boolean enabled) {
         LlmRequestLifecycle.cancelActiveRequests();
         ComponentTranslationRuntime.providerConfigurationChanged();
+        ComponentRenderTranslationSupport.resetRenderCache();
         BookTranslationSupport.resetSession();
         ContinuousSignTranslationCoordinator.reset();
         TextDisplayTranslationSupport.resetSession();
@@ -80,6 +82,7 @@ public class LifecycleEventManager {
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             resetReadinessState();
             ComponentTranslationRuntime.beginSession();
+            ComponentRenderTranslationSupport.resetRenderCache();
             BookTranslationSupport.resetSession();
             ContinuousSignTranslationCoordinator.reset();
             TextDisplayTranslationSupport.resetSession();
@@ -110,6 +113,7 @@ public class LifecycleEventManager {
 
             if (isReadyForTranslation) {
                 UpdateCheckManager.tryNotifyInChat(client);
+                ApiKeyDecryptFailureNotifier.tryNotifyOnJoin(client);
                 WynnDialogueTranslationSupport.tick();
                 ContinuousSignTranslationCoordinator.tick();
                 ChatOutputTranslateManager.animatePendingChatLines();
@@ -132,9 +136,11 @@ public class LifecycleEventManager {
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             resetReadinessState();
             ComponentTranslationRuntime.endSession();
+            ComponentRenderTranslationSupport.resetRenderCache();
             BookTranslationSupport.resetSession();
             ContinuousSignTranslationCoordinator.reset();
             TextDisplayTranslationSupport.resetSession();
+            ApiKeyDecryptFailureNotifier.resetSession();
             LOGGER.info("Player has disconnected. Translation readiness reset.");
             stopTranslationManagers();
             saveCaches();

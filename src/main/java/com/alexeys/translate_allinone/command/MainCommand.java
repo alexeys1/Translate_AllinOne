@@ -1,6 +1,7 @@
 package com.alexeys.translate_allinone.command;
 
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
@@ -14,6 +15,8 @@ public class MainCommand {
     private static LiteralArgumentBuilder<FabricClientCommandSource> createRoot(String name) {
         return ClientCommandManager.literal(name)
                 .executes(OpenConfigCommand::run)
+                .then(ClientCommandManager.argument("providerId", StringArgumentType.word())
+                        .executes(OpenConfigCommand::runWithProvider))
                 .then(ChatHudTranslateCommand.getArgumentBuilder());
     }
 }

@@ -319,8 +319,10 @@ public class ChatOutputTranslateManager {
                 );
 
                 if (providerProfile == null) {
-                    LOGGER.warn("No routed model selected for chat output translation; showing temporary error for messageId={}", messageId);
-                    showTemporaryRouteError(messageId, targetLine);
+                }
+                if (ProviderRouteResolver.hasApiKeyDecryptFailure(Translate_AllinOne.getConfig(), ProviderRouteResolver.Route.CHAT_OUTPUT)) {
+                    ApiKeyDecryptFailureNotifier.notifyRuntimeIfPresent();
+                    completeCachedFailure(messageId, finalRequestGeneration, "API key decryption failed");
                     return;
                 }
 

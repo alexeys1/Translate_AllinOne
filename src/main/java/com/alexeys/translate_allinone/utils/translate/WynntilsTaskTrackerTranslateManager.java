@@ -178,11 +178,10 @@ public final class WynntilsTaskTrackerTranslateManager {
                 Translate_AllinOne.getConfig(),
                 ProviderRouteResolver.Route.WYNNTILS_TASK_TRACKER);
         if (providerProfile == null) {
-            Translate_AllinOne.LOGGER.warn(
-                    "No routed provider/model configured for Wynntils task tracker translation; re-queueing {} items.",
-                    originalTexts.size()
-            );
-            cache.requeueFailed(Set.copyOf(originalTexts), "No routed model selected");
+        }
+        if (ProviderRouteResolver.hasApiKeyDecryptFailure(Translate_AllinOne.getConfig(), ProviderRouteResolver.Route.WYNNTILS_TASK_TRACKER)) {
+            ApiKeyDecryptFailureNotifier.notifyRuntimeIfPresent();
+            cache.requeueFailed(Set.copyOf(originalTexts), "API key decryption failed");
             return;
         }
 

@@ -60,9 +60,6 @@ public abstract class TextDisplayEntityRendererMixin {
             DisplayEntity.TextDisplayEntity.LineSplitter splitter
     ) {
         TextDisplayTranslationSnapshot snapshot = translate_allinone$textSnapshot;
-        if (snapshot != null && snapshot.isTranslated()) {
-            return splitter.split(snapshot.displayedText(), snapshot.originalState().lineWidth());
-        }
-        return entity.splitLines(splitter);
+        return TextDisplayTranslationSupport.resolveCachedTextLines(entity, splitter, snapshot);
     }
 }

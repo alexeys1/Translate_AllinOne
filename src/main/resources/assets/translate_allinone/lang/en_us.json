@@ -119,6 +119,8 @@
   "text.translate_allinone.chat.output_translation_error": "Translation Error: %s",
   "text.translate_allinone.chat.input_translation_error": "Chat Input Translation Error: %s",
   "text.translate_allinone.chat.input_translation_unacceptable": "Chat input translation rejected: the model returned an invalid response",
+  "text.translate_allinone.chat.api_key_decrypt_failed": "[TAIO] The API Key of the following providers cannot be decrypted on the current UUID, please update them: %s",
+  "text.translate_allinone.chat.api_key_decrypt_failed.hover": "open config",
   "text.translate_allinone.scoreboard.translation_error": "Error: %s",
   "text.translate_allinone.wynn.dialogue.translation_error": "Translation error",
   "text.translate_allinone.wynn.dialogue.translation_error_with_reason": "Translation error: %s",

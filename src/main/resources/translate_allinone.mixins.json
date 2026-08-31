@@ -41,6 +41,8 @@
     "mixinChatScreen.ChatScreenMixin",
     "mixinNetwork.ClientPlayNetworkHandlerMixin",
     "mixinScreenTranslate.UiTranslationScreenMixin",
+    "mixinScreenTranslate.UiTranslationChatComponentMixin",
+    "mixinScreenTranslate.UiTranslationCommandSuggestionsMixin",
     "mixinScreenTranslate.UiTranslationDrawContextMixin",
     "mixinScreenTranslate.UiTranslationFontMixin",
     "mixinScreenTranslate.UiTranslationEditBoxMixin",

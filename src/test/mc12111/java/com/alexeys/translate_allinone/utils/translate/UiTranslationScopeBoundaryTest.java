@@ -1,6 +1,8 @@
 package com.alexeys.translate_allinone.utils.translate;
 
 import com.alexeys.translate_allinone.mixin.mixinScreenTranslate.UiTranslationDrawContextMixin;
+import com.alexeys.translate_allinone.mixin.mixinScreenTranslate.UiTranslationChatComponentMixin;
+import com.alexeys.translate_allinone.mixin.mixinScreenTranslate.UiTranslationCommandSuggestionsMixin;
 import com.alexeys.translate_allinone.mixin.mixinScreenTranslate.UiTranslationFontMixin;
 import net.minecraft.text.OrderedText;
 import net.minecraft.text.Text;
@@ -14,6 +16,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class UiTranslationScopeBoundaryTest {
     @Test
@@ -40,6 +43,29 @@ class UiTranslationScopeBoundaryTest {
             try (InputStream stream = mixinClass.getResourceAsStream(mixinClass.getSimpleName() + ".class")) {
                 assertNotNull(stream);
                 String bytecode = new String(stream.readAllBytes(), StandardCharsets.ISO_8859_1);
+                assertFalse(bytecode.contains("InCurrentScreen"), mixinClass.getName());
+            }
+        }
+    }
+
+    @Test
+    void internalScopeClosesCleanly() {
+        try (UiTranslationScope.Scope scope = UiTranslationScope.enterInternal()) {
+            assertTrue(UiTranslationScope.isInternal());
+        }
+        assertFalse(UiTranslationScope.isInternal());
+    }
+
+    @Test
+    void chatHistoryMixinsUseInternalScope() throws IOException {
+        for (Class<?> mixinClass : List.of(
+                UiTranslationChatComponentMixin.class,
+                UiTranslationCommandSuggestionsMixin.class
+        )) {
+            try (InputStream stream = mixinClass.getResourceAsStream(mixinClass.getSimpleName() + ".class")) {
+                assertNotNull(stream);
+                String bytecode = new String(stream.readAllBytes(), StandardCharsets.ISO_8859_1);
+                assertTrue(bytecode.contains("enterInternal"), mixinClass.getName());
                 assertFalse(bytecode.contains("InCurrentScreen"), mixinClass.getName());
             }
         }

@@ -22,8 +22,13 @@ public class AnimationManager {
     private static final long STATE_STALE_AFTER_MS = 30_000L;
 
     private static final Pattern STRIP_FORMATTING_PATTERN = Pattern.compile("(?i)§[0-9A-FK-OR]");
+    private static final long PENDING_ANIMATION_REFRESH_INTERVAL_MS = 50L;
     private static final ConcurrentHashMap<String, AlertTransitionState> ALERT_TRANSITIONS = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, PendingAnimationEntry> PENDING_ANIMATIONS = new ConcurrentHashMap<>();
     private static volatile long lastStateCleanupTime = 0L;
+
+    private record PendingAnimationEntry(Text original, MutableText result, long builtAtMillis) {
+    }
 
     private static final class AlertTransitionState {
         private float alertProgress;
@@ -80,10 +85,30 @@ public class AnimationManager {
     }
 
     public static MutableText getAnimatedStyledText(Text originalText, String animationKey, boolean alertMissingKeys) {
-        MutableText animatedText = Text.empty();
         if (originalText == null) {
-            return animatedText;
+            return Text.empty();
         }
+        long now = System.currentTimeMillis();
+        if (animationKey != null && !animationKey.isBlank()) {
+            PendingAnimationEntry entry = PENDING_ANIMATIONS.get(animationKey);
+            if (entry != null
+                    && entry.original().equals(originalText)
+                    && now - entry.builtAtMillis() < PENDING_ANIMATION_REFRESH_INTERVAL_MS) {
+                getAlertProgress(animationKey, alertMissingKeys, now);
+                cleanupTransitionStates(now);
+                return entry.result();
+            }
+        }
+        MutableText result = buildAnimatedStyledText(originalText, animationKey, alertMissingKeys);
+        if (animationKey != null && !animationKey.isBlank()) {
+            PENDING_ANIMATIONS.put(animationKey, new PendingAnimationEntry(originalText, result, now));
+        }
+        cleanupTransitionStates(now);
+        return result;
+    }
+
+    private static MutableText buildAnimatedStyledText(Text originalText, String animationKey, boolean alertMissingKeys) {
+        MutableText animatedText = Text.empty();
         long time = System.currentTimeMillis();
         AtomicInteger charIndex = new AtomicInteger(0);
         float alertProgress = getAlertProgress(animationKey, alertMissingKeys, time);
@@ -189,5 +214,7 @@ public class AnimationManager {
                 return (now - state.lastAccessTime) > STATE_STALE_AFTER_MS && state.alertProgress < 0.01f;
             }
         });
+        PENDING_ANIMATIONS.entrySet().removeIf(entry ->
+                now - entry.getValue().builtAtMillis() > STATE_STALE_AFTER_MS);
     }
 }

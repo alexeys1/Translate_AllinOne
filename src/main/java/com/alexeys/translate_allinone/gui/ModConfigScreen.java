@@ -368,6 +368,12 @@ public class ModConfigScreen extends Screen {
         this(parent, loadPersistedSelectedSection());
     }
 
+    public ModConfigScreen(Screen parent, String providerId) {
+        this(parent, ConfigSection.PROVIDERS);
+        this.selectedProviderId = providerId == null ? "" : providerId;
+        this.selectedProviderIndex = resolveSelectedProviderIndex(providerId);
+    }
+
     private ModConfigScreen(Screen parent, ConfigSection selectedSection) {
         super(t("title"));
         this.parent = parent;
@@ -379,6 +385,19 @@ public class ModConfigScreen extends Screen {
         this.modVersion = resolveCurrentVersion();
         this.repositoryUrl = resolveRepositoryUrl();
         this.selectedSection = selectedSection;
+    }
+
+    private int resolveSelectedProviderIndex(String providerId) {
+        if (providerId == null || providerId.isBlank() || originalConfigSnapshot == null || originalConfigSnapshot.providerManager == null) {
+            return 0;
+        }
+        List<ApiProviderProfile> providers = originalConfigSnapshot.providerManager.providers;
+        for (int i = 0; i < providers.size(); i++) {
+            if (providerId.equals(providers.get(i).id)) {
+                return i;
+            }
+        }
+        return 0;
     }
 
     private static Text t(String key, Object... args) {
