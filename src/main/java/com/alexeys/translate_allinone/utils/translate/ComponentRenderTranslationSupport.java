@@ -20,6 +20,22 @@ import net.minecraft.network.chat.Component;
 public final class ComponentRenderTranslationSupport {
     private static final Set<String> REFRESHED_KEYS = new HashSet<>();
     private static boolean refreshHeld;
+    private static final EntityTranslationRenderCache ENTITY_RENDER_CACHE = new EntityTranslationRenderCache();
+
+    @FunctionalInterface
+    interface TranslationPipeline {
+        TranslationResult translate(
+                Component original,
+                ComponentTranslationRoute route,
+                String context,
+                String policyVersion,
+                OtherTranslationsConfig config,
+                boolean allowForceRefresh,
+                Set<String> privateTokens
+        );
+    }
+
+    private static volatile TranslationPipeline translationPipeline = ComponentRenderTranslationSupport::translateHeavy;
 
     private ComponentRenderTranslationSupport() {
     }
@@ -106,6 +122,57 @@ public final class ComponentRenderTranslationSupport {
         if (!TranslationFeatureGate.isEnabled() || original == null || config == null) {
             return TranslationResult.original(original, null);
         }
+        EntityTranslationRenderCache.Key cacheKey = null;
+        boolean entityCandidate = isEntityRenderRoute(route)
+                && (privateTokens == null || privateTokens.isEmpty());
+        if (entityCandidate) {
+            cacheKey = new EntityTranslationRenderCache.Key(
+                    original,
+                    route,
+                    context,
+                    config.target_language,
+                    policyVersion
+            );
+            if (!allowForceRefresh) {
+                TranslationResult cached = ENTITY_RENDER_CACHE.get(cacheKey);
+                if (cached != null) {
+                    return cached;
+                }
+            } else {
+                ENTITY_RENDER_CACHE.remove(cacheKey);
+            }
+        }
+        TranslationResult result = translationPipeline.translate(
+                original,
+                route,
+                context,
+                policyVersion,
+                config,
+                allowForceRefresh,
+                privateTokens
+        );
+        if (cacheKey != null
+                && !allowForceRefresh
+                && result.state() == ComponentTranslationRuntime.State.CACHE_HIT
+                && result.displayed() != null) {
+            ENTITY_RENDER_CACHE.put(cacheKey, result);
+        }
+        return result;
+    }
+
+    private static boolean isEntityRenderRoute(ComponentTranslationRoute route) {
+        return route == ComponentTranslationRoute.ENTITY_NAME || route == ComponentTranslationRoute.TEXT_DISPLAY;
+    }
+
+    private static TranslationResult translateHeavy(
+            Component original,
+            ComponentTranslationRoute route,
+            String context,
+            String policyVersion,
+            OtherTranslationsConfig config,
+            boolean allowForceRefresh,
+            Set<String> privateTokens
+    ) {
         try {
             ComponentDynamicTemplate template = ComponentDynamicTemplate.prepare(original, privateTokens);
             ComponentTranslationDocument document = ComponentTranslationRuntime.prepare(
@@ -233,6 +300,14 @@ public final class ComponentRenderTranslationSupport {
         return AnimationManager.getAnimatedStyledText(original, resolvedKey, false);
     }
 
+    public static void resetRenderCache() {
+        ENTITY_RENDER_CACHE.clear();
+    }
+
+    static void setTranslationPipelineForTesting(TranslationPipeline pipeline) {
+        translationPipeline = pipeline == null ? ComponentRenderTranslationSupport::translateHeavy : pipeline;
+    }
+
     static void resetRefreshState() {
         synchronized (REFRESHED_KEYS) {
             REFRESHED_KEYS.clear();
@@ -268,6 +343,7 @@ public final class ComponentRenderTranslationSupport {
             if (!refreshHeld) {
                 REFRESHED_KEYS.clear();
                 refreshHeld = true;
+                ENTITY_RENDER_CACHE.clear();
             }
             String key = ComponentTranslationRuntime.cacheKey(document, config.target_language);
             if (REFRESHED_KEYS.add(key)) {

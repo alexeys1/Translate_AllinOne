@@ -10,6 +10,7 @@ public final class TextDisplayTranslationSupport {
     private static final long STABILITY_WINDOW_MILLIS = 250L;
     private static final int MAX_TEXT_DISPLAY_CHARACTERS = 4_096;
     private static final Map<Integer, StableText> STABLE_TEXT = new ConcurrentHashMap<>();
+    private static final Map<TextLayoutKey, Display.TextDisplay.CachedInfo> CACHED_INFO = new ConcurrentHashMap<>();
 
     private TextDisplayTranslationSupport() {
     }
@@ -60,6 +61,28 @@ public final class TextDisplayTranslationSupport {
 
     public static void resetSession() {
         STABLE_TEXT.clear();
+        CACHED_INFO.clear();
+    }
+
+    public static Display.TextDisplay.CachedInfo resolveCachedInfo(
+            Display.TextDisplay entity,
+            Display.TextDisplay.LineSplitter splitter,
+            TextDisplayTranslationSnapshot snapshot
+    ) {
+        if (snapshot == null || !snapshot.isTranslated() || entity == null) {
+            return entity == null ? null : entity.cacheDisplay(splitter);
+        }
+        TextLayoutKey key = new TextLayoutKey(snapshot.displayedText(), snapshot.originalState().lineWidth());
+        Display.TextDisplay.CachedInfo cached = CACHED_INFO.get(key);
+        if (cached != null) {
+            return cached;
+        }
+        Display.TextDisplay.CachedInfo computed = splitter.split(
+                snapshot.displayedText(),
+                snapshot.originalState().lineWidth()
+        );
+        CACHED_INFO.put(key, computed);
+        return computed;
     }
 
     private static boolean isStable(Display.TextDisplay entity, Component text) {
@@ -78,6 +101,9 @@ public final class TextDisplayTranslationSupport {
     }
 
     private record StableText(Component text, long observedAtMillis) {
+    }
+
+    private record TextLayoutKey(Component text, int lineWidth) {
     }
 
 }

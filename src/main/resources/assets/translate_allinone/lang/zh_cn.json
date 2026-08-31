@@ -120,6 +120,8 @@
   "text.translate_allinone.chat.output_translation_error": "错误：%s",
   "text.translate_allinone.chat.input_translation_error": "聊天输入翻译错误：%s",
   "text.translate_allinone.chat.input_translation_unacceptable": "聊天输入翻译被拒绝：模型返回了无效内容",
+  "text.translate_allinone.chat.api_key_decrypt_failed": "[TAIO] 以下提供商的 API Key 在当前uuid上无法解密，请更新API Key：%s",
+  "text.translate_allinone.chat.api_key_decrypt_failed.hover": "打开配置界面",
   "text.translate_allinone.scoreboard.translation_error": "错误：%s",
   "text.translate_allinone.wynn.dialogue.translation_error": "错误",
   "text.translate_allinone.wynn.dialogue.translation_error_with_reason": "错误：%s",

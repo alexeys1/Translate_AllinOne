@@ -334,6 +334,11 @@ public class ChatOutputTranslateManager {
                     showTemporaryRouteError(messageId, chatHudAccessor, messages, finalLineIndex, finalTargetLine);
                     return;
                 }
+                if (ProviderRouteResolver.hasApiKeyDecryptFailure(Translate_AllinOne.getConfig(), ProviderRouteResolver.Route.CHAT_OUTPUT)) {
+                    ApiKeyDecryptFailureNotifier.notifyRuntimeIfPresent();
+                    completeCachedFailure(messageId, finalRequestGeneration, "API key decryption failed");
+                    return;
+                }
 
                 String textToTranslate = preparedTranslation.textToTranslate();
                 Map<Integer, Style> styleMap = preparedTranslation.styleMap();
