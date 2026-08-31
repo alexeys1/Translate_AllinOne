@@ -687,6 +687,27 @@ public final class ComponentTranslationRuntimeCore {
             );
             return;
         }
+        ProviderRouteResolver.Route providerRoute = switch (route) {
+            case ITEM -> ProviderRouteResolver.Route.ITEM;
+            case OTHER_TRANSLATIONS -> ProviderRouteResolver.Route.OTHER_TRANSLATIONS;
+            case SCOREBOARD -> ProviderRouteResolver.Route.SCOREBOARD;
+        };
+        if (ProviderRouteResolver.hasApiKeyDecryptFailure(access().config(), providerRoute)) {
+            ProviderSurface surface = switch (route) {
+                case ITEM -> ProviderSurface.ITEM_TOOLTIP;
+                case OTHER_TRANSLATIONS -> ProviderSurface.OTHER_TRANSLATIONS;
+                case SCOREBOARD -> ProviderSurface.SCOREBOARD;
+            };
+            access().onApiKeyDecryptFailure(surface);
+            failBatch(
+                    route,
+                    batch,
+                    "API key decryption failed",
+                    null,
+                    FailureDisposition.INFRASTRUCTURE_FAILURE
+            );
+            return;
+        }
 
         if (first.document().route() == ComponentTranslationRoute.TOOLTIP_PARAGRAPH) {
             startParagraphRequest(route, batch, first, provider);
@@ -1363,6 +1384,8 @@ public final class ComponentTranslationRuntimeCore {
         );
 
         void onNoRoutedModel(ProviderSurface surface);
+
+        void onApiKeyDecryptFailure(ProviderSurface surface);
 
         void flow(ComponentTranslationRoute route, String message, Object... arguments);
 
