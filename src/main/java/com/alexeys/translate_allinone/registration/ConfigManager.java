@@ -22,6 +22,7 @@ import com.alexeys.translate_allinone.utils.config.pojos.ProviderManagerConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ScoreboardConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.WynnCraftConfig;
 import com.alexeys.translate_allinone.utils.config.ApiKeyCipher;
+import com.alexeys.translate_allinone.utils.config.ConfigApiKeyEncryptionSupport;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
 
 import com.google.gson.Gson;
@@ -120,6 +121,12 @@ public class ConfigManager {
 
     public static Path getConfigPath() {
         return resolveConfigPath();
+    }
+
+    public static ConfigApiKeyEncryptionSupport.Result encryptBackupConfig(String rawJson) {
+        Optional<UUID> uuid = currentUuid();
+        Optional<byte[]> key = uuid.isPresent() ? loadKeyMaterial(true) : Optional.empty();
+        return ConfigApiKeyEncryptionSupport.encryptApiKeysForBackup(rawJson, uuid, key);
     }
 
     static ModConfig loadConfig(Path configPath) {

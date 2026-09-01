@@ -1,6 +1,8 @@
 package com.alexeys.translate_allinone.utils.backup;
 
 import com.alexeys.translate_allinone.Translate_AllinOne;
+import com.alexeys.translate_allinone.registration.ConfigManager;
+import com.alexeys.translate_allinone.utils.config.ConfigApiKeyEncryptionSupport;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import net.fabricmc.loader.api.FabricLoader;
@@ -8,6 +10,7 @@ import net.fabricmc.loader.api.FabricLoader;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -25,6 +28,7 @@ public final class VersionUpgradeBackupManager {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final String UPGRADE_BACKUP_FOLDER_NAME = "translate_update_backup";
     private static final String STATE_FILE_NAME = ".version_backup_state.json";
+    private static final String BACKUP_ENCRYPTION_MARKER_FILE_NAME = ".api_key_encryption_completed";
     private static final Set<String> EXCLUDED_TOP_LEVEL_DIRECTORIES = Set.of(
             "translate_cache_backup",
             UPGRADE_BACKUP_FOLDER_NAME
@@ -41,6 +45,7 @@ public final class VersionUpgradeBackupManager {
     }
 
     public static void backupIfVersionChanged() {
+        encryptExistingBackupConfigs();
         String currentVersion = resolveCurrentVersion();
         VersionBackupState state = loadState();
         String previousVersion = normalizeVersion(state.lastSeenModVersion);
@@ -78,7 +83,11 @@ public final class VersionUpgradeBackupManager {
                 if (targetParent != null) {
                     Files.createDirectories(targetParent);
                 }
-                Files.copy(sourceFile, targetFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES);
+                if (isMainConfigFile(relativePath)) {
+                    copyWithApiKeyEncryption(sourceFile, targetFile);
+                } else {
+                    Files.copy(sourceFile, targetFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES);
+                }
             }
 
             saveState(currentVersion, Instant.now().toString());
@@ -97,6 +106,85 @@ public final class VersionUpgradeBackupManager {
                     e
             );
         }
+    }
+
+    private static void encryptExistingBackupConfigs() {
+        if (!Files.isDirectory(UPGRADE_BACKUP_ROOT)) {
+            return;
+        }
+        if (Files.exists(UPGRADE_BACKUP_ROOT.resolve(BACKUP_ENCRYPTION_MARKER_FILE_NAME))) {
+            return;
+        }
+        boolean allSucceeded = true;
+        try (Stream<Path> paths = Files.walk(UPGRADE_BACKUP_ROOT)) {
+            List<Path> backupConfigs = paths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName().toString().equals(Translate_AllinOne.MOD_ID + ".json"))
+                    .toList();
+            for (Path backupConfig : backupConfigs) {
+                if (!encryptBackupConfigInPlace(backupConfig)) {
+                    allSucceeded = false;
+                }
+            }
+        } catch (IOException e) {
+            allSucceeded = false;
+            Translate_AllinOne.LOGGER.warn("Failed to scan old version-upgrade backups for API key encryption: {}", UPGRADE_BACKUP_ROOT, e);
+        }
+        if (allSucceeded) {
+            createMarkerFile();
+        }
+    }
+
+    private static boolean encryptBackupConfigInPlace(Path configFile) {
+        try {
+            String rawJson = Files.readString(configFile, StandardCharsets.UTF_8);
+            ConfigApiKeyEncryptionSupport.Result result = ConfigManager.encryptBackupConfig(rawJson);
+            if (result.changed()) {
+                Files.writeString(configFile, result.json(), StandardCharsets.UTF_8);
+                Translate_AllinOne.LOGGER.info("Encrypted API keys in old version-upgrade backup: {}", configFile);
+                return true;
+            }
+            if (result.retryNeeded()) {
+                Translate_AllinOne.LOGGER.warn("Could not encrypt API keys in old version-upgrade backup, will retry on next launch: {}", configFile);
+                return false;
+            }
+            return true;
+        } catch (IOException | RuntimeException e) {
+            Translate_AllinOne.LOGGER.warn("Failed to process old version-upgrade backup for API key encryption: {}", configFile, e);
+            return false;
+        }
+    }
+
+    private static void createMarkerFile() {
+        try {
+            Files.createDirectories(UPGRADE_BACKUP_ROOT);
+            Files.writeString(UPGRADE_BACKUP_ROOT.resolve(BACKUP_ENCRYPTION_MARKER_FILE_NAME), "", StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            Translate_AllinOne.LOGGER.warn("Failed to create API key backup encryption marker: {}", UPGRADE_BACKUP_ROOT, e);
+        }
+    }
+
+    private static boolean isMainConfigFile(Path relativePath) {
+        return relativePath.getNameCount() == 1
+                && relativePath.getFileName().toString().equals(Translate_AllinOne.MOD_ID + ".json");
+    }
+
+    private static void copyWithApiKeyEncryption(Path sourceFile, Path targetFile) throws IOException {
+        try {
+            String rawJson = Files.readString(sourceFile, StandardCharsets.UTF_8);
+            ConfigApiKeyEncryptionSupport.Result result = ConfigManager.encryptBackupConfig(rawJson);
+            if (result.changed()) {
+                Files.copy(sourceFile, targetFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES);
+                Files.writeString(targetFile, result.json(), StandardCharsets.UTF_8);
+                return;
+            }
+            if (result.retryNeeded()) {
+                Translate_AllinOne.LOGGER.warn("Could not encrypt API keys in upgrade backup, falling back to raw copy: {}", sourceFile);
+            }
+        } catch (IOException | RuntimeException e) {
+            Translate_AllinOne.LOGGER.warn("Failed to encrypt API keys in upgrade backup, falling back to raw copy: {}", sourceFile, e);
+        }
+        Files.copy(sourceFile, targetFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES);
     }
 
     private static List<Path> listBackupCandidates() {
