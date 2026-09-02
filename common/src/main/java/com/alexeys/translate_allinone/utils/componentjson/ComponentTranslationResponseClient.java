@@ -1,6 +1,7 @@
 package com.alexeys.translate_allinone.utils.componentjson;
 
 import com.alexeys.translate_allinone.utils.TranslateExceptionUtils;
+import com.alexeys.translate_allinone.utils.TranslateStringUtils;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.alexeys.translate_allinone.utils.llmapi.LLM;
 import com.alexeys.translate_allinone.utils.llmapi.LlmCompletion;
@@ -21,6 +22,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class ComponentTranslationResponseClient {
+    private static final int MAX_PROVIDER_CALLS_PER_WORK = 2;
+    private static final int MAX_CORRECTION_REASON_CHARS = 480;
+    private static final double CORRECTION_TEMPERATURE = 0.2;
     private static final Pattern LEGACY_FORMATTING_CODE_PATTERN = Pattern.compile("\\x{00A7}[0-9A-FK-ORa-fk-or]");
     private static final Pattern LEGACY_FORMATTING_RUN_PATTERN = Pattern.compile("(?:\\x{00A7}[0-9A-FK-ORa-fk-or])+");
     private static final Pattern STYLE_TAG_PATTERN = Pattern.compile("<s(\\d+)>");
@@ -134,9 +138,11 @@ public final class ComponentTranslationResponseClient {
                 document,
                 messages,
                 completionRequester,
+                settings,
                 responseSchema,
                 requestContext,
-                protectedTokenMask
+                protectedTokenMask,
+                MAX_PROVIDER_CALLS_PER_WORK
         ).thenApply(response -> {
             long elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000L;
             flowLogSink.log(
@@ -166,9 +172,11 @@ public final class ComponentTranslationResponseClient {
             ComponentTranslationDocument document,
             List<OpenAIRequest.Message> messages,
             CompletionRequester completionRequester,
+            ProviderSettings settings,
             StructuredOutputSpec responseSchema,
             String requestContext,
-            ProtectedTokenMask protectedTokenMask
+            ProtectedTokenMask protectedTokenMask,
+            int attemptsRemaining
     ) {
         return completionRequester.request(
                 messages,
@@ -220,16 +228,127 @@ public final class ComponentTranslationResponseClient {
                 );
                 errorLogSink.log(
                         document.route(),
-                        "provider response rejected route={} finishReason={} reason={} responseBytes={} response={}",
+                        "provider response rejected route={} attempt={}/{} finishReason={} reason={} responseBytes={} response={}",
                         document.route().wireName(),
+                        MAX_PROVIDER_CALLS_PER_WORK - attemptsRemaining + 1,
+                        MAX_PROVIDER_CALLS_PER_WORK,
                         completion.finishReason(),
                         cause.getMessage(),
                         rawResponse.getBytes(StandardCharsets.UTF_8).length,
                         responsePreview(rawResponse)
                 );
-                return CompletableFuture.failedFuture(cause);
+                if (!isRetryableResponseFailure(cause) || attemptsRemaining <= 1) {
+                    return CompletableFuture.failedFuture(cause);
+                }
+                flowLogSink.log(
+                        document.route(),
+                        "provider route={} result=correction_retry attempt={}/{} reason={}",
+                        document.route().wireName(),
+                        MAX_PROVIDER_CALLS_PER_WORK - attemptsRemaining + 1,
+                        MAX_PROVIDER_CALLS_PER_WORK,
+                        cause.getMessage()
+                );
+                ProviderSettings correctionSettings = withCorrectionTemperature(settings);
+                CompletionRequester correctionRequester = completionRequesterFactory.apply(correctionSettings);
+                return requestValidResponse(
+                        document,
+                        buildCorrectionMessages(messages, cause, document.route()),
+                        correctionRequester,
+                        correctionSettings,
+                        responseSchema,
+                        requestContext,
+                        protectedTokenMask,
+                        attemptsRemaining - 1
+                );
             }
         });
+    }
+
+    static List<OpenAIRequest.Message> buildCorrectionMessages(
+            List<OpenAIRequest.Message> previousMessages,
+            Throwable validationError
+    ) {
+        return buildCorrectionMessages(previousMessages, validationError, null);
+    }
+
+    static List<OpenAIRequest.Message> buildCorrectionMessages(
+            List<OpenAIRequest.Message> previousMessages,
+            Throwable validationError,
+            ComponentTranslationRoute route
+    ) {
+        List<OpenAIRequest.Message> messages = new ArrayList<>(previousMessages == null ? List.of() : previousMessages);
+        String reason = validationError == null || validationError.getMessage() == null
+                ? "the response did not satisfy the required JSON response contract"
+                : TranslateStringUtils.truncate(validationError.getMessage(), MAX_CORRECTION_REASON_CHARS);
+        reason = LEGACY_FORMATTING_CODE_PATTERN.matcher(reason).replaceAll("[formatting-code]");
+        String paragraphCorrection = route == ComponentTranslationRoute.TOOLTIP_PARAGRAPH
+                ? "For tooltip_paragraph, restore every required hard token exactly and return one complete coherent paragraph."
+                : "";
+        messages.add(new OpenAIRequest.Message(
+                "user",
+                "Your previous component translation response was rejected. Reason: " + reason + "\n"
+                        + paragraphCorrection
+                        + (paragraphCorrection.isEmpty() ? "" : "\n")
+                        + "Return one complete replacement response now. Output only the required JSON object; "
+                        + "do not explain the error and do not include Markdown."
+        ));
+        return List.copyOf(messages);
+    }
+
+    private static boolean isRetryableResponseFailure(Throwable error) {
+        if (!(error instanceof ComponentJsonException componentError)) {
+            return false;
+        }
+        return switch (componentError.kind()) {
+            case RESPONSE, VALIDATION, LIMIT -> true;
+            case APPLY, CODEC, DOCUMENT -> false;
+        };
+    }
+
+    private static ProviderSettings withCorrectionTemperature(ProviderSettings settings) {
+        if (settings == null) {
+            return settings;
+        }
+        double temperature = Math.min(currentTemperature(settings), CORRECTION_TEMPERATURE);
+        if (settings.openAISettings() != null) {
+            ProviderSettings.OpenAISettings openAi = settings.openAISettings();
+            return ProviderSettings.fromOpenAI(new ProviderSettings.OpenAISettings(
+                    openAi.baseUrl(),
+                    openAi.apiKey(),
+                    openAi.modelId(),
+                    temperature,
+                    openAi.customParameters(),
+                    openAi.providerType()
+            ));
+        }
+        if (settings.ollamaSettings() != null) {
+            ProviderSettings.OllamaSettings ollama = settings.ollamaSettings();
+            Map<String, Object> options = new LinkedHashMap<>(ollama.options() == null ? Map.of() : ollama.options());
+            options.put("temperature", temperature);
+            return ProviderSettings.fromOllama(new ProviderSettings.OllamaSettings(
+                    ollama.baseUrl(),
+                    ollama.apiKey(),
+                    ollama.modelId(),
+                    ollama.keepAlive(),
+                    options
+            ));
+        }
+        return settings;
+    }
+
+    private static double currentTemperature(ProviderSettings settings) {
+        if (settings != null && settings.openAISettings() != null) {
+            return settings.openAISettings().temperature();
+        }
+        if (settings != null && settings.ollamaSettings() != null) {
+            Object value = settings.ollamaSettings().options() == null
+                    ? null
+                    : settings.ollamaSettings().options().get("temperature");
+            if (value instanceof Number number) {
+                return number.doubleValue();
+            }
+        }
+        return CORRECTION_TEMPERATURE;
     }
 
     private static CompletionRequester createCompletionRequester(ProviderSettings settings) {
@@ -256,6 +375,7 @@ public final class ComponentTranslationResponseClient {
                 providerProfile.activeSystemPromptSuffix()
         );
         String protocolContract = PROTOCOL_CONTRACT;
+        protocolContract += PromptMessageBuilder.getForcedProtectedDataContract(route.promptRouteKey());
         if (isTooltipRoute(route) && containsProtectedTokenIdentifier(request)) {
             protocolContract += PROTECTED_TOKEN_CONTRACT;
         }
