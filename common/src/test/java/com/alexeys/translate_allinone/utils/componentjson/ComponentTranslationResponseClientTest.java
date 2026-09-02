@@ -240,6 +240,66 @@ class ComponentTranslationResponseClientTest {
         assertTrue(system.contains("Tooltip protected data:"));
     }
 
+    @Test
+    void componentRoutesBuildMessagesIncludeProtectedDataAfterPromptOverride() {
+        assertComponentRouteProtectedData(
+                ComponentTranslationRoute.CHAT_OUTPUT,
+                "chat_output",
+                "Chat output protected data:"
+        );
+        assertComponentRouteProtectedData(
+                ComponentTranslationRoute.SIGN_FACE,
+                "sign_book",
+                "Sign/book protected data:"
+        );
+        assertComponentRouteProtectedData(
+                ComponentTranslationRoute.ENTITY_NAME,
+                "entity_text",
+                "Entity text protected data:"
+        );
+        assertComponentRouteProtectedData(
+                ComponentTranslationRoute.SCOREBOARD,
+                "scoreboard",
+                "Scoreboard protected data:"
+        );
+        assertComponentRouteProtectedData(
+                ComponentTranslationRoute.SCREEN_UI,
+                "screen_ui",
+                "Screen UI protected data:"
+        );
+        assertComponentRouteProtectedData(
+                ComponentTranslationRoute.ADVANCEMENT,
+                "other_translations",
+                "Protected data:"
+        );
+    }
+
+    private static void assertComponentRouteProtectedData(
+            ComponentTranslationRoute route,
+            String promptRouteKey,
+            String protectedDataLabel
+    ) {
+        ApiProviderProfile provider = profile();
+        provider.system_prompt_overrides = new java.util.LinkedHashMap<>();
+        provider.system_prompt_overrides.put(
+                promptRouteKey,
+                "Custom prompt for {target_language}."
+        );
+        ComponentTranslationRequest request = new ComponentTranslationRequest(
+                ComponentTranslationDocument.PROTOCOL,
+                "Chinese",
+                List.of(new ComponentTranslationRequest.Item("u0", "Hello", route.wireName()))
+        );
+        List<OpenAIRequest.Message> messages = ComponentTranslationResponseClient.buildMessages(
+                route,
+                request,
+                provider
+        );
+        String system = messages.get(0).content;
+        assertTrue(system.contains("Custom prompt for Chinese."));
+        assertTrue(system.contains(protectedDataLabel));
+    }
+
     private static ComponentTranslationResponseClient client(
             ComponentTranslationResponseClient.CompletionRequester requester
     ) {

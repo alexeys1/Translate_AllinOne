@@ -383,7 +383,10 @@ public final class WynntilsTaskTrackerTranslateManager {
     private String buildSystemPrompt(String targetLanguage, String suffix, java.util.Map<String, String> overrides) {
         String basePrompt = PromptMessageBuilder.getDefaultPrompt("wynntils_task_tracker", targetLanguage);
         String resolved = PromptMessageBuilder.applyPromptOverride("wynntils_task_tracker", basePrompt, overrides, targetLanguage);
-        return PromptMessageBuilder.appendSystemPromptSuffix(resolved, suffix);
+        return PromptMessageBuilder.appendForcedProtectedDataContract(
+                PromptMessageBuilder.appendSystemPromptSuffix(resolved, suffix),
+                "wynntils_task_tracker"
+        );
     }
 
     private String buildRequestContext(
