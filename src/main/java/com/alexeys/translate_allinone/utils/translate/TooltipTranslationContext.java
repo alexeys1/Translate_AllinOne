@@ -15,7 +15,7 @@ public final class TooltipTranslationContext {
     private static final long WYNN_ITEM_STAT_CONTEXT_STALE_MILLIS = 500L;
     private static final long WYNN_QUEST_CONTEXT_STALE_MILLIS = 10_000L;
     private static final long RECENT_TRANSLATED_TOOLTIP_STALE_MILLIS = 750L;
-    private static final long DRAW_CONTEXT_SKIP_EXPECTATION_STALE_MILLIS = 750L;
+    private static final long DRAW_CONTEXT_SKIP_EXPECTATION_STALE_MILLIS = 5000L;
     private static final long SCREEN_MIRROR_SKIP_EXPECTATION_STALE_MILLIS = 750L;
     private static final int MAX_RENDER_DEPTH = 16;
     private static final long UNCONSUMED_SKIP_LOG_THROTTLE_MILLIS = 5_000L;

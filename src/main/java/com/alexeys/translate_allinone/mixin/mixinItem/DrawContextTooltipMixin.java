@@ -131,7 +131,7 @@ public abstract class DrawContextTooltipMixin {
         if (config == null || !config.enabled) {
             return;
         }
-        if (TooltipTranslationContext.consumeSkipDrawContextTranslation(tooltipLines)) {
+        if (TooltipTranslationContext.consumeSkipDrawContextTranslation()) {
             TooltipTextMatcherSupport.logTooltipGuardIfDev(
                     config,
                     devSource,
