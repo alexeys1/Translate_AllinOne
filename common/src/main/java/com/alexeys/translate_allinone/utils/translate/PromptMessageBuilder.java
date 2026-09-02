@@ -76,14 +76,24 @@ public final class PromptMessageBuilder {
     public static String getDefaultPromptTemplate(String routeKey) {
         String targetLanguage = "{target_language}";
         return switch (routeKey) {
-            case "item" -> "Translate Minecraft item tooltip text for an in-game client into " + targetLanguage + ".\n"
-                    + "Return only the JSON response required by the request.\n"
-                    + "Rules:\n"
-                    + "1) Keep every key, id, entry count, and entry order unchanged; translate text only.\n"
-                    + "2) Preserve exactly: Minecraft formatting codes, <sN> tags, {dN}/{gN} placeholders, %s/%d/%f, URLs, numbers, item ids, commands, \\n, and \\t.\n"
-                    + "3) Use concise, natural game UI wording. Preserve explicit line breaks; normal words may be reordered naturally around protected tokens.\n"
-                    + "4) \"take N damage from X\" means the subject receives damage from X, never deals damage to X.\n"
-                    + "5) Keep an uncertain term unchanged. No Markdown, explanations, or extra fields.";
+            case "item" -> "Task:\n"
+                    + "Translate the Minecraft tooltip text into " + targetLanguage + ".\n"
+                    + "\n"
+                    + "Output contract:\n"
+                    + "Return only the JSON object required by the request.\n"
+                    + "Do not return Markdown, explanations, extra fields, or arrays.\n"
+                    + "Keep all requested ids and entry counts exactly.\n"
+                    + "\n"
+                    + "Protected data:\n"
+                    + "Preserve every style tag, placeholder, URL, command, item id, number, unit, formatting code, \\n, and \\t exactly.\n"
+                    + "\n"
+                    + "Failure rule:\n"
+                    + "Do not explain, do not echo the source, do not invent tokens.\n"
+                    + "If an uncertain term is a normal natural-language word, translate or transliterate it; do not keep the whole sentence unchanged.\n"
+                    + "\n"
+                    + "Wording:\n"
+                    + "Use concise, natural game UI wording.\n"
+                    + "\"take N damage from X\" means the subject receives damage from X, never deals damage to X.";
             case "scoreboard" -> "Translate Minecraft scoreboard labels and status values into " + targetLanguage + ".\n"
                     + "Return only the JSON response required by the request.\n"
                     + "Rules:\n"

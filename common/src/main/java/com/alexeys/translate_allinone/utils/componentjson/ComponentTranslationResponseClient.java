@@ -48,6 +48,12 @@ public final class ComponentTranslationResponseClient {
     private static final String PROTECTED_TOKEN_CONTRACT = "\n"
             + "Each __TAIO_PROTECTED_TOKEN_N__ identifier represents one complete legacy formatting run and must appear exactly once; never rename, remove, duplicate, or merge it. "
             + "Use only these identifiers for protected formatting. Never output literal Minecraft formatting codes.";
+    private static final String TOOLTIP_PROTECTED_DATA_CONTRACT = "\n"
+            + "Tooltip protected data: "
+            + "Preserve exactly every <sN> and </sN> style tag. "
+            + "Preserve exactly every {dN}, {gN}, {valueN}, URL, command, item id, number, unit, %s/%d/%f, Minecraft formatting code, \\n, and \\t. "
+            + "Style tags may move with target-language word order only when the route allows it. "
+            + "Keep explicit line breaks; normal words may be reordered naturally around protected tokens.";
     private static final LogSink NO_OP_LOG_SINK = (route, message, arguments) -> {};
 
     private final ComponentResponseParser parser;
@@ -375,6 +381,9 @@ public final class ComponentTranslationResponseClient {
                 providerProfile.activeSystemPromptSuffix()
         );
         String protocolContract = PROTOCOL_CONTRACT;
+        if (isTooltipRoute(route)) {
+            protocolContract += TOOLTIP_PROTECTED_DATA_CONTRACT;
+        }
         if (isTooltipRoute(route) && containsProtectedTokenIdentifier(request)) {
             protocolContract += PROTECTED_TOKEN_CONTRACT;
         }

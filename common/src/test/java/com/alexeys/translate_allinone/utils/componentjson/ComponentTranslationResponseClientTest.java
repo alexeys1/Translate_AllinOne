@@ -157,6 +157,89 @@ class ComponentTranslationResponseClientTest {
         assertEquals(1, calls.get());
     }
 
+
+    @Test
+    void tooltipLineBuildMessagesIncludesProtectedData() {
+        ComponentTranslationRequest request = new ComponentTranslationRequest(
+                ComponentTranslationDocument.PROTOCOL,
+                "Chinese",
+                List.of(new ComponentTranslationRequest.Item("u0", "Hello", "tooltip:line"))
+        );
+        List<OpenAIRequest.Message> messages = ComponentTranslationResponseClient.buildMessages(
+                ComponentTranslationRoute.TOOLTIP_LINE,
+                request,
+                profile()
+        );
+        String system = messages.get(0).content;
+        assertTrue(system.contains("Tooltip protected data:"));
+        assertTrue(system.contains("Preserve exactly every <sN> and </sN> style tag."));
+        assertTrue(system.contains("Preserve exactly every {dN}, {gN}, {valueN}, URL, command, item id, number, unit, %s/%d/%f, Minecraft formatting code, \\n, and \\t."));
+    }
+
+    @Test
+    void tooltipStructuredBuildMessagesIncludesProtectedData() {
+        ComponentTranslationRequest request = new ComponentTranslationRequest(
+                ComponentTranslationDocument.PROTOCOL,
+                "Chinese",
+                List.of(new ComponentTranslationRequest.Item("u0", "Hello", "tooltip:structured"))
+        );
+        List<OpenAIRequest.Message> messages = ComponentTranslationResponseClient.buildMessages(
+                ComponentTranslationRoute.TOOLTIP_STRUCTURED,
+                request,
+                profile()
+        );
+        String system = messages.get(0).content;
+        assertTrue(system.contains("Tooltip protected data:"));
+    }
+
+    @Test
+    void tooltipParagraphBuildMessagesKeepsProtectedDataBeforeParagraphContract() {
+        ComponentTranslationRequest request = new ComponentTranslationRequest(
+                ComponentTranslationDocument.PROTOCOL,
+                "Chinese",
+                List.of(new ComponentTranslationRequest.Item(
+                        "u0",
+                        "__TAIO_PROTECTED_TOKEN_0__ <s0>Hello</s0>",
+                        "tooltip:paragraph"
+                ))
+        );
+        List<OpenAIRequest.Message> messages = ComponentTranslationResponseClient.buildMessages(
+                ComponentTranslationRoute.TOOLTIP_PARAGRAPH,
+                request,
+                profile()
+        );
+        String system = messages.get(0).content;
+        int protectedData = system.indexOf("Tooltip protected data:");
+        int protectedToken = system.indexOf("Each __TAIO_PROTECTED_TOKEN_N__ identifier");
+        int paragraph = system.indexOf("tooltip_paragraph contains");
+        assertTrue(protectedData >= 0);
+        assertTrue(protectedToken > protectedData);
+        assertTrue(paragraph > protectedToken);
+    }
+
+    @Test
+    void tooltipBuildMessagesKeepsProtectedDataAfterPromptOverride() {
+        ApiProviderProfile provider = profile();
+        provider.system_prompt_overrides = new java.util.LinkedHashMap<>();
+        provider.system_prompt_overrides.put(
+                "item",
+                "Custom tooltip prompt for {target_language}."
+        );
+        ComponentTranslationRequest request = new ComponentTranslationRequest(
+                ComponentTranslationDocument.PROTOCOL,
+                "Chinese",
+                List.of(new ComponentTranslationRequest.Item("u0", "Hello", "tooltip:line"))
+        );
+        List<OpenAIRequest.Message> messages = ComponentTranslationResponseClient.buildMessages(
+                ComponentTranslationRoute.TOOLTIP_LINE,
+                request,
+                provider
+        );
+        String system = messages.get(0).content;
+        assertTrue(system.contains("Custom tooltip prompt for Chinese."));
+        assertTrue(system.contains("Tooltip protected data:"));
+    }
+
     private static ComponentTranslationResponseClient client(
             ComponentTranslationResponseClient.CompletionRequester requester
     ) {
