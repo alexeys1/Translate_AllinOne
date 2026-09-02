@@ -1484,12 +1484,15 @@ public class ChatOutputTranslateManager {
                 + "1) Output only the final translated text. No explanation, markdown, or quotes.\n"
                 + "2) Preserve style tags exactly: <s0>...</s0>, <s1>...</s1>, ... Keep the same tag ids, counts, and order.\n"
                 + "3) Preserve tokens exactly: § color/style codes, placeholders (%s %d %f {d1}), URLs, numbers, <...>, {...}, \\n, \\t.\n"
-                + "4) If a term is uncertain, keep only that term unchanged and still translate surrounding text.\n"
+                + "4) If an uncertain term is a normal natural-language word, translate or transliterate it; do not keep the whole sentence unchanged.\n"
                 + "5) If any rule cannot be guaranteed, return the original input unchanged.";
         String resolved = PromptMessageBuilder.applyPromptOverride("chat_output", basePrompt, providerProfile.system_prompt_overrides, targetLanguage);
-        String systemPrompt = PromptMessageBuilder.appendSystemPromptSuffix(
-                resolved,
-                providerProfile.activeSystemPromptSuffix()
+        String systemPrompt = PromptMessageBuilder.appendForcedProtectedDataContract(
+                PromptMessageBuilder.appendSystemPromptSuffix(
+                        resolved,
+                        providerProfile.activeSystemPromptSuffix()
+                ),
+                "chat_output"
         );
         return PromptMessageBuilder.buildMessages(
                 systemPrompt,

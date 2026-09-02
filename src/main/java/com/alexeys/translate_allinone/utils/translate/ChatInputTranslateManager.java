@@ -344,9 +344,12 @@ public class ChatInputTranslateManager {
     ) {
         String basePrompt = buildSystemPrompt(targetLanguage, mode, instruction);
         String resolved = PromptMessageBuilder.applyPromptOverride("chat_input_translate", basePrompt, providerProfile.system_prompt_overrides, targetLanguage);
-        String systemPrompt = PromptMessageBuilder.appendSystemPromptSuffix(
-                resolved,
-                providerProfile.activeSystemPromptSuffix()
+        String systemPrompt = PromptMessageBuilder.appendForcedProtectedDataContract(
+                PromptMessageBuilder.appendSystemPromptSuffix(
+                        resolved,
+                        providerProfile.activeSystemPromptSuffix()
+                ),
+                "chat_input_translate"
         );
         return PromptMessageBuilder.buildMessages(
                 systemPrompt,
@@ -365,7 +368,7 @@ public class ChatInputTranslateManager {
                     + "Rules (highest priority first):\n"
                     + "1) Output only the final translated text. No explanation, markdown, or quotes.\n"
                     + "2) Preserve tokens exactly: § color/style codes, placeholders (%s %d %f {d1}), URLs, numbers, command prefix (/), <...>, {...}, \\n, \\t.\n"
-                    + "3) If a term is uncertain, keep only that term unchanged and still translate surrounding text.\n"
+                    + "3) If an uncertain term is a normal natural-language word, translate or transliterate it; do not keep the whole sentence unchanged.\n"
                     + "4) Keep punctuation and spacing stable unless translation naturally requires changes.\n"
                     + "5) If any rule cannot be guaranteed, return the original input unchanged.";
             case PROFESSIONAL -> buildRewritePrompt(targetLanguage, "professional, precise, concise");
@@ -385,7 +388,7 @@ public class ChatInputTranslateManager {
                 + "1) Output only one final rewritten message. No explanation, markdown, or quotes.\n"
                 + "2) Preserve meaning and intent. Keep gameplay terms accurate.\n"
                 + "3) Preserve tokens exactly: § color/style codes, placeholders (%s %d %f {d1}), URLs, numbers, command prefix (/), <...>, {...}, \\n, \\t.\n"
-                + "4) If uncertain about a term, keep that term unchanged and rewrite the rest.\n"
+                + "4) If an uncertain term is a normal natural-language word, translate or transliterate it; do not keep the whole sentence unchanged.\n"
                 + "5) If constraints cannot be satisfied, return original input unchanged.";
     }
 
@@ -399,7 +402,7 @@ public class ChatInputTranslateManager {
                 + "1) Follow the user instruction exactly while preserving the original intent.\n"
                 + "2) Output only one final rewritten message. No explanation, markdown, or quotes.\n"
                 + "3) Preserve tokens exactly: § color/style codes, placeholders (%s %d %f {d1}), URLs, numbers, command prefix (/), <...>, {...}, \\n, \\t.\n"
-                + "4) If uncertain about a term, keep that term unchanged and rewrite the rest.\n"
+                + "4) If an uncertain term is a normal natural-language word, translate or transliterate it; do not keep the whole sentence unchanged.\n"
                 + "5) If constraints cannot be satisfied, return original input unchanged.";
     }
 
