@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ComponentTranslationResponseClientTest {
     @Test
@@ -67,7 +68,36 @@ class ComponentTranslationResponseClientTest {
     }
 
     @Test
-    void doesNotResendAfterRejectedResponse() {
+    void requestsCorrectionAfterRejectedResponse() {
+        AtomicInteger calls = new AtomicInteger();
+        AtomicReference<List<OpenAIRequest.Message>> correctionMessages = new AtomicReference<>();
+        ComponentTranslationResponseClient client = client((messages, context, observer, schema) -> {
+            int attempt = calls.incrementAndGet();
+            if (attempt == 1) {
+                return CompletableFuture.completedFuture(completion(
+                        "{\"protocol\":\"taio-component-v1\",\"translations\":{}}"
+                ));
+            }
+            correctionMessages.set(messages);
+            return CompletableFuture.completedFuture(completion(validResponse("你好")));
+        });
+
+        ComponentTranslationResponse response = client.translate(
+                document(textUnits()),
+                "Chinese",
+                profile(),
+                "chat-output"
+        ).join();
+
+        assertEquals(Map.of("u0", "你好"), response.translations());
+        assertEquals(2, calls.get());
+        List<OpenAIRequest.Message> messages = correctionMessages.get();
+        assertNotNull(messages);
+        assertTrue(messages.get(messages.size() - 1).content.contains("previous component translation response was rejected"));
+    }
+
+    @Test
+    void doesNotRetryMoreThanOnceAfterRejectedResponse() {
         AtomicInteger calls = new AtomicInteger();
         ComponentTranslationResponseClient client = client((messages, context, observer, schema) -> {
             calls.incrementAndGet();
@@ -83,7 +113,7 @@ class ComponentTranslationResponseClientTest {
                         "chat-output"
                 ).join());
 
-        assertEquals(1, calls.get());
+        assertEquals(2, calls.get());
     }
 
     @Test
