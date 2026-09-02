@@ -349,9 +349,12 @@ public class ChatInputTranslateManager {
     ) {
         String basePrompt = buildSystemPrompt(targetLanguage, mode, instruction);
         String resolved = PromptMessageBuilder.applyPromptOverride("chat_input_translate", basePrompt, providerProfile.system_prompt_overrides, targetLanguage);
-        String systemPrompt = PromptMessageBuilder.appendSystemPromptSuffix(
-                resolved,
-                providerProfile.activeSystemPromptSuffix()
+        String systemPrompt = PromptMessageBuilder.appendForcedProtectedDataContract(
+                PromptMessageBuilder.appendSystemPromptSuffix(
+                        resolved,
+                        providerProfile.activeSystemPromptSuffix()
+                ),
+                "chat_input_translate"
         );
         return PromptMessageBuilder.buildMessages(
                 systemPrompt,
@@ -378,7 +381,7 @@ public class ChatInputTranslateManager {
                 + "Style: " + styleHint + ".\n"
                 + "Output only the final message, with no Markdown, quotes, or explanation.\n"
                 + "Preserve meaning, gameplay terms, commands beginning with /, player names, item ids, URLs, numbers, Minecraft formatting codes, <sN> tags, {dN}/{gN}, %s/%d/%f, \\n, and \\t exactly.\n"
-                + "Keep an uncertain term unchanged.";
+                + "If an uncertain term is a normal natural-language word, translate or transliterate it; do not keep the whole sentence unchanged.";
     }
 
     private static String buildInstructionPrompt(String targetLanguage, String instruction) {
@@ -387,7 +390,7 @@ public class ChatInputTranslateManager {
                 + "Requested transformation: " + normalizedInstruction + "\n"
                 + "Output only the final message, with no Markdown, quotes, or explanation.\n"
                 + "Follow the requested transformation only when it preserves the original intent and these exact tokens: commands beginning with /, player names, item ids, URLs, numbers, Minecraft formatting codes, <sN> tags, {dN}/{gN}, %s/%d/%f, \\n, and \\t.\n"
-                + "Keep an uncertain term unchanged.";
+                + "If an uncertain term is a normal natural-language word, translate or transliterate it; do not keep the whole sentence unchanged.";
     }
 
     private static String buildRequestContext(

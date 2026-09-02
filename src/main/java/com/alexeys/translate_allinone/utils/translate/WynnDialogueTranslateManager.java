@@ -396,7 +396,10 @@ public final class WynnDialogueTranslateManager {
     private String buildSystemPrompt(String targetLanguage, String suffix, java.util.Map<String, String> overrides) {
         String basePrompt = PromptMessageBuilder.getDefaultPrompt("wynn_npc_dialogue", targetLanguage);
         String resolved = PromptMessageBuilder.applyPromptOverride("wynn_npc_dialogue", basePrompt, overrides, targetLanguage);
-        return PromptMessageBuilder.appendSystemPromptSuffix(resolved, suffix);
+        return PromptMessageBuilder.appendForcedProtectedDataContract(
+                PromptMessageBuilder.appendSystemPromptSuffix(resolved, suffix),
+                "wynn_npc_dialogue"
+        );
     }
 
     private String buildRequestContext(
