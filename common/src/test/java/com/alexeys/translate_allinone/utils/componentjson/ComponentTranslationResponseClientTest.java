@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ComponentTranslationResponseClientTest {
     @Test
@@ -67,7 +68,36 @@ class ComponentTranslationResponseClientTest {
     }
 
     @Test
-    void doesNotResendAfterRejectedResponse() {
+    void requestsCorrectionAfterRejectedResponse() {
+        AtomicInteger calls = new AtomicInteger();
+        AtomicReference<List<OpenAIRequest.Message>> correctionMessages = new AtomicReference<>();
+        ComponentTranslationResponseClient client = client((messages, context, observer, schema) -> {
+            int attempt = calls.incrementAndGet();
+            if (attempt == 1) {
+                return CompletableFuture.completedFuture(completion(
+                        "{\"protocol\":\"taio-component-v1\",\"translations\":{}}"
+                ));
+            }
+            correctionMessages.set(messages);
+            return CompletableFuture.completedFuture(completion(validResponse("你好")));
+        });
+
+        ComponentTranslationResponse response = client.translate(
+                document(textUnits()),
+                "Chinese",
+                profile(),
+                "chat-output"
+        ).join();
+
+        assertEquals(Map.of("u0", "你好"), response.translations());
+        assertEquals(2, calls.get());
+        List<OpenAIRequest.Message> messages = correctionMessages.get();
+        assertNotNull(messages);
+        assertTrue(messages.get(messages.size() - 1).content.contains("previous component translation response was rejected"));
+    }
+
+    @Test
+    void doesNotRetryMoreThanOnceAfterRejectedResponse() {
         AtomicInteger calls = new AtomicInteger();
         ComponentTranslationResponseClient client = client((messages, context, observer, schema) -> {
             calls.incrementAndGet();
@@ -83,7 +113,7 @@ class ComponentTranslationResponseClientTest {
                         "chat-output"
                 ).join());
 
-        assertEquals(1, calls.get());
+        assertEquals(2, calls.get());
     }
 
     @Test
@@ -125,6 +155,149 @@ class ComponentTranslationResponseClientTest {
                 ).join());
 
         assertEquals(1, calls.get());
+    }
+
+
+    @Test
+    void tooltipLineBuildMessagesIncludesProtectedData() {
+        ComponentTranslationRequest request = new ComponentTranslationRequest(
+                ComponentTranslationDocument.PROTOCOL,
+                "Chinese",
+                List.of(new ComponentTranslationRequest.Item("u0", "Hello", "tooltip:line"))
+        );
+        List<OpenAIRequest.Message> messages = ComponentTranslationResponseClient.buildMessages(
+                ComponentTranslationRoute.TOOLTIP_LINE,
+                request,
+                profile()
+        );
+        String system = messages.get(0).content;
+        assertTrue(system.contains("Tooltip protected data:"));
+        assertTrue(system.contains("Preserve exactly every <sN> and </sN> style tag."));
+        assertTrue(system.contains("Preserve exactly every {dN}, {gN}, {valueN}, URL, command, item id, number, unit, %s/%d/%f, Minecraft formatting code, \\n, and \\t."));
+    }
+
+    @Test
+    void tooltipStructuredBuildMessagesIncludesProtectedData() {
+        ComponentTranslationRequest request = new ComponentTranslationRequest(
+                ComponentTranslationDocument.PROTOCOL,
+                "Chinese",
+                List.of(new ComponentTranslationRequest.Item("u0", "Hello", "tooltip:structured"))
+        );
+        List<OpenAIRequest.Message> messages = ComponentTranslationResponseClient.buildMessages(
+                ComponentTranslationRoute.TOOLTIP_STRUCTURED,
+                request,
+                profile()
+        );
+        String system = messages.get(0).content;
+        assertTrue(system.contains("Tooltip protected data:"));
+    }
+
+    @Test
+    void tooltipParagraphBuildMessagesKeepsProtectedDataBeforeParagraphContract() {
+        ComponentTranslationRequest request = new ComponentTranslationRequest(
+                ComponentTranslationDocument.PROTOCOL,
+                "Chinese",
+                List.of(new ComponentTranslationRequest.Item(
+                        "u0",
+                        "__TAIO_PROTECTED_TOKEN_0__ <s0>Hello</s0>",
+                        "tooltip:paragraph"
+                ))
+        );
+        List<OpenAIRequest.Message> messages = ComponentTranslationResponseClient.buildMessages(
+                ComponentTranslationRoute.TOOLTIP_PARAGRAPH,
+                request,
+                profile()
+        );
+        String system = messages.get(0).content;
+        int protectedData = system.indexOf("Tooltip protected data:");
+        int protectedToken = system.indexOf("Each __TAIO_PROTECTED_TOKEN_N__ identifier");
+        int paragraph = system.indexOf("tooltip_paragraph contains");
+        assertTrue(protectedData >= 0);
+        assertTrue(protectedToken > protectedData);
+        assertTrue(paragraph > protectedToken);
+    }
+
+    @Test
+    void tooltipBuildMessagesKeepsProtectedDataAfterPromptOverride() {
+        ApiProviderProfile provider = profile();
+        provider.system_prompt_overrides = new java.util.LinkedHashMap<>();
+        provider.system_prompt_overrides.put(
+                "item",
+                "Custom tooltip prompt for {target_language}."
+        );
+        ComponentTranslationRequest request = new ComponentTranslationRequest(
+                ComponentTranslationDocument.PROTOCOL,
+                "Chinese",
+                List.of(new ComponentTranslationRequest.Item("u0", "Hello", "tooltip:line"))
+        );
+        List<OpenAIRequest.Message> messages = ComponentTranslationResponseClient.buildMessages(
+                ComponentTranslationRoute.TOOLTIP_LINE,
+                request,
+                provider
+        );
+        String system = messages.get(0).content;
+        assertTrue(system.contains("Custom tooltip prompt for Chinese."));
+        assertTrue(system.contains("Tooltip protected data:"));
+    }
+
+    @Test
+    void componentRoutesBuildMessagesIncludeProtectedDataAfterPromptOverride() {
+        assertComponentRouteProtectedData(
+                ComponentTranslationRoute.CHAT_OUTPUT,
+                "chat_output",
+                "Chat output protected data:"
+        );
+        assertComponentRouteProtectedData(
+                ComponentTranslationRoute.SIGN_FACE,
+                "sign_book",
+                "Sign/book protected data:"
+        );
+        assertComponentRouteProtectedData(
+                ComponentTranslationRoute.ENTITY_NAME,
+                "entity_text",
+                "Entity text protected data:"
+        );
+        assertComponentRouteProtectedData(
+                ComponentTranslationRoute.SCOREBOARD,
+                "scoreboard",
+                "Scoreboard protected data:"
+        );
+        assertComponentRouteProtectedData(
+                ComponentTranslationRoute.SCREEN_UI,
+                "screen_ui",
+                "Screen UI protected data:"
+        );
+        assertComponentRouteProtectedData(
+                ComponentTranslationRoute.ADVANCEMENT,
+                "other_translations",
+                "Protected data:"
+        );
+    }
+
+    private static void assertComponentRouteProtectedData(
+            ComponentTranslationRoute route,
+            String promptRouteKey,
+            String protectedDataLabel
+    ) {
+        ApiProviderProfile provider = profile();
+        provider.system_prompt_overrides = new java.util.LinkedHashMap<>();
+        provider.system_prompt_overrides.put(
+                promptRouteKey,
+                "Custom prompt for {target_language}."
+        );
+        ComponentTranslationRequest request = new ComponentTranslationRequest(
+                ComponentTranslationDocument.PROTOCOL,
+                "Chinese",
+                List.of(new ComponentTranslationRequest.Item("u0", "Hello", route.wireName()))
+        );
+        List<OpenAIRequest.Message> messages = ComponentTranslationResponseClient.buildMessages(
+                route,
+                request,
+                provider
+        );
+        String system = messages.get(0).content;
+        assertTrue(system.contains("Custom prompt for Chinese."));
+        assertTrue(system.contains(protectedDataLabel));
     }
 
     private static ComponentTranslationResponseClient client(

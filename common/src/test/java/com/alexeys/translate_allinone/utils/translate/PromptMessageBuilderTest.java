@@ -54,4 +54,29 @@ class PromptMessageBuilderTest {
         assertTrue(messages.get(0).content.contains("Translate player-composed Minecraft chat input into Chinese."));
         assertTrue(messages.get(0).content.contains("Hello"));
     }
+
+    @Test
+    void forcedProtectedDataContractCoversOtherModules() {
+        assertTrue(PromptMessageBuilder.getForcedProtectedDataContract("chat_output").contains("Chat output protected data:"));
+        assertTrue(PromptMessageBuilder.getForcedProtectedDataContract("chat_input_translate").contains("Chat input protected data:"));
+        assertTrue(PromptMessageBuilder.getForcedProtectedDataContract("sign_book").contains("Sign/book protected data:"));
+        assertTrue(PromptMessageBuilder.getForcedProtectedDataContract("entity_text").contains("Entity text protected data:"));
+        assertTrue(PromptMessageBuilder.getForcedProtectedDataContract("scoreboard").contains("Scoreboard protected data:"));
+        assertTrue(PromptMessageBuilder.getForcedProtectedDataContract("wynn_npc_dialogue").contains("Wynn NPC dialogue protected data:"));
+        assertTrue(PromptMessageBuilder.getForcedProtectedDataContract("wynntils_task_tracker").contains("Wynntils task tracker protected data:"));
+        assertTrue(PromptMessageBuilder.getForcedProtectedDataContract("screen_ui").contains("Screen UI protected data:"));
+        assertTrue(PromptMessageBuilder.getForcedProtectedDataContract("other_translations").contains("Protected data:"));
+    }
+
+    @Test
+    void appendForcedProtectedDataContractSurvivesPromptOverride() {
+        String prompt = PromptMessageBuilder.appendForcedProtectedDataContract(
+                "Custom chat output prompt.",
+                "chat_output"
+        );
+        assertTrue(prompt.contains("Custom chat output prompt."));
+        assertTrue(prompt.contains("Chat output protected data:"));
+        assertTrue(prompt.contains("If an uncertain term is a normal natural-language word"));
+    }
+
 }
