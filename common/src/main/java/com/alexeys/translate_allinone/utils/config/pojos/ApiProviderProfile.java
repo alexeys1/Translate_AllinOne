@@ -36,7 +36,7 @@ public class ApiProviderProfile {
     public String keep_alive_time = "1m";
     public boolean supports_system_message = true;
     public boolean inject_system_prompt_into_user_message = true;
-    public String system_prompt_suffix = "\\no_think";
+    public String system_prompt_suffix = "";
     public List<CustomParameterEntry> custom_parameters = new ArrayList<>();
     public Map<String, String> system_prompt_overrides = new LinkedHashMap<>();
 
@@ -243,7 +243,14 @@ public class ApiProviderProfile {
     }
 
     private String normalizeSuffix(String suffixRaw) {
-        return suffixRaw == null ? "" : suffixRaw;
+        if (suffixRaw == null) {
+            return "";
+        }
+        String trimmed = suffixRaw.trim();
+        if (trimmed.isEmpty() || "\\no_think".equals(trimmed)) {
+            return "";
+        }
+        return trimmed;
     }
 
     private double temperatureForScene(TemperatureScene scene) {
@@ -294,7 +301,7 @@ public class ApiProviderProfile {
         public String keep_alive_time = "1m";
         public boolean supports_system_message = true;
         public boolean inject_system_prompt_into_user_message = true;
-        public String system_prompt_suffix = "\\no_think";
+        public String system_prompt_suffix = "";
         public List<CustomParameterEntry> custom_parameters = new ArrayList<>();
 
         public double temperatureFor(TemperatureScene scene) {
