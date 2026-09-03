@@ -61,15 +61,15 @@ public final class UiTranslationRuntime {
         OtherTranslationsConfig config = currentConfig();
         if (config == null
                 || !config.enabled
-                || !config.enabled_screen_translation
-                || config.keybinding == null) {
+                || !config.enabled_screen_translation) {
             return;
         }
         ComponentTranslationRuntime.beginScreenUiSession(
                 MAX_SCREEN_UI_REQUESTS_PER_SESSION,
                 MAX_SCREEN_UI_RETRIES_PER_SESSION
         );
-        if (config.keybinding.mode == OtherTranslationsConfig.KeybindingMode.HOLD_TO_TRANSLATE) {
+        if (config.keybinding == null
+                || config.keybinding.mode == OtherTranslationsConfig.KeybindingMode.HOLD_TO_TRANSLATE) {
             return;
         }
         ComponentTranslationRuntime.clearFailures(ComponentTranslationRoute.SCREEN_UI);
