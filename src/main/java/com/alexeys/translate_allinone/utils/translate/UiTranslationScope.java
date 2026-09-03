@@ -1,5 +1,6 @@
 package com.alexeys.translate_allinone.utils.translate;
 
+import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.gui.screens.Screen;
 
 import java.util.ArrayDeque;
@@ -14,8 +15,9 @@ import java.util.function.Supplier;
 public final class UiTranslationScope {
     private static final ThreadLocal<Deque<Frame>> FRAMES = ThreadLocal.withInitial(ArrayDeque::new);
     private static final ThreadLocal<Integer> INTERNAL_DEPTH = ThreadLocal.withInitial(() -> 0);
-    private static final Set<Object> SEEN_SCREEN_OBJECTS = Collections.synchronizedSet(
-            Collections.newSetFromMap(new WeakHashMap<>())
+    private static volatile Object activeScreenSession;
+    private static final Set<Screen> SCREEN_REMOVAL_HOOKED = Collections.newSetFromMap(
+            new WeakHashMap<>()
     );
 
     private UiTranslationScope() {
@@ -63,8 +65,8 @@ public final class UiTranslationScope {
         if (adapter == null) {
             return Scope.inactive();
         }
-        if (screenObject != null && SEEN_SCREEN_OBJECTS.add(screenObject)) {
-            UiTranslationRuntime.onScreenOpened();
+        if (parent == null && screenObject != null) {
+            trackScreenSession(screenObject);
         }
         Frame frame = new Frame(
                 adapter,
@@ -75,6 +77,26 @@ public final class UiTranslationScope {
         );
         FRAMES.get().push(frame);
         return new Scope(frame);
+    }
+
+    private static void trackScreenSession(Object screenObject) {
+        if (activeScreenSession == screenObject) {
+            return;
+        }
+        if (activeScreenSession != null) {
+            activeScreenSession = null;
+            UiTranslationRuntime.onScreenClosed();
+        }
+        activeScreenSession = screenObject;
+        if (screenObject instanceof Screen screen && SCREEN_REMOVAL_HOOKED.add(screen)) {
+            ScreenEvents.remove(screen).register(removed -> {
+                if (activeScreenSession == removed) {
+                    activeScreenSession = null;
+                    UiTranslationRuntime.onScreenClosed();
+                }
+            });
+        }
+        UiTranslationRuntime.onScreenOpened();
     }
 
     public static Scope enterInput() {

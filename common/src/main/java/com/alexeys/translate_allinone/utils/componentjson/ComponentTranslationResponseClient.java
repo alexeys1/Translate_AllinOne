@@ -134,6 +134,8 @@ public final class ComponentTranslationResponseClient {
         );
         long startedAt = System.nanoTime();
 
+        int maxProviderCalls = maxProviderCalls(document.route());
+        boolean allowStructuredOutputFallback = document.route() != ComponentTranslationRoute.SCREEN_UI;
         CompletableFuture<ComponentTranslationResponse> future = requestValidResponse(
                 document,
                 messages,
@@ -142,7 +144,8 @@ public final class ComponentTranslationResponseClient {
                 responseSchema,
                 requestContext,
                 protectedTokenMask,
-                MAX_PROVIDER_CALLS_PER_WORK
+                maxProviderCalls,
+                maxProviderCalls
         ).thenApply(response -> {
             long elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000L;
             flowLogSink.log(
@@ -176,7 +179,8 @@ public final class ComponentTranslationResponseClient {
             StructuredOutputSpec responseSchema,
             String requestContext,
             ProtectedTokenMask protectedTokenMask,
-            int attemptsRemaining
+            int attemptsRemaining,
+            int maxProviderCalls
     ) {
         return completionRequester.request(
                 messages,
@@ -195,7 +199,8 @@ public final class ComponentTranslationResponseClient {
                         );
                     }
                 },
-                responseSchema
+                responseSchema,
+                document.route() != ComponentTranslationRoute.SCREEN_UI
         ).thenCompose(completion -> {
             String providerResponse = completion.content();
             String rawResponse = providerResponse;
@@ -230,8 +235,8 @@ public final class ComponentTranslationResponseClient {
                         document.route(),
                         "provider response rejected route={} attempt={}/{} finishReason={} reason={} responseBytes={} response={}",
                         document.route().wireName(),
-                        MAX_PROVIDER_CALLS_PER_WORK - attemptsRemaining + 1,
-                        MAX_PROVIDER_CALLS_PER_WORK,
+                        maxProviderCalls - attemptsRemaining + 1,
+                        maxProviderCalls,
                         completion.finishReason(),
                         cause.getMessage(),
                         rawResponse.getBytes(StandardCharsets.UTF_8).length,
@@ -244,8 +249,8 @@ public final class ComponentTranslationResponseClient {
                         document.route(),
                         "provider route={} result=correction_retry attempt={}/{} reason={}",
                         document.route().wireName(),
-                        MAX_PROVIDER_CALLS_PER_WORK - attemptsRemaining + 1,
-                        MAX_PROVIDER_CALLS_PER_WORK,
+                        maxProviderCalls - attemptsRemaining + 1,
+                        maxProviderCalls,
                         cause.getMessage()
                 );
                 ProviderSettings correctionSettings = withCorrectionTemperature(settings);
@@ -258,7 +263,8 @@ public final class ComponentTranslationResponseClient {
                         responseSchema,
                         requestContext,
                         protectedTokenMask,
-                        attemptsRemaining - 1
+                        attemptsRemaining - 1,
+                        maxProviderCalls
                 );
             }
         });
@@ -293,6 +299,10 @@ public final class ComponentTranslationResponseClient {
                         + "do not explain the error and do not include Markdown."
         ));
         return List.copyOf(messages);
+    }
+
+    private static int maxProviderCalls(ComponentTranslationRoute route) {
+        return route == ComponentTranslationRoute.SCREEN_UI ? 1 : MAX_PROVIDER_CALLS_PER_WORK;
     }
 
     private static boolean isRetryableResponseFailure(Throwable error) {
@@ -453,7 +463,8 @@ public final class ComponentTranslationResponseClient {
                 List<OpenAIRequest.Message> messages,
                 String requestContext,
                 LLM.CompletionObserver observer,
-                StructuredOutputSpec responseSchema
+                StructuredOutputSpec responseSchema,
+                boolean allowStructuredOutputFallback
         );
     }
 
