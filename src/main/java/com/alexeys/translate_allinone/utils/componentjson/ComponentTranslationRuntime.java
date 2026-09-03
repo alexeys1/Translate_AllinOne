@@ -195,6 +195,14 @@ public final class ComponentTranslationRuntime {
         return epoch;
     }
 
+    public static void beginScreenUiSession(int requestBudget, int retryBudget) {
+        ComponentTranslationRuntimeCore.beginScreenUiSession(requestBudget, retryBudget);
+    }
+
+    public static void endScreenUiSession() {
+        ComponentTranslationRuntimeCore.endScreenUiSession();
+    }
+
     public static String cacheKey(ComponentTranslationDocument document, String targetLanguage) {
         return ComponentTranslationRuntimeCore.cacheKey(document, targetLanguage);
     }
