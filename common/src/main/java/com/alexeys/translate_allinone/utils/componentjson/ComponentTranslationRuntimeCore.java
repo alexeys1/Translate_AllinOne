@@ -663,16 +663,6 @@ public final class ComponentTranslationRuntimeCore {
             finishRequest(route, batch);
             return;
         }
-        if (route == DispatchRoute.SCREEN_UI && !STATE.tryAcquireScreenUiRequest()) {
-            failBatch(
-                    route,
-                    batch,
-                    "Screen UI request budget exhausted",
-                    null,
-                    FailureDisposition.INFRASTRUCTURE_FAILURE
-            );
-            return;
-        }
         PendingRequest first = batch.requests().get(0);
         ApiProviderProfile provider = ProviderRouteResolver.resolve(
                 access().config(),
@@ -732,7 +722,16 @@ public final class ComponentTranslationRuntimeCore {
             startParagraphRequest(route, batch, first, provider);
             return;
         }
-
+        if (route == DispatchRoute.SCREEN_UI && !STATE.tryAcquireScreenUiRequest()) {
+            failBatch(
+                    route,
+                    batch,
+                    "Screen UI request budget exhausted",
+                    null,
+                    FailureDisposition.INFRASTRUCTURE_FAILURE
+            );
+            return;
+        }
         long watchdogRequestId = TranslationQueueWatchdog.requestStarted(
                 "component/" + route.name(),
                 batch.requests().stream().map(PendingRequest::cacheKey).toList()
