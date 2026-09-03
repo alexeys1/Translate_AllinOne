@@ -138,6 +138,16 @@ public class LLM {
             CompletionObserver observer,
             StructuredOutputSpec schema
     ) {
+        return getCompletion(messages, requestContext, observer, schema, true);
+    }
+
+    public CompletableFuture<LlmCompletion> getCompletion(
+            List<OpenAIRequest.Message> messages,
+            String requestContext,
+            CompletionObserver observer,
+            StructuredOutputSpec schema,
+            boolean allowStructuredOutputFallback
+    ) {
         if (schema == null) {
             return LlmRequestLifecycle.map(
                     getCompletion(messages, requestContext, observer),
@@ -146,101 +156,103 @@ public class LLM {
         }
         long requestEpoch = LlmRequestLifecycle.currentEpoch();
         String capabilityKey = componentOutputCapabilityKey();
+        DetailedCompletionSupplier schemaCall;
+        DetailedCompletionSupplier jsonObjectCall;
+        DetailedCompletionSupplier promptOnlyCall;
+        String providerName;
 
         if (openAIClient != null) {
             if (useResponsesApi()) {
-                DetailedCompletionSupplier schemaCall = instrumentDetailedCompletionSupplier(
+                schemaCall = instrumentDetailedCompletionSupplier(
                         "openai_responses", requestContext, requestEpoch, messages, true, "component_json_schema",
                         () -> openAIClient.getResponsesCompletionDetail(
                                 buildOpenAIResponsesRequest(messages, false, OutputFormat.JSON_SCHEMA, schema)
                         )
                 );
-                DetailedCompletionSupplier jsonObjectCall = instrumentDetailedCompletionSupplier(
+                jsonObjectCall = instrumentDetailedCompletionSupplier(
                         "openai_responses", requestContext, requestEpoch, messages, true, "component_json_object_fallback",
                         () -> openAIClient.getResponsesCompletionDetail(
                                 buildOpenAIResponsesRequest(messages, false, OutputFormat.JSON_OBJECT, null)
                         )
                 );
-                DetailedCompletionSupplier promptOnlyCall = instrumentDetailedCompletionSupplier(
+                promptOnlyCall = instrumentDetailedCompletionSupplier(
                         "openai_responses", requestContext, requestEpoch, messages, false, "component_prompt_fallback",
                         () -> openAIClient.getResponsesCompletionDetail(
                                 buildOpenAIResponsesRequest(messages, false, OutputFormat.NONE, null)
                         )
                 );
-                return withComponentStructuredOutputFallback(
-                        schemaCall,
-                        jsonObjectCall,
-                        promptOnlyCall,
-                        "OpenAI Responses",
-                        observer,
-                        capabilityKey
+                providerName = "OpenAI Responses";
+            } else {
+                schemaCall = instrumentDetailedCompletionSupplier(
+                        "openai_chat", requestContext, requestEpoch, messages, true, "component_json_schema",
+                        () -> LlmRequestLifecycle.map(
+                                openAIClient.getChatCompletion(buildOpenAIRequest(messages, false, OutputFormat.JSON_SCHEMA, schema)),
+                                LLM::toDetailedChatCompletion
+                        )
                 );
+                jsonObjectCall = instrumentDetailedCompletionSupplier(
+                        "openai_chat", requestContext, requestEpoch, messages, true, "component_json_object_fallback",
+                        () -> LlmRequestLifecycle.map(
+                                openAIClient.getChatCompletion(buildOpenAIRequest(messages, false, OutputFormat.JSON_OBJECT, null)),
+                                LLM::toDetailedChatCompletion
+                        )
+                );
+                promptOnlyCall = instrumentDetailedCompletionSupplier(
+                        "openai_chat", requestContext, requestEpoch, messages, false, "component_prompt_fallback",
+                        () -> LlmRequestLifecycle.map(
+                                openAIClient.getChatCompletion(buildOpenAIRequest(messages, false, OutputFormat.NONE, null)),
+                                LLM::toDetailedChatCompletion
+                        )
+                );
+                providerName = "OpenAI";
             }
-
-            DetailedCompletionSupplier schemaCall = instrumentDetailedCompletionSupplier(
-                    "openai_chat", requestContext, requestEpoch, messages, true, "component_json_schema",
-                    () -> LlmRequestLifecycle.map(
-                            openAIClient.getChatCompletion(buildOpenAIRequest(messages, false, OutputFormat.JSON_SCHEMA, schema)),
-                            LLM::toDetailedChatCompletion
-                    )
-            );
-            DetailedCompletionSupplier jsonObjectCall = instrumentDetailedCompletionSupplier(
-                    "openai_chat", requestContext, requestEpoch, messages, true, "component_json_object_fallback",
-                    () -> LlmRequestLifecycle.map(
-                            openAIClient.getChatCompletion(buildOpenAIRequest(messages, false, OutputFormat.JSON_OBJECT, null)),
-                            LLM::toDetailedChatCompletion
-                    )
-            );
-            DetailedCompletionSupplier promptOnlyCall = instrumentDetailedCompletionSupplier(
-                    "openai_chat", requestContext, requestEpoch, messages, false, "component_prompt_fallback",
-                    () -> LlmRequestLifecycle.map(
-                            openAIClient.getChatCompletion(buildOpenAIRequest(messages, false, OutputFormat.NONE, null)),
-                            LLM::toDetailedChatCompletion
-                    )
-            );
-            return withComponentStructuredOutputFallback(
-                    schemaCall,
-                    jsonObjectCall,
-                    promptOnlyCall,
-                    "OpenAI",
-                    observer,
-                    capabilityKey
-            );
-        }
-
-        if (ollamaClient != null) {
-            DetailedCompletionSupplier schemaCall = instrumentDetailedCompletionSupplier(
+        } else if (ollamaClient != null) {
+            schemaCall = instrumentDetailedCompletionSupplier(
                     "ollama_chat", requestContext, requestEpoch, messages, true, "component_json_schema",
                     () -> LlmRequestLifecycle.map(
                             ollamaClient.getChatCompletion(buildOllamaRequest(messages, false, OutputFormat.JSON_SCHEMA, schema)),
                             LLM::toDetailedOllamaCompletion
                     )
             );
-            DetailedCompletionSupplier jsonObjectCall = instrumentDetailedCompletionSupplier(
+            jsonObjectCall = instrumentDetailedCompletionSupplier(
                     "ollama_chat", requestContext, requestEpoch, messages, true, "component_json_object_fallback",
                     () -> LlmRequestLifecycle.map(
                             ollamaClient.getChatCompletion(buildOllamaRequest(messages, false, OutputFormat.JSON_OBJECT, null)),
                             LLM::toDetailedOllamaCompletion
                     )
             );
-            DetailedCompletionSupplier promptOnlyCall = instrumentDetailedCompletionSupplier(
+            promptOnlyCall = instrumentDetailedCompletionSupplier(
                     "ollama_chat", requestContext, requestEpoch, messages, false, "component_prompt_fallback",
                     () -> LlmRequestLifecycle.map(
                             ollamaClient.getChatCompletion(buildOllamaRequest(messages, false, OutputFormat.NONE, null)),
                             LLM::toDetailedOllamaCompletion
                     )
             );
-            return withComponentStructuredOutputFallback(
-                    schemaCall,
-                    jsonObjectCall,
-                    promptOnlyCall,
-                    "Ollama",
-                    observer,
-                    capabilityKey
-            );
+            providerName = "Ollama";
+        } else {
+            return CompletableFuture.failedFuture(new IllegalStateException("No provider is configured."));
         }
 
-        return CompletableFuture.failedFuture(new IllegalStateException("No provider is configured."));
+        if (!allowStructuredOutputFallback) {
+            return attemptComponentOutputFormat(
+                    schemaCall,
+                    "JSON Schema",
+                    true,
+                    false,
+                    providerName,
+                    observer,
+                    null,
+                    null
+            );
+        }
+        return withComponentStructuredOutputFallback(
+                schemaCall,
+                jsonObjectCall,
+                promptOnlyCall,
+                providerName,
+                observer,
+                capabilityKey
+        );
     }
 
     public Stream<String> getStreamingCompletion(List<OpenAIRequest.Message> messages) {

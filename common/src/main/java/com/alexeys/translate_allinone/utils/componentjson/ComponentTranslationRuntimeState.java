@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 
@@ -29,6 +30,8 @@ public final class ComponentTranslationRuntimeState<F> {
             }
     );
     private final AtomicLong sessionEpoch = new AtomicLong();
+    private final AtomicInteger screenUiRequestsRemaining = new AtomicInteger();
+    private final AtomicInteger screenUiRetriesRemaining = new AtomicInteger();
     private final Object workLock = new Object();
     private final Map<String, TranslationWork> works = new LinkedHashMap<>();
     private final Map<PreparedRequestMemoKey, ComponentTranslationPreparedRequest> preparedRequests =
@@ -55,6 +58,36 @@ public final class ComponentTranslationRuntimeState<F> {
 
     public long advanceSession() {
         return sessionEpoch.incrementAndGet();
+    }
+
+    public void beginScreenUiSession(int requestBudget, int retryBudget) {
+        screenUiRequestsRemaining.set(Math.max(0, requestBudget));
+        screenUiRetriesRemaining.set(Math.max(0, retryBudget));
+    }
+
+    public void endScreenUiSession() {
+        screenUiRequestsRemaining.set(0);
+        screenUiRetriesRemaining.set(0);
+    }
+
+    public boolean tryAcquireScreenUiRequest() {
+        return tryAcquire(screenUiRequestsRemaining);
+    }
+
+    public boolean tryAcquireScreenUiRetry() {
+        return tryAcquire(screenUiRetriesRemaining);
+    }
+
+    private static boolean tryAcquire(AtomicInteger budget) {
+        while (true) {
+            int current = budget.get();
+            if (current <= 0) {
+                return false;
+            }
+            if (budget.compareAndSet(current, current - 1)) {
+                return true;
+            }
+        }
     }
 
     public void clear() {
