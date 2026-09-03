@@ -29,6 +29,8 @@ import java.util.function.Supplier;
 
 public final class UiTranslationRuntime {
     private static final String POLICY_VERSION = "screen-ui-v1";
+    private static final int MAX_SCREEN_UI_REQUESTS_PER_SESSION = 20;
+    private static final int MAX_SCREEN_UI_RETRIES_PER_SESSION = 0;
     private static final ThreadLocal<Set<FormattedCharSequence>> HANDLED_FORMATTED_SEQUENCES =
             ThreadLocal.withInitial(() -> Collections.newSetFromMap(new IdentityHashMap<>()));
     private static final int SCREEN_TRANSLATION_NOTIFY_LIMIT = 8192;
@@ -60,11 +62,21 @@ public final class UiTranslationRuntime {
         if (config == null
                 || !config.enabled
                 || !config.enabled_screen_translation
-                || config.keybinding == null
-                || config.keybinding.mode != OtherTranslationsConfig.KeybindingMode.DISABLED) {
+                || config.keybinding == null) {
+            return;
+        }
+        ComponentTranslationRuntime.beginScreenUiSession(
+                MAX_SCREEN_UI_REQUESTS_PER_SESSION,
+                MAX_SCREEN_UI_RETRIES_PER_SESSION
+        );
+        if (config.keybinding.mode == OtherTranslationsConfig.KeybindingMode.HOLD_TO_TRANSLATE) {
             return;
         }
         ComponentTranslationRuntime.clearFailures(ComponentTranslationRoute.SCREEN_UI);
+    }
+
+    static void onScreenClosed() {
+        ComponentTranslationRuntime.endScreenUiSession();
     }
 
     private static void tickManualRetryTrigger(OtherTranslationsConfig config) {

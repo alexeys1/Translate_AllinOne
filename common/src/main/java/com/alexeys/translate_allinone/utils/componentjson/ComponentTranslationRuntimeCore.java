@@ -37,6 +37,7 @@ public final class ComponentTranslationRuntimeCore {
     private static final long ITEM_BATCH_COLLECT_DELAY_MILLIS = 10L;
     private static final long REQUEST_RATE_WINDOW_MILLIS = TimeUnit.MINUTES.toMillis(1);
     private static final int OTHER_TRANSLATIONS_REQUESTS_PER_MINUTE = 60;
+    private static final int SCREEN_UI_REQUESTS_PER_MINUTE = 10;
     private static volatile Access access;
     private static final Map<DispatchRoute, DispatchState> DISPATCH = createDispatchStates();
     private static final ComponentTranslationRuntimeState<FailureDisposition> STATE =
@@ -412,6 +413,14 @@ public final class ComponentTranslationRuntimeCore {
         return epoch;
     }
 
+    public static void beginScreenUiSession(int requestBudget, int retryBudget) {
+        STATE.beginScreenUiSession(requestBudget, retryBudget);
+    }
+
+    public static void endScreenUiSession() {
+        STATE.endScreenUiSession();
+    }
+
     private static void clearRuntimeState() {
         STATE.clear();
         for (DispatchState state : DISPATCH.values()) {
@@ -654,12 +663,22 @@ public final class ComponentTranslationRuntimeCore {
             finishRequest(route, batch);
             return;
         }
+        if (route == DispatchRoute.SCREEN_UI && !STATE.tryAcquireScreenUiRequest()) {
+            failBatch(
+                    route,
+                    batch,
+                    "Screen UI request budget exhausted",
+                    null,
+                    FailureDisposition.INFRASTRUCTURE_FAILURE
+            );
+            return;
+        }
         PendingRequest first = batch.requests().get(0);
         ApiProviderProfile provider = ProviderRouteResolver.resolve(
                 access().config(),
                 switch (route) {
                     case ITEM -> ProviderRouteResolver.Route.ITEM;
-                    case OTHER_TRANSLATIONS -> ProviderRouteResolver.Route.OTHER_TRANSLATIONS;
+                    case OTHER_TRANSLATIONS, SCREEN_UI -> ProviderRouteResolver.Route.OTHER_TRANSLATIONS;
                     case SCOREBOARD -> ProviderRouteResolver.Route.SCOREBOARD;
                 }
         );
@@ -674,7 +693,7 @@ public final class ComponentTranslationRuntimeCore {
             access().onNoRoutedModel(
                     switch (route) {
                         case ITEM -> ProviderSurface.ITEM_TOOLTIP;
-                        case OTHER_TRANSLATIONS -> ProviderSurface.OTHER_TRANSLATIONS;
+                        case OTHER_TRANSLATIONS, SCREEN_UI -> ProviderSurface.OTHER_TRANSLATIONS;
                         case SCOREBOARD -> ProviderSurface.SCOREBOARD;
                     }
             );
@@ -689,13 +708,13 @@ public final class ComponentTranslationRuntimeCore {
         }
         ProviderRouteResolver.Route providerRoute = switch (route) {
             case ITEM -> ProviderRouteResolver.Route.ITEM;
-            case OTHER_TRANSLATIONS -> ProviderRouteResolver.Route.OTHER_TRANSLATIONS;
+            case OTHER_TRANSLATIONS, SCREEN_UI -> ProviderRouteResolver.Route.OTHER_TRANSLATIONS;
             case SCOREBOARD -> ProviderRouteResolver.Route.SCOREBOARD;
         };
         if (ProviderRouteResolver.hasApiKeyDecryptFailure(access().config(), providerRoute)) {
             ProviderSurface surface = switch (route) {
                 case ITEM -> ProviderSurface.ITEM_TOOLTIP;
-                case OTHER_TRANSLATIONS -> ProviderSurface.OTHER_TRANSLATIONS;
+                case OTHER_TRANSLATIONS, SCREEN_UI -> ProviderSurface.OTHER_TRANSLATIONS;
                 case SCOREBOARD -> ProviderSurface.SCOREBOARD;
             };
             access().onApiKeyDecryptFailure(surface);
@@ -1064,6 +1083,14 @@ public final class ComponentTranslationRuntimeCore {
             String message,
             ComponentTranslationRoute route
     ) {
+        if (route == ComponentTranslationRoute.SCREEN_UI) {
+            return new ComponentTranslationRuntimeState.FailureState<>(
+                    message,
+                    Long.MAX_VALUE,
+                    FailureDisposition.TERMINAL_CONTENT_FAILURE,
+                    route
+            );
+        }
         int attempt = STATE.incrementTerminalFailureCount(key);
         int retriesUsed = Math.max(0, attempt - 1);
         long expiresAtMillis = retriesUsed >= MAX_AUTOMATIC_RETRY_COUNT
@@ -1107,6 +1134,9 @@ public final class ComponentTranslationRuntimeCore {
     }
 
     private static int maxConcurrency(DispatchRoute route) {
+        if (route == DispatchRoute.SCREEN_UI) {
+            return 1;
+        }
         ModConfig config = access().config();
         if (config == null) {
             return 1;
@@ -1132,7 +1162,7 @@ public final class ComponentTranslationRuntimeCore {
         if (route == DispatchRoute.ITEM) {
             return config.itemTranslate == null ? 1 : Math.max(1, config.itemTranslate.max_batch_size);
         }
-        if (route == DispatchRoute.OTHER_TRANSLATIONS) {
+        if (route == DispatchRoute.OTHER_TRANSLATIONS || route == DispatchRoute.SCREEN_UI) {
             return config.otherTranslations == null
                     ? 1
                     : Math.max(1, config.otherTranslations.max_batch_size);
@@ -1159,12 +1189,16 @@ public final class ComponentTranslationRuntimeCore {
     }
 
     private static int requestsPerMinute(DispatchRoute route) {
+        if (route == DispatchRoute.SCREEN_UI) {
+            return SCREEN_UI_REQUESTS_PER_MINUTE;
+        }
         return route == DispatchRoute.OTHER_TRANSLATIONS ? OTHER_TRANSLATIONS_REQUESTS_PER_MINUTE : 0;
     }
 
     private static DispatchRoute dispatchRoute(ComponentTranslationRoute route) {
         return switch (route) {
-            case ADVANCEMENT, SIGN_FACE, SIGN_CONTINUOUS, ENTITY_NAME, TEXT_DISPLAY, BOOK_PAGE, SCREEN_UI ->
+            case SCREEN_UI -> DispatchRoute.SCREEN_UI;
+            case ADVANCEMENT, SIGN_FACE, SIGN_CONTINUOUS, ENTITY_NAME, TEXT_DISPLAY, BOOK_PAGE ->
                     DispatchRoute.OTHER_TRANSLATIONS;
             case SCOREBOARD -> DispatchRoute.SCOREBOARD;
             case TOOLTIP_LINE, TOOLTIP_STRUCTURED, TOOLTIP_PARAGRAPH, CHAT_OUTPUT -> DispatchRoute.ITEM;
@@ -1406,7 +1440,8 @@ public final class ComponentTranslationRuntimeCore {
     private enum DispatchRoute {
         ITEM,
         OTHER_TRANSLATIONS,
-        SCOREBOARD
+        SCOREBOARD,
+        SCREEN_UI
     }
 
     private static final class DispatchState {
