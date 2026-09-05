@@ -112,6 +112,30 @@ class ComponentTranslationRuntimeStateTest {
         assertTrue(state.claimFallbackGeneration("key"));
     }
 
+    @Test
+    void enforcesScreenUiSessionBudgets() {
+        ComponentTranslationRuntimeState<String> state = new ComponentTranslationRuntimeState<>();
+
+        assertFalse(state.tryAcquireScreenUiRequest());
+        assertFalse(state.tryAcquireScreenUiRetry());
+
+        state.beginScreenUiSession(2, 1);
+        assertTrue(state.tryAcquireScreenUiRequest());
+        assertTrue(state.tryAcquireScreenUiRequest());
+        assertFalse(state.tryAcquireScreenUiRequest());
+        assertTrue(state.tryAcquireScreenUiRetry());
+        assertFalse(state.tryAcquireScreenUiRetry());
+
+        state.beginScreenUiSession(1, 0);
+        assertTrue(state.tryAcquireScreenUiRequest());
+        assertFalse(state.tryAcquireScreenUiRequest());
+        assertFalse(state.tryAcquireScreenUiRetry());
+
+        state.endScreenUiSession();
+        assertFalse(state.tryAcquireScreenUiRequest());
+        assertFalse(state.tryAcquireScreenUiRetry());
+    }
+
     private static ComponentTranslationDocument document() {
         return new ComponentJsonDocumentBuilder().build(
                 JsonParser.parseString("{\"text\":\"hello\"}"),

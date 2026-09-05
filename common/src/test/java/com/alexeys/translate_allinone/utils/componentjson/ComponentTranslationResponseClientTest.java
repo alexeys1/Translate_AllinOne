@@ -24,7 +24,7 @@ class ComponentTranslationResponseClientTest {
     @Test
     void returnsEmptyResponseWithoutCallingProviderForDocumentWithoutText() {
         AtomicInteger calls = new AtomicInteger();
-        ComponentTranslationResponseClient client = client((messages, context, observer, schema) -> {
+        ComponentTranslationResponseClient client = client((messages, context, observer, schema, allowFallback) -> {
             calls.incrementAndGet();
             return CompletableFuture.completedFuture(completion("unused"));
         });
@@ -46,7 +46,7 @@ class ComponentTranslationResponseClientTest {
         AtomicInteger calls = new AtomicInteger();
         AtomicReference<String> receivedContext = new AtomicReference<>();
         AtomicReference<StructuredOutputSpec> receivedSchema = new AtomicReference<>();
-        ComponentTranslationResponseClient client = client((messages, context, observer, schema) -> {
+        ComponentTranslationResponseClient client = client((messages, context, observer, schema, allowFallback) -> {
             calls.incrementAndGet();
             receivedContext.set(context);
             receivedSchema.set(schema);
@@ -71,7 +71,7 @@ class ComponentTranslationResponseClientTest {
     void requestsCorrectionAfterRejectedResponse() {
         AtomicInteger calls = new AtomicInteger();
         AtomicReference<List<OpenAIRequest.Message>> correctionMessages = new AtomicReference<>();
-        ComponentTranslationResponseClient client = client((messages, context, observer, schema) -> {
+        ComponentTranslationResponseClient client = client((messages, context, observer, schema, allowFallback) -> {
             int attempt = calls.incrementAndGet();
             if (attempt == 1) {
                 return CompletableFuture.completedFuture(completion(
@@ -99,7 +99,7 @@ class ComponentTranslationResponseClientTest {
     @Test
     void doesNotRetryMoreThanOnceAfterRejectedResponse() {
         AtomicInteger calls = new AtomicInteger();
-        ComponentTranslationResponseClient client = client((messages, context, observer, schema) -> {
+        ComponentTranslationResponseClient client = client((messages, context, observer, schema, allowFallback) -> {
             calls.incrementAndGet();
             return CompletableFuture.completedFuture(completion(
                     "{\"protocol\":\"taio-component-v1\",\"translations\":{}}"
@@ -122,7 +122,7 @@ class ComponentTranslationResponseClientTest {
                 document(textUnits()),
                 document(textUnits())
         ));
-        ComponentTranslationResponseClient client = client((messages, context, observer, schema) ->
+        ComponentTranslationResponseClient client = client((messages, context, observer, schema, allowFallback) ->
                 CompletableFuture.completedFuture(completion(
                         "{\"protocol\":\"taio-component-v1\",\"translations\":{\"b0:u0\":\"你好\",\"b1:u0\":\"<s0>你好</s0></s0>\"}}"
                 ))
@@ -142,7 +142,7 @@ class ComponentTranslationResponseClientTest {
     @Test
     void doesNotRetryTransientProviderFailure() {
         AtomicInteger calls = new AtomicInteger();
-        ComponentTranslationResponseClient client = client((messages, context, observer, schema) -> {
+        ComponentTranslationResponseClient client = client((messages, context, observer, schema, allowFallback) -> {
             calls.incrementAndGet();
             return CompletableFuture.failedFuture(new LLMApiException("503 temporarily unavailable"));
         });
@@ -155,6 +155,63 @@ class ComponentTranslationResponseClientTest {
                 ).join());
 
         assertEquals(1, calls.get());
+    }
+
+    @Test
+    void screenUiRouteDisablesResponseCorrectionRetry() {
+        AtomicInteger calls = new AtomicInteger();
+        ComponentTranslationResponseClient client = client((messages, context, observer, schema, allowFallback) -> {
+            calls.incrementAndGet();
+            return CompletableFuture.completedFuture(completion(
+                    "{\"protocol\":\"taio-component-v1\",\"translations\":{}}"
+            ));
+        });
+
+        assertThrows(CompletionException.class, () -> client.translate(
+                        document(ComponentTranslationRoute.SCREEN_UI, textUnits()),
+                        "Chinese",
+                        profile(),
+                        "screen-ui"
+                ).join());
+
+        assertEquals(1, calls.get());
+    }
+
+    @Test
+    void screenUiRouteDisablesStructuredOutputFallback() {
+        AtomicReference<Boolean> receivedFallback = new AtomicReference<>();
+        ComponentTranslationResponseClient client = client((messages, context, observer, schema, allowFallback) -> {
+            receivedFallback.set(allowFallback);
+            return CompletableFuture.completedFuture(completion(validResponse("你好")));
+        });
+
+        ComponentTranslationResponse response = client.translate(
+                document(ComponentTranslationRoute.SCREEN_UI, textUnits()),
+                "Chinese",
+                profile(),
+                "screen-ui"
+        ).join();
+
+        assertEquals(Map.of("u0", "你好"), response.translations());
+        assertEquals(Boolean.FALSE, receivedFallback.get());
+    }
+
+    @Test
+    void otherRoutesKeepStructuredOutputFallbackEnabled() {
+        AtomicReference<Boolean> receivedFallback = new AtomicReference<>();
+        ComponentTranslationResponseClient client = client((messages, context, observer, schema, allowFallback) -> {
+            receivedFallback.set(allowFallback);
+            return CompletableFuture.completedFuture(completion(validResponse("你好")));
+        });
+
+        client.translate(
+                document(ComponentTranslationRoute.CHAT_OUTPUT, textUnits()),
+                "Chinese",
+                profile(),
+                "chat-output"
+        ).join();
+
+        assertEquals(Boolean.TRUE, receivedFallback.get());
     }
 
 
@@ -313,12 +370,19 @@ class ComponentTranslationResponseClientTest {
     }
 
     private static ComponentTranslationDocument document(List<ComponentTextUnit> units) {
+        return document(ComponentTranslationRoute.CHAT_OUTPUT, units);
+    }
+
+    private static ComponentTranslationDocument document(
+            ComponentTranslationRoute route,
+            List<ComponentTextUnit> units
+    ) {
         JsonObject sourceJson = new JsonObject();
         sourceJson.addProperty("text", "Hello");
         return new ComponentTranslationDocument(
                 ComponentTranslationDocument.PROTOCOL,
                 ComponentTranslationPolicy.CURRENT_VERSION,
-                ComponentTranslationRoute.CHAT_OUTPUT,
+                route,
                 sourceJson,
                 units,
                 Map.of()
