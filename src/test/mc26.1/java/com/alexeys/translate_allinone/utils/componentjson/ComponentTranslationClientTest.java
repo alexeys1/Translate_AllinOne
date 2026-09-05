@@ -25,7 +25,7 @@ class ComponentTranslationClientTest {
                 new ComponentTranslationResponseClient(
                         new ComponentResponseParser(),
                         new ComponentTranslationValidator(),
-                        settings -> (messages, context, observer, schema) -> CompletableFuture.completedFuture(
+                        settings -> (messages, context, observer, schema, allowFallback) -> CompletableFuture.completedFuture(
                                 new LlmCompletion(
                                         "{\"protocol\":\"taio-component-v1\",\"translations\":{\"u0\":\"你好\"}}",
                                         "stop"

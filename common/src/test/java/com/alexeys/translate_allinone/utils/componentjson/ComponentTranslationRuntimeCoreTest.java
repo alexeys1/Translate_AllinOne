@@ -190,17 +190,20 @@ class ComponentTranslationRuntimeCoreTest {
         ComponentTranslationRuntimeState.FailureState<?> first = failureState(
                 terminalFailure,
                 "retry-key",
-                "first"
+                "first",
+                ComponentTranslationRoute.CHAT_OUTPUT
         );
         ComponentTranslationRuntimeState.FailureState<?> second = failureState(
                 terminalFailure,
                 "retry-key",
-                "second"
+                "second",
+                ComponentTranslationRoute.CHAT_OUTPUT
         );
         ComponentTranslationRuntimeState.FailureState<?> third = failureState(
                 terminalFailure,
                 "retry-key",
-                "third"
+                "third",
+                ComponentTranslationRoute.CHAT_OUTPUT
         );
 
         assertTrue(first.expiresAtMillis() < Long.MAX_VALUE);
@@ -208,13 +211,48 @@ class ComponentTranslationRuntimeCoreTest {
         assertEquals(Long.MAX_VALUE, third.expiresAtMillis());
 
         ((ComponentTranslationRuntimeState) state).putFailure("retry-key", third);
-        ComponentTranslationRuntimeCore.clearFailures(ComponentTranslationRoute.SCREEN_UI);
+        ComponentTranslationRuntimeCore.clearFailures(ComponentTranslationRoute.CHAT_OUTPUT);
         ComponentTranslationRuntimeState.FailureState<?> afterReset = failureState(
                 terminalFailure,
                 "retry-key",
-                "after-reset"
+                "after-reset",
+                ComponentTranslationRoute.CHAT_OUTPUT
         );
         assertTrue(afterReset.expiresAtMillis() < Long.MAX_VALUE);
+    }
+
+    @Test
+    void marksScreenUiTerminalFailuresPermanentWithoutConsumingRetryBudget() throws Exception {
+        Method terminalFailure = ComponentTranslationRuntimeCore.class.getDeclaredMethod(
+                "terminalFailure",
+                String.class,
+                String.class,
+                ComponentTranslationRoute.class
+        );
+        terminalFailure.setAccessible(true);
+
+        ComponentTranslationRuntimeState.FailureState<?> first = failureState(
+                terminalFailure,
+                "screen-key",
+                "first",
+                ComponentTranslationRoute.SCREEN_UI
+        );
+        ComponentTranslationRuntimeState.FailureState<?> second = failureState(
+                terminalFailure,
+                "screen-key",
+                "second",
+                ComponentTranslationRoute.SCREEN_UI
+        );
+        ComponentTranslationRuntimeState.FailureState<?> otherRoute = failureState(
+                terminalFailure,
+                "screen-key",
+                "other-route",
+                ComponentTranslationRoute.CHAT_OUTPUT
+        );
+
+        assertEquals(Long.MAX_VALUE, first.expiresAtMillis());
+        assertEquals(Long.MAX_VALUE, second.expiresAtMillis());
+        assertTrue(otherRoute.expiresAtMillis() < Long.MAX_VALUE);
     }
 
     @Test
@@ -263,13 +301,14 @@ class ComponentTranslationRuntimeCoreTest {
     private static ComponentTranslationRuntimeState.FailureState<?> failureState(
             Method terminalFailure,
             String key,
-            String message
+            String message,
+            ComponentTranslationRoute route
     ) throws Exception {
         return (ComponentTranslationRuntimeState.FailureState<?>) terminalFailure.invoke(
                 null,
                 key,
                 message,
-                ComponentTranslationRoute.SCREEN_UI
+                route
         );
     }
 
