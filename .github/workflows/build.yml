@@ -16,10 +16,19 @@ jobs:
           distribution: 'microsoft'
       - name: make gradle wrapper executable
         run: chmod +x ./gradlew
-      - name: build
+      - name: build beta
+        if: github.ref_type != 'tag'
+        run: ./gradlew build -Pbeta
+      - name: build release
+        if: github.ref_type == 'tag'
         run: ./gradlew build
+      - name: derive jar name
+        run: |
+          JAR_FILE=$(find build/libs -maxdepth 1 -name '*.jar' ! -name '*-sources.jar' ! -name '*-dev.jar' | head -n 1)
+          echo "jar_file=$JAR_FILE" >> "$GITHUB_ENV"
+          echo "artifact_name=$(basename "$JAR_FILE")" >> "$GITHUB_ENV"
       - name: capture build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Artifacts
-          path: build/libs/
+          name: ${{ env.artifact_name }}
+          path: ${{ env.jar_file }}
