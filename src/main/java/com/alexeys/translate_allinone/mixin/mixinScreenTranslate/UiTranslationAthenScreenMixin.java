@@ -1,5 +1,6 @@
 package com.alexeys.translate_allinone.mixin.mixinScreenTranslate;
 
+import com.alexeys.translate_allinone.utils.translate.UiTranslationRuntime;
 import com.alexeys.translate_allinone.utils.translate.UiTranslationScope;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Pseudo;
@@ -24,6 +25,7 @@ public abstract class UiTranslationAthenScreenMixin {
             remap = false
     )
     private void translate_allinone$enterAthen(CallbackInfo ci) {
+        UiTranslationRuntime.beginFrame();
         translate_allinone$athenScope = UiTranslationScope.enter((Object) this);
     }
 

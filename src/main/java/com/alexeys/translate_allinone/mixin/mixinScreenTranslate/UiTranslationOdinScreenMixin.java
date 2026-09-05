@@ -1,5 +1,6 @@
 package com.alexeys.translate_allinone.mixin.mixinScreenTranslate;
 
+import com.alexeys.translate_allinone.utils.translate.UiTranslationRuntime;
 import com.alexeys.translate_allinone.utils.translate.UiTranslationScope;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Pseudo;
@@ -24,6 +25,7 @@ public abstract class UiTranslationOdinScreenMixin {
             remap = false
     )
     private void translate_allinone$enterOdin(CallbackInfo ci) {
+        UiTranslationRuntime.beginFrame();
         translate_allinone$odinScope = UiTranslationScope.enter((Object) this);
     }
 
