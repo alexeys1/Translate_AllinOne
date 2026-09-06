@@ -335,7 +335,12 @@ public final class UiTranslationRuntime {
     public static void beginFrame() {
         HANDLED_FORMATTED_SEQUENCES.remove();
         FRAME_ID++;
+        UiTranslationScope.discardStaleFrames(FRAME_ID);
         tickManualRetryTrigger(currentConfig());
+    }
+
+    public static void expireIdleScreenSessions() {
+        UiTranslationScope.expireIdleScreenSessions();
     }
 
     public static void reset() {
