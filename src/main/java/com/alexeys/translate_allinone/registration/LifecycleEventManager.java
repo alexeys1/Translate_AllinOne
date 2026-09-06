@@ -19,6 +19,7 @@ import com.alexeys.translate_allinone.utils.translate.ExternalScoreboardTranslat
 import com.alexeys.translate_allinone.utils.translate.ScoreboardTranslationInputSupport;
 import com.alexeys.translate_allinone.utils.translate.TooltipTextDebugCopySupport;
 import com.alexeys.translate_allinone.utils.translate.TextDisplayTranslationSupport;
+import com.alexeys.translate_allinone.utils.translate.UiTranslationRuntime;
 import com.alexeys.translate_allinone.utils.translate.WynnDialogueTranslateManager;
 import com.alexeys.translate_allinone.utils.translate.WynnDialogueTranslationSupport;
 import com.alexeys.translate_allinone.utils.translate.WynntilsTaskTrackerTranslateManager;
@@ -130,6 +131,7 @@ public class LifecycleEventManager {
                             ? null
                             : Translate_AllinOne.getConfig().otherTranslations
             );
+            UiTranslationRuntime.expireIdleScreenSessions();
             TooltipTextDebugCopySupport.tick(client);
         });
     }

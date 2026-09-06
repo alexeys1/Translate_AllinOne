@@ -2,6 +2,8 @@ package com.alexeys.translate_allinone.utils.translate;
 
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.gui.screens.Screen;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayDeque;
 import java.util.Collections;
@@ -13,9 +15,13 @@ import java.util.WeakHashMap;
 import java.util.function.Supplier;
 
 public final class UiTranslationScope {
+    private static final Logger LOGGER = LoggerFactory.getLogger("translate_allinone.ui-scope");
     private static final ThreadLocal<Deque<Frame>> FRAMES = ThreadLocal.withInitial(ArrayDeque::new);
     private static final ThreadLocal<Integer> INTERNAL_DEPTH = ThreadLocal.withInitial(() -> 0);
+    private static final long SCREEN_SESSION_INACTIVITY_NANOS = 750_000_000L;
     private static volatile Object activeScreenSession;
+    private static volatile String activeClassNameSession;
+    private static volatile long activeSessionLastActivityNanos;
     private static final Set<Screen> SCREEN_REMOVAL_HOOKED = Collections.newSetFromMap(
             new WeakHashMap<>()
     );
@@ -41,6 +47,9 @@ public final class UiTranslationScope {
         if (adapter == null) {
             return Scope.inactive();
         }
+        if (parent == null) {
+            trackClassNameSession(className);
+        }
         Frame frame = new Frame(
                 adapter,
                 parent == null ? new HashMap<>() : parent.cache,
@@ -65,8 +74,8 @@ public final class UiTranslationScope {
         if (adapter == null) {
             return Scope.inactive();
         }
-        if (parent == null && screenObject != null) {
-            trackScreenSession(screenObject);
+        if (parent == null) {
+            trackObjectSession(screenObject);
         }
         Frame frame = new Frame(
                 adapter,
@@ -79,24 +88,76 @@ public final class UiTranslationScope {
         return new Scope(frame);
     }
 
-    private static void trackScreenSession(Object screenObject) {
+    private static void trackObjectSession(Object screenObject) {
+        long now = System.nanoTime();
         if (activeScreenSession == screenObject) {
+            if (now - activeSessionLastActivityNanos >= SCREEN_SESSION_INACTIVITY_NANOS) {
+                UiTranslationRuntime.onScreenClosed();
+                UiTranslationRuntime.onScreenOpened();
+            }
+            activeClassNameSession = null;
+            activeSessionLastActivityNanos = now;
             return;
         }
-        if (activeScreenSession != null) {
-            activeScreenSession = null;
-            UiTranslationRuntime.onScreenClosed();
-        }
+        endActiveSession();
         activeScreenSession = screenObject;
+        activeClassNameSession = null;
+        activeSessionLastActivityNanos = now;
         if (screenObject instanceof Screen screen && SCREEN_REMOVAL_HOOKED.add(screen)) {
             ScreenEvents.remove(screen).register(removed -> {
                 if (activeScreenSession == removed) {
-                    activeScreenSession = null;
-                    UiTranslationRuntime.onScreenClosed();
+                    endActiveSession();
                 }
             });
         }
         UiTranslationRuntime.onScreenOpened();
+    }
+
+    private static void trackClassNameSession(String className) {
+        long now = System.nanoTime();
+        if (activeScreenSession != null
+                && now - activeSessionLastActivityNanos < SCREEN_SESSION_INACTIVITY_NANOS) {
+            return;
+        }
+        if (activeClassNameSession != null && className.equals(activeClassNameSession)) {
+            if (now - activeSessionLastActivityNanos >= SCREEN_SESSION_INACTIVITY_NANOS) {
+                UiTranslationRuntime.onScreenClosed();
+                UiTranslationRuntime.onScreenOpened();
+            }
+            activeSessionLastActivityNanos = now;
+            return;
+        }
+        endActiveSession();
+        activeClassNameSession = className;
+        activeScreenSession = null;
+        activeSessionLastActivityNanos = now;
+        UiTranslationRuntime.onScreenOpened();
+    }
+
+    private static boolean hasActiveSession() {
+        return activeScreenSession != null || activeClassNameSession != null;
+    }
+
+    private static boolean isSessionStale() {
+        return hasActiveSession()
+                && System.nanoTime() - activeSessionLastActivityNanos
+                >= SCREEN_SESSION_INACTIVITY_NANOS;
+    }
+
+    private static void endActiveSession() {
+        if (!hasActiveSession()) {
+            return;
+        }
+        activeScreenSession = null;
+        activeClassNameSession = null;
+        activeSessionLastActivityNanos = 0L;
+        UiTranslationRuntime.onScreenClosed();
+    }
+
+    public static void expireIdleScreenSessions() {
+        if (isSessionStale()) {
+            endActiveSession();
+        }
     }
 
     public static Scope enterInput() {
@@ -247,6 +308,11 @@ public final class UiTranslationScope {
             Deque<Frame> frames = FRAMES.get();
             if (frames.peek() == frame) {
                 frames.pop();
+            } else {
+                Frame popped;
+                do {
+                    popped = frames.poll();
+                } while (popped != null && popped != frame);
             }
             if (frames.isEmpty()) {
                 FRAMES.remove();
@@ -257,12 +323,32 @@ public final class UiTranslationScope {
     private record CacheKey(String source, UiTextRole role, String targetLanguage) {
     }
 
+    static void discardStaleFrames(int currentFrameId) {
+        Deque<Frame> frames = FRAMES.get();
+        int discarded = 0;
+        while (!frames.isEmpty() && frames.peek().frameId() < currentFrameId) {
+            frames.pop();
+            discarded++;
+        }
+        if (discarded > 0) {
+            LOGGER.warn(
+                    "Discarded {} stale UI translation frame(s) from a previous render (leak recovery); remaining depth={}",
+                    discarded,
+                    frames.size()
+            );
+            if (frames.isEmpty()) {
+                FRAMES.remove();
+            }
+        }
+    }
+
     private static final class Frame {
         private final UiScreenAdapter adapter;
         private final Map<CacheKey, UiTranslationResult> cache;
         private final UiTextRole role;
         private final boolean input;
         private final boolean tooltip;
+        private final int frameId;
 
         private Frame(
                 UiScreenAdapter adapter,
@@ -276,6 +362,11 @@ public final class UiTranslationScope {
             this.role = role;
             this.input = input;
             this.tooltip = tooltip;
+            this.frameId = UiTranslationRuntime.currentFrameId();
+        }
+
+        private int frameId() {
+            return frameId;
         }
 
         private Frame child(UiTextRole nextRole, boolean nextInput, boolean nextTooltip) {
