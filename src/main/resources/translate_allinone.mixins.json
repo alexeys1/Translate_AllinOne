@@ -11,6 +11,7 @@
     "mixinItem.DrawContextItemTooltipMixin",
     "mixinItem.DrawContextTooltipMixin",
     "mixinItem.ReiScreenOverlayContextMixin",
+    "mixinItem.SkyBlockItemListTooltipContextMixin",
     "mixinItem.WynnmodDrawItemTooltipSetTextMixin",
     "mixinItem.WynnmodStatsTooltipContextMixin",
     "mixinItem.WynntilsItemStatInfoContextMixin",

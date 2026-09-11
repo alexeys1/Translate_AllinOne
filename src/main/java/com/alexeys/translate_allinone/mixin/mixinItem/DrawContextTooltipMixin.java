@@ -13,6 +13,7 @@ import com.alexeys.translate_allinone.utils.translate.TooltipTextDebugCopySuppor
 import com.alexeys.translate_allinone.utils.translate.TooltipTextMatcherSupport;
 import com.alexeys.translate_allinone.utils.translate.TooltipTranslationContext;
 import com.alexeys.translate_allinone.utils.translate.TooltipTranslationSupport;
+import com.alexeys.translate_allinone.utils.translate.UiTranslationRuntime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.spongepowered.asm.mixin.Mixin;
@@ -50,6 +51,12 @@ public abstract class DrawContextTooltipMixin {
 
     @Unique
     private static final String CHAT_HOVER_DEV_SOURCE = "chat-hover";
+
+    @Unique
+    private static final String SKYBLOCK_ITEM_LIST_DEV_SOURCE = "skyblock-item-list";
+
+    @Unique
+    private static volatile boolean translate_allinone$loggedImmutableComponentList = false;
 
     @Unique
     private static final ThreadLocal<Boolean> translate_allinone$isProcessing = ThreadLocal.withInitial(() -> false);
@@ -97,7 +104,10 @@ public abstract class DrawContextTooltipMixin {
 
         boolean isWynntilsItemStatTooltip = TooltipTranslationContext.isInWynntilsItemStatTooltipRender();
         boolean isChatHoverTooltip = TooltipTranslationContext.isInChatHoverTooltipRender();
-        String devSource = isChatHoverTooltip ? CHAT_HOVER_DEV_SOURCE : DRAW_CONTEXT_DEV_SOURCE;
+        boolean isSkyBlockItemListTooltip = TooltipTranslationContext.isInSkyBlockItemListTooltipRender();
+        String devSource = isChatHoverTooltip
+                ? CHAT_HOVER_DEV_SOURCE
+                : (isSkyBlockItemListTooltip ? SKYBLOCK_ITEM_LIST_DEV_SOURCE : DRAW_CONTEXT_DEV_SOURCE);
 
         if (components == null || components.isEmpty()) {
             return;
@@ -131,6 +141,7 @@ public abstract class DrawContextTooltipMixin {
         if (config == null || !config.enabled) {
             return;
         }
+        translate_allinone$reserveHandledTooltipSequences(components);
         if (TooltipTranslationContext.consumeSkipDrawContextTranslation()) {
             TooltipTextMatcherSupport.logTooltipGuardIfDev(
                     config,
@@ -245,12 +256,7 @@ public abstract class DrawContextTooltipMixin {
                 }
             }
         } else if (orderedLines.size() == components.size()) {
-            components.clear();
-            for (Component translatedLine : processedTooltip.translatedLines()) {
-                if (translatedLine != null) {
-                    components.add(ClientTooltipComponent.create(translatedLine.getVisualOrderText()));
-                }
-            }
+            translate_allinone$replaceComponentListContents(components, processedTooltip.translatedLines());
         } else {
             for (int lineIndex = 0; lineIndex < orderedLines.size() && lineIndex < processedTooltip.translatedLines().size(); lineIndex++) {
                 OrderedTextTooltipComponentAccessor accessor = orderedLines.get(lineIndex).accessor();
@@ -269,16 +275,19 @@ public abstract class DrawContextTooltipMixin {
                         processedTooltip.missingKeyIssue(),
                         ITEM_STATUS_ANIMATION_KEY
                 );
-                components.add(ClientTooltipComponent.create(statusLine.getVisualOrderText()));
+                translate_allinone$appendComponentIfPossible(components, ClientTooltipComponent.create(statusLine.getVisualOrderText()));
             }
             if (TooltipInternalLineSupport.shouldShowErrorStatusLine(processedTooltip)) {
                 Component errorStatusLine = TooltipInternalLineSupport.createErrorStatusLine(processedTooltip.errorMessage());
-                components.add(ClientTooltipComponent.create(errorStatusLine.getVisualOrderText()));
+                translate_allinone$appendComponentIfPossible(components, ClientTooltipComponent.create(errorStatusLine.getVisualOrderText()));
             }
         }
 
         if (showRefreshNotice && !TooltipRefreshNoticeSupport.containsRefreshNoticeLine(sourceLines)) {
-            components.add(ClientTooltipComponent.create(TooltipRefreshNoticeSupport.createRefreshNoticeLine().getVisualOrderText()));
+            translate_allinone$appendComponentIfPossible(
+                    components,
+                    ClientTooltipComponent.create(TooltipRefreshNoticeSupport.createRefreshNoticeLine().getVisualOrderText())
+            );
         }
 
         TooltipTextMatcherSupport.logTooltipPassIfDev(
@@ -297,7 +306,68 @@ public abstract class DrawContextTooltipMixin {
                         + " parsedTooltipHits=" + translate_allinone$parsedTooltipCacheHits.get()
                         + " parsedTooltipMisses=" + translate_allinone$parsedTooltipCacheMisses.get()
         );
+        translate_allinone$reserveHandledTooltipSequences(components);
         return !processedTooltip.pending() && !processedTooltip.missingKeyIssue();
+    }
+
+    @Unique
+    private void translate_allinone$reserveHandledTooltipSequences(List<ClientTooltipComponent> components) {
+        if (components == null) {
+            return;
+        }
+        for (ClientTooltipComponent component : components) {
+            if (component instanceof ClientTextTooltip textTooltip) {
+                OrderedTextTooltipComponentAccessor accessor = (OrderedTextTooltipComponentAccessor) textTooltip;
+                FormattedCharSequence sequence = accessor.getText();
+                if (sequence != null) {
+                    UiTranslationRuntime.markFormattedSequenceHandled(sequence);
+                }
+            }
+        }
+    }
+
+    @Unique
+    private boolean translate_allinone$replaceComponentListContents(
+            List<ClientTooltipComponent> components,
+            List<Component> translatedLines
+    ) {
+        try {
+            components.clear();
+            for (Component translatedLine : translatedLines) {
+                if (translatedLine != null) {
+                    components.add(ClientTooltipComponent.create(translatedLine.getVisualOrderText()));
+                }
+            }
+            return true;
+        } catch (UnsupportedOperationException e) {
+            translate_allinone$logImmutableComponentListOnce();
+            return false;
+        }
+    }
+
+    @Unique
+    private void translate_allinone$appendComponentIfPossible(
+            List<ClientTooltipComponent> components,
+            ClientTooltipComponent component
+    ) {
+        try {
+            components.add(component);
+        } catch (UnsupportedOperationException e) {
+            translate_allinone$logImmutableComponentListOnce();
+        }
+    }
+
+    @Unique
+    private static void translate_allinone$logImmutableComponentListOnce() {
+        if (translate_allinone$loggedImmutableComponentList) {
+            return;
+        }
+        translate_allinone$loggedImmutableComponentList = true;
+        LOGGER.info(
+                "Tooltip component list is not structurally modifiable (immutable caller list, "
+                        + "e.g. setComponentTooltipForNextFrame with List<Component>). "
+                        + "In-place line translation still applies; status/refresh notice lines are skipped."
+        );
     }
 
     @Unique
@@ -334,6 +404,10 @@ public abstract class DrawContextTooltipMixin {
         }
 
         if (isWynntilsItemStatTooltip || TooltipTranslationContext.isInWynntilsQuestTooltipRender()) {
+            return true;
+        }
+
+        if (TooltipTranslationContext.isInSkyBlockItemListTooltipRender()) {
             return true;
         }
 

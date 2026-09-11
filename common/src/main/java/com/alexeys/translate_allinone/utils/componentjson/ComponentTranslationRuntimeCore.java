@@ -5,6 +5,7 @@ import com.alexeys.translate_allinone.utils.cache.component.ComponentTranslation
 import com.alexeys.translate_allinone.utils.config.ModConfig;
 import com.alexeys.translate_allinone.utils.config.ProviderRouteResolver;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
+import com.alexeys.translate_allinone.utils.translate.TranslationContentGate;
 import com.alexeys.translate_allinone.utils.translate.TranslationFeatureGate;
 import com.alexeys.translate_allinone.utils.translate.TranslationQueueWatchdog;
 import java.nio.charset.StandardCharsets;
@@ -125,6 +126,34 @@ public final class ComponentTranslationRuntimeCore {
             return new Resolution<>(State.INELIGIBLE, null, "", e.getMessage());
         }
         ComponentTranslationDebugLogger.textContent(document, request.identity().key());
+
+        if (alreadyInTargetLanguage(document, targetLanguage)) {
+            T identityValue = null;
+            try {
+                identityValue = renderer.apply(identityResponse(document));
+            } catch (RuntimeException error) {
+                ComponentTranslationDebugLogger.error(
+                        document.route(),
+                        "already-target-language identity render failed: route={} context={} reason={}",
+                        document.route().wireName(),
+                        requestContext == null ? "" : requestContext,
+                        error.getMessage(),
+                        error
+                );
+            }
+            ComponentTranslationMetrics.record(
+                    document,
+                    ComponentTranslationMetrics.Outcome.ALREADY_TARGET_LANGUAGE
+            );
+            ComponentTranslationDebugLogger.flow(
+                    document.route(),
+                    "resolve route={} state=CACHE_HIT reason=already_target_language key={} context={}",
+                    document.route().wireName(),
+                    request.identity().key(),
+                    requestContext == null ? "" : requestContext
+            );
+            return new Resolution<>(State.CACHE_HIT, identityValue, request.identity().key(), "");
+        }
 
         ComponentTranslationStore.Lookup lookup;
         try {
@@ -1217,6 +1246,31 @@ public final class ComponentTranslationRuntimeCore {
             String targetLanguage
     ) {
         return STATE.preparedRequest(document, targetLanguage);
+    }
+
+    private static boolean alreadyInTargetLanguage(
+            ComponentTranslationDocument document,
+            String targetLanguage
+    ) {
+        if (document == null || document.units() == null || document.units().isEmpty()) {
+            return false;
+        }
+        for (ComponentTextUnit unit : document.units()) {
+            if (!TranslationContentGate.alreadyInTargetLanguage(unit.sourceText(), targetLanguage)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static ComponentTranslationResponse identityResponse(
+            ComponentTranslationDocument document
+    ) {
+        Map<String, String> translations = new LinkedHashMap<>(document.units().size());
+        for (ComponentTextUnit unit : document.units()) {
+            translations.put(unit.id(), unit.sourceText());
+        }
+        return new ComponentTranslationResponse(document.protocol(), translations);
     }
 
     private static ComponentTranslationStore store(ComponentTranslationRoute route) {
