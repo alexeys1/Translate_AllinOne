@@ -12,10 +12,7 @@ import com.alexeys.translate_allinone.utils.llmapi.ProviderSettings;
 import com.alexeys.translate_allinone.utils.TranslateStringUtils;
 import com.alexeys.translate_allinone.utils.llmapi.openai.OpenAIRequest;
 import com.google.gson.Gson;
-import com.google.gson.JsonSyntaxException;
-import com.google.gson.reflect.TypeToken;
 
-import java.lang.reflect.Type;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,7 +25,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.regex.Matcher;
 
 public final class WynnDialogueTranslateManager {
     private static final WynnDialogueTranslateManager INSTANCE = new WynnDialogueTranslateManager();
@@ -257,18 +253,6 @@ public final class WynnDialogueTranslateManager {
                 );
             } else {
                 try {
-                    Matcher matcher = TranslateStringUtils.JSON_EXTRACT_PATTERN.matcher(response);
-                    if (!matcher.find()) {
-                        throw new JsonSyntaxException("No JSON object found in the translation response.");
-                    }
-
-                    String jsonResponse = matcher.group();
-                    Type type = new TypeToken<Map<String, String>>() {
-                    }.getType();
-                    Map<String, String> translatedMapFromAI = GSON.fromJson(jsonResponse, type);
-                    if (translatedMapFromAI == null) {
-                        throw new JsonSyntaxException("Parsed translation result is null");
-                    }
                     WynnDialogueTranslationSupport.throttledDevLog(
                             "llm_response",
                             1000L,
@@ -276,8 +260,8 @@ public final class WynnDialogueTranslateManager {
                             requestContext,
                             response == null ? "" : response.replace("\n", "\\n")
                     );
-
-                    if (hasKeyMismatch(translatedMapFromAI, originalKeys.size())) {
+                    List<String> translatedValues = IndexedMapResponseDecoder.decode(response);
+                    if (translatedValues.size() != originalKeys.size()) {
                         failedTaskKeys.addAll(originalKeys);
                         Translate_AllinOne.LOGGER.warn(
                                 "Wynn dialogue response keys mismatched. context={}",
@@ -287,28 +271,26 @@ public final class WynnDialogueTranslateManager {
                     } else {
                         Map<String, String> finalTranslatedMap = new ConcurrentHashMap<>();
                         Set<String> missingTranslations = ConcurrentHashMap.newKeySet();
-                        missingTranslations.addAll(originalKeys);
-
-                        for (Map.Entry<String, String> entry : translatedMapFromAI.entrySet()) {
-                            int index;
-                            try {
-                                index = Integer.parseInt(entry.getKey()) - 1;
-                            } catch (NumberFormatException e) {
-                                continue;
-                            }
-
-                            if (index < 0 || index >= originalKeys.size()) {
-                                continue;
-                            }
-
+                        Set<String> rejectedTranslations = ConcurrentHashMap.newKeySet();
+                        for (int index = 0; index < originalKeys.size(); index++) {
                             String originalKey = originalKeys.get(index);
-                            String translatedValue = entry.getValue();
+                            String translatedValue = translatedValues.get(index);
+                            String sourceValue = WynnDialogueTranslationSupport.extractTranslatableValue(originalKey);
                             if (translatedValue == null || translatedValue.trim().isEmpty()) {
+                                missingTranslations.add(originalKey);
                                 continue;
                             }
-
+                            TranslationContentVerdict verdict = TranslationContentGate.evaluate(
+                                    TranslationMode.TRANSLATE,
+                                    sourceValue,
+                                    translatedValue,
+                                    targetLanguage
+                            );
+                            if (!verdict.accepted()) {
+                                rejectedTranslations.add(originalKey);
+                                continue;
+                            }
                             finalTranslatedMap.put(originalKey, translatedValue);
-                            missingTranslations.remove(originalKey);
                         }
 
                         if (!finalTranslatedMap.isEmpty()) {
@@ -334,13 +316,26 @@ public final class WynnDialogueTranslateManager {
                             );
                             cache.requeueFailed(missingTranslations, "LLM response missing keys");
                         }
+                        if (!rejectedTranslations.isEmpty()) {
+                            failedTaskKeys.addAll(rejectedTranslations);
+                            Translate_AllinOne.LOGGER.warn(
+                                    "Wynn dialogue LLM response rejected {} values by the content quality gate. context={}",
+                                    rejectedTranslations.size(),
+                                    requestContext
+                            );
+                            cache.requeueFailed(rejectedTranslations, "Translation rejected by the content quality gate");
+                        }
                     }
-                } catch (JsonSyntaxException e) {
+                } catch (IndexedMapResponseException e) {
                     failedTaskKeys.addAll(originalKeys);
-                    cache.requeueFailed(Set.copyOf(originalKeys), "Invalid JSON response");
+                    String failureMessage = e.code() == TranslationRejectionCode.ID_MISMATCH
+                            ? "LLM response key mismatch"
+                            : "Invalid JSON response";
+                    cache.requeueFailed(Set.copyOf(originalKeys), failureMessage);
                     Translate_AllinOne.LOGGER.error(
-                            "Failed to parse Wynn dialogue translation response. context={}",
+                            "Failed to parse Wynn dialogue translation response. context={} reason={}",
                             requestContext,
+                            e.getMessage(),
                             e
                     );
                 } catch (Throwable t) {
@@ -382,15 +377,6 @@ public final class WynnDialogueTranslateManager {
 
     private boolean isSessionActive(long expectedEpoch) {
         return expectedEpoch == sessionEpoch.get();
-    }
-
-    private boolean hasKeyMismatch(Map<String, String> translatedMapFromAI, int expectedSize) {
-        for (int i = 1; i <= expectedSize; i++) {
-            if (!translatedMapFromAI.containsKey(String.valueOf(i))) {
-                return true;
-            }
-        }
-        return translatedMapFromAI.size() != expectedSize;
     }
 
     private String buildSystemPrompt(String targetLanguage, String suffix, java.util.Map<String, String> overrides) {
