@@ -20,6 +20,11 @@ import com.alexeys.translate_allinone.utils.llmapi.openai.OpenAIRequest;
 import com.alexeys.translate_allinone.utils.text.StylePreserver;
 import com.alexeys.translate_allinone.utils.text.TemplateProcessor;
 import com.alexeys.translate_allinone.utils.text.LegacyComponentTextCodec;
+import com.alexeys.translate_allinone.utils.translate.PlainTextResponseDecoder;
+import com.alexeys.translate_allinone.utils.translate.TranslationContentGate;
+import com.alexeys.translate_allinone.utils.translate.TranslationContentVerdict;
+import com.alexeys.translate_allinone.utils.translate.TranslationRejectionCode;
+import com.alexeys.translate_allinone.utils.translate.TranslationMode;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -347,7 +352,6 @@ public class ChatOutputTranslateManager {
                 sharedClaim = inFlightTranslations.acquire(requestSingleFlightKey);
                 if (!sharedClaim.owner()) {
                     String finalTranslation = sharedClaim.future().join();
-                    cacheTranslation(skyblockCacheKey, chatOutputCacheKey, finalTranslation);
                     Component finalStyledText = rebuildTranslatedText(finalTranslation, preparedTranslation);
                     logReflowResult(
                             messageId,
@@ -461,19 +465,26 @@ public class ChatOutputTranslateManager {
                             finalStyledText,
                             styleMap
                     );
-                    cacheTranslation(skyblockCacheKey, chatOutputCacheKey, finalTranslation);
                     inFlightTranslations.complete(requestSingleFlightKey, sharedClaim, finalTranslation);
                     updateChatLineWithFinalText(messageId, finalRequestGeneration, finalStyledText);
                 } else {
                     String result = llm.getCompletion(apiMessages, requestContext).join();
+                    TranslationContentVerdict outputVerdict = judgeChatOutputTranslation(
+                            result,
+                            textToTranslate,
+                            chatOutputConfig.target_language
+                    );
+                    if (!outputVerdict.accepted()) {
+                        throw new IllegalArgumentException(
+                                "Provider response rejected by the content quality gate: "
+                                        + outputVerdict.code()
+                        );
+                    }
+                    final String finalTranslation = PlainTextResponseDecoder.decode(result).text();
                     TranslationQueueWatchdog.requestSucceeded(watchdogRequestId);
                     watchdogRequestId = 0L;
                     if (shouldLogReflowMapping()) {
                         LOGGER.info("Finished translation for message ID: {}. Result: {}", messageId, result);
-                    }
-                    final String finalTranslation = result.stripLeading();
-                    if (finalTranslation.isBlank()) {
-                        throw new IllegalStateException("Provider returned an empty translation");
                     }
                     Component finalStyledText = rebuildTranslatedText(finalTranslation, preparedTranslation);
                     logReflowResult(messageId, false, result, finalTranslation, finalStyledText, styleMap);
@@ -878,6 +889,23 @@ public class ChatOutputTranslateManager {
             return chatOutputCacheLookup.translation();
         }
         return null;
+    }
+
+    private static TranslationContentVerdict judgeChatOutputTranslation(
+            String rawResponse,
+            String sourceText,
+            String targetLanguage
+    ) {
+        PlainTextResponseDecoder.DecodeResult decoded = PlainTextResponseDecoder.decode(rawResponse);
+        if (decoded == null) {
+            return TranslationContentVerdict.reject(TranslationRejectionCode.MALFORMED_PROTOCOL);
+        }
+        return TranslationContentGate.evaluate(
+                TranslationMode.TRANSLATE,
+                sourceText,
+                decoded.text(),
+                targetLanguage
+        );
     }
 
     static String resolveCachedFailure(LookupResult skyblockCacheLookup, LookupResult chatOutputCacheLookup) {
