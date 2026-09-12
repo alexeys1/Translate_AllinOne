@@ -1,8 +1,102 @@
 package com.alexeys.translate_allinone.utils.translate;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.regex.Pattern;
+
 public final class TranslationContentGate {
 
+    private static final Pattern EXPLANATION_PREFIX_PATTERN = Pattern.compile(
+            "(?i)^(?:here(?:'s| is) (?:the |a )?translation|translated text|the translation|translation)\\s*[:：]"
+    );
+
     private TranslationContentGate() {
+    }
+
+    public static TranslationContentVerdict evaluate(
+            TranslationMode mode,
+            String source,
+            String candidate,
+            String targetLanguage
+    ) {
+        return evaluate(mode, source, candidate, targetLanguage, false, true);
+    }
+
+    public static TranslationContentVerdict evaluate(
+            TranslationMode mode,
+            String source,
+            String candidate,
+            String targetLanguage,
+            boolean truncated
+    ) {
+        return evaluate(mode, source, candidate, targetLanguage, truncated, true);
+    }
+
+    public static TranslationContentVerdict evaluate(
+            TranslationMode mode,
+            String source,
+            String candidate,
+            String targetLanguage,
+            boolean truncated,
+            boolean checkProtectedTokens
+    ) {
+        TranslationMode resolvedMode = mode == null ? TranslationMode.TRANSLATE : mode;
+        if (candidate == null || candidate.isBlank()) {
+            return TranslationContentVerdict.reject(TranslationRejectionCode.EMPTY);
+        }
+        if (truncated) {
+            return TranslationContentVerdict.reject(TranslationRejectionCode.TRUNCATED);
+        }
+        if (looksLikeStructuredArtifact(candidate)) {
+            return TranslationContentVerdict.reject(TranslationRejectionCode.STRUCTURED_ARTIFACT);
+        }
+        if (checkProtectedTokens) {
+            TranslationContentVerdict tokenVerdict = evaluateProtectedTokens(source, candidate);
+            if (!tokenVerdict.accepted()) {
+                return tokenVerdict;
+            }
+        }
+        if (resolvedMode == TranslationMode.TRANSLATE && !sourceLooksLikeTargetLanguage(source, targetLanguage)) {
+            String strippedSource = ProtectedTextNormalizer.stripProtectedContent(source);
+            int sourceLetters = ProtectedTextNormalizer.countAsciiLetters(strippedSource);
+            String candidateComparable = ProtectedTextNormalizer.normalizeComparable(candidate);
+            boolean candidateHasComparableText = !candidateComparable.isEmpty();
+            if (sourceLetters >= ProtectedTextNormalizer.MIN_SOURCE_LETTERS
+                    && candidateHasComparableText
+                    && ProtectedTextNormalizer.normalizeComparable(source).equals(candidateComparable)) {
+                return TranslationContentVerdict.reject(TranslationRejectionCode.SOURCE_COPY);
+            }
+            if (ProtectedTextNormalizer.isChineseTarget(targetLanguage)
+                    && sourceLetters >= ProtectedTextNormalizer.MIN_SOURCE_LETTERS
+                    && candidateComparable.length() >= ProtectedTextNormalizer.MIN_SOURCE_LETTERS
+                    && !ProtectedTextNormalizer.containsCjk(candidate)) {
+                return TranslationContentVerdict.reject(TranslationRejectionCode.MISSING_TARGET_LANGUAGE_SIGNAL);
+            }
+            if (ProtectedTextNormalizer.isChineseTarget(targetLanguage)
+                    && ProtectedTextNormalizer.looksTruncatedForChineseOutput(source, candidate)) {
+                return TranslationContentVerdict.reject(TranslationRejectionCode.TRUNCATED);
+            }
+        }
+        if (ProtectedTextNormalizer.hasAbnormalRepetition(candidate)) {
+            return TranslationContentVerdict.reject(TranslationRejectionCode.ABNORMAL_REPETITION);
+        }
+        return TranslationContentVerdict.accept();
+    }
+
+    private static TranslationContentVerdict evaluateProtectedTokens(String source, String candidate) {
+        List<String> expected = ProtectedTextNormalizer.extractHardProtectedTokens(source);
+        if (expected.isEmpty()) {
+            return TranslationContentVerdict.accept();
+        }
+        List<String> actual = ProtectedTextNormalizer.extractHardProtectedTokens(candidate);
+        List<String> expectedSorted = new ArrayList<>(expected);
+        List<String> actualSorted = new ArrayList<>(actual);
+        Collections.sort(expectedSorted);
+        Collections.sort(actualSorted);
+        return expectedSorted.equals(actualSorted)
+                ? TranslationContentVerdict.accept()
+                : TranslationContentVerdict.reject(TranslationRejectionCode.PROTECTED_TOKEN_MISMATCH);
     }
 
     public static boolean alreadyInTargetLanguage(String source, String targetLanguage) {
@@ -29,5 +123,29 @@ public final class TranslationContentGate {
             return false;
         }
         return hanCount >= ProtectedTextNormalizer.countAsciiLetters(stripped);
+    }
+
+    private static boolean looksLikeStructuredArtifact(String candidate) {
+        String trimmed = candidate == null ? "" : candidate.trim();
+        if (trimmed.startsWith("```")
+                || trimmed.startsWith("\"translation\"")
+                || trimmed.startsWith("\"text\"")) {
+            return true;
+        }
+        if (trimmed.startsWith("{") && trimmed.contains("\":")) {
+            return true;
+        }
+        if (trimmed.startsWith("[") && trimmed.endsWith("]") && trimmed.contains("\"")) {
+            return true;
+        }
+        if (trimmed.contains("\"translation\":") || trimmed.contains("\"text\":")) {
+            return true;
+        }
+        return EXPLANATION_PREFIX_PATTERN.matcher(trimmed).find();
+    }
+
+    private static boolean sourceLooksLikeTargetLanguage(String source, String targetLanguage) {
+        return ProtectedTextNormalizer.isChineseTarget(targetLanguage)
+                && ProtectedTextNormalizer.containsCjk(source);
     }
 }
