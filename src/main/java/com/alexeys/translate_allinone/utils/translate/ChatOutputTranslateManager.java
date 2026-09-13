@@ -241,7 +241,7 @@ public class ChatOutputTranslateManager {
                 }
                 return;
             }
-            lineIndex = messages.indexOf(targetLine);
+            lineIndex = indexOfLineByIdentity(messages, targetLine);
         }
         lineLocateRetryCounts.remove(messageId);
         logChatLineMapping(messageId, "locate_original", lineIndex, targetLine.content());
@@ -302,7 +302,6 @@ public class ChatOutputTranslateManager {
         replaceTrimmedLines(chatHudAccessor, targetLine, newLine);
 
         final long finalRequestGeneration = requestGeneration;
-        final int finalLineIndex = lineIndex;
         final GuiMessage finalTargetLine = targetLine;
         final String requestSingleFlightKey = chatOutputCacheKey == null
                 ? "uncached\u001f" + preparedTranslation.textToTranslate()
@@ -338,7 +337,7 @@ public class ChatOutputTranslateManager {
 
                 if (providerProfile == null) {
                     LOGGER.warn("No routed model selected for chat output translation; showing temporary error for messageId={}", messageId);
-                    showTemporaryRouteError(messageId, chatHudAccessor, messages, finalLineIndex, finalTargetLine);
+                    showTemporaryRouteError(messageId, finalTargetLine);
                     return;
                 }
                 if (ProviderRouteResolver.hasApiKeyDecryptFailure(Translate_AllinOne.getConfig(), ProviderRouteResolver.Route.CHAT_OUTPUT)) {
@@ -552,7 +551,7 @@ public class ChatOutputTranslateManager {
                     return;
                 }
             }
-            int lineIndex = messages.indexOf(targetLine);
+            int lineIndex = indexOfLineByIdentity(messages, targetLine);
 
             Component restoredContent = buildOriginalMessageWithToggle(messageId, originalMessage);
             GuiMessage restoredLine = new GuiMessage(targetLine.addedTime(), restoredContent, targetLine.signature(), targetLine.source(), targetLine.tag());
@@ -593,7 +592,7 @@ public class ChatOutputTranslateManager {
             ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
             List<GuiMessage> messages = chatHudAccessor.getMessages();
 
-            int lineIndex = messages.indexOf(lineToUpdate);
+            int lineIndex = indexOfLineByIdentity(messages, lineToUpdate);
             GuiMessage newLine = new GuiMessage(lineToUpdate.addedTime(), newContent, lineToUpdate.signature(), lineToUpdate.source(), lineToUpdate.tag());
             if (lineIndex != -1) {
                 messages.set(lineIndex, newLine);
@@ -635,7 +634,7 @@ public class ChatOutputTranslateManager {
                 continue;
             }
 
-            int lineIndex = messages.indexOf(activeLine);
+            int lineIndex = indexOfLineByIdentity(messages, activeLine);
             GuiMessage animatedLine = new GuiMessage(
                     activeLine.addedTime(),
                     AnimationManager.getAnimatedStyledText(preparedAnimationCache.computeIfAbsent(messageId, id -> AnimationManager.prepareAnimatedSegments(source))),
@@ -649,6 +648,18 @@ public class ChatOutputTranslateManager {
             activeTranslationLines.put(messageId, animatedLine);
             replaceTrimmedLines(chatHudAccessor, activeLine, animatedLine);
         }
+    }
+
+    static int indexOfLineByIdentity(List<GuiMessage> messages, GuiMessage target) {
+        if (messages == null || target == null) {
+            return -1;
+        }
+        for (int i = 0; i < messages.size(); i++) {
+            if (messages.get(i) == target) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     private static boolean replaceTrimmedLines(ChatHudAccessor chatHudAccessor, GuiMessage oldLine, GuiMessage newLine) {
@@ -702,16 +713,17 @@ public class ChatOutputTranslateManager {
         }
 
         Minecraft.getInstance().execute(() -> {
-            if (!TranslationFeatureGate.isEnabled()) {
-                return;
-            }
             ChatComponent chatHud = Minecraft.getInstance().gui.hud.getChat();
             if (chatHud == null) return;
 
             ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
             List<GuiMessage> messages = chatHudAccessor.getMessages();
+            if (!TranslationFeatureGate.isEnabled()) {
+                restoreOriginalChatLine(messageId, lineToUpdate, chatHudAccessor, messages);
+                return;
+            }
 
-            int lineIndex = messages.indexOf(lineToUpdate);
+            int lineIndex = indexOfLineByIdentity(messages, lineToUpdate);
             Component finalLineContent = buildTranslatedMessageWithToggle(messageId, finalContent, MessageUtils.getTrackedMessage(messageId));
             GuiMessage newLine = new GuiMessage(lineToUpdate.addedTime(), finalLineContent, lineToUpdate.signature(), lineToUpdate.source(), lineToUpdate.tag());
             if (lineIndex != -1) {
@@ -726,25 +738,57 @@ public class ChatOutputTranslateManager {
         });
     }
 
-    private static void showTemporaryRouteError(
-            UUID messageId,
-            ChatHudAccessor chatHudAccessor,
-            List<GuiMessage> messages,
-            int lineIndex,
-            GuiMessage originalLine
-    ) {
-        Component errorText = Component.translatable(NO_ROUTED_MODEL_ERROR_KEY).withStyle(ChatFormatting.RED);
-        GuiMessage errorLine = new GuiMessage(originalLine.addedTime(), errorText, originalLine.signature(), originalLine.source(), originalLine.tag());
-        if (lineIndex != -1) {
-            messages.set(lineIndex, errorLine);
+    private static void showTemporaryRouteError(UUID messageId, GuiMessage originalLine) {
+        if (originalLine == null) {
+            return;
         }
-        replaceTrimmedLines(chatHudAccessor, originalLine, errorLine);
-        CompletableFuture.delayedExecutor(ROUTE_ERROR_DISPLAY_MS, TimeUnit.MILLISECONDS).execute(() -> {
-            Minecraft client = Minecraft.getInstance();
-            if (client == null) {
+
+        Minecraft client = Minecraft.getInstance();
+        if (client == null) {
+            return;
+        }
+
+        client.execute(() -> {
+            if (!isTranslationActive(messageId)) {
                 return;
             }
-            client.execute(() -> restoreLineAfterTemporaryError(messageId, errorLine, originalLine));
+
+            GuiMessage lineToUpdate = activeTranslationLines.get(messageId);
+            if (lineToUpdate == null) {
+                return;
+            }
+
+            ChatComponent chatHud = client.gui == null ? null : client.gui.hud.getChat();
+            if (chatHud == null) {
+                return;
+            }
+
+            ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
+            List<GuiMessage> messages = chatHudAccessor.getMessages();
+            int lineIndex = indexOfLineByIdentity(messages, lineToUpdate);
+            if (lineIndex == -1) {
+                clearPendingRouteErrorState(messageId);
+                replaceTrimmedLines(chatHudAccessor, lineToUpdate, originalLine);
+                return;
+            }
+
+            pendingAnimationSources.remove(messageId);
+            preparedAnimationCache.remove(messageId);
+            streamingUpdateLastApplied.remove(messageId);
+
+            Component errorText = Component.translatable(NO_ROUTED_MODEL_ERROR_KEY).withStyle(ChatFormatting.RED);
+            GuiMessage errorLine = new GuiMessage(lineToUpdate.addedTime(), errorText, lineToUpdate.signature(), lineToUpdate.source(), lineToUpdate.tag());
+            messages.set(lineIndex, errorLine);
+            replaceTrimmedLines(chatHudAccessor, lineToUpdate, errorLine);
+            activeTranslationLines.put(messageId, errorLine);
+
+            CompletableFuture.delayedExecutor(ROUTE_ERROR_DISPLAY_MS, TimeUnit.MILLISECONDS).execute(() -> {
+                Minecraft delayedClient = Minecraft.getInstance();
+                if (delayedClient == null) {
+                    return;
+                }
+                delayedClient.execute(() -> restoreLineAfterTemporaryError(messageId, errorLine, originalLine));
+            });
         });
     }
 
@@ -759,14 +803,27 @@ public class ChatOutputTranslateManager {
             return;
         }
 
+        if (activeTranslationLines.get(messageId) != errorLine) {
+            return;
+        }
+
         ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
         List<GuiMessage> messages = chatHudAccessor.getMessages();
-        int lineIndex = messages.indexOf(errorLine);
+        int lineIndex = indexOfLineByIdentity(messages, errorLine);
         if (lineIndex != -1) {
             messages.set(lineIndex, originalLine);
         }
         replaceTrimmedLines(chatHudAccessor, errorLine, originalLine);
 
+        clearPendingRouteErrorState(messageId);
+    }
+
+    private static void clearPendingRouteErrorState(UUID messageId) {
+        activeTranslationLines.remove(messageId);
+        translationGenerations.remove(messageId);
+        pendingAnimationSources.remove(messageId);
+        preparedAnimationCache.remove(messageId);
+        streamingUpdateLastApplied.remove(messageId);
         lineLocateRetryCounts.remove(messageId);
     }
 
@@ -1044,27 +1101,37 @@ public class ChatOutputTranslateManager {
         ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
         List<GuiMessage> messages = chatHudAccessor.getMessages();
         for (Map.Entry<UUID, GuiMessage> entry : pendingLines.entrySet()) {
-            MessageUtils.TrackedChatMessage trackedMessage = MessageUtils.getTrackedChatMessage(entry.getKey());
-            if (trackedMessage == null || trackedMessage.originalMessage() == null) {
-                continue;
-            }
-
-            GuiMessage pendingLine = entry.getValue();
-            GuiMessage restoredLine = new GuiMessage(
-                    pendingLine.addedTime(),
-                    trackedMessage.originalMessage().copy(),
-                    pendingLine.signature(),
-                    pendingLine.source(),
-                    pendingLine.tag()
-            );
-            int lineIndex = messages.indexOf(pendingLine);
-            if (lineIndex != -1) {
-                messages.set(lineIndex, restoredLine);
-            }
-            if (replaceTrimmedLines(chatHudAccessor, pendingLine, restoredLine)) {
-                MessageUtils.markShowingOriginal(entry.getKey());
-            }
+            restoreOriginalChatLine(entry.getKey(), entry.getValue(), chatHudAccessor, messages);
         }
+    }
+
+    private static boolean restoreOriginalChatLine(
+            UUID messageId,
+            GuiMessage pendingLine,
+            ChatHudAccessor chatHudAccessor,
+            List<GuiMessage> messages
+    ) {
+        MessageUtils.TrackedChatMessage trackedMessage = MessageUtils.getTrackedChatMessage(messageId);
+        if (trackedMessage == null || trackedMessage.originalMessage() == null) {
+            return false;
+        }
+
+        GuiMessage restoredLine = new GuiMessage(
+                pendingLine.addedTime(),
+                trackedMessage.originalMessage().copy(),
+                pendingLine.signature(),
+                pendingLine.source(),
+                pendingLine.tag()
+        );
+        int lineIndex = indexOfLineByIdentity(messages, pendingLine);
+        if (lineIndex != -1) {
+            messages.set(lineIndex, restoredLine);
+        }
+        if (!replaceTrimmedLines(chatHudAccessor, pendingLine, restoredLine)) {
+            return false;
+        }
+        MessageUtils.markShowingOriginal(messageId);
+        return true;
     }
 
     private static boolean isTranslationActive(UUID messageId) {
@@ -1430,7 +1497,7 @@ public class ChatOutputTranslateManager {
         }
         MessageUtils.putTrackedMessage(messageId, subtitleOriginal);
         MessageUtils.markShowingOriginal(messageId);
-        int lineIndex = messages.indexOf(line);
+        int lineIndex = indexOfLineByIdentity(messages, line);
         GuiMessage restoredLine = new GuiMessage(
                 line.addedTime(),
                 buildOriginalMessageWithToggle(messageId, subtitleOriginal),

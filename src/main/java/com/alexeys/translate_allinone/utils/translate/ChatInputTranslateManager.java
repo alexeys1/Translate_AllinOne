@@ -41,6 +41,7 @@ public class ChatInputTranslateManager {
     private static final AtomicBoolean isTranslating = new AtomicBoolean(false);
     private static final AtomicReference<String> originalTextRef = new AtomicReference<>("");
     private static final AtomicReference<String> lastSourceTextRef = new AtomicReference<>("");
+    private static final AtomicReference<EditBox> activeChatFieldRef = new AtomicReference<>();
     private static final long ROUTE_ERROR_DISPLAY_MS = 3_000L;
     private static final String TRANSLATING_KEY = "text.translate_allinone.translation.status.translating";
     private static final String TRANSLATION_ERROR_KEY = "text.translate_allinone.chat.input_translation_error";
@@ -129,6 +130,24 @@ public class ChatInputTranslateManager {
         });
     }
 
+    public static void restorePendingInput() {
+        EditBox chatField = activeChatFieldRef.get();
+        String original = lastSourceTextRef.get();
+        if (chatField == null || original == null || original.isEmpty()) {
+            return;
+        }
+
+        Minecraft client = Minecraft.getInstance();
+        if (client == null) {
+            return;
+        }
+
+        client.execute(() -> {
+            chatField.setValue(original);
+            chatField.moveCursorTo(original.length(), false);
+        });
+    }
+
     private static void submitTransform(EditBox chatField, TransformMode mode) {
         submitTransform(chatField, mode, null);
     }
@@ -159,6 +178,7 @@ public class ChatInputTranslateManager {
         }
         originalTextRef.set(currentText);
         lastSourceTextRef.set(currentText);
+        activeChatFieldRef.set(chatField);
 
         executor.submit(() -> {
             String requestContext = "route=chat_input, mode=" + mode.name().toLowerCase();
@@ -343,6 +363,7 @@ public class ChatInputTranslateManager {
                     chatField.moveCursorTo(originalTextRef.get().length(), false);
                 });
             } finally {
+                activeChatFieldRef.compareAndSet(chatField, null);
                 isTranslating.set(false);
                 originalTextRef.set("");
             }
