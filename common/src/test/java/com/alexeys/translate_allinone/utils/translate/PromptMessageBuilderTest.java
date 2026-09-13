@@ -69,6 +69,30 @@ class PromptMessageBuilderTest {
     }
 
     @Test
+    void defaultPromptsUseFourPartStructure() {
+        assertFourPartStructure("scoreboard", true);
+        assertFourPartStructure("sign_book", true);
+        assertFourPartStructure("entity_text", true);
+        assertFourPartStructure("chat_output", true);
+        assertFourPartStructure("chat_input_translate", false);
+        assertFourPartStructure("wynn_npc_dialogue", true);
+        assertFourPartStructure("wynntils_task_tracker", true);
+        assertTrue(PromptMessageBuilder.getDefaultPromptTemplate("wynn_npc_dialogue").contains("Story & Wording:"));
+        assertFalse(PromptMessageBuilder.getDefaultPromptTemplate("chat_output").contains("JSON"));
+        assertFalse(PromptMessageBuilder.getDefaultPromptTemplate("chat_input_translate").contains("JSON"));
+    }
+
+    private static void assertFourPartStructure(String routeKey, boolean expectWording) {
+        String prompt = PromptMessageBuilder.getDefaultPromptTemplate(routeKey);
+        assertTrue(prompt.contains("Task:"), routeKey + " should contain Task:");
+        assertTrue(prompt.contains("Output contract:"), routeKey + " should contain Output contract:");
+        assertTrue(prompt.contains("Protected data:"), routeKey + " should contain Protected data:");
+        assertTrue(prompt.contains("Failure rule:"), routeKey + " should contain Failure rule:");
+        assertEquals(expectWording, prompt.contains("Wording:"), routeKey + " Wording presence mismatch");
+    }
+
+
+    @Test
     void appendForcedProtectedDataContractSurvivesPromptOverride() {
         String prompt = PromptMessageBuilder.appendForcedProtectedDataContract(
                 "Custom chat output prompt.",
