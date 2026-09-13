@@ -1,6 +1,7 @@
 package com.alexeys.translate_allinone.utils.cache;
 
 import com.alexeys.translate_allinone.Translate_AllinOne;
+import com.alexeys.translate_allinone.utils.translate.WynnDialogueTranslationSupport;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.nio.file.Path;
@@ -45,5 +46,14 @@ public final class WynnDialogueTextCache extends TextTranslationCacheService {
 
     private static final class Holder {
         private static final WynnDialogueTextCache INSTANCE = new WynnDialogueTextCache();
+    }
+
+    @Override
+    protected String readGateTargetLanguage() {
+        try {
+            return WynnDialogueTranslationSupport.getTargetLanguage();
+        } catch (RuntimeException unavailable) {
+            return null;
+        }
     }
 }
