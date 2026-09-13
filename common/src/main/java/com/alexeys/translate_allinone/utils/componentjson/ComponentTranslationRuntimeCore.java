@@ -870,6 +870,7 @@ public final class ComponentTranslationRuntimeCore {
             int batchSize
     ) {
         ComponentTranslationResponse sanitized = sanitizeForCache(request.prepared(), response);
+        requireContentGate(request.document(), request.targetLanguage(), sanitized);
         String candidateHash = candidateHash(sanitized);
         ComponentTranslationDebugLogger.flow(
                 request.document().route(),
@@ -925,6 +926,14 @@ public final class ComponentTranslationRuntimeCore {
                 candidateHash,
                 request.epoch()
         );
+    }
+
+    static ComponentTranslationResponse requireContentGate(
+            ComponentTranslationDocument document,
+            String targetLanguage,
+            ComponentTranslationResponse response
+    ) {
+        return new ComponentTranslationValidator().validate(document, response, targetLanguage);
     }
 
     static String candidateHash(ComponentTranslationResponse response) {
