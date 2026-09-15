@@ -9,13 +9,12 @@ import com.alexeys.translate_allinone.gui.configui.render.ConfigUiDraw;
 import com.alexeys.translate_allinone.utils.config.ModConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.alexeys.translate_allinone.utils.translate.PromptMessageBuilder;
-import org.lwjgl.glfw.GLFW;
+import com.mojang.blaze3d.platform.InputConstants;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.CharacterEvent;
@@ -247,25 +246,25 @@ public class PromptEditorScreen extends Screen {
         boolean ctrl = isCtrlDown();
         boolean shift = isShiftDown();
 
-        if (key == GLFW.GLFW_KEY_ESCAPE) {
+        if (key == InputConstants.KEY_ESCAPE) {
             onClose();
             return true;
         }
 
-        if (key == GLFW.GLFW_KEY_TAB && !ctrl && !shift) {
+        if (key == InputConstants.KEY_TAB && !ctrl && !shift) {
             return true;
         }
 
         StringBuilder text = currentText();
 
-        if (ctrl && key == GLFW.GLFW_KEY_A) {
+        if (ctrl && key == InputConstants.KEY_A) {
             selectionStart = 0;
             selectionEnd = text.length();
             cursorPos = selectionEnd;
             return true;
         }
 
-        if (ctrl && key == GLFW.GLFW_KEY_Z) {
+        if (ctrl && key == InputConstants.KEY_Z) {
             List<UndoEntry> stack = undoStacks.get(selectedRoute);
             if (stack != null && !stack.isEmpty()) {
                 UndoEntry entry = stack.remove(stack.size() - 1);
@@ -278,7 +277,7 @@ public class PromptEditorScreen extends Screen {
             return true;
         }
 
-        if (ctrl && key == GLFW.GLFW_KEY_C) {
+        if (ctrl && key == InputConstants.KEY_C) {
             if (selectionStart >= 0 && selectionEnd >= 0 && selectionStart != selectionEnd) {
                 int start = Math.min(selectionStart, selectionEnd);
                 int end = Math.max(selectionStart, selectionEnd);
@@ -289,7 +288,7 @@ public class PromptEditorScreen extends Screen {
             return true;
         }
 
-        if (ctrl && key == GLFW.GLFW_KEY_X) {
+        if (ctrl && key == InputConstants.KEY_X) {
             if (selectionStart >= 0 && selectionEnd >= 0 && selectionStart != selectionEnd) {
                 pushUndo();
                 int start = Math.min(selectionStart, selectionEnd);
@@ -305,7 +304,7 @@ public class PromptEditorScreen extends Screen {
             return true;
         }
 
-        if (ctrl && key == GLFW.GLFW_KEY_V) {
+        if (ctrl && key == InputConstants.KEY_V) {
             if (this.minecraft != null) {
                 pushUndo();
                 String clipboard = this.minecraft.keyboardHandler.getClipboard();
@@ -325,35 +324,35 @@ public class PromptEditorScreen extends Screen {
             return true;
         }
 
-        if (key == GLFW.GLFW_KEY_LEFT) {
+        if (key == InputConstants.KEY_LEFT) {
             selectionStart = -1;
             selectionEnd = -1;
             if (cursorPos > 0) cursorPos--;
             return true;
         }
 
-        if (key == GLFW.GLFW_KEY_RIGHT) {
+        if (key == InputConstants.KEY_RIGHT) {
             selectionStart = -1;
             selectionEnd = -1;
             if (cursorPos < text.length()) cursorPos++;
             return true;
         }
 
-        if (key == GLFW.GLFW_KEY_HOME) {
+        if (key == InputConstants.KEY_HOME) {
             selectionStart = -1;
             selectionEnd = -1;
             cursorPos = 0;
             return true;
         }
 
-        if (key == GLFW.GLFW_KEY_END) {
+        if (key == InputConstants.KEY_END) {
             selectionStart = -1;
             selectionEnd = -1;
             cursorPos = text.length();
             return true;
         }
 
-        if (key == GLFW.GLFW_KEY_BACKSPACE) {
+        if (key == InputConstants.KEY_BACKSPACE) {
             pushUndo();
             if (selectionStart >= 0 && selectionEnd >= 0 && selectionStart != selectionEnd) {
                 int start = Math.min(selectionStart, selectionEnd);
@@ -369,7 +368,7 @@ public class PromptEditorScreen extends Screen {
             return true;
         }
 
-        if (key == GLFW.GLFW_KEY_DELETE) {
+        if (key == InputConstants.KEY_DELETE) {
             pushUndo();
             if (selectionStart >= 0 && selectionEnd >= 0 && selectionStart != selectionEnd) {
                 int start = Math.min(selectionStart, selectionEnd);
@@ -384,13 +383,13 @@ public class PromptEditorScreen extends Screen {
             return true;
         }
 
-        if (key == GLFW.GLFW_KEY_UP || key == GLFW.GLFW_KEY_DOWN) {
+        if (key == InputConstants.KEY_UP || key == InputConstants.KEY_DOWN) {
             String fullStr = text.toString();
             List<String> ulines = wrapLines(fullStr, (this.width - (LEFT_PANEL_WIDTH + EDITOR_PADDING + LINE_NUMBER_WIDTH) - EDITOR_PADDING - 12));
             int[] lineCol = cursorVisualLine(fullStr, ulines, cursorPos);
             int curLine = lineCol[0];
             int curCol = lineCol[1];
-            int targetLine = key == GLFW.GLFW_KEY_UP ? Math.max(0, curLine - 1) : curLine + 1;
+            int targetLine = key == InputConstants.KEY_UP ? Math.max(0, curLine - 1) : curLine + 1;
             if (targetLine >= 0 && targetLine < ulines.size()) {
                 int targetCol = Math.min(curCol, ulines.get(targetLine).length());
                 cursorPos = cursorPosFromLineCol(fullStr, targetLine, targetCol, ulines);
@@ -400,7 +399,7 @@ public class PromptEditorScreen extends Screen {
             return true;
         }
 
-        if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER) {
+        if (key == InputConstants.KEY_RETURN || key == InputConstants.KEY_NUMPADENTER) {
             pushUndo();
             if (selectionStart >= 0 && selectionEnd >= 0 && selectionStart != selectionEnd) {
                 int start = Math.min(selectionStart, selectionEnd);
@@ -452,7 +451,7 @@ public class PromptEditorScreen extends Screen {
 
     @Override
     public boolean mouseClicked(MouseButtonEvent click, boolean doubled) {
-        if (click.button() != 0) {
+        if (click.button() != InputConstants.MOUSE_BUTTON_LEFT) {
             return super.mouseClicked(click, doubled);
         }
 
@@ -510,7 +509,7 @@ public class PromptEditorScreen extends Screen {
 
     @Override
     public boolean mouseDragged(MouseButtonEvent click, double deltaX, double deltaY) {
-        if (click.button() != 0) {
+        if (click.button() != InputConstants.MOUSE_BUTTON_LEFT) {
             return super.mouseDragged(click, deltaX, deltaY);
         }
 
@@ -862,15 +861,13 @@ public class PromptEditorScreen extends Screen {
     }
 
     private static boolean isCtrlDown() {
-        long window = Minecraft.getInstance().getWindow().handle();
-        return GLFW.glfwGetKey(window, GLFW.GLFW_KEY_LEFT_CONTROL) == GLFW.GLFW_PRESS
-                || GLFW.glfwGetKey(window, GLFW.GLFW_KEY_RIGHT_CONTROL) == GLFW.GLFW_PRESS;
+        return InputConstants.isKeyDown(InputConstants.KEY_LCONTROL)
+                || InputConstants.isKeyDown(InputConstants.KEY_RCONTROL);
     }
 
     private static boolean isShiftDown() {
-        long window = Minecraft.getInstance().getWindow().handle();
-        return GLFW.glfwGetKey(window, GLFW.GLFW_KEY_LEFT_SHIFT) == GLFW.GLFW_PRESS
-                || GLFW.glfwGetKey(window, GLFW.GLFW_KEY_RIGHT_SHIFT) == GLFW.GLFW_PRESS;
+        return InputConstants.isKeyDown(InputConstants.KEY_LSHIFT)
+                || InputConstants.isKeyDown(InputConstants.KEY_RSHIFT);
     }
 
     private static final int COLOR_STATUS_OK = 0xFF59D185;

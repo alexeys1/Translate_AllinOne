@@ -5,6 +5,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.mojang.blaze3d.Blaze3D;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.ChatFormatting;
 import net.minecraft.SharedConstants;
@@ -17,6 +18,7 @@ import net.minecraft.network.chat.Style;
 import net.minecraft.util.Util;
 
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -147,7 +149,11 @@ public final class UpdateCheckManager {
         if (latestReleaseUrl == null || latestReleaseUrl.isBlank()) {
             return;
         }
-        Util.getPlatform().openUri(latestReleaseUrl);
+        try {
+            Blaze3D.openUri(Util.parseAndValidateUntrustedUri(latestReleaseUrl));
+        } catch (URISyntaxException e) {
+            Translate_AllinOne.LOGGER.warn("Failed to open release url {}", latestReleaseUrl, e);
+        }
     }
 
     private static void handleModrinthVersionsResponse(HttpResponse<String> response, NumericVersion current) {

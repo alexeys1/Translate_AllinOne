@@ -21,11 +21,11 @@ public class AdvancementToastMixin {
             method = "extractRenderState(Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/client/gui/Font;J)V",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/advancements/DisplayInfo;getTitle()Lnet/minecraft/network/chat/Component;"
+                    target = "Lnet/minecraft/advancements/DisplayInfo;title()Lnet/minecraft/network/chat/Component;"
             ),
             require = 0
     )
     private Component translate_allinone$translateTitle(DisplayInfo displayInfo) {
-        return VanillaAdvancementTranslationSupport.translateQueuedTitle(advancement, displayInfo.getTitle());
+        return VanillaAdvancementTranslationSupport.translateQueuedTitle(advancement, displayInfo.title());
     }
 }

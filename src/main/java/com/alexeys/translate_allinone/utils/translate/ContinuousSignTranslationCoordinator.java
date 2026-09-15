@@ -22,6 +22,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.SignBlockEntity;
 import net.minecraft.world.level.block.entity.SignText;
+import net.minecraft.world.level.block.entity.SignTextSlot;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.phys.Vec3;
@@ -290,8 +291,8 @@ public final class ContinuousSignTranslationCoordinator {
                             || position.distanceToSqr(Vec3.atCenterOf(sign.getBlockPos())) > (double) radius * radius) {
                         continue;
                     }
-                    collectFace(result, sign, Face.FRONT, sign.getFrontText(), filteringEnabled);
-                    collectFace(result, sign, Face.BACK, sign.getBackText(), filteringEnabled);
+                    collectFace(result, sign, Face.FRONT, sign.getText(SignTextSlot.FRONT), filteringEnabled);
+                    collectFace(result, sign, Face.BACK, sign.getText(SignTextSlot.BACK), filteringEnabled);
                 }
             }
         }
@@ -312,7 +313,7 @@ public final class ContinuousSignTranslationCoordinator {
         if (text == null) {
             return;
         }
-        Component[] lines = text.getMessages(filteringEnabled);
+        Component[] lines = text.getMessages(filteringEnabled).toArray(Component[]::new);
         if (lines == null || lines.length != SignText.LINES) {
             return;
         }

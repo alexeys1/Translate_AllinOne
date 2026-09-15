@@ -58,8 +58,8 @@ public final class VanillaAdvancementTranslationSupport {
     }
 
     public static HoveredAdvancementText translateHoveredText(AdvancementHolder holder, DisplayInfo display) {
-        Component originalTitle = display == null ? null : display.getTitle();
-        Component styledDescription = styleDescription(display, display == null ? null : display.getDescription());
+        Component originalTitle = display == null ? null : display.title();
+        Component styledDescription = styleDescription(display, display == null ? null : display.description());
         ComponentAttempt title = translateComponentAttempt(holder, originalTitle, "title", true);
         ComponentAttempt description = translateComponentAttempt(holder, styledDescription, "description", true);
         String errorMessage = !title.errorMessage().isBlank() ? title.errorMessage() : description.errorMessage();
@@ -269,10 +269,10 @@ public final class VanillaAdvancementTranslationSupport {
     }
 
     private static Component styleDescription(DisplayInfo display, Component originalDescription) {
-        if (display != null && originalDescription != null && display.getType() != null) {
+        if (display != null && originalDescription != null && display.type() != null) {
             return ComponentUtils.mergeStyles(
                     originalDescription,
-                    Style.EMPTY.withColor(display.getType().getChatColor())
+                    Style.EMPTY.withColor(display.type().getChatColor())
             );
         }
         return originalDescription;

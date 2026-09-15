@@ -57,6 +57,8 @@ import com.alexeys.translate_allinone.utils.input.KeybindingManager;
 import com.alexeys.translate_allinone.utils.translate.DictionaryFileSelectionSupport;
 import com.alexeys.translate_allinone.utils.update.UpdateCheckManager;
 import com.google.gson.Gson;
+import com.mojang.blaze3d.Blaze3D;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.EditBox;
@@ -2133,7 +2135,7 @@ public class ModConfigScreen extends Screen {
         Path cacheDirectory = CacheBackupManager.getComponentCacheDirectory();
         try {
             Files.createDirectories(cacheDirectory);
-            Util.getPlatform().openUri(cacheDirectory.toUri());
+            Blaze3D.openPath(cacheDirectory);
             setStatus(t("status.opened_cache_directory", Component.literal(cacheDirectory.toString())), COLOR_STATUS_OK);
         } catch (IOException e) {
             Translate_AllinOne.LOGGER.warn("Failed to open cache directory {}", cacheDirectory, e);
@@ -2148,7 +2150,7 @@ public class ModConfigScreen extends Screen {
                 .resolve("dictionary");
         try {
             Files.createDirectories(dictionaryDirectory);
-            Util.getPlatform().openUri(dictionaryDirectory.toUri());
+            Blaze3D.openPath(dictionaryDirectory);
             setStatus(t("status.opened_dictionary_directory", Component.literal(dictionaryDirectory.toString())), COLOR_STATUS_OK);
         } catch (IOException e) {
             Translate_AllinOne.LOGGER.warn("Failed to open dictionary directory {}", dictionaryDirectory, e);
@@ -2170,7 +2172,7 @@ public class ModConfigScreen extends Screen {
         }
 
         try {
-            Util.getPlatform().openUri(repositoryUrl);
+            Blaze3D.openUri(Util.parseAndValidateUntrustedUri(repositoryUrl));
             setStatus(t("status.opened_repository"), COLOR_STATUS_OK);
         } catch (Exception e) {
             Translate_AllinOne.LOGGER.warn("Failed to open repository url {}", repositoryUrl, e);
@@ -2799,7 +2801,7 @@ public class ModConfigScreen extends Screen {
         double mouseY = click.y();
         boolean modalOpen = isAnyModalOpen();
 
-        if (click.button() != 0) {
+        if (click.button() != InputConstants.MOUSE_BUTTON_LEFT) {
             if (modalOpen) {
                 return true;
             }
@@ -2922,7 +2924,7 @@ public class ModConfigScreen extends Screen {
             return true;
         }
 
-        if (click.button() == 0) {
+        if (click.button() == InputConstants.MOUSE_BUTTON_LEFT) {
             UiRect thumb = scrollbarThumbRect();
             if (thumb != null && thumb.contains(mouseX, mouseY)) {
                 startScrollbarDrag();
@@ -2994,7 +2996,7 @@ public class ModConfigScreen extends Screen {
     public boolean mouseDragged(MouseButtonEvent click, double deltaX, double deltaY) {
         if (isAnyModalOpen()) {
             draggingSlider = null;
-            if (draggingDictionaryFilesScrollbar && click.button() == 0) {
+            if (draggingDictionaryFilesScrollbar && click.button() == InputConstants.MOUSE_BUTTON_LEFT) {
                 int next = dictionaryFilesOffsetFromThumbMouseY(click.y());
                 if (next != dictionaryFilesScrollOffset) {
                     dictionaryFilesScrollOffset = next;
@@ -3010,12 +3012,12 @@ public class ModConfigScreen extends Screen {
             return true;
         }
 
-        if (draggingSlider != null && click.button() == 0) {
+        if (draggingSlider != null && click.button() == InputConstants.MOUSE_BUTTON_LEFT) {
             draggingSlider.dragTo(click.x());
             return true;
         }
 
-        if (draggingContentScrollbar && click.button() == 0) {
+        if (draggingContentScrollbar && click.button() == InputConstants.MOUSE_BUTTON_LEFT) {
             int nextOffset = scrollOffsetFromThumbMouseY(click.y());
             if (nextOffset != contentScrollOffset) {
                 applyScrollOffset(nextOffset, true);
@@ -3023,7 +3025,7 @@ public class ModConfigScreen extends Screen {
             return true;
         }
 
-        if (draggingContentByMouse && click.button() == 0) {
+        if (draggingContentByMouse && click.button() == InputConstants.MOUSE_BUTTON_LEFT) {
             double delta = click.y() - contentDragStartMouseY;
             double rawOffset = contentDragStartOffset - delta;
             int nextOffset = clampScrollOffset((int) Math.round(rawOffset));
@@ -3060,13 +3062,13 @@ public class ModConfigScreen extends Screen {
             return true;
         }
 
-        if (draggingSlider != null && click.button() == 0) {
+        if (draggingSlider != null && click.button() == InputConstants.MOUSE_BUTTON_LEFT) {
             draggingSlider.release();
             draggingSlider = null;
             return true;
         }
 
-        if ((draggingContentScrollbar || draggingContentByMouse) && click.button() == 0) {
+        if ((draggingContentScrollbar || draggingContentByMouse) && click.button() == InputConstants.MOUSE_BUTTON_LEFT) {
             stopScrollingDrag();
             return true;
         }

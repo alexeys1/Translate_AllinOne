@@ -17,6 +17,7 @@ import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.entity.SignBlockEntity;
 import net.minecraft.world.level.block.entity.SignText;
+import net.minecraft.world.level.block.entity.SignTextSlot;
 import net.minecraft.world.phys.Vec3;
 public final class SignTranslationSupport {
     private static final String FACE_POLICY_VERSION = "sign-face-v1";
@@ -40,8 +41,8 @@ public final class SignTranslationSupport {
                 || !isWithinRadius(sign, config)) {
             return new RenderedSignText(stateFront, stateBack);
         }
-        SignText originalFront = sign.getFrontText();
-        SignText originalBack = sign.getBackText();
+        SignText originalFront = sign.getText(SignTextSlot.FRONT);
+        SignText originalBack = sign.getText(SignTextSlot.BACK);
         boolean filtered = state.isTextFilteringEnabled;
         if (!ComponentRenderTranslationSupport.shouldRenderTranslated(config)) {
             refreshFaceIfNeeded(sign, originalFront, ContinuousSignTranslationCoordinator.Face.FRONT, filtered, config);
@@ -79,7 +80,7 @@ public final class SignTranslationSupport {
             return;
         }
 
-        Component[] lines = renderedText.getMessages(state.isTextFilteringEnabled);
+        Component[] lines = renderedText.getMessages(state.isTextFilteringEnabled).toArray(Component[]::new);
         if (lines == null || lines.length != SignText.LINES) {
             clearRegisteredRenderLines(signText);
             return;
@@ -116,7 +117,7 @@ public final class SignTranslationSupport {
         if (original == null || translated == null || translated.length != SignText.LINES) {
             return original;
         }
-        Component[] source = original.getMessages(state.isTextFilteringEnabled);
+        Component[] source = original.getMessages(state.isTextFilteringEnabled).toArray(Component[]::new);
         Component[] guarded = Arrays.copyOf(source, source.length);
         for (int index = 0; index < source.length; index++) {
             Component candidate = translated[index];
@@ -124,7 +125,7 @@ public final class SignTranslationSupport {
                 guarded[index] = candidate;
             }
         }
-        return new SignText(guarded, guarded, original.getColor(), original.hasGlowingText());
+        return new SignText(Arrays.asList(guarded), Arrays.asList(guarded), original.getColor(), original.hasGlowingText());
     }
 
     private static SignText resolveFace(
@@ -141,7 +142,7 @@ public final class SignTranslationSupport {
         }
         ContinuousSignTranslationCoordinator.SignFaceKey key =
                 new ContinuousSignTranslationCoordinator.SignFaceKey(sign.getBlockPos(), face);
-        Component[] source = original.getMessages(filtered);
+        Component[] source = original.getMessages(filtered).toArray(Component[]::new);
         if (source == null || source.length != SignText.LINES) {
             return original;
         }
@@ -153,7 +154,7 @@ public final class SignTranslationSupport {
         if (coordinatedAnimationKey != null) {
             return rebuildSignText(
                     original,
-                    animateLines(original.getMessages(filtered), coordinatedAnimationKey),
+                    animateLines(original.getMessages(filtered).toArray(Component[]::new), coordinatedAnimationKey),
                     state,
                     font
             );
@@ -241,7 +242,7 @@ public final class SignTranslationSupport {
         if (config.continuous_sign_translation && ContinuousSignTranslationCoordinator.isGroupedFace(key)) {
             return;
         }
-        Component[] source = original.getMessages(filtered);
+        Component[] source = original.getMessages(filtered).toArray(Component[]::new);
         if (source == null || source.length != SignText.LINES) {
             return;
         }

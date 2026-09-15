@@ -3,6 +3,7 @@ package com.alexeys.translate_allinone.utils.config.pojos;
 public class InputBindingConfig {
     public InputType type = InputType.KEYSYM;
     public int code = -1;
+    public String keyName;
 
     public enum InputType {
         KEYSYM,
@@ -10,6 +11,6 @@ public class InputBindingConfig {
     }
 
     public boolean isBound() {
-        return code >= 0;
+        return (keyName != null && !keyName.isBlank()) || code >= 0;
     }
 }

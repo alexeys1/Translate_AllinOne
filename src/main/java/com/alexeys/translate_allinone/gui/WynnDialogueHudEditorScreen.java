@@ -9,6 +9,7 @@ import com.alexeys.translate_allinone.gui.configui.render.ConfigUiDraw;
 import com.alexeys.translate_allinone.utils.config.ModConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.WynnCraftConfig;
 import com.alexeys.translate_allinone.utils.translate.WynnDialogueHudRenderer;
+import com.mojang.blaze3d.platform.InputConstants;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -74,7 +75,7 @@ public class WynnDialogueHudEditorScreen extends Screen {
 
     @Override
     public boolean mouseClicked(MouseButtonEvent click, boolean doubled) {
-        if (click.button() != 0) {
+        if (click.button() != InputConstants.MOUSE_BUTTON_LEFT) {
             return super.mouseClicked(click, doubled);
         }
 
@@ -98,7 +99,7 @@ public class WynnDialogueHudEditorScreen extends Screen {
 
     @Override
     public boolean mouseDragged(MouseButtonEvent click, double deltaX, double deltaY) {
-        if (!draggingHud || click.button() != 0) {
+        if (!draggingHud || click.button() != InputConstants.MOUSE_BUTTON_LEFT) {
             return super.mouseDragged(click, deltaX, deltaY);
         }
 
@@ -108,7 +109,7 @@ public class WynnDialogueHudEditorScreen extends Screen {
 
     @Override
     public boolean mouseReleased(MouseButtonEvent click) {
-        if (draggingHud && click.button() == 0) {
+        if (draggingHud && click.button() == InputConstants.MOUSE_BUTTON_LEFT) {
             draggingHud = false;
             return true;
         }

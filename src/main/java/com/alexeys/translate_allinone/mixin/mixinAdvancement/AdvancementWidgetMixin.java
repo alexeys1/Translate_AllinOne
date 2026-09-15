@@ -52,7 +52,7 @@ public class AdvancementWidgetMixin {
     private List<FormattedCharSequence> description;
 
     @Inject(
-            method = "extractHover(Lnet/minecraft/client/gui/GuiGraphicsExtractor;IIFII)V",
+            method = "extractHover(Lnet/minecraft/client/gui/GuiGraphicsExtractor;IIFIII)V",
             at = @At("HEAD"),
             require = 0
     )
@@ -61,8 +61,9 @@ public class AdvancementWidgetMixin {
             int x,
             int y,
             float fade,
-            int width,
-            int height,
+            int screenX,
+            int screenY,
+            int screenWidth,
             CallbackInfo ci
     ) {
         translate_allinone$refreshHoverTextLayout();
@@ -77,9 +78,9 @@ public class AdvancementWidgetMixin {
         AdvancementHolder holder = advancementNode == null ? null : advancementNode.holder();
         VanillaAdvancementTranslationSupport.HoveredAdvancementText hoveredText =
                 VanillaAdvancementTranslationSupport.translateHoveredText(holder, display);
-        Component translatedTitle = hoveredText.title() == null ? display.getTitle() : hoveredText.title();
+        Component translatedTitle = hoveredText.title() == null ? display.title() : hoveredText.title();
         Component translatedDescription = hoveredText.description() == null
-                ? display.getDescription()
+                ? display.description()
                 : hoveredText.description();
 
         List<FormattedCharSequence> refreshedTitleLines = minecraft.font.split(translatedTitle, 163);

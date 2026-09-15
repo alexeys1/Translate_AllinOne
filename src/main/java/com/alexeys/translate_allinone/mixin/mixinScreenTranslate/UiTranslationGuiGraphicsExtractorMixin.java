@@ -107,7 +107,7 @@ public abstract class UiTranslationGuiGraphicsExtractorMixin {
     }
 
     @Redirect(
-            method = "textWithWordWrap(Lnet/minecraft/client/gui/Font;Lnet/minecraft/network/chat/FormattedText;IIIIZ)V",
+            method = "textWithWordWrap(Lnet/minecraft/client/gui/Font;Lnet/minecraft/network/chat/FormattedText;IIIIZ)I",
             at = @At(
                     value = "INVOKE",
                     target = "Lnet/minecraft/client/gui/Font;split(Lnet/minecraft/network/chat/FormattedText;I)Ljava/util/List;"

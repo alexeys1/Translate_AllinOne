@@ -10,6 +10,7 @@ import com.alexeys.translate_allinone.utils.config.pojos.ChatTranslateConfig;
 import com.alexeys.translate_allinone.utils.input.KeybindingManager;
 import com.alexeys.translate_allinone.utils.translate.ChatInputTranslateManager;
 import com.alexeys.translate_allinone.utils.translate.ChatOutputTranslateManager;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.ActiveTextCollector;
 import net.minecraft.client.gui.Font;
@@ -23,7 +24,6 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
-import org.lwjgl.glfw.GLFW;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -253,7 +253,7 @@ public class ChatScreenMixin {
         ChatInputTranslateManager.PanelAvailability availability = translate_allinone$getPanelAvailability();
         if (panelDragging) {
             Minecraft client = Minecraft.getInstance();
-            if (client == null || GLFW.glfwGetMouseButton(client.getWindow().handle(), GLFW.GLFW_MOUSE_BUTTON_LEFT) != GLFW.GLFW_PRESS) {
+            if (client == null || !KeybindingManager.isMouseButtonDown(InputConstants.MOUSE_BUTTON_LEFT)) {
                 panelDragging = false;
                 translate_allinone$persistPanelState();
             } else {
@@ -283,7 +283,7 @@ public class ChatScreenMixin {
     private void onMouseClicked(MouseButtonEvent click, boolean bl, CallbackInfoReturnable<Boolean> cir) {
         panelDragging = false;
 
-        if (click.button() == GLFW.GLFW_MOUSE_BUTTON_MIDDLE && translate_allinone$handleMiddleClickOnChat(click)) {
+        if (click.button() == InputConstants.MOUSE_BUTTON_MIDDLE && translate_allinone$handleMiddleClickOnChat(click)) {
             cir.setReturnValue(true);
             return;
         }
@@ -826,7 +826,7 @@ public class ChatScreenMixin {
         if (keyCode == null) {
             return false;
         }
-        return keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER;
+        return keyCode == InputConstants.KEY_RETURN || keyCode == InputConstants.KEY_NUMPADENTER;
     }
 
     @Unique

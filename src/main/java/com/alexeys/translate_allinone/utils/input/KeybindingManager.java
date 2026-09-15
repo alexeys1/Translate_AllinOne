@@ -2,11 +2,16 @@ package com.alexeys.translate_allinone.utils.input;
 
 import com.alexeys.translate_allinone.utils.config.pojos.InputBindingConfig;
 import com.mojang.blaze3d.platform.InputConstants;
+import java.nio.FloatBuffer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.input.KeyEvent;
-import org.lwjgl.glfw.GLFW;
+import org.lwjgl.sdl.SDLMouse;
+import org.lwjgl.system.MemoryStack;
 
 public final class KeybindingManager {
+    private static final int MOUSE_BUTTON_FIRST = InputConstants.MOUSE_BUTTON_LEFT;
+    private static final int MOUSE_BUTTON_LAST = InputConstants.MOUSE_BUTTON_8;
+
     private KeybindingManager() {
     }
 
@@ -15,14 +20,15 @@ public final class KeybindingManager {
     }
 
     public static boolean isEscape(KeyEvent keyInput) {
-        return extractKeyCode(keyInput) == GLFW.GLFW_KEY_ESCAPE;
+        return extractKeyCode(keyInput) == InputConstants.KEY_ESCAPE;
     }
 
     public static boolean matchesKeyInput(InputBindingConfig binding, KeyEvent keyInput) {
-        if (!isBound(binding) || binding.type != InputBindingConfig.InputType.KEYSYM) {
+        if (!isBound(binding) || binding.type != InputBindingConfig.InputType.KEYSYM || keyInput == null) {
             return false;
         }
-        return extractKeyCode(keyInput) == binding.code;
+        InputConstants.Key bound = resolveKey(binding);
+        return bound != null && bound.equals(InputConstants.getKey(keyInput));
     }
 
     public static boolean isPressed(InputBindingConfig binding) {
@@ -35,40 +41,56 @@ public final class KeybindingManager {
             return false;
         }
 
-        int code = binding.code;
-        if (code < 0) {
+        InputConstants.Key key = resolveKey(binding);
+        if (key == null) {
             return false;
         }
 
         try {
-            if (binding.type == InputBindingConfig.InputType.MOUSE) {
-                return code <= GLFW.GLFW_MOUSE_BUTTON_LAST
-                        && GLFW.glfwGetMouseButton(client.getWindow().handle(), code) == GLFW.GLFW_PRESS;
+            if (key.getType() == InputConstants.Type.MOUSE) {
+                return isMouseButtonDown(key.getValue());
             }
-            return code <= GLFW.GLFW_KEY_LAST && InputConstants.isKeyDown(client.getWindow(), code);
+            return InputConstants.isKeyDown(key.getValue());
         } catch (Exception e) {
             return false;
         }
     }
 
+    public static boolean isMouseButtonDown(int button) {
+        if (button < MOUSE_BUTTON_FIRST || button > MOUSE_BUTTON_LAST) {
+            return false;
+        }
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            FloatBuffer x = stack.callocFloat(1);
+            FloatBuffer y = stack.callocFloat(1);
+            return (SDLMouse.SDL_GetMouseState(x, y) & 1 << (button - 1)) != 0;
+        }
+    }
+
     public static InputBindingConfig captureKeyboardBinding(KeyEvent keyInput) {
-        int code = extractKeyCode(keyInput);
-        if (code < 0) {
+        if (keyInput == null) {
+            return null;
+        }
+        InputConstants.Key key = InputConstants.getKey(keyInput);
+        if (key == null || key == InputConstants.UNKNOWN) {
             return null;
         }
         InputBindingConfig binding = new InputBindingConfig();
         binding.type = InputBindingConfig.InputType.KEYSYM;
-        binding.code = code;
+        binding.keyName = key.getName();
+        binding.code = key.getValue();
         return binding;
     }
 
     public static InputBindingConfig captureMouseBinding(int mouseButton) {
-        if (mouseButton < 0 || mouseButton > GLFW.GLFW_MOUSE_BUTTON_LAST) {
+        if (mouseButton < MOUSE_BUTTON_FIRST || mouseButton > MOUSE_BUTTON_LAST) {
             return null;
         }
+        InputConstants.Key key = InputConstants.Type.MOUSE.getOrCreate(mouseButton);
         InputBindingConfig binding = new InputBindingConfig();
         binding.type = InputBindingConfig.InputType.MOUSE;
-        binding.code = mouseButton;
+        binding.keyName = key.getName();
+        binding.code = key.getValue();
         return binding;
     }
 
@@ -78,6 +100,7 @@ public final class KeybindingManager {
         }
         target.type = source.type;
         target.code = source.code;
+        target.keyName = source.keyName;
     }
 
     public static void clear(InputBindingConfig target) {
@@ -86,6 +109,7 @@ public final class KeybindingManager {
         }
         target.type = InputBindingConfig.InputType.KEYSYM;
         target.code = -1;
+        target.keyName = null;
     }
 
     public static String displayName(InputBindingConfig binding) {
@@ -94,16 +118,28 @@ public final class KeybindingManager {
         }
 
         try {
-            if (binding.type == InputBindingConfig.InputType.MOUSE) {
-                return InputConstants.Type.MOUSE.getOrCreate(binding.code).getDisplayName().getString();
+            InputConstants.Key key = resolveKey(binding);
+            if (key != null) {
+                return key.getDisplayName().getString();
             }
-            return InputConstants.Type.KEYSYM.getOrCreate(binding.code).getDisplayName().getString();
-        } catch (Exception e) {
-            if (binding.type == InputBindingConfig.InputType.MOUSE) {
-                return "Mouse " + (binding.code + 1);
-            }
-            return "Key " + binding.code;
+        } catch (Exception ignored) {
         }
+        return fallbackDisplayName(binding);
+    }
+
+    static InputConstants.Key resolveKey(InputBindingConfig binding) {
+        if (binding == null || binding.keyName == null || binding.keyName.isBlank()) {
+            return null;
+        }
+        InputConstants.Key named = InputConstants.getKey(binding.keyName);
+        return named == InputConstants.UNKNOWN ? null : named;
+    }
+
+    private static String fallbackDisplayName(InputBindingConfig binding) {
+        if (binding.type == InputBindingConfig.InputType.MOUSE) {
+            return "Mouse " + (binding.code + 1);
+        }
+        return "Key " + binding.code;
     }
 
     private static int extractKeyCode(KeyEvent keyInput) {

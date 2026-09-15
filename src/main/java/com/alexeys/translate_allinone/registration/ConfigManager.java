@@ -23,6 +23,8 @@ import com.alexeys.translate_allinone.utils.config.pojos.WynnCraftConfig;
 import com.alexeys.translate_allinone.utils.config.ApiKeyCipher;
 import com.alexeys.translate_allinone.utils.config.ConfigApiKeyEncryptionSupport;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
+import com.alexeys.translate_allinone.utils.input.LegacyKeybindingNumberingSupport;
+import com.mojang.blaze3d.platform.InputConstants;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -152,6 +154,7 @@ public class ConfigManager {
             boolean migratedLegacyWynnTargetLanguageConfig = migrateLegacyWynnTargetLanguageConfig(rawConfig, loadedConfig);
             boolean migratedLegacyVanillaAdvancementConfig = migrateLegacyVanillaAdvancementConfig(rawConfig, loadedConfig);
             boolean migratedLegacyComponentRoutingConfig = migrateLegacyComponentRoutingConfig(rawConfig, loadedConfig);
+            boolean migratedLegacyKeybindingNumbering = migrateLegacyKeybindingNumbering(loadedConfig);
             boolean removedOtherTranslationsRequestsPerMinute = removeOtherTranslationsRequestsPerMinute(rawConfig);
             boolean removedStructuredOutputConfig = removeStructuredOutputConfig(rawConfig);
             loadedConfig = normalizeConfig(loadedConfig);
@@ -168,6 +171,7 @@ public class ConfigManager {
                     || migratedLegacyWynnTargetLanguageConfig
                     || migratedLegacyVanillaAdvancementConfig
                     || migratedLegacyComponentRoutingConfig
+                    || migratedLegacyKeybindingNumbering
                     || removedOtherTranslationsRequestsPerMinute
                     || removedStructuredOutputConfig
                     || missingOtherTranslationsMasterSwitch) {
@@ -790,6 +794,60 @@ public class ConfigManager {
         }
     }
 
+    private static boolean migrateLegacyKeybindingNumbering(ModConfig loadedConfig) {
+        if (loadedConfig == null) {
+            return false;
+        }
+        boolean migrated = false;
+        for (InputBindingConfig binding : legacyBindings(loadedConfig)) {
+            migrated |= migrateLegacyKeybinding(binding);
+        }
+        return migrated;
+    }
+
+    private static List<InputBindingConfig> legacyBindings(ModConfig loadedConfig) {
+        List<InputBindingConfig> bindings = new ArrayList<>();
+        if (loadedConfig.chatTranslate != null && loadedConfig.chatTranslate.input != null) {
+            bindings.add(loadedConfig.chatTranslate.input.keybinding);
+        }
+        if (loadedConfig.itemTranslate != null && loadedConfig.itemTranslate.keybinding != null) {
+            bindings.add(loadedConfig.itemTranslate.keybinding.binding);
+            bindings.add(loadedConfig.itemTranslate.keybinding.refreshBinding);
+        }
+        if (loadedConfig.otherTranslations != null && loadedConfig.otherTranslations.keybinding != null) {
+            bindings.add(loadedConfig.otherTranslations.keybinding.binding);
+            bindings.add(loadedConfig.otherTranslations.keybinding.refreshBinding);
+        }
+        if (loadedConfig.scoreboardTranslate != null && loadedConfig.scoreboardTranslate.keybinding != null) {
+            bindings.add(loadedConfig.scoreboardTranslate.keybinding.binding);
+            bindings.add(loadedConfig.scoreboardTranslate.keybinding.refreshBinding);
+        }
+        if (loadedConfig.wynnCraft != null
+                && loadedConfig.wynnCraft.wynntils_task_tracker != null
+                && loadedConfig.wynnCraft.wynntils_task_tracker.keybinding != null) {
+            bindings.add(loadedConfig.wynnCraft.wynntils_task_tracker.keybinding.binding);
+            bindings.add(loadedConfig.wynnCraft.wynntils_task_tracker.keybinding.refreshBinding);
+        }
+        return bindings;
+    }
+
+    private static boolean migrateLegacyKeybinding(InputBindingConfig binding) {
+        if (binding == null || binding.keyName != null || binding.code < 0) {
+            return false;
+        }
+        InputConstants.Key legacyKey = LegacyKeybindingNumberingSupport.resolveLegacyKeybinding(
+                binding.code,
+                binding.type == InputBindingConfig.InputType.MOUSE
+        );
+        if (legacyKey == null) {
+            binding.code = -1;
+            return true;
+        }
+        binding.keyName = legacyKey.getName();
+        binding.code = legacyKey.getValue();
+        return true;
+    }
+
     private static boolean migrateLegacyItemDebugConfig(JsonElement rawConfig, ModConfig loadedConfig) {
         if (loadedConfig == null || loadedConfig.itemTranslate == null || loadedConfig.itemTranslate.debug == null) {
             return false;
@@ -1034,6 +1092,7 @@ public class ConfigManager {
         }
         copy.type = source.type == null ? InputBindingConfig.InputType.KEYSYM : source.type;
         copy.code = source.code;
+        copy.keyName = source.keyName;
         return copy;
     }
 

@@ -6,7 +6,6 @@ import com.alexeys.translate_allinone.utils.config.pojos.ItemTranslateConfig;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.mojang.blaze3d.platform.InputConstants;
-import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -110,9 +109,9 @@ public final class TooltipTextDebugCopySupport {
         }
 
         try {
-            boolean controlDown = InputConstants.isKeyDown(client.getWindow(), GLFW.GLFW_KEY_LEFT_CONTROL)
-                    || InputConstants.isKeyDown(client.getWindow(), GLFW.GLFW_KEY_RIGHT_CONTROL);
-            return controlDown && InputConstants.isKeyDown(client.getWindow(), GLFW.GLFW_KEY_C);
+            boolean controlDown = InputConstants.isKeyDown(InputConstants.KEY_LCONTROL)
+                    || InputConstants.isKeyDown(InputConstants.KEY_RCONTROL);
+            return controlDown && InputConstants.isKeyDown(InputConstants.KEY_C);
         } catch (Exception ignored) {
             return false;
         }
