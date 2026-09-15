@@ -118,6 +118,8 @@ public abstract class DrawContextTooltipMixin {
             return;
         }
 
+        translate_allinone$dropGeneratedComponents(components);
+
         int componentHash = translate_allinone$quickComponentHash(components);
         ParsedTooltip parsedTooltip;
         boolean parsedTooltipCacheHit;
@@ -342,6 +344,22 @@ public abstract class DrawContextTooltipMixin {
         } catch (UnsupportedOperationException e) {
             translate_allinone$logImmutableComponentListOnce();
             return false;
+        }
+    }
+
+    @Unique
+    private void translate_allinone$dropGeneratedComponents(List<ClientTooltipComponent> components) {
+        if (components == null || components.isEmpty()) {
+            return;
+        }
+
+        try {
+            components.removeIf(component -> component instanceof ClientTextTooltip textTooltip
+                    && TooltipInternalLineSupport.isInternalGeneratedLine(
+                            translate_allinone$orderedTextToText(((OrderedTextTooltipComponentAccessor) textTooltip).getText())
+                    ));
+        } catch (UnsupportedOperationException e) {
+            translate_allinone$logImmutableComponentListOnce();
         }
     }
 
