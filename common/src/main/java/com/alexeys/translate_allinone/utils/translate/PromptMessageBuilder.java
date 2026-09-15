@@ -9,6 +9,14 @@ public final class PromptMessageBuilder {
     private PromptMessageBuilder() {
     }
 
+    private static final String PLAIN_TEXT_OUTPUT_SHAPE = "\nOutput shape: Return one plain-text translation only. "
+            + "Do not return JSON, an array, a quoted string, a Markdown code fence, or an explanation.";
+    private static final String INDEXED_MAP_OUTPUT_SHAPE = "\nOutput shape: Return exactly one JSON object. "
+            + "Keys must be the requested ids, unchanged; every value must be the translated string only. "
+            + "Keep the requested ids and entry count exactly. "
+            + "Do not return arrays, nested objects, extra fields, or content after the closing brace. "
+            + "Expected shape: {\"1\":\"translated text\"}";
+
     public static List<OpenAIRequest.Message> buildMessages(String systemPrompt, String userPrompt, boolean supportsSystemMessage) {
         return buildMessages(systemPrompt, userPrompt, supportsSystemMessage, null, true);
     }
@@ -84,13 +92,6 @@ public final class PromptMessageBuilder {
                     + "Do not return Markdown, explanations, extra fields, or arrays.\n"
                     + "Keep all requested ids and entry counts exactly.\n"
                     + "\n"
-                    + "Protected data:\n"
-                    + "Preserve every style tag, placeholder, URL, command, item id, number, unit, formatting code, \\n, and \\t exactly.\n"
-                    + "\n"
-                    + "Failure rule:\n"
-                    + "Do not explain, do not echo the source, do not invent tokens.\n"
-                    + "If an uncertain term is a normal natural-language word, translate or transliterate it; do not keep the whole sentence unchanged.\n"
-                    + "\n"
                     + "Wording:\n"
                     + "Use concise, natural game UI wording.\n"
                     + "\"take N damage from X\" means the subject receives damage from X, never deals damage to X.";
@@ -102,15 +103,8 @@ public final class PromptMessageBuilder {
                     + "Do not return Markdown, explanations, extra fields, or arrays.\n"
                     + "Keep every key, id, entry count, and entry order unchanged; translate text only.\n"
                     + "\n"
-                    + "Protected data:\n"
-                    + "Preserve exactly Minecraft formatting codes, <sN> tags, {dN}, {gN}, {valueN}, %s/%d/%f, scores, URLs, numbers, \\n, and \\t.\n"
-                    + "\n"
                     + "Wording:\n"
-                    + "Use short, scannable game UI wording. Do not add labels, padding, or commentary.\n"
-                    + "\n"
-                    + "Failure rule:\n"
-                    + "Do not explain, do not echo the source, do not invent tokens.\n"
-                    + "If an uncertain term is a normal natural-language word, translate or transliterate it; do not keep the whole sentence unchanged.";
+                    + "Use short, scannable game UI wording. Do not add labels, padding, or commentary.";
             case "sign_book" -> "Task:\n"
                     + "Translate Minecraft sign and book text into " + targetLanguage + " for an in-game client.\n"
                     + "\n"
@@ -119,17 +113,9 @@ public final class PromptMessageBuilder {
                     + "Do not return Markdown, explanations, extra fields, or arrays.\n"
                     + "Keep all requested ids and entry counts exactly; preserve line breaks and paragraph boundaries.\n"
                     + "\n"
-                    + "Protected data:\n"
-                    + "Preserve all ids, keys, formatting markers, placeholders, URLs, numbers, commands, item ids, and proper nouns.\n"
-                    + "Preserve exactly Minecraft formatting codes, <sN> tags, {dN}, {gN}, {valueN}, %s/%d/%f, \\n, and \\t.\n"
-                    + "\n"
                     + "Wording:\n"
                     + "Keep sign faces short and keep their line breaks exactly. For books, preserve paragraph boundaries and explicit line breaks.\n"
-                    + "Do not invent, remove, or alter interactive data represented by the request.\n"
-                    + "\n"
-                    + "Failure rule:\n"
-                    + "Do not explain, do not echo the source, do not invent tokens.\n"
-                    + "If an uncertain term is a normal natural-language word, translate or transliterate it; do not keep the whole sentence unchanged.";
+                    + "Do not invent, remove, or alter interactive data represented by the request.\n";
             case "entity_text" -> "Task:\n"
                     + "Translate Minecraft entity names and text displays into " + targetLanguage + " for an in-game client.\n"
                     + "\n"
@@ -138,16 +124,8 @@ public final class PromptMessageBuilder {
                     + "Do not return Markdown, explanations, extra fields, or arrays.\n"
                     + "Keep all requested ids and entry counts exactly.\n"
                     + "\n"
-                    + "Protected data:\n"
-                    + "Preserve all ids, keys, formatting markers, placeholders, URLs, numbers, commands, item ids, and proper nouns.\n"
-                    + "Preserve exactly Minecraft formatting codes, <sN> tags, {dN}, {gN}, {valueN}, %s/%d/%f, \\n, and \\t.\n"
-                    + "\n"
                     + "Wording:\n"
-                    + "Name tags must stay short. Text displays may use natural sentence order, but do not add line breaks.\n"
-                    + "\n"
-                    + "Failure rule:\n"
-                    + "Do not explain, do not echo the source, do not invent tokens.\n"
-                    + "If an uncertain term is a normal natural-language word, translate or transliterate it; do not keep the whole sentence unchanged.";
+                    + "Name tags must stay short. Text displays may use natural sentence order, but do not add line breaks.\n";
             case "chat_output" -> "Task:\n"
                     + "Translate a received Minecraft chat message into " + targetLanguage + ".\n"
                     + "\n"
@@ -155,30 +133,14 @@ public final class PromptMessageBuilder {
                     + "Return only the translated message text.\n"
                     + "Do not return Markdown, explanations, quotes, or extra fields.\n"
                     + "\n"
-                    + "Protected data:\n"
-                    + "Speaker names and NPC names are already removed from the input; never add or guess them. Preserve server commands, item ids, URLs, numbers, and uncertain proper nouns.\n"
-                    + "Preserve exactly Minecraft formatting codes, every <sN> tag, {dN}, {gN}, {valueN}, %s/%d/%f, \\n, and \\t.\n"
-                    + "\n"
                     + "Wording:\n"
-                    + "Translate ordinary wording naturally while keeping protected tokens attached to their intended meaning.\n"
-                    + "\n"
-                    + "Failure rule:\n"
-                    + "Do not explain, do not echo the source, do not invent tokens.\n"
-                    + "If an uncertain term is a normal natural-language word, translate or transliterate it; do not keep the whole sentence unchanged.";
+                    + "Translate ordinary wording naturally while keeping protected tokens attached to their intended meaning.\n";
             case "chat_input_translate" -> "Task:\n"
                     + "Translate player-composed Minecraft chat input into " + targetLanguage + ".\n"
                     + "\n"
                     + "Output contract:\n"
                     + "Output only the final translated message, with no Markdown, quotes, or explanation.\n"
-                    + "Use natural chat phrasing and change punctuation or spacing only when the translation requires it.\n"
-                    + "\n"
-                    + "Protected data:\n"
-                    + "Preserve commands beginning with /, player names, item ids, URLs, numbers, and uncertain proper nouns.\n"
-                    + "Preserve exactly Minecraft formatting codes, <sN> tags, {dN}, {gN}, {valueN}, %s/%d/%f, \\n, and \\t.\n"
-                    + "\n"
-                    + "Failure rule:\n"
-                    + "Do not explain, do not echo the source, do not invent tokens.\n"
-                    + "If an uncertain term is a normal natural-language word, translate or transliterate it; do not keep the whole sentence unchanged.";
+                    + "Use natural chat phrasing and change punctuation or spacing only when the translation requires it.\n";
             case "wynn_npc_dialogue" -> "Task:\n"
                     + "Translate WynnCraft NPC dialogue and quest narration into " + targetLanguage + ".\n"
                     + "\n"
@@ -186,17 +148,9 @@ public final class PromptMessageBuilder {
                     + "Return only the JSON response required by the request.\n"
                     + "Do not return Markdown, explanations, extra fields, or arrays.\n"
                     + "\n"
-                    + "Protected data:\n"
-                    + "Keep character names, place names such as Ragni and Troms, and [bracketed] item names unchanged.\n"
-                    + "Preserve exactly Minecraft formatting codes, <sN> tags, {dN}, {gN}, {valueN}, %s/%d/%f, URLs, numbers, \\n, \\t, and decorative text.\n"
-                    + "\n"
                     + "Story & Wording:\n"
                     + "Preserve story meaning, speaker tone, paragraph breaks, and established WynnCraft terminology.\n"
-                    + "Render poetic lines naturally in " + targetLanguage + " without adding commentary.\n"
-                    + "\n"
-                    + "Failure rule:\n"
-                    + "Do not explain, do not echo the source, do not invent tokens.\n"
-                    + "If an uncertain term is a normal natural-language word, translate or transliterate it; do not keep the whole sentence unchanged.";
+                    + "Render poetic lines naturally in " + targetLanguage + " without adding commentary.\n";
             case "wynntils_task_tracker" -> "Task:\n"
                     + "Translate Wynntils task-tracker objectives and progress text into " + targetLanguage + ".\n"
                     + "\n"
@@ -205,20 +159,24 @@ public final class PromptMessageBuilder {
                     + "Do not return Markdown, explanations, extra fields, or arrays.\n"
                     + "Keep every key, id, entry count, and entry order unchanged; translate text only.\n"
                     + "\n"
-                    + "Protected data:\n"
-                    + "Preserve counts, coordinates, names, and progress indicators exactly.\n"
-                    + "Preserve exactly Minecraft formatting codes, <sN> tags, {dN}, {gN}, {valueN}, %s/%d/%f, URLs, numbers, \\n, and \\t.\n"
-                    + "\n"
                     + "Wording:\n"
-                    + "Use concise objective wording.\n"
-                    + "\n"
-                    + "Failure rule:\n"
-                    + "Do not explain, do not echo the source, do not invent tokens.\n"
-                    + "If an uncertain term is a normal natural-language word, translate or transliterate it; do not keep the whole sentence unchanged.";
+                    + "Use concise objective wording.\n";
             case "screen_ui" -> "Translate static third-party Minecraft configuration UI text into " + targetLanguage
                     + ". Preserve visible text only, formatting codes, URLs, paths, commands, key bindings, placeholders, numbers, units, decorative glyphs, module identities, configuration keys, and persistent values. Return only the required JSON response with no Markdown or extra fields.";
             default -> "";
         };
+    }
+
+    public static String getForcedOutputContract(String routeKey) {
+        return switch (routeKey) {
+            case "chat_input_translate", "chat_output" -> PLAIN_TEXT_OUTPUT_SHAPE;
+            case "item", "wynn_npc_dialogue", "wynntils_task_tracker" -> INDEXED_MAP_OUTPUT_SHAPE;
+            default -> "";
+        };
+    }
+
+    public static String appendForcedOutputContract(String prompt, String routeKey) {
+        return appendContract(prompt, getForcedOutputContract(routeKey));
     }
 
     public static String getForcedProtectedDataContract(String routeKey) {
@@ -276,8 +234,14 @@ public final class PromptMessageBuilder {
         };
     }
 
-    public static String appendForcedProtectedDataContract(String prompt, String routeKey) {
-        String contract = getForcedProtectedDataContract(routeKey);
+    public static String appendForcedContracts(String prompt, String routeKey) {
+        return appendContract(
+                appendContract(prompt, getForcedOutputContract(routeKey)),
+                getForcedProtectedDataContract(routeKey)
+        );
+    }
+
+    private static String appendContract(String prompt, String contract) {
         if (contract == null || contract.isBlank()) {
             return prompt;
         }

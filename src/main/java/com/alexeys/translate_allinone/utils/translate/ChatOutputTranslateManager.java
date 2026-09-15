@@ -1580,7 +1580,7 @@ public class ChatOutputTranslateManager {
     private static List<OpenAIRequest.Message> getMessages(ApiProviderProfile providerProfile, String targetLanguage, String textToTranslate) {
         String basePrompt = PromptMessageBuilder.getDefaultPrompt("chat_output", targetLanguage);
         String resolved = PromptMessageBuilder.applyPromptOverride("chat_output", basePrompt, providerProfile.system_prompt_overrides, targetLanguage);
-        String systemPrompt = PromptMessageBuilder.appendForcedProtectedDataContract(
+        String systemPrompt = PromptMessageBuilder.appendForcedContracts(
                 PromptMessageBuilder.appendSystemPromptSuffix(
                         resolved,
                         providerProfile.activeSystemPromptSuffix()

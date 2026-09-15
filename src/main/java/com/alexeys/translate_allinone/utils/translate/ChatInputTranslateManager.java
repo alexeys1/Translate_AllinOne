@@ -384,7 +384,7 @@ public class ChatInputTranslateManager {
     ) {
         String basePrompt = buildSystemPrompt(targetLanguage, mode, instruction);
         String resolved = PromptMessageBuilder.applyPromptOverride("chat_input_translate", basePrompt, providerProfile.system_prompt_overrides, targetLanguage);
-        String systemPrompt = PromptMessageBuilder.appendForcedProtectedDataContract(
+        String systemPrompt = PromptMessageBuilder.appendForcedContracts(
                 PromptMessageBuilder.appendSystemPromptSuffix(
                         resolved,
                         providerProfile.activeSystemPromptSuffix()

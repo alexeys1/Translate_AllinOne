@@ -69,38 +69,86 @@ class PromptMessageBuilderTest {
     }
 
     @Test
-    void defaultPromptsUseFourPartStructure() {
-        assertFourPartStructure("scoreboard", true);
-        assertFourPartStructure("sign_book", true);
-        assertFourPartStructure("entity_text", true);
-        assertFourPartStructure("chat_output", true);
-        assertFourPartStructure("chat_input_translate", false);
-        assertFourPartStructure("wynn_npc_dialogue", true);
-        assertFourPartStructure("wynntils_task_tracker", true);
+    void forcedOutputContractShapesPlainTextRoutes() {
+        for (String routeKey : List.of("chat_input_translate", "chat_output")) {
+            String contract = PromptMessageBuilder.getForcedOutputContract(routeKey);
+            assertTrue(contract.contains("Output shape:"), routeKey);
+            assertTrue(contract.contains("plain-text translation only"), routeKey);
+            assertFalse(contract.contains("JSON object"), routeKey);
+        }
+    }
+
+    @Test
+    void forcedOutputContractShapesIndexedMapRoutes() {
+        for (String routeKey : List.of("item", "wynn_npc_dialogue", "wynntils_task_tracker")) {
+            String contract = PromptMessageBuilder.getForcedOutputContract(routeKey);
+            assertTrue(contract.contains("Output shape:"), routeKey);
+            assertTrue(contract.contains("Return exactly one JSON object"), routeKey);
+            assertTrue(contract.contains("{\"1\":\"translated text\"}"), routeKey);
+        }
+    }
+
+    @Test
+    void forcedOutputContractIsBlankForComponentProtocolRoutes() {
+        for (String routeKey : List.of("scoreboard", "sign_book", "entity_text", "screen_ui", "other_translations", "unknown_route")) {
+            assertTrue(PromptMessageBuilder.getForcedOutputContract(routeKey).isBlank(), routeKey);
+            assertEquals("base", PromptMessageBuilder.appendForcedOutputContract("base", routeKey), routeKey);
+        }
+    }
+
+    @Test
+    void defaultPromptsDropDuplicatedForcedSections() {
+        assertDefaultStructure("item", true);
+        assertDefaultStructure("scoreboard", true);
+        assertDefaultStructure("sign_book", true);
+        assertDefaultStructure("entity_text", true);
+        assertDefaultStructure("chat_output", true);
+        assertDefaultStructure("chat_input_translate", false);
+        assertDefaultStructure("wynn_npc_dialogue", true);
+        assertDefaultStructure("wynntils_task_tracker", true);
         assertTrue(PromptMessageBuilder.getDefaultPromptTemplate("wynn_npc_dialogue").contains("Story & Wording:"));
+        assertTrue(PromptMessageBuilder.getDefaultPromptTemplate("item").contains("\"take N damage from X\" means"));
+        assertFalse(PromptMessageBuilder.getDefaultPromptTemplate("screen_ui").contains("Protected data:"));
+        assertFalse(PromptMessageBuilder.getDefaultPromptTemplate("other_translations").contains("Protected data:"));
         assertFalse(PromptMessageBuilder.getDefaultPromptTemplate("chat_output").contains("JSON"));
         assertFalse(PromptMessageBuilder.getDefaultPromptTemplate("chat_input_translate").contains("JSON"));
     }
 
-    private static void assertFourPartStructure(String routeKey, boolean expectWording) {
+    private static void assertDefaultStructure(String routeKey, boolean expectWording) {
         String prompt = PromptMessageBuilder.getDefaultPromptTemplate(routeKey);
         assertTrue(prompt.contains("Task:"), routeKey + " should contain Task:");
         assertTrue(prompt.contains("Output contract:"), routeKey + " should contain Output contract:");
-        assertTrue(prompt.contains("Protected data:"), routeKey + " should contain Protected data:");
-        assertTrue(prompt.contains("Failure rule:"), routeKey + " should contain Failure rule:");
+        assertFalse(prompt.contains("Protected data:"), routeKey + " must not duplicate the forced protected data contract");
+        assertFalse(prompt.contains("Failure rule:"), routeKey + " must not duplicate the forced failure rule");
         assertEquals(expectWording, prompt.contains("Wording:"), routeKey + " Wording presence mismatch");
     }
 
-
     @Test
-    void appendForcedProtectedDataContractSurvivesPromptOverride() {
-        String prompt = PromptMessageBuilder.appendForcedProtectedDataContract(
-                "Custom chat output prompt.",
-                "chat_output"
-        );
+    void forcedContractsSurvivePromptOverrideInOrder() {
+        String prompt = PromptMessageBuilder.appendForcedContracts("Custom chat output prompt.", "chat_output");
+
         assertTrue(prompt.contains("Custom chat output prompt."));
-        assertTrue(prompt.contains("Chat output protected data:"));
-        assertTrue(prompt.contains("If an uncertain term is a normal natural-language word"));
+        int shape = prompt.indexOf("Output shape:");
+        int protectedData = prompt.indexOf("Chat output protected data:");
+        assertTrue(shape >= 0);
+        assertTrue(protectedData > shape);
+        assertTrue(prompt.indexOf("If an uncertain term is a normal natural-language word") > protectedData);
     }
 
+    @Test
+    void forcedContractsSurviveSystemRoleUnsupportedMerge() {
+        String systemPrompt = PromptMessageBuilder.appendForcedContracts("Custom Wynn prompt.", "wynn_npc_dialogue");
+        List<OpenAIRequest.Message> messages = PromptMessageBuilder.buildMessages(
+                systemPrompt,
+                "{\"1\":\"Hello\"}",
+                false,
+                null,
+                true
+        );
+
+        assertEquals(1, messages.size());
+        assertEquals("user", messages.get(0).role);
+        assertTrue(messages.get(0).content.contains("Output shape:"));
+        assertTrue(messages.get(0).content.contains("Wynn NPC dialogue protected data:"));
+    }
 }
