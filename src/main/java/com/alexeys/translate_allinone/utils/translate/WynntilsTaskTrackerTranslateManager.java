@@ -200,9 +200,7 @@ public final class WynntilsTaskTrackerTranslateManager {
         List<OpenAIRequest.Message> messages = PromptMessageBuilder.buildMessages(
                 systemPrompt,
                 userPrompt,
-                providerProfile.activeSupportsSystemMessage(),
-                providerProfile.model_id,
-                providerProfile.activeInjectSystemPromptIntoUserMessage());
+                providerProfile.activeSupportsSystemMessage());
         String requestContext = buildRequestContext(providerProfile, targetLanguage, originalTexts, messages);
         WynntilsTaskTrackerTranslationSupport.devLog(
                 "llm_submit context={} payload={}",

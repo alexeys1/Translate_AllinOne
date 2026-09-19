@@ -119,7 +119,6 @@ public final class ProviderRouteResolver {
         modelCopy.wynn_npc_dialogue_temperature = modelSettings.temperatureFor(ApiProviderProfile.TemperatureScene.WYNN_NPC_DIALOGUE);
         modelCopy.keep_alive_time = modelSettings.keep_alive_time;
         modelCopy.supports_system_message = modelSettings.supports_system_message;
-        modelCopy.inject_system_prompt_into_user_message = modelSettings.inject_system_prompt_into_user_message;
         modelCopy.system_prompt_suffix = modelSettings.system_prompt_suffix;
         modelCopy.custom_parameters = customParametersCopy;
         snapshot.model_settings = new ArrayList<>(1);
@@ -134,7 +133,6 @@ public final class ProviderRouteResolver {
         snapshot.wynn_npc_dialogue_temperature = modelCopy.wynn_npc_dialogue_temperature;
         snapshot.keep_alive_time = modelCopy.keep_alive_time;
         snapshot.supports_system_message = modelCopy.supports_system_message;
-        snapshot.inject_system_prompt_into_user_message = modelCopy.inject_system_prompt_into_user_message;
         snapshot.system_prompt_suffix = modelCopy.system_prompt_suffix;
         snapshot.custom_parameters = customParametersCopy;
         if (source.system_prompt_overrides != null) {

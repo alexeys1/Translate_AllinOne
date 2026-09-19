@@ -28,7 +28,6 @@ public final class ModelSettingsMutationSupport {
             double wynnNpcDialogueTemperature,
             String keepAliveTime,
             boolean supportsSystemMessage,
-            boolean injectPromptIntoUser,
             String systemPromptSuffix,
             List<CustomParameterEntry> customParameters,
             boolean setAsDefault
@@ -58,7 +57,6 @@ public final class ModelSettingsMutationSupport {
         settings.wynn_npc_dialogue_temperature = wynnNpcDialogueTemperature;
         settings.keep_alive_time = keepAliveTime;
         settings.supports_system_message = supportsSystemMessage;
-        settings.inject_system_prompt_into_user_message = injectPromptIntoUser;
         settings.system_prompt_suffix = systemPromptSuffix;
         settings.custom_parameters = creating
                 ? ModelCustomParameterDefaultsSupport.applyForNewModel(profile, customParameters)

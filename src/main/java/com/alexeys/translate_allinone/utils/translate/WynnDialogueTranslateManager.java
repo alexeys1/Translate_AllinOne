@@ -197,9 +197,7 @@ public final class WynnDialogueTranslateManager {
         List<OpenAIRequest.Message> messages = PromptMessageBuilder.buildMessages(
                 systemPrompt,
                 userPrompt,
-                providerProfile.activeSupportsSystemMessage(),
-                providerProfile.model_id,
-                providerProfile.activeInjectSystemPromptIntoUserMessage()
+                providerProfile.activeSupportsSystemMessage()
         );
         String requestContext = buildRequestContext(providerProfile, targetLanguage, originalKeys, messages);
         WynnDialogueTranslationSupport.throttledDevLog(

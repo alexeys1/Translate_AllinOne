@@ -397,9 +397,7 @@ public final class ComponentTranslationResponseClient {
         return PromptMessageBuilder.buildMessages(
                 systemPrompt,
                 request.toJson(),
-                providerProfile.activeSupportsSystemMessage(),
-                providerProfile.model_id,
-                true
+                providerProfile.activeSupportsSystemMessage()
         );
     }
 

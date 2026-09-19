@@ -336,7 +336,6 @@
   "text.translate_allinone.configscreen.modal.dictionary_files.instructions": "点击下方文件名即可设为当前选择（鼠标滚轮可滚动文件列表）",
   "text.translate_allinone.configscreen.modal.dictionary_files.title": "选择字典文件 - %s",
   "text.translate_allinone.configscreen.modal.model.custom_parameters": "自定义参数",
-  "text.translate_allinone.configscreen.modal.model.inject_prompt_into_user": "注入提示词至用户消息",
   "text.translate_allinone.configscreen.modal.model.keep_alive": "Keep Alive",
   "text.translate_allinone.configscreen.modal.model.name": "模型名称",
   "text.translate_allinone.configscreen.modal.model.set_default": "设为默认模型",

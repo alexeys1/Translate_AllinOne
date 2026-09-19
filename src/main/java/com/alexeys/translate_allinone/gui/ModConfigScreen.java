@@ -322,7 +322,6 @@ public class ModConfigScreen extends Screen {
     private String modelSettingsWynnNpcDialogueTemperatureBackup = "";
     private String modelSettingsKeepAliveDraft = "";
     private boolean modelSettingsSupportsSystemDraft;
-    private boolean modelSettingsInjectPromptIntoUserDraft = true;
     private String modelSettingsSystemPromptSuffixDraft = "";
     private List<CustomParameterEntry> modelSettingsCustomParametersDraft = new ArrayList<>();
     private List<CustomParameterEntry> customParametersBackup = new ArrayList<>();
@@ -1250,7 +1249,6 @@ public class ModConfigScreen extends Screen {
         modelSettingsWynnNpcDialogueTemperatureBackup = modelSettingsWynnNpcDialogueTemperatureDraft;
         modelSettingsKeepAliveDraft = draft.keepAliveDraft();
         modelSettingsSupportsSystemDraft = draft.supportsSystem();
-        modelSettingsInjectPromptIntoUserDraft = draft.injectPromptIntoUser();
         modelSettingsSystemPromptSuffixDraft = draft.systemPromptSuffixDraft();
         modelSettingsCustomParametersDraft = draft.customParametersDraft();
         customParametersBackup = draft.customParametersBackup();
@@ -1287,7 +1285,6 @@ public class ModConfigScreen extends Screen {
         modelSettingsWynnNpcDialogueTemperatureBackup = "";
         modelSettingsKeepAliveDraft = empty.keepAliveDraft();
         modelSettingsSupportsSystemDraft = empty.supportsSystem();
-        modelSettingsInjectPromptIntoUserDraft = empty.injectPromptIntoUser();
         modelSettingsSystemPromptSuffixDraft = empty.systemPromptSuffixDraft();
         modelSettingsCustomParametersDraft = empty.customParametersDraft();
         customParametersBackup = empty.customParametersBackup();
@@ -1497,7 +1494,6 @@ public class ModConfigScreen extends Screen {
                 modelSettingsSystemPromptSuffixDraft,
                 CustomParameterTreeSupport.countEntries(modelSettingsCustomParametersDraft),
                 modelSettingsSupportsSystemDraft,
-                modelSettingsInjectPromptIntoUserDraft,
                 modelSettingsSetDefault,
                 ModConfigScreen::t,
                 floatingActionBlockRegistry::add,
@@ -1519,7 +1515,6 @@ public class ModConfigScreen extends Screen {
                     modelSettingsSupportsSystemDraft = value;
                     rebuildActionBlocks(FocusTarget.MODEL_NAME);
                 },
-                value -> modelSettingsInjectPromptIntoUserDraft = value,
                 value -> modelSettingsSetDefault = value,
                 () -> {
                     closeModelSettingsModal();
@@ -1544,7 +1539,6 @@ public class ModConfigScreen extends Screen {
                 modelSettingsWynnNpcDialogueTemperatureDraft,
                 modelSettingsKeepAliveDraft,
                 modelSettingsSupportsSystemDraft,
-                modelSettingsInjectPromptIntoUserDraft,
                 modelSettingsSystemPromptSuffixDraft,
                 modelSettingsCustomParametersDraft,
                 modelSettingsSetDefault

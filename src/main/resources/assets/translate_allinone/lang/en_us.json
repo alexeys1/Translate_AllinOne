@@ -348,7 +348,6 @@
   "text.translate_allinone.configscreen.modal.dictionary_files.instructions": "Click a file row below to make it the active selection (scroll with the mouse wheel)",
   "text.translate_allinone.configscreen.modal.dictionary_files.title": "Select Dictionary File - %s",
   "text.translate_allinone.configscreen.modal.model.custom_parameters": "Custom Parameters",
-  "text.translate_allinone.configscreen.modal.model.inject_prompt_into_user": "Inject prompt into user message",
   "text.translate_allinone.configscreen.modal.model.keep_alive": "Keep Alive",
   "text.translate_allinone.configscreen.modal.model.name": "Model Name",
   "text.translate_allinone.configscreen.modal.model.set_default": "Set as default model",

@@ -1590,9 +1590,7 @@ public class ChatOutputTranslateManager {
         return PromptMessageBuilder.buildMessages(
                 systemPrompt,
                 textToTranslate,
-                providerProfile.activeSupportsSystemMessage(),
-                providerProfile.model_id,
-                providerProfile.activeInjectSystemPromptIntoUserMessage()
+                providerProfile.activeSupportsSystemMessage()
         );
     }
 

@@ -35,7 +35,6 @@ public class ApiProviderProfile {
     public Double wynn_npc_dialogue_temperature = null;
     public String keep_alive_time = "1m";
     public boolean supports_system_message = true;
-    public boolean inject_system_prompt_into_user_message = true;
     public String system_prompt_suffix = "";
     public List<CustomParameterEntry> custom_parameters = new ArrayList<>();
     public Map<String, String> system_prompt_overrides = new LinkedHashMap<>();
@@ -148,11 +147,6 @@ public class ApiProviderProfile {
         return settings == null ? supports_system_message : settings.supports_system_message;
     }
 
-    public boolean activeInjectSystemPromptIntoUserMessage() {
-        ModelSettings settings = getActiveModelSettings();
-        return settings == null ? inject_system_prompt_into_user_message : settings.inject_system_prompt_into_user_message;
-    }
-
     public String activeSystemPromptSuffix() {
         ModelSettings settings = getActiveModelSettings();
         return settings == null ? system_prompt_suffix : settings.system_prompt_suffix;
@@ -190,7 +184,6 @@ public class ApiProviderProfile {
         wynn_npc_dialogue_temperature = active.temperatureFor(TemperatureScene.WYNN_NPC_DIALOGUE);
         keep_alive_time = normalizeKeepAlive(active.keep_alive_time);
         supports_system_message = active.supports_system_message;
-        inject_system_prompt_into_user_message = active.inject_system_prompt_into_user_message;
         system_prompt_suffix = normalizeSuffix(active.system_prompt_suffix);
         custom_parameters = copyCustomParameters(active.custom_parameters);
     }
@@ -208,7 +201,6 @@ public class ApiProviderProfile {
         settings.temperature = settings.temperatureFor(TemperatureScene.CHAT);
         settings.keep_alive_time = normalizeKeepAlive(source.keep_alive_time);
         settings.supports_system_message = source.supports_system_message;
-        settings.inject_system_prompt_into_user_message = source.inject_system_prompt_into_user_message;
         settings.system_prompt_suffix = normalizeSuffix(source.system_prompt_suffix);
         settings.custom_parameters = copyCustomParameters(source.custom_parameters);
         return settings;
@@ -227,7 +219,6 @@ public class ApiProviderProfile {
         settings.temperature = settings.temperatureFor(TemperatureScene.CHAT);
         settings.keep_alive_time = normalizeKeepAlive(keep_alive_time);
         settings.supports_system_message = supports_system_message;
-        settings.inject_system_prompt_into_user_message = inject_system_prompt_into_user_message;
         settings.system_prompt_suffix = normalizeSuffix(system_prompt_suffix);
         settings.custom_parameters = copyCustomParameters(custom_parameters);
         return settings;
@@ -300,7 +291,6 @@ public class ApiProviderProfile {
         public Double wynn_npc_dialogue_temperature = null;
         public String keep_alive_time = "1m";
         public boolean supports_system_message = true;
-        public boolean inject_system_prompt_into_user_message = true;
         public String system_prompt_suffix = "";
         public List<CustomParameterEntry> custom_parameters = new ArrayList<>();
 

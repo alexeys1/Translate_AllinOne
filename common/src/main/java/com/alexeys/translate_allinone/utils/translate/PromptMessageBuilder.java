@@ -18,25 +18,6 @@ public final class PromptMessageBuilder {
             + "Expected shape: {\"1\":\"translated text\"}";
 
     public static List<OpenAIRequest.Message> buildMessages(String systemPrompt, String userPrompt, boolean supportsSystemMessage) {
-        return buildMessages(systemPrompt, userPrompt, supportsSystemMessage, null, true);
-    }
-
-    public static List<OpenAIRequest.Message> buildMessages(
-            String systemPrompt,
-            String userPrompt,
-            boolean supportsSystemMessage,
-            String modelId
-    ) {
-        return buildMessages(systemPrompt, userPrompt, supportsSystemMessage, modelId, true);
-    }
-
-    public static List<OpenAIRequest.Message> buildMessages(
-            String systemPrompt,
-            String userPrompt,
-            boolean supportsSystemMessage,
-            String modelId,
-            boolean injectSystemPromptIntoUserMessage
-    ) {
         String safeSystem = systemPrompt == null ? "" : systemPrompt;
         String safeUser = userPrompt == null ? "" : userPrompt;
 

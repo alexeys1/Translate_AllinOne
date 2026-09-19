@@ -40,12 +40,10 @@ class PromptMessageBuilderTest {
     }
 
     @Test
-    void keepsSystemPromptWhenSystemRoleUnsupportedEvenIfInjectionDisabled() {
+    void mergesSystemPromptIntoUserWhenSystemRoleUnsupported() {
         List<OpenAIRequest.Message> messages = PromptMessageBuilder.buildMessages(
                 "Translate player-composed Minecraft chat input into Chinese.",
                 "Hello",
-                false,
-                null,
                 false
         );
 
@@ -141,9 +139,7 @@ class PromptMessageBuilderTest {
         List<OpenAIRequest.Message> messages = PromptMessageBuilder.buildMessages(
                 systemPrompt,
                 "{\"1\":\"Hello\"}",
-                false,
-                null,
-                true
+                false
         );
 
         assertEquals(1, messages.size());
