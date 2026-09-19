@@ -336,7 +336,7 @@ public final class WynntilsTaskTrackerTranslateManager {
                     }
                 } catch (IndexedMapResponseException e) {
                     failedTaskKeys.addAll(originalTexts);
-                    String failureMessage = e.code() == TranslationRejectionCode.ID_MISMATCH
+                    String failureMessage = e.code() == IndexedMapRejectionCode.ID_MISMATCH
                             ? "LLM response key mismatch"
                             : "Invalid JSON response";
                     cache.requeueFailed(Set.copyOf(originalTexts), failureMessage);

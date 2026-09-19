@@ -23,7 +23,6 @@ import com.alexeys.translate_allinone.utils.text.LegacyComponentTextCodec;
 import com.alexeys.translate_allinone.utils.translate.PlainTextResponseDecoder;
 import com.alexeys.translate_allinone.utils.translate.TranslationContentGate;
 import com.alexeys.translate_allinone.utils.translate.TranslationContentVerdict;
-import com.alexeys.translate_allinone.utils.translate.TranslationRejectionCode;
 import com.alexeys.translate_allinone.utils.translate.TranslationMode;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
@@ -476,7 +475,7 @@ public class ChatOutputTranslateManager {
                     if (!outputVerdict.accepted()) {
                         throw new IllegalArgumentException(
                                 "Provider response rejected by the content quality gate: "
-                                        + outputVerdict.code()
+                                        + outputVerdict.reason()
                         );
                     }
                     final String finalTranslation = PlainTextResponseDecoder.decode(result).text();
@@ -955,7 +954,7 @@ public class ChatOutputTranslateManager {
     ) {
         PlainTextResponseDecoder.DecodeResult decoded = PlainTextResponseDecoder.decode(rawResponse);
         if (decoded == null) {
-            return TranslationContentVerdict.reject(TranslationRejectionCode.MALFORMED_PROTOCOL);
+            return TranslationContentVerdict.reject(TranslationContentVerdict.MALFORMED_PROTOCOL);
         }
         return TranslationContentGate.evaluate(
                 TranslationMode.TRANSLATE,

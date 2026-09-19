@@ -30,7 +30,7 @@ class TranslationContentGateTest {
         );
 
         assertFalse(verdict.accepted());
-        assertEquals(TranslationRejectionCode.EMPTY, verdict.code());
+        assertEquals(TranslationContentVerdict.EMPTY, verdict.reason());
     }
 
     @Test
@@ -56,7 +56,7 @@ class TranslationContentGateTest {
         );
 
         assertFalse(verdict.accepted());
-        assertEquals(TranslationRejectionCode.TRUNCATED, verdict.code());
+        assertEquals(TranslationContentVerdict.TRUNCATED, verdict.reason());
     }
 
     @Test
@@ -69,7 +69,7 @@ class TranslationContentGateTest {
         );
 
         assertFalse(verdict.accepted());
-        assertEquals(TranslationRejectionCode.STRUCTURED_ARTIFACT, verdict.code());
+        assertEquals(TranslationContentVerdict.STRUCTURED_ARTIFACT, verdict.reason());
     }
 
     @Test
@@ -82,7 +82,7 @@ class TranslationContentGateTest {
         );
 
         assertFalse(verdict.accepted());
-        assertEquals(TranslationRejectionCode.STRUCTURED_ARTIFACT, verdict.code());
+        assertEquals(TranslationContentVerdict.STRUCTURED_ARTIFACT, verdict.reason());
     }
 
     @Test
@@ -95,7 +95,7 @@ class TranslationContentGateTest {
         );
 
         assertFalse(verdict.accepted());
-        assertEquals(TranslationRejectionCode.STRUCTURED_ARTIFACT, verdict.code());
+        assertEquals(TranslationContentVerdict.STRUCTURED_ARTIFACT, verdict.reason());
     }
 
     @Test
@@ -108,7 +108,7 @@ class TranslationContentGateTest {
         );
 
         assertFalse(verdict.accepted());
-        assertEquals(TranslationRejectionCode.STRUCTURED_ARTIFACT, verdict.code());
+        assertEquals(TranslationContentVerdict.STRUCTURED_ARTIFACT, verdict.reason());
     }
 
     @Test
@@ -133,7 +133,7 @@ class TranslationContentGateTest {
         );
 
         assertFalse(verdict.accepted());
-        assertEquals(TranslationRejectionCode.SOURCE_COPY, verdict.code());
+        assertEquals(TranslationContentVerdict.SOURCE_COPY, verdict.reason());
     }
 
     @Test
@@ -146,7 +146,7 @@ class TranslationContentGateTest {
         );
 
         assertFalse(verdict.accepted());
-        assertEquals(TranslationRejectionCode.SOURCE_COPY, verdict.code());
+        assertEquals(TranslationContentVerdict.SOURCE_COPY, verdict.reason());
     }
 
     @Test
@@ -190,7 +190,7 @@ class TranslationContentGateTest {
         );
 
         assertFalse(verdict.accepted());
-        assertEquals(TranslationRejectionCode.MISSING_TARGET_LANGUAGE_SIGNAL, verdict.code());
+        assertEquals(TranslationContentVerdict.MISSING_TARGET_LANGUAGE_SIGNAL, verdict.reason());
     }
 
     @Test
@@ -263,7 +263,7 @@ class TranslationContentGateTest {
         );
 
         assertFalse(verdict.accepted());
-        assertEquals(TranslationRejectionCode.STRUCTURED_ARTIFACT, verdict.code());
+        assertEquals(TranslationContentVerdict.STRUCTURED_ARTIFACT, verdict.reason());
     }
 
     @Test
@@ -276,7 +276,7 @@ class TranslationContentGateTest {
         );
 
         assertFalse(verdict.accepted());
-        assertEquals(TranslationRejectionCode.ABNORMAL_REPETITION, verdict.code());
+        assertEquals(TranslationContentVerdict.ABNORMAL_REPETITION, verdict.reason());
     }
 
     @Test
@@ -289,7 +289,7 @@ class TranslationContentGateTest {
         );
 
         assertFalse(verdict.accepted());
-        assertEquals(TranslationRejectionCode.ABNORMAL_REPETITION, verdict.code());
+        assertEquals(TranslationContentVerdict.ABNORMAL_REPETITION, verdict.reason());
     }
 
     @Test
@@ -302,7 +302,7 @@ class TranslationContentGateTest {
         );
 
         assertFalse(verdict.accepted());
-        assertEquals(TranslationRejectionCode.PROTECTED_TOKEN_MISMATCH, verdict.code());
+        assertEquals(TranslationContentVerdict.PROTECTED_TOKEN_MISMATCH, verdict.reason());
     }
 
     @Test
@@ -339,7 +339,7 @@ class TranslationContentGateTest {
         );
 
         assertFalse(verdict.accepted());
-        assertEquals(TranslationRejectionCode.PROTECTED_TOKEN_MISMATCH, verdict.code());
+        assertEquals(TranslationContentVerdict.PROTECTED_TOKEN_MISMATCH, verdict.reason());
     }
 
     @Test
@@ -364,7 +364,7 @@ class TranslationContentGateTest {
         );
 
         assertFalse(verdict.accepted());
-        assertEquals(TranslationRejectionCode.TRUNCATED, verdict.code());
+        assertEquals(TranslationContentVerdict.TRUNCATED, verdict.reason());
     }
 
     @Test
@@ -389,7 +389,7 @@ class TranslationContentGateTest {
         );
 
         assertFalse(verdict.accepted());
-        assertEquals(TranslationRejectionCode.SOURCE_COPY, verdict.code());
+        assertEquals(TranslationContentVerdict.SOURCE_COPY, verdict.reason());
     }
 
     @Test

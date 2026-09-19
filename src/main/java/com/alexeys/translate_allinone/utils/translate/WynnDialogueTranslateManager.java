@@ -326,7 +326,7 @@ public final class WynnDialogueTranslateManager {
                     }
                 } catch (IndexedMapResponseException e) {
                     failedTaskKeys.addAll(originalKeys);
-                    String failureMessage = e.code() == TranslationRejectionCode.ID_MISMATCH
+                    String failureMessage = e.code() == IndexedMapRejectionCode.ID_MISMATCH
                             ? "LLM response key mismatch"
                             : "Invalid JSON response";
                     cache.requeueFailed(Set.copyOf(originalKeys), failureMessage);

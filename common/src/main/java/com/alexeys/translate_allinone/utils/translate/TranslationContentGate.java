@@ -43,13 +43,13 @@ public final class TranslationContentGate {
     ) {
         TranslationMode resolvedMode = mode == null ? TranslationMode.TRANSLATE : mode;
         if (candidate == null || candidate.isBlank()) {
-            return TranslationContentVerdict.reject(TranslationRejectionCode.EMPTY);
+            return TranslationContentVerdict.reject(TranslationContentVerdict.EMPTY);
         }
         if (truncated) {
-            return TranslationContentVerdict.reject(TranslationRejectionCode.TRUNCATED);
+            return TranslationContentVerdict.reject(TranslationContentVerdict.TRUNCATED);
         }
         if (looksLikeStructuredArtifact(candidate)) {
-            return TranslationContentVerdict.reject(TranslationRejectionCode.STRUCTURED_ARTIFACT);
+            return TranslationContentVerdict.reject(TranslationContentVerdict.STRUCTURED_ARTIFACT);
         }
         if (checkProtectedTokens) {
             TranslationContentVerdict tokenVerdict = evaluateProtectedTokens(source, candidate);
@@ -65,21 +65,21 @@ public final class TranslationContentGate {
             if (sourceLetters >= ProtectedTextNormalizer.MIN_SOURCE_LETTERS
                     && candidateHasComparableText
                     && ProtectedTextNormalizer.normalizeComparable(source).equals(candidateComparable)) {
-                return TranslationContentVerdict.reject(TranslationRejectionCode.SOURCE_COPY);
+                return TranslationContentVerdict.reject(TranslationContentVerdict.SOURCE_COPY);
             }
             if (ProtectedTextNormalizer.isChineseTarget(targetLanguage)
                     && sourceLetters >= ProtectedTextNormalizer.MIN_SOURCE_LETTERS
                     && candidateComparable.length() >= ProtectedTextNormalizer.MIN_SOURCE_LETTERS
                     && !ProtectedTextNormalizer.containsCjk(candidate)) {
-                return TranslationContentVerdict.reject(TranslationRejectionCode.MISSING_TARGET_LANGUAGE_SIGNAL);
+                return TranslationContentVerdict.reject(TranslationContentVerdict.MISSING_TARGET_LANGUAGE_SIGNAL);
             }
             if (ProtectedTextNormalizer.isChineseTarget(targetLanguage)
                     && ProtectedTextNormalizer.looksTruncatedForChineseOutput(source, candidate)) {
-                return TranslationContentVerdict.reject(TranslationRejectionCode.TRUNCATED);
+                return TranslationContentVerdict.reject(TranslationContentVerdict.TRUNCATED);
             }
         }
         if (ProtectedTextNormalizer.hasAbnormalRepetition(candidate)) {
-            return TranslationContentVerdict.reject(TranslationRejectionCode.ABNORMAL_REPETITION);
+            return TranslationContentVerdict.reject(TranslationContentVerdict.ABNORMAL_REPETITION);
         }
         return TranslationContentVerdict.accept();
     }
@@ -96,7 +96,7 @@ public final class TranslationContentGate {
         Collections.sort(actualSorted);
         return expectedSorted.equals(actualSorted)
                 ? TranslationContentVerdict.accept()
-                : TranslationContentVerdict.reject(TranslationRejectionCode.PROTECTED_TOKEN_MISMATCH);
+                : TranslationContentVerdict.reject(TranslationContentVerdict.PROTECTED_TOKEN_MISMATCH);
     }
 
     public static boolean alreadyInTargetLanguage(String source, String targetLanguage) {
