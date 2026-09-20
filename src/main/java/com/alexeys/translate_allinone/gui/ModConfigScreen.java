@@ -33,6 +33,7 @@ import com.alexeys.translate_allinone.gui.configui.support.ConfigUiFocusSupport;
 import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport;
 import com.alexeys.translate_allinone.gui.configui.support.ConfigUiTextFieldSupport;
 import com.alexeys.translate_allinone.gui.configui.support.CustomParameterTreeSupport;
+import com.alexeys.translate_allinone.gui.configui.support.ModelCustomParameterDefaultsSupport;
 import com.alexeys.translate_allinone.gui.configui.support.ModelSettingsApplySupport;
 import com.alexeys.translate_allinone.gui.configui.support.ModelSettingsDraftSupport;
 import com.alexeys.translate_allinone.gui.configui.support.ModelSettingsMutationSupport;
@@ -2173,6 +2174,7 @@ public class ModConfigScreen extends Screen {
     }
 
     private void saveAndClose() {
+        applyModelCustomParameterDefaults();
         boolean saved = ConfigUiRuntimeSupport.saveConfig(
                 ModConfigScreen::t,
                 this::setStatus,
@@ -2193,6 +2195,15 @@ public class ModConfigScreen extends Screen {
 
     private void discardChangesAndClose() {
         finishClose();
+    }
+
+    private void applyModelCustomParameterDefaults() {
+        List<String> appliedRoutes = ModelCustomParameterDefaultsSupport.applyDefaultsToAllModels(
+                ConfigManager.getConfig().providerManager
+        );
+        if (!appliedRoutes.isEmpty()) {
+            Translate_AllinOne.LOGGER.debug("Applied thinking disabled defaults to models: {}", appliedRoutes);
+        }
     }
 
     private void openResetConfirmation() {
