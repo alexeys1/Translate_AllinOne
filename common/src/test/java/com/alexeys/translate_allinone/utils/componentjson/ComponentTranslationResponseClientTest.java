@@ -117,26 +117,87 @@ class ComponentTranslationResponseClientTest {
     }
 
     @Test
-    void allowsBatchResponseToReachPerDocumentValidation() {
+    void rejectsRuntimeBatchDocumentWithInvalidPerUnitStructure() {
         ComponentTranslationBatch batch = ComponentTranslationBatch.create(List.of(
                 document(textUnits()),
                 document(textUnits())
         ));
-        ComponentTranslationResponseClient client = client((messages, context, observer, schema, allowFallback) ->
-                CompletableFuture.completedFuture(completion(
-                        "{\"protocol\":\"taio-component-v1\",\"translations\":{\"b0:u0\":\"你好\",\"b1:u0\":\"<s0>你好</s0></s0>\"}}"
-                ))
-        );
+        AtomicInteger calls = new AtomicInteger();
+        ComponentTranslationResponseClient client = client((messages, context, observer, schema, allowFallback) -> {
+            calls.incrementAndGet();
+            return CompletableFuture.completedFuture(completion(
+                    "{\"protocol\":\"taio-component-v1\",\"translations\":{\"b0:u0\":\"你好\",\"b1:u0\":\"<s0>你好</s0></s0>\"}}"
+            ));
+        });
 
-        ComponentTranslationResponse response = client.translate(
+        assertThrows(CompletionException.class, () -> client.translate(
                 batch.requestDocument(),
                 "Chinese",
                 profile(),
                 "batch"
+        ).join());
+
+        assertEquals(2, calls.get());
+    }
+
+    @Test
+    void retriesContentGateRejectionAndAcceptsCorrection() {
+        AtomicInteger calls = new AtomicInteger();
+        ComponentTranslationResponseClient client = client((messages, context, observer, schema, allowFallback) -> {
+            int attempt = calls.incrementAndGet();
+            if (attempt == 1) {
+                return CompletableFuture.completedFuture(completion(validResponse(
+                        "Hello world, this is a test"
+                )));
+            }
+            return CompletableFuture.completedFuture(completion(validResponse(
+                    "你好世界，这是一个测试"
+            )));
+        });
+        List<ComponentTextUnit> units = List.of(new ComponentTextUnit(
+                "u0",
+                "/text",
+                "Hello world, this is a test",
+                Map.of(),
+                "chat_output"
+        ));
+
+        ComponentTranslationResponse response = client.translate(
+                document(units),
+                "Chinese",
+                profile(),
+                "chat-output"
         ).join();
 
-        assertEquals(2, response.translations().size());
-        assertEquals("你好", response.translations().get("b0:u0"));
+        assertEquals(2, calls.get());
+        assertEquals("你好世界，这是一个测试", response.translations().get("u0"));
+    }
+
+    @Test
+    void rejectsSourceEchoContentAfterCorrectionBudget() {
+        AtomicInteger calls = new AtomicInteger();
+        ComponentTranslationResponseClient client = client((messages, context, observer, schema, allowFallback) -> {
+            calls.incrementAndGet();
+            return CompletableFuture.completedFuture(completion(validResponse(
+                    "Hello world, this is a test"
+            )));
+        });
+        List<ComponentTextUnit> units = List.of(new ComponentTextUnit(
+                "u0",
+                "/text",
+                "Hello world, this is a test",
+                Map.of(),
+                "chat_output"
+        ));
+
+        assertThrows(CompletionException.class, () -> client.translate(
+                document(units),
+                "Chinese",
+                profile(),
+                "chat-output"
+        ).join());
+
+        assertEquals(2, calls.get());
     }
 
     @Test

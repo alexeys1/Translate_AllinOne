@@ -144,6 +144,7 @@ public final class ComponentTranslationResponseClient {
                 responseSchema,
                 requestContext,
                 protectedTokenMask,
+                targetLanguage,
                 maxProviderCalls,
                 maxProviderCalls
         ).thenApply(response -> {
@@ -179,6 +180,7 @@ public final class ComponentTranslationResponseClient {
             StructuredOutputSpec responseSchema,
             String requestContext,
             ProtectedTokenMask protectedTokenMask,
+            String targetLanguage,
             int attemptsRemaining,
             int maxProviderCalls
     ) {
@@ -216,9 +218,7 @@ public final class ComponentTranslationResponseClient {
                     );
                 }
                 ComponentTranslationResponse response = parser.parse(rawResponse);
-                if (!isRuntimeBatchDocument(document)) {
-                    validator.validate(document, response);
-                }
+                validator.validate(document, response, targetLanguage);
                 ComponentTranslationMetrics.recordValue(
                         document,
                         ComponentTranslationMetrics.Measurement.RESPONSE_BYTES,
@@ -263,6 +263,7 @@ public final class ComponentTranslationResponseClient {
                         responseSchema,
                         requestContext,
                         protectedTokenMask,
+                        targetLanguage,
                         attemptsRemaining - 1,
                         maxProviderCalls
                 );
@@ -396,9 +397,7 @@ public final class ComponentTranslationResponseClient {
         return PromptMessageBuilder.buildMessages(
                 systemPrompt,
                 request.toJson(),
-                providerProfile.activeSupportsSystemMessage(),
-                providerProfile.model_id,
-                true
+                providerProfile.activeSupportsSystemMessage()
         );
     }
 
@@ -444,11 +443,6 @@ public final class ComponentTranslationResponseClient {
     private static boolean containsProtectedTokenIdentifier(ComponentTranslationRequest request) {
         return request.items().stream()
                 .anyMatch(item -> item.text().contains("__TAIO_PROTECTED_TOKEN_"));
-    }
-
-    private static boolean isRuntimeBatchDocument(ComponentTranslationDocument document) {
-        return document != null
-                && document.semanticSettings().containsKey("batch_size");
     }
 
     private static boolean isTooltipRoute(ComponentTranslationRoute route) {
@@ -574,7 +568,9 @@ public final class ComponentTranslationResponseClient {
             );
             case VALIDATION -> {
                 ComponentTranslationMetrics.Outcome outcome;
-                if (message.contains("translation ids") || message.contains("missing translation")) {
+                if (message.contains("content quality gate")) {
+                    outcome = ComponentTranslationMetrics.Outcome.CONTENT_GATE_REJECTED;
+                } else if (message.contains("translation ids") || message.contains("missing translation")) {
                     outcome = ComponentTranslationMetrics.Outcome.VALIDATION_ID_FAILURE;
                 } else if (message.contains("protected token")) {
                     outcome = ComponentTranslationMetrics.Outcome.VALIDATION_TOKEN_FAILURE;

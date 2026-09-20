@@ -1,5 +1,9 @@
 package com.alexeys.translate_allinone.utils.componentjson;
 
+import com.alexeys.translate_allinone.utils.translate.TranslationContentGate;
+import com.alexeys.translate_allinone.utils.translate.TranslationContentVerdict;
+import com.alexeys.translate_allinone.utils.translate.TranslationMode;
+
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.ArrayList;
@@ -31,6 +35,14 @@ public final class ComponentTranslationValidator {
     public ComponentTranslationResponse validate(
             ComponentTranslationDocument document,
             ComponentTranslationResponse response
+    ) {
+        return validate(document, response, null);
+    }
+
+    public ComponentTranslationResponse validate(
+            ComponentTranslationDocument document,
+            ComponentTranslationResponse response,
+            String targetLanguage
     ) {
         if (document == null || response == null) {
             throw validationError(
@@ -130,6 +142,20 @@ public final class ComponentTranslationValidator {
             if (isLineTooltipRoute(document.route())
                     && !isInlineAnchorParagraph(document)) {
                 validateLineStyleCoverage(unit.sourceText(), translation, unit.id());
+            }
+            TranslationContentVerdict contentVerdict = TranslationContentGate.evaluate(
+                    TranslationMode.TRANSLATE,
+                    unit.sourceText(),
+                    translation,
+                    targetLanguage,
+                    false,
+                    false
+            );
+            if (!contentVerdict.accepted()) {
+                throw validationError(
+                        "Content quality gate rejected translation " + unit.id()
+                                + ": code=" + contentVerdict.reason()
+                );
             }
         }
         return response;

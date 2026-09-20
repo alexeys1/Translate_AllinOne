@@ -1,5 +1,6 @@
 package com.alexeys.translate_allinone.utils.cache;
 
+import com.alexeys.translate_allinone.utils.translate.TranslationCacheReadGuard;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import org.slf4j.Logger;
@@ -52,6 +53,7 @@ public class TextTranslationCacheService {
             )
     );
     private final CachePersistenceSupport persistence = new CachePersistenceSupport(SAVE_DEBOUNCE_MILLIS);
+    private final TranslationCacheReadGuard readGate = new TranslationCacheReadGuard();
     private final ScheduledExecutorService saveExecutor;
 
     protected TextTranslationCacheService(
@@ -143,7 +145,54 @@ public class TextTranslationCacheService {
         if (originalTemplate == null || originalTemplate.isBlank()) {
             return new LookupResult(TranslationStatus.NOT_CACHED, "", null);
         }
-        return toLookupResult(runtimeState.peek(originalTemplate));
+        return applyReadGate(originalTemplate, toLookupResult(runtimeState.peek(originalTemplate)));
+    }
+
+    public void invalidateTranslation(String key, String errorMessage) {
+        if (key == null || key.isBlank()) {
+            return;
+        }
+        String resolvedMessage = errorMessage == null || errorMessage.isBlank()
+                ? "Invalid cached translation"
+                : errorMessage;
+        runtimeState.markInvalidTranslation(key, resolvedMessage);
+        persistence.markDirty();
+        scheduleSave();
+    }
+
+    protected TranslationCacheReadGuard readGate() {
+        return readGate;
+    }
+
+    protected String readGateTargetLanguage() {
+        return null;
+    }
+
+    protected String readGateSourceText(String key) {
+        return key;
+    }
+
+    private LookupResult applyReadGate(String key, LookupResult result) {
+        if (result == null || result.status() != TranslationStatus.TRANSLATED) {
+            return result;
+        }
+        String targetLanguage = readGateTargetLanguage();
+        if (targetLanguage == null || targetLanguage.isBlank()) {
+            return result;
+        }
+        String sourceText = readGateSourceText(key);
+        String cacheGuardKey = targetLanguage + ":" + key;
+        return readGate.check(
+                cacheGuardKey,
+                sourceText,
+                targetLanguage,
+                result,
+                () -> runtimeState.peek(key).status() == CacheRuntimeStateSupport.LookupStatus.TRANSLATED,
+                guardKey -> invalidateTranslation(
+                        key,
+                        "Cached translation rejected by the content quality gate"
+                )
+        );
     }
 
     public List<String> drainAllPendingItems() {
