@@ -1,6 +1,6 @@
 package com.alexeys.translate_allinone.gui.configui.sections;
 
-import com.alexeys.translate_allinone.gui.configui.model.ConfigSection;
+import com.alexeys.translate_allinone.utils.config.ui.ConfigSection;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;

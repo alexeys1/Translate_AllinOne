@@ -1,6 +1,6 @@
 package com.alexeys.translate_allinone.gui.configui.support;
 
-import com.alexeys.translate_allinone.gui.configui.model.FocusTarget;
+import com.alexeys.translate_allinone.utils.config.ui.FocusTarget;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 

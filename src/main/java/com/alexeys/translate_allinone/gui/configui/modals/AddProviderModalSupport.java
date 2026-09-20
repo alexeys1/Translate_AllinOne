@@ -1,6 +1,6 @@
 package com.alexeys.translate_allinone.gui.configui.modals;
 
-import com.alexeys.translate_allinone.gui.configui.model.UiRect;
+import com.alexeys.translate_allinone.utils.config.ui.UiRect;
 import com.alexeys.translate_allinone.gui.configui.render.ConfigUiModalSupport;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderType;
 import java.util.function.Consumer;

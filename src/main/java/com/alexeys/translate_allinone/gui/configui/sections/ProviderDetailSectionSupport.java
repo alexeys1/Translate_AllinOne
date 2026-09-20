@@ -1,7 +1,7 @@
 package com.alexeys.translate_allinone.gui.configui.sections;
 
-import com.alexeys.translate_allinone.gui.configui.support.ProviderEditorSupport;
-import com.alexeys.translate_allinone.gui.configui.support.ProviderProfileSupport;
+import com.alexeys.translate_allinone.utils.config.ui.ProviderEditorSupport;
+import com.alexeys.translate_allinone.utils.config.ui.ProviderProfileSupport;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderType;
 import java.util.List;

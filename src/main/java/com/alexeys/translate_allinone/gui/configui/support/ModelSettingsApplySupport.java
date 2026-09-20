@@ -1,5 +1,7 @@
 package com.alexeys.translate_allinone.gui.configui.support;
 
+import com.alexeys.translate_allinone.utils.config.ui.ModelSettingsValueSupport;
+import com.alexeys.translate_allinone.utils.config.ui.ProviderProfileSupport;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.alexeys.translate_allinone.utils.config.pojos.CustomParameterEntry;
 

@@ -1,4 +1,4 @@
-package com.alexeys.translate_allinone.gui.configui.support;
+package com.alexeys.translate_allinone.utils.config.ui;
 
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderType;

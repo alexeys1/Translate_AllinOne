@@ -1,5 +1,6 @@
 package com.alexeys.translate_allinone.gui;
 
+import com.alexeys.translate_allinone.versionapi.MinecraftScreens;
 import com.alexeys.translate_allinone.Translate_AllinOne;
 import com.alexeys.translate_allinone.gui.configui.controls.ActionBlock;
 import com.alexeys.translate_allinone.gui.configui.controls.ActionBlockRegistry;
@@ -114,7 +115,7 @@ public class PromptEditorScreen extends Screen {
     @Override
     public void onClose() {
         if (this.minecraft != null) {
-            this.minecraft.gui.setScreen(parent);
+            MinecraftScreens.INSTANCE.open(parent);
         }
     }
 
@@ -158,7 +159,7 @@ public class PromptEditorScreen extends Screen {
         }
         profile.normalizePromptOverrides();
         if (this.minecraft != null) {
-            this.minecraft.gui.setScreen(parent);
+            MinecraftScreens.INSTANCE.open(parent);
         }
     }
 
