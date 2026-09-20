@@ -137,6 +137,32 @@ class TranslationContentGateTest {
     }
 
     @Test
+    void skipsSourceEchoCheckWhenTargetLanguageIsUnknown() {
+        assertTrue(TranslationContentGate.evaluate(
+                TranslationMode.TRANSLATE,
+                "Hello world, this is a test",
+                "Hello world, this is a test",
+                null
+        ).accepted());
+        assertTrue(TranslationContentGate.evaluate(
+                TranslationMode.TRANSLATE,
+                "Hello world, this is a test",
+                "Hello world, this is a test",
+                "   "
+        ).accepted());
+    }
+
+    @Test
+    void stillRejectsSourceEchoWhenTargetLanguageIsKnown() {
+        assertFalse(TranslationContentGate.evaluate(
+                TranslationMode.TRANSLATE,
+                "Hello world, this is a test",
+                "Hello world, this is a test",
+                "Chinese"
+        ).accepted());
+    }
+
+    @Test
     void rejectsSourceEchoWithFormattingDifferences() {
         TranslationContentVerdict verdict = TranslationContentGate.evaluate(
                 TranslationMode.TRANSLATE,

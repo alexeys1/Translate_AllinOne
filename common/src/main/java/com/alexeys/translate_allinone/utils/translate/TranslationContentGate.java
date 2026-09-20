@@ -57,7 +57,10 @@ public final class TranslationContentGate {
                 return tokenVerdict;
             }
         }
-        if (resolvedMode == TranslationMode.TRANSLATE && !sourceLooksLikeTargetLanguage(source, targetLanguage)) {
+        boolean languageKnown = targetLanguage != null && !targetLanguage.isBlank();
+        if (resolvedMode == TranslationMode.TRANSLATE
+                && languageKnown
+                && !sourceLooksLikeTargetLanguage(source, targetLanguage)) {
             String strippedSource = ProtectedTextNormalizer.stripProtectedContent(source);
             int sourceLetters = ProtectedTextNormalizer.countAsciiLetters(strippedSource);
             String candidateComparable = ProtectedTextNormalizer.normalizeComparable(candidate);
