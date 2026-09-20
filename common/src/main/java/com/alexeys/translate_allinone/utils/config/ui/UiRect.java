@@ -1,4 +1,4 @@
-package com.alexeys.translate_allinone.gui.configui.model;
+package com.alexeys.translate_allinone.utils.config.ui;
 
 public final class UiRect {
     public final int x;

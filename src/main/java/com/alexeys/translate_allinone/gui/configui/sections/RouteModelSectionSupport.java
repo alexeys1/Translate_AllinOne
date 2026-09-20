@@ -1,8 +1,8 @@
 package com.alexeys.translate_allinone.gui.configui.sections;
 
 import com.alexeys.translate_allinone.gui.configui.model.RouteModelOption;
-import com.alexeys.translate_allinone.gui.configui.model.RouteSlot;
-import com.alexeys.translate_allinone.gui.configui.support.ProviderProfileSupport;
+import com.alexeys.translate_allinone.utils.config.ui.RouteSlot;
+import com.alexeys.translate_allinone.utils.config.ui.ProviderProfileSupport;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.alexeys.translate_allinone.utils.config.pojos.ProviderManagerConfig;
 import java.util.ArrayList;
@@ -90,36 +90,5 @@ public final class RouteModelSectionSupport {
             return missingLabelFactory.apply(routeKey);
         }
         return Component.literal(ProviderProfileSupport.safeProviderName(profile) + "/" + modelId);
-    }
-
-    public static void clearRouteIfMatched(ProviderManagerConfig manager, String providerId) {
-        if (manager.routes == null || providerId == null || providerId.isBlank()) {
-            return;
-        }
-
-        if (ProviderManagerConfig.extractProviderId(manager.routes.item).equals(providerId)) {
-            manager.routes.item = "";
-        }
-        if (ProviderManagerConfig.extractProviderId(manager.routes.scoreboard).equals(providerId)) {
-            manager.routes.scoreboard = "";
-        }
-        if (ProviderManagerConfig.extractProviderId(manager.routes.other_translations).equals(providerId)) {
-            manager.routes.other_translations = "";
-        }
-        if (ProviderManagerConfig.extractProviderId(manager.routes.wynncraft).equals(providerId)) {
-            manager.routes.wynncraft = "";
-        }
-        if (ProviderManagerConfig.extractProviderId(manager.routes.wynn_npc_dialogue).equals(providerId)) {
-            manager.routes.wynn_npc_dialogue = "";
-        }
-        if (ProviderManagerConfig.extractProviderId(manager.routes.wynntils_task_tracker).equals(providerId)) {
-            manager.routes.wynntils_task_tracker = "";
-        }
-        if (ProviderManagerConfig.extractProviderId(manager.routes.chat_input).equals(providerId)) {
-            manager.routes.chat_input = "";
-        }
-        if (ProviderManagerConfig.extractProviderId(manager.routes.chat_output).equals(providerId)) {
-            manager.routes.chat_output = "";
-        }
     }
 }

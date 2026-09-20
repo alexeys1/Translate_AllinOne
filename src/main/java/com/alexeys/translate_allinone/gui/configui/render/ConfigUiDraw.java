@@ -1,6 +1,6 @@
 package com.alexeys.translate_allinone.gui.configui.render;
 
-import com.alexeys.translate_allinone.gui.configui.model.UiRect;
+import com.alexeys.translate_allinone.utils.config.ui.UiRect;
 import java.util.List;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;

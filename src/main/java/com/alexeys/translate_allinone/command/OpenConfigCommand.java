@@ -1,5 +1,6 @@
 package com.alexeys.translate_allinone.command;
 
+import com.alexeys.translate_allinone.versionapi.MinecraftScreens;
 import com.alexeys.translate_allinone.gui.ModConfigScreen;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
@@ -12,14 +13,14 @@ public final class OpenConfigCommand {
 
     public static int run(CommandContext<FabricClientCommandSource> context) {
         Minecraft client = Minecraft.getInstance();
-        client.execute(() -> client.gui.setScreen(new ModConfigScreen(null)));
+        client.execute(() -> MinecraftScreens.INSTANCE.open(new ModConfigScreen(null)));
         return 1;
     }
 
     public static int runWithProvider(CommandContext<FabricClientCommandSource> context) {
         String providerId = StringArgumentType.getString(context, "providerId");
         Minecraft client = Minecraft.getInstance();
-        client.execute(() -> client.gui.setScreen(new ModConfigScreen(null, providerId)));
+        client.execute(() -> MinecraftScreens.INSTANCE.open(new ModConfigScreen(null, providerId)));
         return 1;
     }
 }
