@@ -1,4 +1,4 @@
-package com.alexeys.translate_allinone.gui.configui.support;
+package com.alexeys.translate_allinone.utils.config.ui;
 
 public final class ModelSettingsValueSupport {
     private ModelSettingsValueSupport() {

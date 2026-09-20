@@ -1,6 +1,5 @@
-package com.alexeys.translate_allinone.gui.configui.support;
+package com.alexeys.translate_allinone.utils.config.ui;
 
-import com.alexeys.translate_allinone.gui.configui.sections.RouteModelSectionSupport;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderType;
 import com.alexeys.translate_allinone.utils.config.pojos.ProviderManagerConfig;
@@ -36,7 +35,7 @@ public final class ProviderManagerMutationSupport {
     ) {
         String removedId = profile.id;
         providerManager.providers.removeIf(candidate -> candidate != null && removedId.equals(candidate.id));
-        RouteModelSectionSupport.clearRouteIfMatched(providerManager, removedId);
+        providerManager.clearRoutesForProvider(removedId);
 
         String nextSelectedProviderId = removedId.equals(selectedProviderId) ? "" : selectedProviderId;
         return new DeleteProviderResult(removedId, nextSelectedProviderId);
