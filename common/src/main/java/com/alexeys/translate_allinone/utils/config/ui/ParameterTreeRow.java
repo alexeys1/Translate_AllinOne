@@ -1,4 +1,4 @@
-package com.alexeys.translate_allinone.gui.configui.model;
+package com.alexeys.translate_allinone.utils.config.ui;
 
 import com.alexeys.translate_allinone.utils.config.pojos.CustomParameterEntry;
 

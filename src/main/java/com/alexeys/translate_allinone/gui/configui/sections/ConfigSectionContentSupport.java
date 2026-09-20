@@ -1,7 +1,7 @@
 package com.alexeys.translate_allinone.gui.configui.sections;
 
-import com.alexeys.translate_allinone.gui.configui.model.ConfigSection;
-import com.alexeys.translate_allinone.gui.configui.model.RouteSlot;
+import com.alexeys.translate_allinone.utils.config.ui.ConfigSection;
+import com.alexeys.translate_allinone.utils.config.ui.RouteSlot;
 import com.alexeys.translate_allinone.utils.cache.CacheStats;
 import com.alexeys.translate_allinone.utils.cache.ItemTemplateCache;
 import com.alexeys.translate_allinone.utils.cache.ChatOutputTranslationCache;

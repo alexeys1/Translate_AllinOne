@@ -1,5 +1,6 @@
 package com.alexeys.translate_allinone.gui;
 
+import com.alexeys.translate_allinone.versionapi.MinecraftScreens;
 import com.alexeys.translate_allinone.Translate_AllinOne;
 import com.alexeys.translate_allinone.gui.configui.controls.ActionBlock;
 import com.alexeys.translate_allinone.gui.configui.controls.ActionBlockRegistry;
@@ -62,7 +63,7 @@ public class WynnDialogueHudEditorScreen extends Screen {
     public void close() {
         draggingHud = false;
         if (this.client != null) {
-            this.client.setScreen(parent);
+            MinecraftScreens.INSTANCE.open(parent);
         }
     }
 

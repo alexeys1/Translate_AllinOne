@@ -1,5 +1,6 @@
 package com.alexeys.translate_allinone.gui.configui.support;
 
+import com.alexeys.translate_allinone.utils.config.ui.ProviderEditorSupport;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.widget.TextFieldWidget;

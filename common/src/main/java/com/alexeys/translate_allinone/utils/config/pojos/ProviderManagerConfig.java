@@ -105,6 +105,25 @@ public class ProviderManagerConfig {
         return routeKey.substring(separator + ROUTE_SEPARATOR.length()).trim();
     }
 
+    public void clearRoutesForProvider(String providerId) {
+        if (routes == null || providerId == null || providerId.isBlank()) {
+            return;
+        }
+
+        routes.item = clearRouteIfOwnedBy(routes.item, providerId);
+        routes.scoreboard = clearRouteIfOwnedBy(routes.scoreboard, providerId);
+        routes.other_translations = clearRouteIfOwnedBy(routes.other_translations, providerId);
+        routes.wynncraft = clearRouteIfOwnedBy(routes.wynncraft, providerId);
+        routes.wynn_npc_dialogue = clearRouteIfOwnedBy(routes.wynn_npc_dialogue, providerId);
+        routes.wynntils_task_tracker = clearRouteIfOwnedBy(routes.wynntils_task_tracker, providerId);
+        routes.chat_input = clearRouteIfOwnedBy(routes.chat_input, providerId);
+        routes.chat_output = clearRouteIfOwnedBy(routes.chat_output, providerId);
+    }
+
+    private static String clearRouteIfOwnedBy(String routeKey, String providerId) {
+        return extractProviderId(routeKey).equals(providerId) ? "" : routeKey;
+    }
+
     private String normalizeRouteValue(String routeValue) {
         if (routeValue == null || routeValue.isBlank()) {
             return "";
