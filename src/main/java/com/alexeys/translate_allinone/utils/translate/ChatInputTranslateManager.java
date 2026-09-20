@@ -9,6 +9,10 @@ import com.alexeys.translate_allinone.utils.llmapi.LLM;
 import com.alexeys.translate_allinone.utils.llmapi.LlmRequestLifecycle;
 import com.alexeys.translate_allinone.utils.llmapi.ProviderSettings;
 import com.alexeys.translate_allinone.utils.llmapi.openai.OpenAIRequest;
+import com.alexeys.translate_allinone.utils.translate.PlainTextResponseDecoder;
+import com.alexeys.translate_allinone.utils.translate.TranslationContentGate;
+import com.alexeys.translate_allinone.utils.translate.TranslationContentVerdict;
+import com.alexeys.translate_allinone.utils.translate.TranslationMode;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +41,7 @@ public class ChatInputTranslateManager {
     private static final AtomicBoolean isTranslating = new AtomicBoolean(false);
     private static final AtomicReference<String> originalTextRef = new AtomicReference<>("");
     private static final AtomicReference<String> lastSourceTextRef = new AtomicReference<>("");
+    private static final AtomicReference<EditBox> activeChatFieldRef = new AtomicReference<>();
     private static final long ROUTE_ERROR_DISPLAY_MS = 3_000L;
     private static final String TRANSLATING_KEY = "text.translate_allinone.translation.status.translating";
     private static final String TRANSLATION_ERROR_KEY = "text.translate_allinone.chat.input_translation_error";
@@ -125,6 +130,24 @@ public class ChatInputTranslateManager {
         });
     }
 
+    public static void restorePendingInput() {
+        EditBox chatField = activeChatFieldRef.get();
+        String original = lastSourceTextRef.get();
+        if (chatField == null || original == null || original.isEmpty()) {
+            return;
+        }
+
+        Minecraft client = Minecraft.getInstance();
+        if (client == null) {
+            return;
+        }
+
+        client.execute(() -> {
+            chatField.setValue(original);
+            chatField.moveCursorTo(original.length(), false);
+        });
+    }
+
     private static void submitTransform(EditBox chatField, TransformMode mode) {
         submitTransform(chatField, mode, null);
     }
@@ -155,6 +178,7 @@ public class ChatInputTranslateManager {
         }
         originalTextRef.set(currentText);
         lastSourceTextRef.set(currentText);
+        activeChatFieldRef.set(chatField);
 
         executor.submit(() -> {
             String requestContext = "route=chat_input, mode=" + mode.name().toLowerCase();
@@ -274,8 +298,13 @@ public class ChatInputTranslateManager {
                     if (!isTransformActive(mode, translationGeneration)) {
                         return;
                     }
-                    String finalTranslation = sanitizeChatInputResult(visibleContentBuffer.toString().stripLeading());
-                    if (!isAcceptableChatInputResult(finalTranslation, originalTextRef.get())) {
+                    String finalTranslation = resolveAcceptedChatInputResult(
+                            visibleContentBuffer.toString(),
+                            originalTextRef.get(),
+                            mode,
+                            inputConfig.target_language
+                    );
+                    if (finalTranslation == null) {
                         rejectChatInputResult(chatField, originalTextRef.get());
                         return;
                     }
@@ -299,8 +328,13 @@ public class ChatInputTranslateManager {
                     if (!isTransformActive(mode, translationGeneration)) {
                         return;
                     }
-                    final String finalTranslation = sanitizeChatInputResult(result.stripLeading());
-                    if (!isAcceptableChatInputResult(finalTranslation, originalTextRef.get())) {
+                    final String finalTranslation = resolveAcceptedChatInputResult(
+                            result,
+                            originalTextRef.get(),
+                            mode,
+                            inputConfig.target_language
+                    );
+                    if (finalTranslation == null) {
                         rejectChatInputResult(chatField, originalTextRef.get());
                         return;
                     }
@@ -329,6 +363,7 @@ public class ChatInputTranslateManager {
                     chatField.moveCursorTo(originalTextRef.get().length(), false);
                 });
             } finally {
+                activeChatFieldRef.compareAndSet(chatField, null);
                 isTranslating.set(false);
                 originalTextRef.set("");
             }
@@ -349,7 +384,7 @@ public class ChatInputTranslateManager {
     ) {
         String basePrompt = buildSystemPrompt(targetLanguage, mode, instruction);
         String resolved = PromptMessageBuilder.applyPromptOverride("chat_input_translate", basePrompt, providerProfile.system_prompt_overrides, targetLanguage);
-        String systemPrompt = PromptMessageBuilder.appendForcedProtectedDataContract(
+        String systemPrompt = PromptMessageBuilder.appendForcedContracts(
                 PromptMessageBuilder.appendSystemPromptSuffix(
                         resolved,
                         providerProfile.activeSystemPromptSuffix()
@@ -359,9 +394,7 @@ public class ChatInputTranslateManager {
         return PromptMessageBuilder.buildMessages(
                 systemPrompt,
                 textToTranslate,
-                providerProfile.activeSupportsSystemMessage(),
-                providerProfile.model_id,
-                providerProfile.activeInjectSystemPromptIntoUserMessage()
+                providerProfile.activeSupportsSystemMessage()
         );
     }
 
@@ -432,58 +465,23 @@ public class ChatInputTranslateManager {
         return providerProfile.activeSupportsSystemMessage();
     }
 
-    private static String sanitizeChatInputResult(String raw) {
-        if (raw == null) {
-            return "";
+    private static String resolveAcceptedChatInputResult(
+            String rawResponse,
+            String source,
+            TransformMode mode,
+            String targetLanguage
+    ) {
+        PlainTextResponseDecoder.DecodeResult decoded = PlainTextResponseDecoder.decode(rawResponse);
+        if (decoded == null) {
+            return null;
         }
-        String value = raw.trim();
-        if (value.startsWith("```")) {
-            int newline = value.indexOf('\n');
-            if (newline >= 0) {
-                String body = value.substring(newline + 1);
-                int fenceEnd = body.lastIndexOf("```");
-                if (fenceEnd >= 0) {
-                    value = body.substring(0, fenceEnd).trim();
-                }
-            }
-        }
-        if (value.length() >= 2
-                && ((value.startsWith("\"") && value.endsWith("\""))
-                || (value.startsWith("'") && value.endsWith("'")))) {
-            value = value.substring(1, value.length() - 1).trim();
-        }
-        return value;
-    }
-
-    private static boolean isAcceptableChatInputResult(String candidate, String source) {
-        if (candidate == null || candidate.isBlank()) {
-            return false;
-        }
-        if (source != null && candidate.equals(source)) {
-            return false;
-        }
-        if (looksLikeStructuredArtifact(candidate)) {
-            return false;
-        }
-        return true;
-    }
-
-    private static boolean looksLikeStructuredArtifact(String value) {
-        String trimmed = value.trim();
-        if (trimmed.startsWith("```")) {
-            return true;
-        }
-        if (trimmed.startsWith("\"translation\"") || trimmed.startsWith("\"text\"")) {
-            return true;
-        }
-        if (trimmed.startsWith("{") && trimmed.endsWith("}") && trimmed.contains("\":")) {
-            return true;
-        }
-        if (trimmed.startsWith("[") && trimmed.endsWith("]") && trimmed.length() > 2) {
-            char second = trimmed.charAt(1);
-            return second == '"' || second == '{' || second == '[';
-        }
-        return false;
+        TranslationContentVerdict verdict = TranslationContentGate.evaluate(
+                mode == TransformMode.TRANSLATE ? TranslationMode.TRANSLATE : TranslationMode.REWRITE,
+                source,
+                decoded.text(),
+                targetLanguage
+        );
+        return verdict.accepted() ? decoded.text() : null;
     }
 
     private static void rejectChatInputResult(EditBox chatField, String originalText) {

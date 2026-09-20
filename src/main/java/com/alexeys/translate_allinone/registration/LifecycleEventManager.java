@@ -12,6 +12,7 @@ import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationRu
 import com.alexeys.translate_allinone.utils.llmapi.LlmRequestLifecycle;
 import com.alexeys.translate_allinone.utils.translate.ApiKeyDecryptFailureNotifier;
 import com.alexeys.translate_allinone.utils.translate.BookTranslationSupport;
+import com.alexeys.translate_allinone.utils.translate.ChatInputTranslateManager;
 import com.alexeys.translate_allinone.utils.translate.ChatOutputTranslateManager;
 import com.alexeys.translate_allinone.utils.translate.ContinuousSignTranslationCoordinator;
 import com.alexeys.translate_allinone.utils.translate.ComponentRenderTranslationSupport;
@@ -58,6 +59,7 @@ public class LifecycleEventManager {
         ChatOutputTranslateManager.clearTranslationQueue();
 
         if (!enabled) {
+            ChatInputTranslateManager.restorePendingInput();
             WynnDialogueTranslateManager.getInstance().cancelPendingTranslations();
             WynntilsTaskTrackerTranslateManager.getInstance().cancelPendingTranslations();
             return;

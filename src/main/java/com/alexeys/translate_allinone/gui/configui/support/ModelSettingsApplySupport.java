@@ -21,7 +21,6 @@ public final class ModelSettingsApplySupport {
             String wynnNpcDialogueTemperatureDraft,
             String keepAliveDraft,
             boolean supportsSystem,
-            boolean injectPromptIntoUser,
             String systemPromptSuffixDraft,
             List<CustomParameterEntry> customParametersDraft,
             boolean setDefault
@@ -63,7 +62,6 @@ public final class ModelSettingsApplySupport {
                 parsedWynnNpcDialogueTemperature,
                 ModelSettingsValueSupport.normalizeKeepAliveInput(keepAliveDraft),
                 supportsSystem,
-                injectPromptIntoUser,
                 ProviderProfileSupport.sanitizeText(systemPromptSuffixDraft),
                 customParametersDraft,
                 setDefault

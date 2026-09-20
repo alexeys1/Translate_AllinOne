@@ -14,6 +14,7 @@ public final class TooltipTranslationContext {
     private static final long CHAT_HOVER_TOOLTIP_CONTEXT_STALE_MILLIS = 750L;
     private static final long WYNN_ITEM_STAT_CONTEXT_STALE_MILLIS = 500L;
     private static final long WYNN_QUEST_CONTEXT_STALE_MILLIS = 10_000L;
+    private static final long SKYBLOCK_ITEM_LIST_CONTEXT_STALE_MILLIS = 10_000L;
     private static final long RECENT_TRANSLATED_TOOLTIP_STALE_MILLIS = 750L;
     private static final long DRAW_CONTEXT_SKIP_EXPECTATION_STALE_MILLIS = 750L;
     private static final long SCREEN_MIRROR_SKIP_EXPECTATION_STALE_MILLIS = 750L;
@@ -31,6 +32,8 @@ public final class TooltipTranslationContext {
     private static final ThreadLocal<Long> CHAT_HOVER_TOOLTIP_RENDER_ENTERED_AT = ThreadLocal.withInitial(() -> 0L);
     private static final ThreadLocal<Integer> REI_TOOLTIP_RENDER_DEPTH = ThreadLocal.withInitial(() -> 0);
     private static final ThreadLocal<Long> REI_TOOLTIP_RENDER_ENTERED_AT = ThreadLocal.withInitial(() -> 0L);
+    private static final ThreadLocal<Integer> SKYBLOCK_ITEM_LIST_TOOLTIP_RENDER_DEPTH = ThreadLocal.withInitial(() -> 0);
+    private static final ThreadLocal<Long> SKYBLOCK_ITEM_LIST_TOOLTIP_RENDER_ENTERED_AT = ThreadLocal.withInitial(() -> 0L);
     private static final ThreadLocal<Long> WYNN_ITEM_STAT_TOOLTIP_MARKED_AT = ThreadLocal.withInitial(() -> 0L);
     private static final ThreadLocal<Integer> WYNN_QUEST_TOOLTIP_RENDER_DEPTH = ThreadLocal.withInitial(() -> 0);
     private static final ThreadLocal<Long> WYNN_QUEST_TOOLTIP_RENDER_ENTERED_AT = ThreadLocal.withInitial(() -> 0L);
@@ -300,6 +303,54 @@ public final class TooltipTranslationContext {
         if (System.currentTimeMillis() - enteredAt > REI_CONTEXT_STALE_MILLIS) {
             REI_TOOLTIP_RENDER_DEPTH.set(0);
             REI_TOOLTIP_RENDER_ENTERED_AT.set(0L);
+            return false;
+        }
+
+        return true;
+    }
+
+    public static void pushSkyBlockItemListTooltipRender() {
+        int currentDepth = SKYBLOCK_ITEM_LIST_TOOLTIP_RENDER_DEPTH.get();
+        if (currentDepth <= 0) {
+            SKYBLOCK_ITEM_LIST_TOOLTIP_RENDER_ENTERED_AT.set(System.currentTimeMillis());
+            SKYBLOCK_ITEM_LIST_TOOLTIP_RENDER_DEPTH.set(1);
+            return;
+        }
+        int next = currentDepth + 1;
+        if (next > MAX_RENDER_DEPTH) {
+            LOGGER.error("SkyBlock Item List tooltip render depth exceeded max ({}). Resetting to 0.", MAX_RENDER_DEPTH);
+            SKYBLOCK_ITEM_LIST_TOOLTIP_RENDER_DEPTH.set(0);
+            SKYBLOCK_ITEM_LIST_TOOLTIP_RENDER_ENTERED_AT.set(0L);
+            return;
+        }
+        SKYBLOCK_ITEM_LIST_TOOLTIP_RENDER_DEPTH.set(next);
+    }
+
+    public static void popSkyBlockItemListTooltipRender() {
+        int depth = SKYBLOCK_ITEM_LIST_TOOLTIP_RENDER_DEPTH.get();
+        if (depth <= 1) {
+            SKYBLOCK_ITEM_LIST_TOOLTIP_RENDER_DEPTH.set(0);
+            SKYBLOCK_ITEM_LIST_TOOLTIP_RENDER_ENTERED_AT.set(0L);
+            return;
+        }
+        SKYBLOCK_ITEM_LIST_TOOLTIP_RENDER_DEPTH.set(depth - 1);
+    }
+
+    public static boolean isInSkyBlockItemListTooltipRender() {
+        int depth = SKYBLOCK_ITEM_LIST_TOOLTIP_RENDER_DEPTH.get();
+        if (depth <= 0) {
+            return false;
+        }
+
+        long enteredAt = SKYBLOCK_ITEM_LIST_TOOLTIP_RENDER_ENTERED_AT.get();
+        if (enteredAt <= 0L) {
+            SKYBLOCK_ITEM_LIST_TOOLTIP_RENDER_DEPTH.set(0);
+            return false;
+        }
+
+        if (System.currentTimeMillis() - enteredAt > SKYBLOCK_ITEM_LIST_CONTEXT_STALE_MILLIS) {
+            SKYBLOCK_ITEM_LIST_TOOLTIP_RENDER_DEPTH.set(0);
+            SKYBLOCK_ITEM_LIST_TOOLTIP_RENDER_ENTERED_AT.set(0L);
             return false;
         }
 

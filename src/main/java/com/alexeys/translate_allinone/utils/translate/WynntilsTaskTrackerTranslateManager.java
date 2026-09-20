@@ -10,10 +10,7 @@ import com.alexeys.translate_allinone.utils.llmapi.ProviderSettings;
 import com.alexeys.translate_allinone.utils.TranslateStringUtils;
 import com.alexeys.translate_allinone.utils.llmapi.openai.OpenAIRequest;
 import com.google.gson.Gson;
-import com.google.gson.JsonSyntaxException;
-import com.google.gson.reflect.TypeToken;
 
-import java.lang.reflect.Type;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,7 +22,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.regex.Matcher;
 
 public final class WynntilsTaskTrackerTranslateManager {
     private static final WynntilsTaskTrackerTranslateManager INSTANCE = new WynntilsTaskTrackerTranslateManager();
@@ -204,9 +200,7 @@ public final class WynntilsTaskTrackerTranslateManager {
         List<OpenAIRequest.Message> messages = PromptMessageBuilder.buildMessages(
                 systemPrompt,
                 userPrompt,
-                providerProfile.activeSupportsSystemMessage(),
-                providerProfile.model_id,
-                providerProfile.activeInjectSystemPromptIntoUserMessage());
+                providerProfile.activeSupportsSystemMessage());
         String requestContext = buildRequestContext(providerProfile, targetLanguage, originalTexts, messages);
         WynntilsTaskTrackerTranslationSupport.devLog(
                 "llm_submit context={} payload={}",
@@ -248,23 +242,12 @@ public final class WynntilsTaskTrackerTranslateManager {
                         error);
             } else {
                 try {
-                    Matcher matcher = TranslateStringUtils.JSON_EXTRACT_PATTERN.matcher(response);
-                    if (!matcher.find()) {
-                        throw new JsonSyntaxException("No JSON object found in the translation response.");
-                    }
-
-                    String jsonResponse = matcher.group();
-                    Type type = new TypeToken<Map<String, String>>() {}.getType();
-                    Map<String, String> translatedMapFromAI = GSON.fromJson(jsonResponse, type);
                     WynntilsTaskTrackerTranslationSupport.devLog(
                             "llm_response context={} response={}",
                             requestContext,
                             response);
-                    if (translatedMapFromAI == null) {
-                        throw new JsonSyntaxException("Parsed translation result is null");
-                    }
-
-                    if (hasKeyMismatch(translatedMapFromAI, originalTexts.size())) {
+                    List<String> translatedValues = IndexedMapResponseDecoder.decode(response);
+                    if (translatedValues.size() != originalTexts.size()) {
                         failedTaskKeys.addAll(originalTexts);
                         Translate_AllinOne.LOGGER.warn(
                                 "Wynntils task tracker response keys mismatched. context={}",
@@ -275,21 +258,10 @@ public final class WynntilsTaskTrackerTranslateManager {
                         Map<String, String> finalTranslatedMap = new ConcurrentHashMap<>();
                         Set<String> itemsToRequeueForEmpty = ConcurrentHashMap.newKeySet();
                         Set<String> itemsToRequeueForColor = ConcurrentHashMap.newKeySet();
-
-                        for (Map.Entry<String, String> entry : translatedMapFromAI.entrySet()) {
-                            int index;
-                            try {
-                                index = Integer.parseInt(entry.getKey()) - 1;
-                            } catch (NumberFormatException e) {
-                                continue;
-                            }
-
-                            if (index < 0 || index >= originalTexts.size()) {
-                                continue;
-                            }
-
+                        Set<String> itemsToRequeueForContent = ConcurrentHashMap.newKeySet();
+                        for (int index = 0; index < originalTexts.size(); index++) {
                             String originalTemplate = originalTexts.get(index);
-                            String translatedTemplate = entry.getValue();
+                            String translatedTemplate = translatedValues.get(index);
                             if (translatedTemplate == null || translatedTemplate.trim().isEmpty()) {
                                 itemsToRequeueForEmpty.add(originalTemplate);
                                 continue;
@@ -297,6 +269,17 @@ public final class WynntilsTaskTrackerTranslateManager {
 
                             if (originalTemplate.contains("§") && !translatedTemplate.contains("§")) {
                                 itemsToRequeueForColor.add(originalTemplate);
+                                continue;
+                            }
+
+                            TranslationContentVerdict verdict = TranslationContentGate.evaluate(
+                                    TranslationMode.TRANSLATE,
+                                    originalTemplate,
+                                    translatedTemplate,
+                                    getTargetLanguage()
+                            );
+                            if (!verdict.accepted()) {
+                                itemsToRequeueForContent.add(originalTemplate);
                                 continue;
                             }
 
@@ -319,6 +302,14 @@ public final class WynntilsTaskTrackerTranslateManager {
                             );
                         }
 
+                        if (!itemsToRequeueForContent.isEmpty()) {
+                            Translate_AllinOne.LOGGER.warn(
+                                    "Re-queueing {} Wynntils task tracker translations rejected by the content quality gate. context={}",
+                                    itemsToRequeueForContent.size(),
+                                    requestContext
+                            );
+                        }
+
                         if (!finalTranslatedMap.isEmpty()) {
                             cache.updateTranslations(finalTranslatedMap);
                             WynntilsTaskTrackerTranslationSupport.devLog(
@@ -332,6 +323,7 @@ public final class WynntilsTaskTrackerTranslateManager {
                         missingTranslations.removeAll(finalTranslatedMap.keySet());
                         missingTranslations.addAll(itemsToRequeueForColor);
                         missingTranslations.addAll(itemsToRequeueForEmpty);
+                        missingTranslations.addAll(itemsToRequeueForContent);
                         if (!missingTranslations.isEmpty()) {
                             failedTaskKeys.addAll(missingTranslations);
                             Translate_AllinOne.LOGGER.warn(
@@ -342,12 +334,16 @@ public final class WynntilsTaskTrackerTranslateManager {
                             cache.requeueFailed(missingTranslations, "LLM response missing keys");
                         }
                     }
-                } catch (JsonSyntaxException e) {
+                } catch (IndexedMapResponseException e) {
                     failedTaskKeys.addAll(originalTexts);
-                    cache.requeueFailed(Set.copyOf(originalTexts), "Invalid JSON response");
+                    String failureMessage = e.code() == IndexedMapRejectionCode.ID_MISMATCH
+                            ? "LLM response key mismatch"
+                            : "Invalid JSON response";
+                    cache.requeueFailed(Set.copyOf(originalTexts), failureMessage);
                     Translate_AllinOne.LOGGER.error(
-                            "Failed to parse Wynntils task tracker translation response. context={}",
+                            "Failed to parse Wynntils task tracker translation response. context={} reason={}",
                             requestContext,
+                            e.getMessage(),
                             e);
                 } catch (Throwable t) {
                     failedTaskKeys.addAll(originalTexts);
@@ -359,7 +355,7 @@ public final class WynntilsTaskTrackerTranslateManager {
                 }
             }
 
-            TranslationQueueWatchdog.requestCompleted(
+TranslationQueueWatchdog.requestCompleted(
                     watchdogRequestId,
                     failedTaskKeys,
                     false
@@ -371,19 +367,10 @@ public final class WynntilsTaskTrackerTranslateManager {
         return expectedEpoch == sessionEpoch.get();
     }
 
-    private boolean hasKeyMismatch(Map<String, String> translatedMapFromAI, int expectedSize) {
-        for (int i = 1; i <= expectedSize; i++) {
-            if (!translatedMapFromAI.containsKey(String.valueOf(i))) {
-                return true;
-            }
-        }
-        return translatedMapFromAI.size() != expectedSize;
-    }
-
     private String buildSystemPrompt(String targetLanguage, String suffix, java.util.Map<String, String> overrides) {
         String basePrompt = PromptMessageBuilder.getDefaultPrompt("wynntils_task_tracker", targetLanguage);
         String resolved = PromptMessageBuilder.applyPromptOverride("wynntils_task_tracker", basePrompt, overrides, targetLanguage);
-        return PromptMessageBuilder.appendForcedProtectedDataContract(
+        return PromptMessageBuilder.appendForcedContracts(
                 PromptMessageBuilder.appendSystemPromptSuffix(resolved, suffix),
                 "wynntils_task_tracker"
         );

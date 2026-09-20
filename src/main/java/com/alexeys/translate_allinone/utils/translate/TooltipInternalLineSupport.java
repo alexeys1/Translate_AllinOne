@@ -5,10 +5,11 @@ import com.alexeys.translate_allinone.utils.cache.CacheStats;
 import com.alexeys.translate_allinone.utils.cache.ItemTemplateCache;
 import com.alexeys.translate_allinone.utils.cache.component.ComponentCacheModule;
 import com.alexeys.translate_allinone.utils.cache.component.ComponentTranslationStoreRegistry;
-import com.alexeys.translate_allinone.utils.componentjson.NoRoutedModelErrorSupport;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -19,6 +20,22 @@ public final class TooltipInternalLineSupport {
     private static final String TRANSLATING_STATUS_KEY = "text.translate_allinone.item.tooltip_translating";
     private static final String KEY_MISMATCH_STATUS_KEY = "text.translate_allinone.item.tooltip_key_mismatch_retrying";
     private static final String ERROR_STATUS_KEY = "text.translate_allinone.item.tooltip_translation_error";
+    private static final long ERROR_DISPLAY_MS = 3_000L;
+    private static final long ERROR_QUIET_MS = 5_000L;
+    private static final int ERROR_FINGERPRINT_LIMIT = 128;
+    private static final int GENERATED_LINE_LIMIT = 256;
+    private static final Map<String, Long> ERROR_SINCE = new LinkedHashMap<>(64, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, Long> eldest) {
+            return size() > ERROR_FINGERPRINT_LIMIT;
+        }
+    };
+    private static final Map<String, Boolean> GENERATED_LINES = new LinkedHashMap<>(64, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, Boolean> eldest) {
+            return size() > GENERATED_LINE_LIMIT;
+        }
+    };
 
     private TooltipInternalLineSupport() {
     }
@@ -51,15 +68,18 @@ public final class TooltipInternalLineSupport {
                 : Component.translatable(TRANSLATING_STATUS_KEY).withStyle(ChatFormatting.GRAY);
 
         MutableComponent statusText = AnimationManager.getAnimatedStyledText(statusMessage, animationKey, hasMissingKeyIssue);
-        return statusText.append(Component.literal(progressText).withStyle(ChatFormatting.YELLOW));
+        return registerGeneratedLine(statusText.append(Component.literal(progressText).withStyle(ChatFormatting.YELLOW)));
     }
 
     public static Component createErrorStatusLine(String errorMessage) {
-        return Component.translatable(ERROR_STATUS_KEY, TranslationErrorTextSupport.localizeReason(errorMessage)).withStyle(ChatFormatting.RED);
+        return registerGeneratedLine(Component.translatable(
+                ERROR_STATUS_KEY,
+                TranslationErrorTextSupport.localizeReason(errorMessage)
+        ).withStyle(ChatFormatting.RED));
     }
 
     public static Component createAnimatedPendingStatusLine(String animationKey) {
-        return AnimationManager.getAnimatedStyledText(createTranslatingStatusText(), animationKey, false);
+        return registerGeneratedLine(AnimationManager.getAnimatedStyledText(createTranslatingStatusText(), animationKey, false));
     }
 
     public static boolean shouldShowStatusLine(
@@ -78,10 +98,22 @@ public final class TooltipInternalLineSupport {
         if (processedTooltip == null || processedTooltip.translatableLines() <= 0) {
             return false;
         }
-        if (!NoRoutedModelErrorSupport.isTooltipNoRoutedError(processedTooltip.errorMessage())) {
+        if (processedTooltip.errorMessage().isBlank()) {
             return false;
         }
-        return NoRoutedModelErrorSupport.shouldShowTooltipError(tooltipErrorFingerprint(processedTooltip));
+        return shouldShowTooltipError(tooltipErrorFingerprint(processedTooltip));
+    }
+
+    private static boolean shouldShowTooltipError(String tooltipFingerprint) {
+        long now = System.currentTimeMillis();
+        synchronized (ERROR_SINCE) {
+            Long since = ERROR_SINCE.get(tooltipFingerprint);
+            if (since == null || now - since >= ERROR_DISPLAY_MS + ERROR_QUIET_MS) {
+                since = now;
+                ERROR_SINCE.put(tooltipFingerprint, now);
+            }
+            return now - since < ERROR_DISPLAY_MS;
+        }
     }
 
     private static String tooltipErrorFingerprint(TooltipTranslationSupport.TooltipProcessingResult processedTooltip) {
@@ -107,17 +139,18 @@ public final class TooltipInternalLineSupport {
             return null;
         }
 
+        List<Component> base = withoutInternalStatusLines(tooltip);
         CacheStats stats = getItemCacheStats();
         boolean showStatusLine = shouldShowStatusLine(processedTooltip, stats);
         boolean showErrorStatusLine = shouldShowErrorStatusLine(processedTooltip);
         if (!showStatusLine && !showErrorStatusLine) {
-            return tooltip;
+            return base;
         }
 
-        List<Component> tooltipWithStatus = new ArrayList<>(tooltip.size() + 2);
-        tooltipWithStatus.addAll(tooltip);
+        List<Component> tooltipWithStatus = new ArrayList<>(base.size() + 1);
+        tooltipWithStatus.addAll(base);
         if (showErrorStatusLine) {
-            tooltipWithStatus.add(createErrorStatusLine(NoRoutedModelErrorSupport.tooltipErrorMessage()));
+            tooltipWithStatus.add(createErrorStatusLine(processedTooltip.errorMessage()));
         } else if (showStatusLine) {
             tooltipWithStatus.add(createStatusLine(stats, processedTooltip.missingKeyIssue(), animationKey));
         }
@@ -133,27 +166,52 @@ public final class TooltipInternalLineSupport {
     }
 
     public static boolean isInternalStatusLine(Component line) {
-        if (line == null) {
-            return false;
-        }
+        return line != null && isInternalStatusLineText(line.getString());
+    }
 
+    private static boolean isInternalStatusLineText(String plainText) {
+        synchronized (GENERATED_LINES) {
+            return GENERATED_LINES.containsKey(plainText);
+        }
+    }
+
+    private static <T extends Component> T registerGeneratedLine(T line) {
         String content = line.getString();
-        return content.startsWith(createTranslatingStatusText().getString())
-                || content.startsWith(createKeyMismatchStatusText().getString())
-                || content.equals(createErrorStatusLine("").getString())
-                || content.startsWith(createErrorStatusLine("").getString());
+        synchronized (GENERATED_LINES) {
+            GENERATED_LINES.put(content, Boolean.TRUE);
+        }
+        return line;
     }
 
     private static Component createTranslatingStatusText() {
         return Component.translatable(TRANSLATING_STATUS_KEY).withStyle(ChatFormatting.GRAY);
     }
 
-    private static Component createKeyMismatchStatusText() {
-        return Component.translatable(KEY_MISMATCH_STATUS_KEY).withStyle(ChatFormatting.RED);
-    }
-
     public static boolean isInternalGeneratedLine(Component line) {
         return isInternalStatusLine(line) || TooltipRefreshNoticeSupport.isRefreshNoticeLine(line);
+    }
+
+    public static List<Component> withoutInternalStatusLines(List<Component> tooltip) {
+        if (tooltip == null || tooltip.isEmpty()) {
+            return tooltip;
+        }
+
+        List<Component> sanitized = null;
+        for (int i = 0; i < tooltip.size(); i++) {
+            Component line = tooltip.get(i);
+            if (!isInternalStatusLine(line)) {
+                if (sanitized != null) {
+                    sanitized.add(line);
+                }
+                continue;
+            }
+
+            if (sanitized == null) {
+                sanitized = new ArrayList<>(tooltip.size());
+                sanitized.addAll(tooltip.subList(0, i));
+            }
+        }
+        return sanitized == null ? tooltip : sanitized;
     }
 
     public static List<Component> stripInternalGeneratedLines(List<Component> tooltip) {
