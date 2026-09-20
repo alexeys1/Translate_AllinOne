@@ -1,7 +1,7 @@
 package com.alexeys.translate_allinone.gui.configui.sections;
 
 import com.alexeys.translate_allinone.gui.configui.model.RouteModelOption;
-import com.alexeys.translate_allinone.gui.configui.model.RouteSlot;
+import com.alexeys.translate_allinone.utils.config.ui.RouteSlot;
 import com.alexeys.translate_allinone.utils.config.pojos.ProviderManagerConfig;
 import java.util.List;
 import java.util.function.Supplier;

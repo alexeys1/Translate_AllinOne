@@ -1,11 +1,11 @@
 package com.alexeys.translate_allinone.gui.configui.modals;
 
-import com.alexeys.translate_allinone.gui.configui.model.ParameterListLocation;
-import com.alexeys.translate_allinone.gui.configui.model.ParameterTreeRow;
-import com.alexeys.translate_allinone.gui.configui.model.UiRect;
+import com.alexeys.translate_allinone.utils.config.ui.ParameterListLocation;
+import com.alexeys.translate_allinone.utils.config.ui.ParameterTreeRow;
+import com.alexeys.translate_allinone.utils.config.ui.UiRect;
 import com.alexeys.translate_allinone.gui.configui.render.ConfigUiModalSupport;
-import com.alexeys.translate_allinone.gui.configui.support.CustomParameterTreeSupport;
-import com.alexeys.translate_allinone.gui.configui.support.ProviderProfileSupport;
+import com.alexeys.translate_allinone.utils.config.ui.CustomParameterTreeSupport;
+import com.alexeys.translate_allinone.utils.config.ui.ProviderProfileSupport;
 import com.alexeys.translate_allinone.utils.config.pojos.CustomParameterEntry;
 import java.util.ArrayList;
 import java.util.List;

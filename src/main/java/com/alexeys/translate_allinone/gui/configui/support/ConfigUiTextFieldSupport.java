@@ -1,5 +1,6 @@
 package com.alexeys.translate_allinone.gui.configui.support;
 
+import com.alexeys.translate_allinone.utils.config.ui.ProviderEditorSupport;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Predicate;

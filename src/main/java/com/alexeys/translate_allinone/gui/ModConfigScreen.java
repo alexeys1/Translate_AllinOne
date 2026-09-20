@@ -1,5 +1,6 @@
 package com.alexeys.translate_allinone.gui;
 
+import com.alexeys.translate_allinone.versionapi.MinecraftScreens;
 import com.alexeys.translate_allinone.Translate_AllinOne;
 import com.alexeys.translate_allinone.registration.ConfigManager;
 import com.alexeys.translate_allinone.gui.configui.controls.ActionBlock;
@@ -9,11 +10,11 @@ import com.alexeys.translate_allinone.gui.configui.controls.GroupBox;
 import com.alexeys.translate_allinone.gui.configui.controls.IntSliderBlock;
 import com.alexeys.translate_allinone.gui.configui.controls.StaticTextRow;
 import com.alexeys.translate_allinone.gui.configui.interaction.ConfigUiInteractionSupport;
-import com.alexeys.translate_allinone.gui.configui.interaction.ConfigUiModalInteractionSupport;
-import com.alexeys.translate_allinone.gui.configui.model.ConfigSection;
-import com.alexeys.translate_allinone.gui.configui.model.FocusTarget;
-import com.alexeys.translate_allinone.gui.configui.model.RouteSlot;
-import com.alexeys.translate_allinone.gui.configui.model.UiRect;
+import com.alexeys.translate_allinone.utils.config.ui.ConfigUiModalInteractionSupport;
+import com.alexeys.translate_allinone.utils.config.ui.ConfigSection;
+import com.alexeys.translate_allinone.utils.config.ui.FocusTarget;
+import com.alexeys.translate_allinone.utils.config.ui.RouteSlot;
+import com.alexeys.translate_allinone.utils.config.ui.UiRect;
 import com.alexeys.translate_allinone.gui.configui.modals.AddProviderModalSupport;
 import com.alexeys.translate_allinone.gui.configui.modals.CustomParametersModalSupport;
 import com.alexeys.translate_allinone.gui.configui.modals.ModelSettingsModalSupport;
@@ -32,14 +33,14 @@ import com.alexeys.translate_allinone.gui.configui.sections.RouteModelSelectorSe
 import com.alexeys.translate_allinone.gui.configui.support.ConfigUiFocusSupport;
 import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport;
 import com.alexeys.translate_allinone.gui.configui.support.ConfigUiTextFieldSupport;
-import com.alexeys.translate_allinone.gui.configui.support.CustomParameterTreeSupport;
+import com.alexeys.translate_allinone.utils.config.ui.CustomParameterTreeSupport;
 import com.alexeys.translate_allinone.gui.configui.support.ModelCustomParameterDefaultsSupport;
 import com.alexeys.translate_allinone.gui.configui.support.ModelSettingsApplySupport;
 import com.alexeys.translate_allinone.gui.configui.support.ModelSettingsDraftSupport;
 import com.alexeys.translate_allinone.gui.configui.support.ModelSettingsMutationSupport;
-import com.alexeys.translate_allinone.gui.configui.support.ModelSettingsValueSupport;
-import com.alexeys.translate_allinone.gui.configui.support.ProviderManagerMutationSupport;
-import com.alexeys.translate_allinone.gui.configui.support.ProviderProfileSupport;
+import com.alexeys.translate_allinone.utils.config.ui.ModelSettingsValueSupport;
+import com.alexeys.translate_allinone.utils.config.ui.ProviderManagerMutationSupport;
+import com.alexeys.translate_allinone.utils.config.ui.ProviderProfileSupport;
 import com.alexeys.translate_allinone.utils.cache.CacheBackupManager;
 import com.alexeys.translate_allinone.utils.config.ModConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
@@ -560,7 +561,7 @@ public class ModConfigScreen extends Screen {
         unsavedChangesConfirmModalOpen = false;
 
         if (this.minecraft != null) {
-            this.minecraft.setScreen(parent);
+            MinecraftScreens.INSTANCE.open(parent);
         }
     }
 
@@ -1371,7 +1372,7 @@ public class ModConfigScreen extends Screen {
     private void openPromptEditorScreen() {
         warningConfirmation = null;
         if (this.minecraft != null) {
-            this.minecraft.setScreen(new PromptEditorScreen(this, promptEditorProviderId));
+            MinecraftScreens.INSTANCE.open(new PromptEditorScreen(this, promptEditorProviderId));
         }
     }
 
@@ -2155,7 +2156,7 @@ public class ModConfigScreen extends Screen {
         if (this.minecraft == null) {
             return;
         }
-        this.minecraft.setScreen(new WynnDialogueHudEditorScreen(this));
+        MinecraftScreens.INSTANCE.open(new WynnDialogueHudEditorScreen(this));
     }
 
     private void openRepositoryLink() {
