@@ -29,6 +29,9 @@ public final class ComponentTranslationResponseClient {
     private static final Pattern LEGACY_FORMATTING_RUN_PATTERN = Pattern.compile("(?:\\x{00A7}[0-9A-FK-ORa-fk-or])+");
     private static final Pattern STYLE_TAG_PATTERN = Pattern.compile("<s(\\d+)>");
     private static final Pattern INLINE_ANCHOR_PATTERN = Pattern.compile("\\{accent\\d+\\.(?:begin|end)}");
+    private static final Pattern UNEXPECTED_STYLE_IDS_PATTERN = Pattern.compile(
+            "^(?:Line|Paragraph) style ids changed for [^:]*:.*unexpected=\\[([0-9,\\s]*)]"
+    );
     private static final String PROTOCOL_CONTRACT = "Return exactly one JSON object in this shape: "
             + "{\"protocol\":\"taio-component-v1\",\"translations\":{\"requested-id\":\"translated text\"}}. "
             + "translations must be an object, not an array. Return exactly the requested ids, once each, with string values only. "
@@ -284,22 +287,42 @@ public final class ComponentTranslationResponseClient {
             ComponentTranslationRoute route
     ) {
         List<OpenAIRequest.Message> messages = new ArrayList<>(previousMessages == null ? List.of() : previousMessages);
-        String reason = validationError == null || validationError.getMessage() == null
+        String rawReason = validationError == null || validationError.getMessage() == null
                 ? "the response did not satisfy the required JSON response contract"
-                : TranslateStringUtils.truncate(validationError.getMessage(), MAX_CORRECTION_REASON_CHARS);
-        reason = LEGACY_FORMATTING_CODE_PATTERN.matcher(reason).replaceAll("[formatting-code]");
-        String paragraphCorrection = route == ComponentTranslationRoute.TOOLTIP_PARAGRAPH
-                ? "For tooltip_paragraph, restore every required hard token exactly and return one complete coherent paragraph."
-                : "";
+                : validationError.getMessage();
+        String reason = LEGACY_FORMATTING_CODE_PATTERN.matcher(
+                TranslateStringUtils.truncate(rawReason, MAX_CORRECTION_REASON_CHARS)
+        ).replaceAll("[formatting-code]");
+        List<String> corrections = new ArrayList<>(2);
+        if (route == ComponentTranslationRoute.TOOLTIP_PARAGRAPH) {
+            corrections.add("For tooltip_paragraph, restore every required hard token exactly and return one complete coherent paragraph.");
+        }
+        String styleIdCorrection = unexpectedStyleIdCorrection(rawReason);
+        if (!styleIdCorrection.isEmpty()) {
+            corrections.add(styleIdCorrection);
+        }
         messages.add(new OpenAIRequest.Message(
                 "user",
                 "Your previous component translation response was rejected. Reason: " + reason + "\n"
-                        + paragraphCorrection
-                        + (paragraphCorrection.isEmpty() ? "" : "\n")
+                        + (corrections.isEmpty() ? "" : String.join("\n", corrections) + "\n")
                         + "Return one complete replacement response now. Output only the required JSON object; "
                         + "do not explain the error and do not include Markdown."
         ));
         return List.copyOf(messages);
+    }
+
+    private static String unexpectedStyleIdCorrection(String reason) {
+        Matcher matcher = UNEXPECTED_STYLE_IDS_PATTERN.matcher(reason == null ? "" : reason);
+        if (!matcher.find()) {
+            return "";
+        }
+        String ids = matcher.group(1).trim();
+        if (ids.isEmpty() || "[]".equals(ids)) {
+            return "";
+        }
+        return "Style id fix: your response used style ids " + ids + " that are not present in the source item. "
+                + "Remove those tags, or rewrite the text they wrap using a source style id; "
+                + "never continue the source numbering or invent a new id.";
     }
 
     private static int maxProviderCalls(ComponentTranslationRoute route) {
