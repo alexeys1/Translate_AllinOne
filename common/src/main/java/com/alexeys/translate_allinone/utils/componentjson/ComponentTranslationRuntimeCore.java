@@ -777,6 +777,11 @@ public final class ComponentTranslationRuntimeCore {
                     batchContext
             ).whenComplete((result, error) -> {
                 if (error != null) {
+                    if (shouldRetryIndividually(batch.requests().size(), error)) {
+                        TranslationQueueWatchdog.requestSuperseded(watchdogRequestId);
+                        retryIndividually(route, batch, provider);
+                        return;
+                    }
                     TranslationQueueWatchdog.requestFailed(
                             watchdogRequestId,
                             false
@@ -1032,6 +1037,76 @@ public final class ComponentTranslationRuntimeCore {
             return CandidatePromotion.accepted(rendered);
         } catch (RuntimeException error) {
             return CandidatePromotion.rejected(resolvedFailureMessage(error), error);
+        }
+    }
+
+    private static boolean shouldRetryIndividually(int batchSize, Throwable error) {
+        return batchSize > 1
+                && classifyFailure(error) == FailureDisposition.TERMINAL_CONTENT_FAILURE;
+    }
+
+    private static void retryIndividually(
+            DispatchRoute route,
+            PendingBatch batch,
+            ApiProviderProfile provider
+    ) {
+        List<PendingRequest> pending = new ArrayList<>(batch.requests());
+        startSingleRequest(route, batch, pending, 0, provider);
+    }
+
+    private static void startSingleRequest(
+            DispatchRoute route,
+            PendingBatch batch,
+            List<PendingRequest> pending,
+            int index,
+            ApiProviderProfile provider
+    ) {
+        if (index >= pending.size()) {
+            finishRequest(route, batch);
+            return;
+        }
+        if (route == DispatchRoute.SCREEN_UI && !STATE.tryAcquireScreenUiRequest()) {
+            for (int remaining = index; remaining < pending.size(); remaining++) {
+                recordRequestFailure(
+                        pending.get(remaining),
+                        "Screen UI request budget exhausted",
+                        null,
+                        FailureDisposition.INFRASTRUCTURE_FAILURE
+                );
+            }
+            finishRequest(route, batch);
+            return;
+        }
+        PendingRequest request = pending.get(index);
+        long watchdogRequestId = TranslationQueueWatchdog.requestStarted(
+                "component/" + route.name(),
+                List.of(request.cacheKey())
+        );
+        try {
+            access().translateResponse(
+                    request.document(),
+                    request.targetLanguage(),
+                    provider,
+                    request.requestContext()
+            ).whenComplete((result, error) -> {
+                if (error != null) {
+                    TranslationQueueWatchdog.requestFailed(watchdogRequestId, false);
+                    recordRequestFailure(request, error.getMessage(), error, classifyFailure(error));
+                } else {
+                    try {
+                        completeRequest(request, result, 1);
+                        TranslationQueueWatchdog.requestSucceeded(watchdogRequestId);
+                    } catch (RuntimeException e) {
+                        TranslationQueueWatchdog.requestFailed(watchdogRequestId, false);
+                        recordRequestFailure(request, e.getMessage(), e, classifyFailure(e));
+                    }
+                }
+                startSingleRequest(route, batch, pending, index + 1, provider);
+            });
+        } catch (RuntimeException e) {
+            TranslationQueueWatchdog.requestFailed(watchdogRequestId, false);
+            recordRequestFailure(request, e.getMessage(), e, classifyFailure(e));
+            startSingleRequest(route, batch, pending, index + 1, provider);
         }
     }
 
