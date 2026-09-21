@@ -168,6 +168,7 @@ public final class PromptMessageBuilder {
                     + "Preserve exactly every <sN> and </sN> style tag. "
                     + "Preserve exactly every {dN}, {gN}, {valueN}, URL, command, item id, number, unit, %s/%d/%f, Minecraft formatting code, \\n, and \\t. "
                     + "Style tags may move with target-language word order only when the route allows it. "
+                    + "Style ids are a closed set taken from the source item: reuse only source ids, never continue the numbering, and never invent an id. "
                     + "Keep explicit line breaks; normal words may be reordered naturally around protected tokens."
                     + failureRule;
             case "scoreboard" -> "\nScoreboard protected data: "
