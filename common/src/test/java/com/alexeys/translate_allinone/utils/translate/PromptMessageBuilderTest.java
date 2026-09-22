@@ -67,6 +67,14 @@ class PromptMessageBuilderTest {
     }
 
     @Test
+    void itemProtectedDataContractClosesTheStyleIdSet() {
+        String contract = PromptMessageBuilder.getForcedProtectedDataContract("item");
+
+        assertTrue(contract.contains("Style ids are a closed set"));
+        assertTrue(contract.contains("never continue the numbering"));
+    }
+
+    @Test
     void forcedOutputContractShapesPlainTextRoutes() {
         for (String routeKey : List.of("chat_input_translate", "chat_output")) {
             String contract = PromptMessageBuilder.getForcedOutputContract(routeKey);
