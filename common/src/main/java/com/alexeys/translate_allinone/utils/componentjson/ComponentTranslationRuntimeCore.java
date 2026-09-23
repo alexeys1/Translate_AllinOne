@@ -5,6 +5,7 @@ import com.alexeys.translate_allinone.utils.cache.component.ComponentTranslation
 import com.alexeys.translate_allinone.utils.config.ModConfig;
 import com.alexeys.translate_allinone.utils.config.ProviderRouteResolver;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
+import com.alexeys.translate_allinone.utils.translate.TranslationContentGate;
 import com.alexeys.translate_allinone.utils.translate.TranslationFeatureGate;
 import com.alexeys.translate_allinone.utils.translate.TranslationQueueWatchdog;
 import java.nio.charset.StandardCharsets;
@@ -125,6 +126,34 @@ public final class ComponentTranslationRuntimeCore {
             return new Resolution<>(State.INELIGIBLE, null, "", e.getMessage());
         }
         ComponentTranslationDebugLogger.textContent(document, request.identity().key());
+
+        if (alreadyInTargetLanguage(document, targetLanguage)) {
+            T identityValue = null;
+            try {
+                identityValue = renderer.apply(identityResponse(document));
+            } catch (RuntimeException error) {
+                ComponentTranslationDebugLogger.error(
+                        document.route(),
+                        "already-target-language identity render failed: route={} context={} reason={}",
+                        document.route().wireName(),
+                        requestContext == null ? "" : requestContext,
+                        error.getMessage(),
+                        error
+                );
+            }
+            ComponentTranslationMetrics.record(
+                    document,
+                    ComponentTranslationMetrics.Outcome.ALREADY_TARGET_LANGUAGE
+            );
+            ComponentTranslationDebugLogger.flow(
+                    document.route(),
+                    "resolve route={} state=CACHE_HIT reason=already_target_language key={} context={}",
+                    document.route().wireName(),
+                    request.identity().key(),
+                    requestContext == null ? "" : requestContext
+            );
+            return new Resolution<>(State.CACHE_HIT, identityValue, request.identity().key(), "");
+        }
 
         ComponentTranslationStore.Lookup lookup;
         try {
@@ -748,6 +777,11 @@ public final class ComponentTranslationRuntimeCore {
                     batchContext
             ).whenComplete((result, error) -> {
                 if (error != null) {
+                    if (shouldRetryIndividually(batch.requests().size(), error)) {
+                        TranslationQueueWatchdog.requestSuperseded(watchdogRequestId);
+                        retryIndividually(route, batch, provider);
+                        return;
+                    }
                     TranslationQueueWatchdog.requestFailed(
                             watchdogRequestId,
                             false
@@ -841,6 +875,7 @@ public final class ComponentTranslationRuntimeCore {
             int batchSize
     ) {
         ComponentTranslationResponse sanitized = sanitizeForCache(request.prepared(), response);
+        requireContentGate(request.document(), request.targetLanguage(), sanitized);
         String candidateHash = candidateHash(sanitized);
         ComponentTranslationDebugLogger.flow(
                 request.document().route(),
@@ -896,6 +931,14 @@ public final class ComponentTranslationRuntimeCore {
                 candidateHash,
                 request.epoch()
         );
+    }
+
+    static ComponentTranslationResponse requireContentGate(
+            ComponentTranslationDocument document,
+            String targetLanguage,
+            ComponentTranslationResponse response
+    ) {
+        return new ComponentTranslationValidator().validate(document, response, targetLanguage);
     }
 
     static String candidateHash(ComponentTranslationResponse response) {
@@ -994,6 +1037,76 @@ public final class ComponentTranslationRuntimeCore {
             return CandidatePromotion.accepted(rendered);
         } catch (RuntimeException error) {
             return CandidatePromotion.rejected(resolvedFailureMessage(error), error);
+        }
+    }
+
+    private static boolean shouldRetryIndividually(int batchSize, Throwable error) {
+        return batchSize > 1
+                && classifyFailure(error) == FailureDisposition.TERMINAL_CONTENT_FAILURE;
+    }
+
+    private static void retryIndividually(
+            DispatchRoute route,
+            PendingBatch batch,
+            ApiProviderProfile provider
+    ) {
+        List<PendingRequest> pending = new ArrayList<>(batch.requests());
+        startSingleRequest(route, batch, pending, 0, provider);
+    }
+
+    private static void startSingleRequest(
+            DispatchRoute route,
+            PendingBatch batch,
+            List<PendingRequest> pending,
+            int index,
+            ApiProviderProfile provider
+    ) {
+        if (index >= pending.size()) {
+            finishRequest(route, batch);
+            return;
+        }
+        if (route == DispatchRoute.SCREEN_UI && !STATE.tryAcquireScreenUiRequest()) {
+            for (int remaining = index; remaining < pending.size(); remaining++) {
+                recordRequestFailure(
+                        pending.get(remaining),
+                        "Screen UI request budget exhausted",
+                        null,
+                        FailureDisposition.INFRASTRUCTURE_FAILURE
+                );
+            }
+            finishRequest(route, batch);
+            return;
+        }
+        PendingRequest request = pending.get(index);
+        long watchdogRequestId = TranslationQueueWatchdog.requestStarted(
+                "component/" + route.name(),
+                List.of(request.cacheKey())
+        );
+        try {
+            access().translateResponse(
+                    request.document(),
+                    request.targetLanguage(),
+                    provider,
+                    request.requestContext()
+            ).whenComplete((result, error) -> {
+                if (error != null) {
+                    TranslationQueueWatchdog.requestFailed(watchdogRequestId, false);
+                    recordRequestFailure(request, error.getMessage(), error, classifyFailure(error));
+                } else {
+                    try {
+                        completeRequest(request, result, 1);
+                        TranslationQueueWatchdog.requestSucceeded(watchdogRequestId);
+                    } catch (RuntimeException e) {
+                        TranslationQueueWatchdog.requestFailed(watchdogRequestId, false);
+                        recordRequestFailure(request, e.getMessage(), e, classifyFailure(e));
+                    }
+                }
+                startSingleRequest(route, batch, pending, index + 1, provider);
+            });
+        } catch (RuntimeException e) {
+            TranslationQueueWatchdog.requestFailed(watchdogRequestId, false);
+            recordRequestFailure(request, e.getMessage(), e, classifyFailure(e));
+            startSingleRequest(route, batch, pending, index + 1, provider);
         }
     }
 
@@ -1217,6 +1330,31 @@ public final class ComponentTranslationRuntimeCore {
             String targetLanguage
     ) {
         return STATE.preparedRequest(document, targetLanguage);
+    }
+
+    private static boolean alreadyInTargetLanguage(
+            ComponentTranslationDocument document,
+            String targetLanguage
+    ) {
+        if (document == null || document.units() == null || document.units().isEmpty()) {
+            return false;
+        }
+        for (ComponentTextUnit unit : document.units()) {
+            if (!TranslationContentGate.alreadyInTargetLanguage(unit.sourceText(), targetLanguage)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static ComponentTranslationResponse identityResponse(
+            ComponentTranslationDocument document
+    ) {
+        Map<String, String> translations = new LinkedHashMap<>(document.units().size());
+        for (ComponentTextUnit unit : document.units()) {
+            translations.put(unit.id(), unit.sourceText());
+        }
+        return new ComponentTranslationResponse(document.protocol(), translations);
     }
 
     private static ComponentTranslationStore store(ComponentTranslationRoute route) {

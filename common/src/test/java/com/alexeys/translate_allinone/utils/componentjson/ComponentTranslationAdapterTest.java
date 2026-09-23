@@ -54,6 +54,35 @@ class ComponentTranslationAdapterTest {
         assertEquals(new TestComponent("你好"), translated);
     }
 
+    @Test
+    void appliesAlreadyTargetLanguageIdentityResponseOnTooltipLine() {
+        String mixedLine = "无法从墨汁发光药水中获取 Power Stone 的力量";
+        JsonObject sourceJson = new JsonObject();
+        sourceJson.addProperty("text", mixedLine);
+        ComponentTranslationDocument document = new ComponentTranslationDocument(
+                ComponentTranslationDocument.PROTOCOL,
+                ComponentTranslationPolicy.CURRENT_VERSION,
+                ComponentTranslationRoute.TOOLTIP_LINE,
+                sourceJson,
+                List.of(new ComponentTextUnit(
+                        "u0",
+                        "/text",
+                        mixedLine,
+                        Map.of(),
+                        ComponentTranslationRoute.TOOLTIP_LINE.wireName()
+                )),
+                Map.of()
+        );
+        ComponentTranslationResponse identity = new ComponentTranslationResponse(
+                ComponentTranslationDocument.PROTOCOL,
+                Map.of("u0", mixedLine)
+        );
+
+        TestComponent translated = new ComponentTranslationAdapter<>(COMPONENT_CODEC).apply(document, identity);
+
+        assertEquals(new TestComponent(mixedLine), translated);
+    }
+
     private record TestComponent(String text) {
     }
 }
