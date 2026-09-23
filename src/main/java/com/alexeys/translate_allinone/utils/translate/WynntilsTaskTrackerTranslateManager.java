@@ -200,9 +200,7 @@ public final class WynntilsTaskTrackerTranslateManager {
         List<OpenAIRequest.Message> messages = PromptMessageBuilder.buildMessages(
                 systemPrompt,
                 userPrompt,
-                providerProfile.activeSupportsSystemMessage(),
-                providerProfile.model_id,
-                providerProfile.activeInjectSystemPromptIntoUserMessage());
+                providerProfile.activeSupportsSystemMessage());
         String requestContext = buildRequestContext(providerProfile, targetLanguage, originalTexts, messages);
         WynntilsTaskTrackerTranslationSupport.devLog(
                 "llm_submit context={} payload={}",
@@ -338,7 +336,7 @@ public final class WynntilsTaskTrackerTranslateManager {
                     }
                 } catch (IndexedMapResponseException e) {
                     failedTaskKeys.addAll(originalTexts);
-                    String failureMessage = e.code() == TranslationRejectionCode.ID_MISMATCH
+                    String failureMessage = e.code() == IndexedMapRejectionCode.ID_MISMATCH
                             ? "LLM response key mismatch"
                             : "Invalid JSON response";
                     cache.requeueFailed(Set.copyOf(originalTexts), failureMessage);

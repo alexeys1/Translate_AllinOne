@@ -394,9 +394,7 @@ public class ChatInputTranslateManager {
         return PromptMessageBuilder.buildMessages(
                 systemPrompt,
                 textToTranslate,
-                providerProfile.activeSupportsSystemMessage(),
-                providerProfile.model_id,
-                providerProfile.activeInjectSystemPromptIntoUserMessage()
+                providerProfile.activeSupportsSystemMessage()
         );
     }
 
