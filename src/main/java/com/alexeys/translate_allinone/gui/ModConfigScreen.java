@@ -34,6 +34,7 @@ import com.alexeys.translate_allinone.gui.configui.support.ConfigUiFocusSupport;
 import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport;
 import com.alexeys.translate_allinone.gui.configui.support.ConfigUiTextFieldSupport;
 import com.alexeys.translate_allinone.utils.config.ui.CustomParameterTreeSupport;
+import com.alexeys.translate_allinone.gui.configui.support.ModelCustomParameterDefaultsSupport;
 import com.alexeys.translate_allinone.gui.configui.support.ModelSettingsApplySupport;
 import com.alexeys.translate_allinone.gui.configui.support.ModelSettingsDraftSupport;
 import com.alexeys.translate_allinone.gui.configui.support.ModelSettingsMutationSupport;
@@ -318,7 +319,6 @@ public class ModConfigScreen extends Screen {
     private String modelSettingsWynnNpcDialogueTemperatureBackup = "";
     private String modelSettingsKeepAliveDraft = "";
     private boolean modelSettingsSupportsSystemDraft;
-    private boolean modelSettingsInjectPromptIntoUserDraft = true;
     private String modelSettingsSystemPromptSuffixDraft = "";
     private List<CustomParameterEntry> modelSettingsCustomParametersDraft = new ArrayList<>();
     private List<CustomParameterEntry> customParametersBackup = new ArrayList<>();
@@ -1243,7 +1243,6 @@ public class ModConfigScreen extends Screen {
         modelSettingsWynnNpcDialogueTemperatureBackup = modelSettingsWynnNpcDialogueTemperatureDraft;
         modelSettingsKeepAliveDraft = draft.keepAliveDraft();
         modelSettingsSupportsSystemDraft = draft.supportsSystem();
-        modelSettingsInjectPromptIntoUserDraft = draft.injectPromptIntoUser();
         modelSettingsSystemPromptSuffixDraft = draft.systemPromptSuffixDraft();
         modelSettingsCustomParametersDraft = draft.customParametersDraft();
         customParametersBackup = draft.customParametersBackup();
@@ -1278,7 +1277,6 @@ public class ModConfigScreen extends Screen {
         modelSettingsWynnNpcDialogueTemperatureBackup = "";
         modelSettingsKeepAliveDraft = empty.keepAliveDraft();
         modelSettingsSupportsSystemDraft = empty.supportsSystem();
-        modelSettingsInjectPromptIntoUserDraft = empty.injectPromptIntoUser();
         modelSettingsSystemPromptSuffixDraft = empty.systemPromptSuffixDraft();
         modelSettingsCustomParametersDraft = empty.customParametersDraft();
         customParametersBackup = empty.customParametersBackup();
@@ -1483,7 +1481,6 @@ public class ModConfigScreen extends Screen {
                 modelSettingsSystemPromptSuffixDraft,
                 CustomParameterTreeSupport.countEntries(modelSettingsCustomParametersDraft),
                 modelSettingsSupportsSystemDraft,
-                modelSettingsInjectPromptIntoUserDraft,
                 modelSettingsSetDefault,
                 ModConfigScreen::t,
                 floatingActionBlockRegistry::add,
@@ -1505,7 +1502,6 @@ public class ModConfigScreen extends Screen {
                     modelSettingsSupportsSystemDraft = value;
                     rebuildActionBlocks(FocusTarget.MODEL_NAME);
                 },
-                value -> modelSettingsInjectPromptIntoUserDraft = value,
                 value -> modelSettingsSetDefault = value,
                 () -> {
                     closeModelSettingsModal();
@@ -1529,7 +1525,6 @@ public class ModConfigScreen extends Screen {
                 modelSettingsWynnNpcDialogueTemperatureDraft,
                 modelSettingsKeepAliveDraft,
                 modelSettingsSupportsSystemDraft,
-                modelSettingsInjectPromptIntoUserDraft,
                 modelSettingsSystemPromptSuffixDraft,
                 modelSettingsCustomParametersDraft,
                 modelSettingsSetDefault
@@ -2132,6 +2127,7 @@ public class ModConfigScreen extends Screen {
     }
 
     private void saveAndClose() {
+        applyModelCustomParameterDefaults();
         boolean saved = ConfigUiRuntimeSupport.saveConfig(
                 ModConfigScreen::t,
                 this::setStatus,
@@ -2152,6 +2148,15 @@ public class ModConfigScreen extends Screen {
 
     private void discardChangesAndClose() {
         finishClose();
+    }
+
+    private void applyModelCustomParameterDefaults() {
+        List<String> appliedRoutes = ModelCustomParameterDefaultsSupport.applyDefaultsToAllModels(
+                ConfigManager.getConfig().providerManager
+        );
+        if (!appliedRoutes.isEmpty()) {
+            Translate_AllinOne.LOGGER.debug("Applied thinking disabled defaults to models: {}", appliedRoutes);
+        }
     }
 
     private void openResetConfirmation() {

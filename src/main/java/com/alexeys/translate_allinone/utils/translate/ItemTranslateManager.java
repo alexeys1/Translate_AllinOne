@@ -12,10 +12,7 @@ import com.alexeys.translate_allinone.utils.llmapi.openai.OpenAIRequest;
 import com.alexeys.translate_allinone.utils.TranslateStringUtils;
 import com.alexeys.translate_allinone.utils.TranslateExceptionUtils;
 import com.google.gson.Gson;
-import com.google.gson.JsonSyntaxException;
-import com.google.gson.reflect.TypeToken;
 
-import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -28,7 +25,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.regex.Matcher;
 
 public class ItemTranslateManager {
     private static final ItemTranslateManager INSTANCE = new ItemTranslateManager();
@@ -255,9 +251,7 @@ public class ItemTranslateManager {
         List<OpenAIRequest.Message> messages = PromptMessageBuilder.buildMessages(
                 systemPrompt,
                 userPrompt,
-                providerProfile.activeSupportsSystemMessage(),
-                providerProfile.model_id,
-                providerProfile.activeInjectSystemPromptIntoUserMessage()
+                providerProfile.activeSupportsSystemMessage()
         );
         String requestContext = buildRequestContext(batchContext, providerProfile, config.target_language, originalTexts, messages);
         acquireRequestPermit();
@@ -327,22 +321,10 @@ public class ItemTranslateManager {
                 } else {
                     try {
                         long jsonExtractStartedAtNanos = System.nanoTime();
-                        Matcher matcher = TranslateStringUtils.JSON_EXTRACT_PATTERN.matcher(response);
-                        if (!matcher.find()) {
-                            throw new JsonSyntaxException("No JSON object found in the response.");
-                        }
-                        String jsonResponse = matcher.group();
+                        List<String> translatedValues = IndexedMapResponseDecoder.decode(response);
                         jsonExtractElapsedNanos = System.nanoTime() - jsonExtractStartedAtNanos;
 
-                        long jsonParseStartedAtNanos = System.nanoTime();
-                        Type type = new TypeToken<Map<String, String>>() {}.getType();
-                        Map<String, String> translatedMapFromAI = GSON.fromJson(jsonResponse, type);
-                        jsonParseElapsedNanos = System.nanoTime() - jsonParseStartedAtNanos;
-                        if (translatedMapFromAI == null) {
-                            throw new JsonSyntaxException("Parsed translation result is null");
-                        }
-
-                        if (hasKeyMismatch(translatedMapFromAI, originalTexts.size())) {
+                        if (translatedValues.size() != originalTexts.size()) {
                             phase = "key-mismatch";
                             requeueCount = originalTexts.size();
                             missingCount = originalTexts.size();
@@ -357,28 +339,19 @@ public class ItemTranslateManager {
                             java.util.Set<String> itemsToRequeueForColor = new java.util.HashSet<>();
                             java.util.Set<String> itemsToRequeueForEmpty = new java.util.HashSet<>();
 
-                            for (Map.Entry<String, String> entry : translatedMapFromAI.entrySet()) {
-                                try {
-                                    int index = Integer.parseInt(entry.getKey()) - 1;
-                                    if (index >= 0 && index < originalTexts.size()) {
-                                        String originalTemplate = originalTexts.get(index);
-                                        String translatedTemplate = entry.getValue();
+                            for (int index = 0; index < originalTexts.size(); index++) {
+                                String originalTemplate = originalTexts.get(index);
+                                String translatedTemplate = translatedValues.get(index);
 
-                                        if (translatedTemplate == null || translatedTemplate.trim().isEmpty()) {
-                                            itemsToRequeueForEmpty.add(originalTemplate);
-                                            continue;
-                                        }
+                                if (translatedTemplate == null || translatedTemplate.trim().isEmpty()) {
+                                    itemsToRequeueForEmpty.add(originalTemplate);
+                                    continue;
+                                }
 
-                                        if (originalTemplate.contains("§") && !translatedTemplate.contains("§")) {
-                                            itemsToRequeueForColor.add(originalTemplate);
-                                        } else {
-                                            finalTranslatedMap.put(originalTemplate, translatedTemplate);
-                                        }
-                                    } else {
-                                        Translate_AllinOne.LOGGER.warn("Received out-of-bounds index {} from LLM, skipping.", entry.getKey());
-                                    }
-                                } catch (NumberFormatException e) {
-                                    Translate_AllinOne.LOGGER.warn("Received non-numeric key '{}' from LLM, skipping.", entry.getKey());
+                                if (originalTemplate.contains("§") && !translatedTemplate.contains("§")) {
+                                    itemsToRequeueForColor.add(originalTemplate);
+                                } else {
+                                    finalTranslatedMap.put(originalTemplate, translatedTemplate);
                                 }
                             }
 
@@ -415,13 +388,21 @@ public class ItemTranslateManager {
                             requeueCount = itemsToRequeueForColor.size() + itemsToRequeueForEmpty.size();
                             missingCount = allOriginalTexts.size();
                         }
-                    } catch (JsonSyntaxException e) {
+                    } catch (IndexedMapResponseException e) {
                         phase = "json-error";
                         phaseError = e;
                         requeueCount = originalTexts.size();
                         missingCount = originalTexts.size();
-                        Translate_AllinOne.LOGGER.error("Failed to parse JSON response from LLM. Response: {}", response, e);
-                        cache.requeueFailed(new java.util.HashSet<>(originalTexts), "Invalid JSON response");
+                        Translate_AllinOne.LOGGER.error(
+                                "Failed to parse JSON response from LLM. Response: {} reason={}",
+                                response,
+                                e.getMessage(),
+                                e
+                        );
+                        String failureMessage = e.code() == IndexedMapRejectionCode.ID_MISMATCH
+                                ? "LLM response key mismatch"
+                                : "Invalid JSON response";
+                        cache.requeueFailed(new java.util.HashSet<>(originalTexts), failureMessage);
                     } catch (Throwable t) {
                         phase = "postprocess-error";
                         phaseError = t;
@@ -468,33 +449,6 @@ public class ItemTranslateManager {
 
     private boolean isSessionActive(long expectedEpoch) {
         return expectedEpoch == sessionEpoch.get();
-    }
-
-    private boolean hasKeyMismatch(Map<String, String> translatedMapFromAI, int expectedSize) {
-        java.util.Set<String> expectedKeys = new java.util.LinkedHashSet<>();
-        for (int i = 1; i <= expectedSize; i++) {
-            expectedKeys.add(String.valueOf(i));
-        }
-
-        java.util.Set<String> actualKeys = new java.util.LinkedHashSet<>(translatedMapFromAI.keySet());
-        java.util.Set<String> missingKeys = new java.util.LinkedHashSet<>(expectedKeys);
-        missingKeys.removeAll(actualKeys);
-
-        java.util.Set<String> extraKeys = new java.util.LinkedHashSet<>(actualKeys);
-        extraKeys.removeAll(expectedKeys);
-
-        if (missingKeys.isEmpty() && extraKeys.isEmpty()) {
-            return false;
-        }
-
-        Translate_AllinOne.LOGGER.warn(
-                "Item translation key mismatch. expectedCount={}, actualCount={}, missing={}, extra={}",
-                expectedKeys.size(),
-                actualKeys.size(),
-                TranslateStringUtils.summarizeKeys(missingKeys),
-                TranslateStringUtils.summarizeKeys(extraKeys)
-        );
-        return true;
     }
 
     private void logDevBatchTiming(

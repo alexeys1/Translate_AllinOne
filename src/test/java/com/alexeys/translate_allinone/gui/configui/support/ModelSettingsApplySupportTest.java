@@ -29,7 +29,6 @@ class ModelSettingsApplySupportTest {
                 "1.1",
                 "1m",
                 true,
-                true,
                 "suffix",
                 List.of(),
                 true

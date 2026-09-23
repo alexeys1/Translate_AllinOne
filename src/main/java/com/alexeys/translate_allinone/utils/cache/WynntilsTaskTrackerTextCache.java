@@ -1,6 +1,7 @@
 package com.alexeys.translate_allinone.utils.cache;
 
 import com.alexeys.translate_allinone.Translate_AllinOne;
+import com.alexeys.translate_allinone.utils.translate.WynntilsTaskTrackerTranslationSupport;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.nio.file.Path;
@@ -44,5 +45,14 @@ public final class WynntilsTaskTrackerTextCache extends TextTranslationCacheServ
 
     private static final class Holder {
         private static final WynntilsTaskTrackerTextCache INSTANCE = new WynntilsTaskTrackerTextCache();
+    }
+
+    @Override
+    protected String readGateTargetLanguage() {
+        try {
+            return WynntilsTaskTrackerTranslationSupport.getTargetLanguage();
+        } catch (RuntimeException unavailable) {
+            return null;
+        }
     }
 }

@@ -25,7 +25,6 @@ public final class ModelSettingsModalSupport {
             String modelSettingsSystemPromptSuffixDraft,
             int customParameterCount,
             boolean modelSettingsSupportsSystemDraft,
-            boolean modelSettingsInjectPromptIntoUserDraft,
             boolean modelSettingsSetDefault,
             Translator translator,
             FloatingActionBlockAdder floatingActionBlockAdder,
@@ -37,7 +36,6 @@ public final class ModelSettingsModalSupport {
             Runnable onEditTemperatures,
             Runnable onEditCustomParameters,
             Consumer<Boolean> onSupportsSystemChanged,
-            Consumer<Boolean> onInjectPromptIntoUserChanged,
             Consumer<Boolean> onSetDefaultChanged,
             Runnable onCancel,
             Runnable onSave,
@@ -196,20 +194,6 @@ public final class ModelSettingsModalSupport {
                 translator.t("desc.supports_system_msg")
         );
         rowY += 24;
-
-        if (!modelSettingsSupportsSystemDraft) {
-            floatingCheckboxAdder.add(
-                    rect.x + 24,
-                    rowY,
-                    rect.width - 48,
-                    20,
-                    () -> translator.t("modal.model.inject_prompt_into_user"),
-                    () -> modelSettingsInjectPromptIntoUserDraft,
-                    onInjectPromptIntoUserChanged,
-                    checkboxStyle
-            , null);
-            rowY += 24;
-        }
 
         floatingCheckboxAdder.add(
                 rect.x + 24,

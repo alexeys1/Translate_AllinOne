@@ -51,6 +51,9 @@ public abstract class DrawContextTooltipMixin {
     private static final String CHAT_HOVER_DEV_SOURCE = "chat-hover";
 
     @Unique
+    private static volatile boolean translate_allinone$loggedImmutableComponentList = false;
+
+    @Unique
     private static final ThreadLocal<Boolean> translate_allinone$isProcessing = ThreadLocal.withInitial(() -> false);
 
     @Unique
@@ -104,6 +107,8 @@ public abstract class DrawContextTooltipMixin {
         if (!translate_allinone$isSupportedExternalTooltip(positioner, isWynntilsItemStatTooltip, isChatHoverTooltip)) {
             return;
         }
+
+        translate_allinone$dropGeneratedComponents(components);
 
         int componentHash = translate_allinone$quickComponentHash(components);
         ParsedTooltip parsedTooltip;
@@ -295,6 +300,34 @@ public abstract class DrawContextTooltipMixin {
                         + " parsedTooltipMisses=" + translate_allinone$parsedTooltipCacheMisses.get()
         );
         return !processedTooltip.pending() && !processedTooltip.missingKeyIssue();
+    }
+
+    @Unique
+    private void translate_allinone$dropGeneratedComponents(List<TooltipComponent> components) {
+        if (components == null || components.isEmpty()) {
+            return;
+        }
+
+        try {
+            components.removeIf(component -> component instanceof OrderedTextTooltipComponent textTooltip
+                    && TooltipInternalLineSupport.isInternalGeneratedLine(
+                            translate_allinone$orderedTextToText(((OrderedTextTooltipComponentAccessor) textTooltip).getText())
+                    ));
+        } catch (UnsupportedOperationException e) {
+            translate_allinone$logImmutableComponentListOnce();
+        }
+    }
+
+    @Unique
+    private static void translate_allinone$logImmutableComponentListOnce() {
+        if (translate_allinone$loggedImmutableComponentList) {
+            return;
+        }
+        translate_allinone$loggedImmutableComponentList = true;
+        LOGGER.info(
+                "Tooltip component list is not structurally modifiable (immutable caller list). "
+                        + "In-place line translation still applies; generated status lines are skipped."
+        );
     }
 
     @Unique
