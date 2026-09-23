@@ -19,7 +19,7 @@ public final class IndexedMapResponseDecoder {
     public static List<String> decode(String rawResponse) {
         if (rawResponse == null || rawResponse.isBlank()) {
             throw new IndexedMapResponseException(
-                    TranslationRejectionCode.MALFORMED_PROTOCOL,
+                    IndexedMapRejectionCode.MALFORMED_PROTOCOL,
                     "Indexed map response is empty: expected=JSON_OBJECT with keys 1..N"
             );
         }
@@ -28,7 +28,7 @@ public final class IndexedMapResponseDecoder {
             reader.setStrictness(Strictness.STRICT);
             if (reader.peek() != JsonToken.BEGIN_OBJECT) {
                 throw new IndexedMapResponseException(
-                        TranslationRejectionCode.MALFORMED_PROTOCOL,
+                        IndexedMapRejectionCode.MALFORMED_PROTOCOL,
                         "Indexed map response must be one JSON object: expected=BEGIN_OBJECT, actual=" + reader.peek()
                 );
             }
@@ -37,13 +37,13 @@ public final class IndexedMapResponseDecoder {
                 String key = reader.nextName();
                 if (entries.containsKey(key)) {
                     throw new IndexedMapResponseException(
-                            TranslationRejectionCode.MALFORMED_PROTOCOL,
+                            IndexedMapRejectionCode.MALFORMED_PROTOCOL,
                             "Indexed map response contains a duplicate key: " + key
                     );
                 }
                 if (reader.peek() != JsonToken.STRING) {
                     throw new IndexedMapResponseException(
-                            TranslationRejectionCode.MALFORMED_PROTOCOL,
+                            IndexedMapRejectionCode.MALFORMED_PROTOCOL,
                             "Indexed map value must be a string: key=" + key + ", actual=" + reader.peek()
                     );
                 }
@@ -52,7 +52,7 @@ public final class IndexedMapResponseDecoder {
             reader.endObject();
             if (reader.peek() != JsonToken.END_DOCUMENT) {
                 throw new IndexedMapResponseException(
-                        TranslationRejectionCode.MALFORMED_PROTOCOL,
+                        IndexedMapRejectionCode.MALFORMED_PROTOCOL,
                         "Trailing content after indexed map response: expected=END_DOCUMENT, actual=" + reader.peek()
                 );
             }
@@ -60,19 +60,19 @@ public final class IndexedMapResponseDecoder {
             throw e;
         } catch (IOException | RuntimeException e) {
             throw new IndexedMapResponseException(
-                    TranslationRejectionCode.MALFORMED_PROTOCOL,
+                    IndexedMapRejectionCode.MALFORMED_PROTOCOL,
                     "Malformed indexed map response: " + e.getClass().getSimpleName()
             );
         }
         if (entries.isEmpty()) {
             throw new IndexedMapResponseException(
-                    TranslationRejectionCode.MALFORMED_PROTOCOL,
+                    IndexedMapRejectionCode.MALFORMED_PROTOCOL,
                     "Indexed map response must contain keys 1..N: expected=non-empty JSON_OBJECT"
             );
         }
         if (!hasExactIndexedKeys(entries)) {
             throw new IndexedMapResponseException(
-                    TranslationRejectionCode.ID_MISMATCH,
+                    IndexedMapRejectionCode.ID_MISMATCH,
                     "Indexed map response keys must be exactly 1..N: actual=" + entries.keySet()
             );
         }

@@ -53,7 +53,7 @@ public final class TranslationCacheReadGuard {
                 return new LookupResult(
                         TranslationStatus.ERROR,
                         null,
-                        "Cached translation rejected: " + verdict.code()
+                        "Cached translation rejected: " + verdict.reason()
                 );
             }
             invalidationCount.incrementAndGet();
@@ -63,7 +63,7 @@ public final class TranslationCacheReadGuard {
             return new LookupResult(
                     TranslationStatus.ERROR,
                     null,
-                    "Cached translation rejected: " + verdict.code()
+                    "Cached translation rejected: " + verdict.reason()
             );
         }
     }

@@ -16,6 +16,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -292,6 +293,40 @@ class ComponentTranslationResponseClientTest {
         assertTrue(system.contains("Tooltip protected data:"));
         assertTrue(system.contains("Preserve exactly every <sN> and </sN> style tag."));
         assertTrue(system.contains("Preserve exactly every {dN}, {gN}, {valueN}, URL, command, item id, number, unit, %s/%d/%f, Minecraft formatting code, \\n, and \\t."));
+        assertTrue(system.contains("Style ids are a closed set"));
+    }
+
+    @Test
+    void correctionMessageTurnsUnexpectedStyleIdsIntoActionableFix() {
+        List<OpenAIRequest.Message> messages = ComponentTranslationResponseClient.buildCorrectionMessages(
+                List.of(),
+                new ComponentJsonException(
+                        ComponentJsonException.Kind.VALIDATION,
+                        "Line style ids changed for b1:u0: expected=[0, 1], actual=[0, 1, 2], missing=[], unexpected=[2]"
+                ),
+                ComponentTranslationRoute.TOOLTIP_LINE
+        );
+
+        String correction = messages.get(messages.size() - 1).content;
+        assertTrue(correction.contains("Style id fix:"));
+        assertTrue(correction.contains("[2]"));
+        assertTrue(correction.contains("never continue the source numbering"));
+    }
+
+    @Test
+    void correctionMessageOmitsStyleFixForUnrelatedRejections() {
+        List<OpenAIRequest.Message> messages = ComponentTranslationResponseClient.buildCorrectionMessages(
+                List.of(),
+                new ComponentJsonException(
+                        ComponentJsonException.Kind.RESPONSE,
+                        "Component translation batch returned an unexpected number of units."
+                ),
+                ComponentTranslationRoute.TOOLTIP_LINE
+        );
+
+        String correction = messages.get(messages.size() - 1).content;
+        assertTrue(correction.contains("was rejected"));
+        assertFalse(correction.contains("Style id fix:"));
     }
 
     @Test

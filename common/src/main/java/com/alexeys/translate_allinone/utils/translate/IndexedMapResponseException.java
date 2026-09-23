@@ -2,14 +2,14 @@ package com.alexeys.translate_allinone.utils.translate;
 
 public class IndexedMapResponseException extends RuntimeException {
 
-    private final TranslationRejectionCode code;
+    private final IndexedMapRejectionCode code;
 
-    public IndexedMapResponseException(TranslationRejectionCode code, String message) {
+    public IndexedMapResponseException(IndexedMapRejectionCode code, String message) {
         super(message);
-        this.code = code == null ? TranslationRejectionCode.MALFORMED_PROTOCOL : code;
+        this.code = code == null ? IndexedMapRejectionCode.MALFORMED_PROTOCOL : code;
     }
 
-    public TranslationRejectionCode code() {
+    public IndexedMapRejectionCode code() {
         return code;
     }
 }

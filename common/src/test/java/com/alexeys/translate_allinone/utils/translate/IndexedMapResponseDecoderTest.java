@@ -24,7 +24,7 @@ class IndexedMapResponseDecoderTest {
                 () -> IndexedMapResponseDecoder.decode("{\"1\":\"你好\",\"3\":\"！\"}")
         );
 
-        assertEquals(TranslationRejectionCode.ID_MISMATCH, error.code());
+        assertEquals(IndexedMapRejectionCode.ID_MISMATCH, error.code());
     }
 
     @Test
@@ -34,7 +34,7 @@ class IndexedMapResponseDecoderTest {
                 () -> IndexedMapResponseDecoder.decode("{\"1\":\"你好\",\"2\":\"世界\",\"x\":\"y\"}")
         );
 
-        assertEquals(TranslationRejectionCode.ID_MISMATCH, error.code());
+        assertEquals(IndexedMapRejectionCode.ID_MISMATCH, error.code());
     }
 
     @Test
@@ -44,7 +44,7 @@ class IndexedMapResponseDecoderTest {
                 () -> IndexedMapResponseDecoder.decode("{\"1\":\"你好\",\"1\":\"世界\"}")
         );
 
-        assertEquals(TranslationRejectionCode.MALFORMED_PROTOCOL, error.code());
+        assertEquals(IndexedMapRejectionCode.MALFORMED_PROTOCOL, error.code());
     }
 
     @Test
@@ -54,7 +54,7 @@ class IndexedMapResponseDecoderTest {
                 () -> IndexedMapResponseDecoder.decode("{\"1\":{\"translation\":\"你好\"}}")
         );
 
-        assertEquals(TranslationRejectionCode.MALFORMED_PROTOCOL, error.code());
+        assertEquals(IndexedMapRejectionCode.MALFORMED_PROTOCOL, error.code());
     }
 
     @Test
@@ -64,7 +64,7 @@ class IndexedMapResponseDecoderTest {
                 () -> IndexedMapResponseDecoder.decode("[\"你好\"]")
         );
 
-        assertEquals(TranslationRejectionCode.MALFORMED_PROTOCOL, error.code());
+        assertEquals(IndexedMapRejectionCode.MALFORMED_PROTOCOL, error.code());
     }
 
     @Test
@@ -74,7 +74,7 @@ class IndexedMapResponseDecoderTest {
                 () -> IndexedMapResponseDecoder.decode("{\"1\":\"你好\"} trailing")
         );
 
-        assertEquals(TranslationRejectionCode.MALFORMED_PROTOCOL, error.code());
+        assertEquals(IndexedMapRejectionCode.MALFORMED_PROTOCOL, error.code());
     }
 
     @Test
@@ -84,7 +84,7 @@ class IndexedMapResponseDecoderTest {
                 () -> IndexedMapResponseDecoder.decode("Here is the map: {\"1\":\"你好\"}")
         );
 
-        assertEquals(TranslationRejectionCode.MALFORMED_PROTOCOL, error.code());
+        assertEquals(IndexedMapRejectionCode.MALFORMED_PROTOCOL, error.code());
     }
 
     @Test
@@ -94,7 +94,7 @@ class IndexedMapResponseDecoderTest {
                 () -> IndexedMapResponseDecoder.decode("{}")
         );
 
-        assertEquals(TranslationRejectionCode.MALFORMED_PROTOCOL, error.code());
+        assertEquals(IndexedMapRejectionCode.MALFORMED_PROTOCOL, error.code());
     }
 
     @Test
@@ -104,7 +104,7 @@ class IndexedMapResponseDecoderTest {
                 () -> IndexedMapResponseDecoder.decode("   ")
         );
 
-        assertEquals(TranslationRejectionCode.MALFORMED_PROTOCOL, error.code());
+        assertEquals(IndexedMapRejectionCode.MALFORMED_PROTOCOL, error.code());
     }
 
     @Test

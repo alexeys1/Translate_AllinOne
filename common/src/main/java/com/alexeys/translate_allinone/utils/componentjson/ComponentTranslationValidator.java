@@ -154,7 +154,7 @@ public final class ComponentTranslationValidator {
             if (!contentVerdict.accepted()) {
                 throw validationError(
                         "Content quality gate rejected translation " + unit.id()
-                                + ": code=" + contentVerdict.code()
+                                + ": code=" + contentVerdict.reason()
                 );
             }
         }

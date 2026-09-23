@@ -40,12 +40,10 @@ class PromptMessageBuilderTest {
     }
 
     @Test
-    void keepsSystemPromptWhenSystemRoleUnsupportedEvenIfInjectionDisabled() {
+    void mergesSystemPromptIntoUserWhenSystemRoleUnsupported() {
         List<OpenAIRequest.Message> messages = PromptMessageBuilder.buildMessages(
                 "Translate player-composed Minecraft chat input into Chinese.",
                 "Hello",
-                false,
-                null,
                 false
         );
 
@@ -66,6 +64,14 @@ class PromptMessageBuilderTest {
         assertTrue(PromptMessageBuilder.getForcedProtectedDataContract("wynntils_task_tracker").contains("Wynntils task tracker protected data:"));
         assertTrue(PromptMessageBuilder.getForcedProtectedDataContract("screen_ui").contains("Screen UI protected data:"));
         assertTrue(PromptMessageBuilder.getForcedProtectedDataContract("other_translations").contains("Protected data:"));
+    }
+
+    @Test
+    void itemProtectedDataContractClosesTheStyleIdSet() {
+        String contract = PromptMessageBuilder.getForcedProtectedDataContract("item");
+
+        assertTrue(contract.contains("Style ids are a closed set"));
+        assertTrue(contract.contains("never continue the numbering"));
     }
 
     @Test
@@ -141,9 +147,7 @@ class PromptMessageBuilderTest {
         List<OpenAIRequest.Message> messages = PromptMessageBuilder.buildMessages(
                 systemPrompt,
                 "{\"1\":\"Hello\"}",
-                false,
-                null,
-                true
+                false
         );
 
         assertEquals(1, messages.size());
