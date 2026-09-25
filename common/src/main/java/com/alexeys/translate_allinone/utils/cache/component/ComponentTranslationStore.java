@@ -226,7 +226,8 @@ public final class ComponentTranslationStore {
         try {
             ComponentTranslationResponse response = validator.validate(
                     request.document(),
-                    new ComponentTranslationResponse(request.document().protocol(), entry.translations())
+                    new ComponentTranslationResponse(request.document().protocol(), entry.translations()),
+                    request.targetLanguage()
             );
             return new Lookup(Status.HIT, key, response);
         } catch (ComponentJsonException | IllegalArgumentException error) {
@@ -265,7 +266,8 @@ public final class ComponentTranslationStore {
         try {
             ComponentTranslationResponse response = validator.validate(
                     request.document(),
-                    new ComponentTranslationResponse(request.document().protocol(), entry.translations())
+                    new ComponentTranslationResponse(request.document().protocol(), entry.translations()),
+                    request.targetLanguage()
             );
             return new Lookup(Status.HIT, key, response);
         } catch (ComponentJsonException | IllegalArgumentException error) {
@@ -288,7 +290,7 @@ public final class ComponentTranslationStore {
         if (request == null || response == null || !module.owns(request.document().route())) {
             return false;
         }
-        ComponentTranslationResponse validated = validator.validate(request.document(), response);
+        ComponentTranslationResponse validated = validator.validate(request.document(), response, request.targetLanguage());
         Entry entry = new Entry(request.document().route(), request.identity().binding(), validated.translations());
         String entryKey = request.identity().key();
         boolean changed = !entry.equals(entries.put(entryKey, entry));

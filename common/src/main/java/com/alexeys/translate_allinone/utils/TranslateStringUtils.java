@@ -4,13 +4,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.regex.Pattern;
 
 public final class TranslateStringUtils {
 
     private TranslateStringUtils() {}
-
-    public static final Pattern JSON_EXTRACT_PATTERN = Pattern.compile("\\{.*\\}", Pattern.DOTALL);
 
 
     public static String normalizeWhitespace(String value) {

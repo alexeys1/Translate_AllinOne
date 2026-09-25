@@ -17,6 +17,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ComponentTranslationRuntimeCoreTest {
@@ -51,6 +52,87 @@ class ComponentTranslationRuntimeCoreTest {
         assertEquals(ComponentTranslationRuntimeCore.State.INELIGIBLE, incomplete.state());
         assertEquals(ComponentTranslationRuntimeCore.State.NO_TEXT, empty.state());
         assertEquals(1, errors.get());
+    }
+
+    @Test
+    void resolvesAlreadyTargetLanguageDocumentsWithoutStoreOrProvider() {
+        ComponentTranslationDocument document = new ComponentTranslationDocument(
+                ComponentTranslationDocument.PROTOCOL,
+                ComponentTranslationPolicy.CURRENT_VERSION,
+                ComponentTranslationRoute.CHAT_OUTPUT,
+                JsonParser.parseString("{\"text\":\"你好世界\"}"),
+                List.of(new ComponentTextUnit(
+                        "u0",
+                        "/text",
+                        "你好世界",
+                        Map.of(),
+                        "chat"
+                )),
+                Map.of()
+        );
+
+        ComponentTranslationRuntimeCore.Resolution<String> resolution = ComponentTranslationRuntimeCore.resolve(
+                document,
+                "zh_cn",
+                "",
+                null,
+                response -> response.translations().get("u0"),
+                "test"
+        );
+
+        assertEquals(ComponentTranslationRuntimeCore.State.CACHE_HIT, resolution.state());
+        assertEquals("你好世界", resolution.value());
+        assertEquals(0, errors.get());
+    }
+
+    @Test
+    void alreadyTargetLanguageGuardOnlySkipsFullyChineseDocuments() {
+        assertThrows(AssertionError.class, () -> {
+            ComponentTranslationDocument english = new ComponentTranslationDocument(
+                    ComponentTranslationDocument.PROTOCOL,
+                    ComponentTranslationPolicy.CURRENT_VERSION,
+                    ComponentTranslationRoute.CHAT_OUTPUT,
+                    JsonParser.parseString("{\"text\":\"Hello world\"}"),
+                    List.of(new ComponentTextUnit(
+                            "u0",
+                            "/text",
+                            "Hello world",
+                            Map.of(),
+                            "chat"
+                    )),
+                    Map.of()
+            );
+            ComponentTranslationRuntimeCore.resolve(
+                    english,
+                    "zh_cn",
+                    "",
+                    null,
+                    response -> response.translations().get("u0"),
+                    "test"
+            );
+        });
+        ComponentTranslationDocument mixed = new ComponentTranslationDocument(
+                ComponentTranslationDocument.PROTOCOL,
+                ComponentTranslationPolicy.CURRENT_VERSION,
+                ComponentTranslationRoute.CHAT_OUTPUT,
+                JsonParser.parseString("{\"text\":\"Hello world 你好\"}"),
+                List.of(new ComponentTextUnit(
+                        "u0",
+                        "/text",
+                        "Hello world 你好",
+                        Map.of(),
+                        "chat"
+                )),
+                Map.of()
+        );
+        assertThrows(AssertionError.class, () -> ComponentTranslationRuntimeCore.resolve(
+                mixed,
+                "zh_cn",
+                "",
+                null,
+                response -> response.translations().get("u0"),
+                "test"
+        ));
     }
 
     @Test
@@ -323,6 +405,72 @@ class ComponentTranslationRuntimeCoreTest {
                 JsonParser.parseString("{\"text\":\"hello\"}"),
                 ComponentTranslationPolicy.forRoute(ComponentTranslationRoute.CHAT_OUTPUT)
         );
+    }
+
+    @Test
+    void rejectsSourceEchoContentBeforeAnyCommit() {
+        ComponentTranslationDocument document = new ComponentTranslationDocument(
+                ComponentTranslationDocument.PROTOCOL,
+                ComponentTranslationPolicy.CURRENT_VERSION,
+                ComponentTranslationRoute.CHAT_OUTPUT,
+                JsonParser.parseString("{\"text\":\"value\"}"),
+                List.of(new ComponentTextUnit(
+                        "u0",
+                        "/text",
+                        "Hello world, this is a test",
+                        Map.of(),
+                        "chat_output"
+                )),
+                Map.of()
+        );
+        ComponentTranslationResponse response = new ComponentTranslationResponse(
+                ComponentTranslationDocument.PROTOCOL,
+                Map.of("u0", "Hello world, this is a test")
+        );
+
+        ComponentJsonException error = assertThrows(
+                ComponentJsonException.class,
+                () -> ComponentTranslationRuntimeCore.requireContentGate(document, "Chinese", response)
+        );
+
+        assertTrue(error.getMessage().contains("code=SOURCE_COPY"));
+        assertTrue(error.getMessage().contains("quality gate rejected"));
+    }
+
+    @Test
+    void validatesEverySplitDocumentAfterBatchResponse() {
+        ComponentTranslationDocument goodDocument = new ComponentTranslationDocument(
+                ComponentTranslationDocument.PROTOCOL,
+                ComponentTranslationPolicy.CURRENT_VERSION,
+                ComponentTranslationRoute.CHAT_OUTPUT,
+                JsonParser.parseString("{\"text\":\"value\"}"),
+                List.of(new ComponentTextUnit(
+                        "u0",
+                        "/text",
+                        "Hello world, this is a test",
+                        Map.of(),
+                        "chat_output"
+                )),
+                Map.of()
+        );
+        ComponentTranslationBatch batch = ComponentTranslationBatch.create(List.of(goodDocument, goodDocument));
+        ComponentTranslationResponse batchResponse = new ComponentTranslationResponse(
+                ComponentTranslationDocument.PROTOCOL,
+                Map.of(
+                        "b0:u0", "你好世界，这是一个测试",
+                        "b1:u0", "Hello world, this is a test"
+                )
+        );
+
+        List<ComponentTranslationResponse> split = batch.splitResponse(batchResponse);
+        ComponentTranslationRuntimeCore.requireContentGate(goodDocument, "Chinese", split.get(0));
+
+        ComponentJsonException error = assertThrows(
+                ComponentJsonException.class,
+                () -> ComponentTranslationRuntimeCore.requireContentGate(goodDocument, "Chinese", split.get(1))
+        );
+
+        assertTrue(error.getMessage().contains("SOURCE_COPY"));
     }
 
     private static ComponentTranslationDocument emptyDocument() {

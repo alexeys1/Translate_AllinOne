@@ -274,6 +274,8 @@ public final class ComponentTranslationMetrics {
         VALIDATION_TOKEN_FAILURE,
         VALIDATION_LENGTH_FAILURE,
         VALIDATION_STRUCTURE_FAILURE,
+        CONTENT_GATE_REJECTED,
+        ALREADY_TARGET_LANGUAGE,
         JOB_QUEUED,
         JOB_IN_FLIGHT,
         JOB_SUCCESS,

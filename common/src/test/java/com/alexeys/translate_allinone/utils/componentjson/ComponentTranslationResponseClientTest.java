@@ -16,6 +16,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -117,26 +118,87 @@ class ComponentTranslationResponseClientTest {
     }
 
     @Test
-    void allowsBatchResponseToReachPerDocumentValidation() {
+    void rejectsRuntimeBatchDocumentWithInvalidPerUnitStructure() {
         ComponentTranslationBatch batch = ComponentTranslationBatch.create(List.of(
                 document(textUnits()),
                 document(textUnits())
         ));
-        ComponentTranslationResponseClient client = client((messages, context, observer, schema, allowFallback) ->
-                CompletableFuture.completedFuture(completion(
-                        "{\"protocol\":\"taio-component-v1\",\"translations\":{\"b0:u0\":\"你好\",\"b1:u0\":\"<s0>你好</s0></s0>\"}}"
-                ))
-        );
+        AtomicInteger calls = new AtomicInteger();
+        ComponentTranslationResponseClient client = client((messages, context, observer, schema, allowFallback) -> {
+            calls.incrementAndGet();
+            return CompletableFuture.completedFuture(completion(
+                    "{\"protocol\":\"taio-component-v1\",\"translations\":{\"b0:u0\":\"你好\",\"b1:u0\":\"<s0>你好</s0></s0>\"}}"
+            ));
+        });
 
-        ComponentTranslationResponse response = client.translate(
+        assertThrows(CompletionException.class, () -> client.translate(
                 batch.requestDocument(),
                 "Chinese",
                 profile(),
                 "batch"
+        ).join());
+
+        assertEquals(2, calls.get());
+    }
+
+    @Test
+    void retriesContentGateRejectionAndAcceptsCorrection() {
+        AtomicInteger calls = new AtomicInteger();
+        ComponentTranslationResponseClient client = client((messages, context, observer, schema, allowFallback) -> {
+            int attempt = calls.incrementAndGet();
+            if (attempt == 1) {
+                return CompletableFuture.completedFuture(completion(validResponse(
+                        "Hello world, this is a test"
+                )));
+            }
+            return CompletableFuture.completedFuture(completion(validResponse(
+                    "你好世界，这是一个测试"
+            )));
+        });
+        List<ComponentTextUnit> units = List.of(new ComponentTextUnit(
+                "u0",
+                "/text",
+                "Hello world, this is a test",
+                Map.of(),
+                "chat_output"
+        ));
+
+        ComponentTranslationResponse response = client.translate(
+                document(units),
+                "Chinese",
+                profile(),
+                "chat-output"
         ).join();
 
-        assertEquals(2, response.translations().size());
-        assertEquals("你好", response.translations().get("b0:u0"));
+        assertEquals(2, calls.get());
+        assertEquals("你好世界，这是一个测试", response.translations().get("u0"));
+    }
+
+    @Test
+    void rejectsSourceEchoContentAfterCorrectionBudget() {
+        AtomicInteger calls = new AtomicInteger();
+        ComponentTranslationResponseClient client = client((messages, context, observer, schema, allowFallback) -> {
+            calls.incrementAndGet();
+            return CompletableFuture.completedFuture(completion(validResponse(
+                    "Hello world, this is a test"
+            )));
+        });
+        List<ComponentTextUnit> units = List.of(new ComponentTextUnit(
+                "u0",
+                "/text",
+                "Hello world, this is a test",
+                Map.of(),
+                "chat_output"
+        ));
+
+        assertThrows(CompletionException.class, () -> client.translate(
+                document(units),
+                "Chinese",
+                profile(),
+                "chat-output"
+        ).join());
+
+        assertEquals(2, calls.get());
     }
 
     @Test
@@ -231,6 +293,40 @@ class ComponentTranslationResponseClientTest {
         assertTrue(system.contains("Tooltip protected data:"));
         assertTrue(system.contains("Preserve exactly every <sN> and </sN> style tag."));
         assertTrue(system.contains("Preserve exactly every {dN}, {gN}, {valueN}, URL, command, item id, number, unit, %s/%d/%f, Minecraft formatting code, \\n, and \\t."));
+        assertTrue(system.contains("Style ids are a closed set"));
+    }
+
+    @Test
+    void correctionMessageTurnsUnexpectedStyleIdsIntoActionableFix() {
+        List<OpenAIRequest.Message> messages = ComponentTranslationResponseClient.buildCorrectionMessages(
+                List.of(),
+                new ComponentJsonException(
+                        ComponentJsonException.Kind.VALIDATION,
+                        "Line style ids changed for b1:u0: expected=[0, 1], actual=[0, 1, 2], missing=[], unexpected=[2]"
+                ),
+                ComponentTranslationRoute.TOOLTIP_LINE
+        );
+
+        String correction = messages.get(messages.size() - 1).content;
+        assertTrue(correction.contains("Style id fix:"));
+        assertTrue(correction.contains("[2]"));
+        assertTrue(correction.contains("never continue the source numbering"));
+    }
+
+    @Test
+    void correctionMessageOmitsStyleFixForUnrelatedRejections() {
+        List<OpenAIRequest.Message> messages = ComponentTranslationResponseClient.buildCorrectionMessages(
+                List.of(),
+                new ComponentJsonException(
+                        ComponentJsonException.Kind.RESPONSE,
+                        "Component translation batch returned an unexpected number of units."
+                ),
+                ComponentTranslationRoute.TOOLTIP_LINE
+        );
+
+        String correction = messages.get(messages.size() - 1).content;
+        assertTrue(correction.contains("was rejected"));
+        assertFalse(correction.contains("Style id fix:"));
     }
 
     @Test
