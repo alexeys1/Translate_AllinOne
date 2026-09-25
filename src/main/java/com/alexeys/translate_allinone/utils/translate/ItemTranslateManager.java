@@ -29,10 +29,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class ItemTranslateManager {
     private static final ItemTranslateManager INSTANCE = new ItemTranslateManager();
     private static final Gson GSON = LlmPayloadJsonSupport.gson();
+    private static final Pattern JSON_EXTRACT_PATTERN = Pattern.compile("\\{.*\\}", Pattern.DOTALL);
 
     private record BatchRequestContext(
             long batchId,
@@ -255,9 +257,7 @@ public class ItemTranslateManager {
         List<OpenAIRequest.Message> messages = PromptMessageBuilder.buildMessages(
                 systemPrompt,
                 userPrompt,
-                providerProfile.activeSupportsSystemMessage(),
-                providerProfile.model_id,
-                providerProfile.activeInjectSystemPromptIntoUserMessage()
+                providerProfile.activeSupportsSystemMessage()
         );
         String requestContext = buildRequestContext(batchContext, providerProfile, config.target_language, originalTexts, messages);
         acquireRequestPermit();
@@ -327,7 +327,7 @@ public class ItemTranslateManager {
                 } else {
                     try {
                         long jsonExtractStartedAtNanos = System.nanoTime();
-                        Matcher matcher = TranslateStringUtils.JSON_EXTRACT_PATTERN.matcher(response);
+                        Matcher matcher = JSON_EXTRACT_PATTERN.matcher(response);
                         if (!matcher.find()) {
                             throw new JsonSyntaxException("No JSON object found in the response.");
                         }

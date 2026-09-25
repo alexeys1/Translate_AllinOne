@@ -20,6 +20,10 @@ import com.alexeys.translate_allinone.utils.llmapi.openai.OpenAIRequest;
 import com.alexeys.translate_allinone.utils.text.StylePreserver;
 import com.alexeys.translate_allinone.utils.text.TemplateProcessor;
 import com.alexeys.translate_allinone.utils.text.LegacyComponentTextCodec;
+import com.alexeys.translate_allinone.utils.translate.PlainTextResponseDecoder;
+import com.alexeys.translate_allinone.utils.translate.TranslationContentGate;
+import com.alexeys.translate_allinone.utils.translate.TranslationContentVerdict;
+import com.alexeys.translate_allinone.utils.translate.TranslationMode;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.hud.ChatHud;
 import net.minecraft.client.gui.hud.ChatHudLine;
@@ -286,6 +290,7 @@ public class ChatOutputTranslateManager {
         translationGenerations.put(messageId, requestGeneration);
 
         final long finalRequestGeneration = requestGeneration;
+        final ChatHudLine finalTargetLine = targetLine;
         final String requestSingleFlightKey = chatOutputCacheKey == null
                 ? "uncached\u001f" + preparedTranslation.textToTranslate()
                 : chatOutputCacheKey;
@@ -319,6 +324,9 @@ public class ChatOutputTranslateManager {
                 );
 
                 if (providerProfile == null) {
+                    LOGGER.warn("No routed model selected for chat output translation; showing temporary error for messageId={}", messageId);
+                    showTemporaryRouteError(messageId, finalTargetLine);
+                    return;
                 }
                 if (ProviderRouteResolver.hasApiKeyDecryptFailure(Translate_AllinOne.getConfig(), ProviderRouteResolver.Route.CHAT_OUTPUT)) {
                     ApiKeyDecryptFailureNotifier.notifyRuntimeIfPresent();
@@ -443,17 +451,26 @@ public class ChatOutputTranslateManager {
                             finalStyledText,
                             styleMap
                     );
-                    cacheTranslation(skyblockCacheKey, chatOutputCacheKey, finalTranslation);
                     inFlightTranslations.complete(requestSingleFlightKey, sharedClaim, finalTranslation);
                     updateChatLineWithFinalText(messageId, finalRequestGeneration, finalStyledText);
                 } else {
                     String result = llm.getCompletion(apiMessages, requestContext).join();
+                    TranslationContentVerdict outputVerdict = judgeChatOutputTranslation(
+                            result,
+                            textToTranslate,
+                            chatOutputConfig.target_language
+                    );
+                    if (!outputVerdict.accepted()) {
+                        throw new IllegalArgumentException(
+                                "Provider response rejected by the content quality gate: "
+                                        + outputVerdict.reason()
+                        );
+                    }
+                    final String finalTranslation = PlainTextResponseDecoder.decode(result).text();
                     TranslationQueueWatchdog.requestSucceeded(watchdogRequestId);
                     watchdogRequestId = 0L;
-                    LOGGER.info("Finished translation for message ID: {}. Result: {}", messageId, result);
-                    final String finalTranslation = result.stripLeading();
-                    if (finalTranslation.isBlank()) {
-                        throw new IllegalStateException("Provider returned an empty translation");
+                    if (shouldLogReflowMapping()) {
+                        LOGGER.info("Finished translation for message ID: {}. Result: {}", messageId, result);
                     }
                     Text finalStyledText = rebuildTranslatedText(finalTranslation, preparedTranslation);
                     logReflowResult(messageId, false, result, finalTranslation, finalStyledText, styleMap);
@@ -583,6 +600,7 @@ public class ChatOutputTranslateManager {
         if (!isTranslationActive(messageId, requestGeneration)) {
             return;
         }
+        pendingAnimationSources.remove(messageId);
         MinecraftClient.getInstance().execute(() -> {
             if (!isTranslationActive(messageId, requestGeneration)) {
                 return;
@@ -597,7 +615,6 @@ public class ChatOutputTranslateManager {
             List<ChatHudLine> messages = chatHudAccessor.getMessages();
 
             if (indexOfLineByIdentity(messages, lineToUpdate) != -1) {
-                pendingAnimationSources.remove(messageId);
                 ChatHudLine newLine = new ChatHudLine(lineToUpdate.creationTick(), newContent, lineToUpdate.signature(), lineToUpdate.indicator());
                 replaceVisibleChatLine(MinecraftClient.getInstance(), chatHudAccessor, messages, lineToUpdate, newLine);
                 activeTranslationLines.put(messageId, newLine);
@@ -609,28 +626,29 @@ public class ChatOutputTranslateManager {
         if (!isTranslationActive(messageId, requestGeneration)) {
             return;
         }
-        MinecraftClient.getInstance().execute(() -> {
-            if (!TranslationFeatureGate.isEnabled()) {
-                return;
-            }
-            lineLocateRetryCounts.remove(messageId);
-            streamingUpdateLastApplied.remove(messageId);
-            ChatHudLine lineToUpdate = activeTranslationLines.remove(messageId);
-            translationGenerations.remove(messageId, requestGeneration);
-            if (lineToUpdate == null) {
-                logChatLineMapping(messageId, "final_update_missing_active_line", -1, finalContent);
-                return;
-            }
+        pendingAnimationSources.remove(messageId);
+        lineLocateRetryCounts.remove(messageId);
+        streamingUpdateLastApplied.remove(messageId);
+        ChatHudLine lineToUpdate = activeTranslationLines.remove(messageId);
+        translationGenerations.remove(messageId, requestGeneration);
+        if (lineToUpdate == null) {
+            logChatLineMapping(messageId, "final_update_missing_active_line", -1, finalContent);
+            return;
+        }
 
+        MinecraftClient.getInstance().execute(() -> {
             ChatHud chatHud = MinecraftClient.getInstance().inGameHud.getChatHud();
             if (chatHud == null) return;
 
             ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
             List<ChatHudLine> messages = chatHudAccessor.getMessages();
+            if (!TranslationFeatureGate.isEnabled()) {
+                restoreOriginalChatLine(messageId, lineToUpdate, chatHudAccessor, messages);
+                return;
+            }
 
             int lineIndex = indexOfLineByIdentity(messages, lineToUpdate);
             if (lineIndex != -1) {
-                pendingAnimationSources.remove(messageId);
                 Text finalLineContent = buildTranslatedMessageWithToggle(messageId, finalContent, MessageUtils.getTrackedMessage(messageId));
                 ChatHudLine newLine = new ChatHudLine(lineToUpdate.creationTick(), finalLineContent, lineToUpdate.signature(), lineToUpdate.indicator());
                 replaceVisibleChatLine(MinecraftClient.getInstance(), chatHudAccessor, messages, lineToUpdate, newLine);
@@ -643,37 +661,51 @@ public class ChatOutputTranslateManager {
     }
 
     private static void showTemporaryRouteError(UUID messageId, ChatHudLine originalLine) {
-        MinecraftClient.getInstance().execute(() -> {
+        if (originalLine == null) {
+            return;
+        }
+
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null) {
+            return;
+        }
+
+        client.execute(() -> {
             if (!isTranslationActive(messageId)) {
                 return;
             }
+
             ChatHudLine lineToUpdate = activeTranslationLines.get(messageId);
             if (lineToUpdate == null) {
                 return;
             }
-            ChatHud chatHud = MinecraftClient.getInstance().inGameHud.getChatHud();
+
+            ChatHud chatHud = client.inGameHud == null ? null : client.inGameHud.getChatHud();
             if (chatHud == null) {
                 return;
             }
+
             ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
             List<ChatHudLine> messages = chatHudAccessor.getMessages();
-            int lineIndex = indexOfLineByIdentity(messages, lineToUpdate);
-            if (lineIndex == -1) {
+            if (indexOfLineByIdentity(messages, lineToUpdate) == -1) {
+                clearPendingRouteErrorState(messageId);
                 return;
             }
 
             pendingAnimationSources.remove(messageId);
+            streamingUpdateLastApplied.remove(messageId);
+
             Text errorText = Text.translatable(NO_ROUTED_MODEL_ERROR_KEY).formatted(Formatting.RED);
             ChatHudLine errorLine = new ChatHudLine(lineToUpdate.creationTick(), errorText, lineToUpdate.signature(), lineToUpdate.indicator());
-            replaceVisibleChatLine(MinecraftClient.getInstance(), chatHudAccessor, messages, lineToUpdate, errorLine);
+            replaceVisibleChatLine(client, chatHudAccessor, messages, lineToUpdate, errorLine);
             activeTranslationLines.put(messageId, errorLine);
 
             CompletableFuture.delayedExecutor(ROUTE_ERROR_DISPLAY_MS, TimeUnit.MILLISECONDS).execute(() -> {
-                MinecraftClient client = MinecraftClient.getInstance();
-                if (client == null) {
+                MinecraftClient delayedClient = MinecraftClient.getInstance();
+                if (delayedClient == null) {
                     return;
                 }
-                client.execute(() -> restoreLineAfterTemporaryError(messageId, errorLine, originalLine));
+                delayedClient.execute(() -> restoreLineAfterTemporaryError(messageId, errorLine, originalLine));
             });
         });
     }
@@ -745,12 +777,22 @@ public class ChatOutputTranslateManager {
             return;
         }
 
+        if (activeTranslationLines.get(messageId) != errorLine) {
+            return;
+        }
+
         ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
         List<ChatHudLine> messages = chatHudAccessor.getMessages();
         replaceVisibleChatLine(client, chatHudAccessor, messages, errorLine, originalLine);
 
+        clearPendingRouteErrorState(messageId);
+    }
+
+    private static void clearPendingRouteErrorState(UUID messageId) {
         activeTranslationLines.remove(messageId);
         translationGenerations.remove(messageId);
+        pendingAnimationSources.remove(messageId);
+        streamingUpdateLastApplied.remove(messageId);
         lineLocateRetryCounts.remove(messageId);
     }
 
@@ -938,6 +980,23 @@ public class ChatOutputTranslateManager {
         return null;
     }
 
+    private static TranslationContentVerdict judgeChatOutputTranslation(
+            String rawResponse,
+            String sourceText,
+            String targetLanguage
+    ) {
+        PlainTextResponseDecoder.DecodeResult decoded = PlainTextResponseDecoder.decode(rawResponse);
+        if (decoded == null) {
+            return TranslationContentVerdict.reject(TranslationContentVerdict.MALFORMED_PROTOCOL);
+        }
+        return TranslationContentGate.evaluate(
+                TranslationMode.TRANSLATE,
+                sourceText,
+                decoded.text(),
+                targetLanguage
+        );
+    }
+
     static String resolveCachedFailure(LookupResult skyblockCacheLookup, LookupResult chatOutputCacheLookup) {
         if (skyblockCacheLookup != null && skyblockCacheLookup.status() == TranslationStatus.ERROR) {
             return skyblockCacheLookup.errorMessage();
@@ -1073,21 +1132,34 @@ public class ChatOutputTranslateManager {
         ChatHudAccessor chatHudAccessor = (ChatHudAccessor) chatHud;
         List<ChatHudLine> messages = chatHudAccessor.getMessages();
         for (Map.Entry<UUID, ChatHudLine> entry : pendingLines.entrySet()) {
-            MessageUtils.TrackedChatMessage trackedMessage = MessageUtils.getTrackedChatMessage(entry.getKey());
-            if (trackedMessage == null || trackedMessage.originalMessage() == null) {
-                continue;
-            }
-
-            ChatHudLine pendingLine = entry.getValue();
-            ChatHudLine restoredLine = new ChatHudLine(
-                    pendingLine.creationTick(),
-                    trackedMessage.originalMessage().copy(),
-                    pendingLine.signature(),
-                    pendingLine.indicator()
-            );
-            replaceVisibleChatLine(client, chatHudAccessor, messages, pendingLine, restoredLine);
-            MessageUtils.markShowingOriginal(entry.getKey());
+            restoreOriginalChatLine(entry.getKey(), entry.getValue(), chatHudAccessor, messages);
         }
+    }
+
+    private static boolean restoreOriginalChatLine(
+            UUID messageId,
+            ChatHudLine pendingLine,
+            ChatHudAccessor chatHudAccessor,
+            List<ChatHudLine> messages
+    ) {
+        MessageUtils.TrackedChatMessage trackedMessage = MessageUtils.getTrackedChatMessage(messageId);
+        if (trackedMessage == null || trackedMessage.originalMessage() == null) {
+            return false;
+        }
+
+        if (indexOfLineByIdentity(messages, pendingLine) == -1) {
+            return false;
+        }
+
+        ChatHudLine restoredLine = new ChatHudLine(
+                pendingLine.creationTick(),
+                trackedMessage.originalMessage().copy(),
+                pendingLine.signature(),
+                pendingLine.indicator()
+        );
+        replaceVisibleChatLine(MinecraftClient.getInstance(), chatHudAccessor, messages, pendingLine, restoredLine);
+        MessageUtils.markShowingOriginal(messageId);
+        return true;
     }
 
     private static boolean isTranslationActive(UUID messageId) {
@@ -1435,7 +1507,7 @@ public class ChatOutputTranslateManager {
     private static List<OpenAIRequest.Message> getMessages(ApiProviderProfile providerProfile, String targetLanguage, String textToTranslate) {
         String basePrompt = PromptMessageBuilder.getDefaultPrompt("chat_output", targetLanguage);
         String resolved = PromptMessageBuilder.applyPromptOverride("chat_output", basePrompt, providerProfile.system_prompt_overrides, targetLanguage);
-        String systemPrompt = PromptMessageBuilder.appendForcedProtectedDataContract(
+        String systemPrompt = PromptMessageBuilder.appendForcedContracts(
                 PromptMessageBuilder.appendSystemPromptSuffix(
                         resolved,
                         providerProfile.activeSystemPromptSuffix()
@@ -1445,9 +1517,7 @@ public class ChatOutputTranslateManager {
         return PromptMessageBuilder.buildMessages(
                 systemPrompt,
                 textToTranslate,
-                providerProfile.activeSupportsSystemMessage(),
-                providerProfile.model_id,
-                providerProfile.activeInjectSystemPromptIntoUserMessage()
+                providerProfile.activeSupportsSystemMessage()
         );
     }
 

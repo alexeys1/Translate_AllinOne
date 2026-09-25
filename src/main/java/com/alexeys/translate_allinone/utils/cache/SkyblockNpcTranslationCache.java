@@ -49,4 +49,27 @@ public final class SkyblockNpcTranslationCache extends JsonStringTranslationCach
     private static final class Holder {
         private static final SkyblockNpcTranslationCache INSTANCE = new SkyblockNpcTranslationCache();
     }
+
+    @Override
+    protected String readGateTargetLanguage() {
+        try {
+            if (Translate_AllinOne.getConfig() == null
+                    || Translate_AllinOne.getConfig().chatTranslate == null
+                    || Translate_AllinOne.getConfig().chatTranslate.output == null) {
+                return null;
+            }
+            return Translate_AllinOne.getConfig().chatTranslate.output.target_language;
+        } catch (RuntimeException unavailable) {
+            return null;
+        }
+    }
+
+    @Override
+    protected String readGateSourceText(String key) {
+        if (key == null) {
+            return key;
+        }
+        int separator = key.indexOf('\u001f');
+        return separator >= 0 && separator + 1 < key.length() ? key.substring(separator + 1) : key;
+    }
 }
