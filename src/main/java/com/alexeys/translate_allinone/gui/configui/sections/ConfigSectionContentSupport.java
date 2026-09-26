@@ -1,5 +1,8 @@
 package com.alexeys.translate_allinone.gui.configui.sections;
 
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.GroupBoxAdder;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.ToggleAdder;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.Translator;
 import com.alexeys.translate_allinone.utils.config.ui.ConfigSection;
 import com.alexeys.translate_allinone.utils.config.ui.RouteSlot;
 import com.alexeys.translate_allinone.utils.cache.CacheStats;
@@ -1501,21 +1504,6 @@ public final class ConfigSectionContentSupport {
         } catch (NumberFormatException ignored) {
             return false;
         }
-    }
-
-    @FunctionalInterface
-    public interface Translator {
-        Component t(String key, Object... args);
-    }
-
-    @FunctionalInterface
-    public interface GroupBoxAdder {
-        void add(int x, int y, int width, int height, Component title);
-    }
-
-    @FunctionalInterface
-    public interface ToggleAdder {
-        void add(int x, int y, int width, Component label, BooleanSupplier getter, Consumer<Boolean> setter, Component tooltip);
     }
 
     @FunctionalInterface
