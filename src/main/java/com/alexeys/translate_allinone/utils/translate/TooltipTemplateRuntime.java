@@ -1929,18 +1929,6 @@ final class TooltipTemplateRuntime {
         return new DecodedStoredTranslation(storedTranslation, defaultFormat);
     }
 
-    private static String encodeStoredTranslation(String translation, CachedTranslationFormat format) {
-        if (translation == null || translation.isBlank()) {
-            return translation;
-        }
-
-        if (format == CachedTranslationFormat.LEGACY && !translation.startsWith(STORED_LEGACY_PREFIX)) {
-            return STORED_LEGACY_PREFIX + translation;
-        }
-
-        return translation;
-    }
-
     private static Component renderCompatibilityText(
             PreparedTooltipTemplate preparedTemplate,
             String cachedTranslation,

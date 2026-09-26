@@ -63,24 +63,6 @@ public class AnimationManager {
         return STRIP_FORMATTING_PATTERN.matcher(text).replaceAll("");
     }
 
-    public static MutableComponent getAnimatedText(String text) {
-        String plainText = stripFormatting(text);
-        MutableComponent animatedText = Component.empty();
-        long time = System.currentTimeMillis();
-
-        int codePointIndex = 0;
-        for (int offset = 0; offset < plainText.length(); ) {
-            int codePoint = plainText.codePointAt(offset);
-            float sine = (float) (Math.sin(time / 200.0 + codePointIndex / 5.0) + 1.0) / 2.0f;
-            int color = ARGB.srgbLerp(sine, DARK_GREY, LIGHT_GREY);
-            animatedText.append(Component.literal(new String(Character.toChars(codePoint)))
-                    .setStyle(Style.EMPTY.withColor(TextColor.fromRgb(color))));
-            offset += Character.charCount(codePoint);
-            codePointIndex++;
-        }
-        return animatedText;
-    }
-
     public static MutableComponent getAnimatedStyledText(Component originalText) {
         return getAnimatedStyledText(originalText, null, false);
     }

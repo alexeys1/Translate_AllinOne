@@ -54,10 +54,6 @@ public final class TooltipRecentRenderGuardSupport {
                 && TooltipTranslationContext.matchesRecentTranslatedTooltip(sanitizedTooltip);
     }
 
-    public static boolean canRememberRecentTranslatedTooltip(List<Component> tooltip) {
-        return stableTooltipForRemembering(tooltip, false) != null;
-    }
-
     public static boolean looksLikeDedicatedWynnmodTooltip(List<Component> tooltip) {
         if (tooltip == null || tooltip.isEmpty()) {
             return false;

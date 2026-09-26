@@ -163,19 +163,6 @@ public final class ComponentTranslationMetrics {
         return Map.copyOf(result);
     }
 
-    public static RoutePolicySnapshot rolloutSnapshot(
-            ComponentTranslationRoute route,
-            int policyVersion
-    ) {
-        return new RoutePolicySnapshot(
-                route,
-                policyVersion,
-                snapshot(route, policyVersion),
-                timingStatsSnapshot(route, policyVersion),
-                measurementSnapshot(route, policyVersion)
-        );
-    }
-
     static void resetForTests() {
         ROUTES.values().forEach(RouteMetrics::reset);
         POLICIES.clear();

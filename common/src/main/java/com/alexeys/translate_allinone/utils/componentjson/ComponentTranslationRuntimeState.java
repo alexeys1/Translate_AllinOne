@@ -171,10 +171,6 @@ public final class ComponentTranslationRuntimeState<F> {
         return pendingCandidates.get(key);
     }
 
-    public void putPendingCandidate(String key, PendingCandidate candidate) {
-        pendingCandidates.put(key, candidate);
-    }
-
     public boolean removePendingCandidate(String key) {
         return pendingCandidates.remove(key) != null;
     }

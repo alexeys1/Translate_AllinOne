@@ -209,14 +209,6 @@ public class ConfigManager {
         return Optional.empty();
     }
 
-    private static boolean keyFileExists() {
-        try {
-            return Files.exists(resolveKeyPath());
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
     private static Optional<byte[]> loadKeyMaterial(boolean createIfMissing) {
         try {
             Path keyPath = resolveKeyPath();

@@ -13,7 +13,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.FormattedText;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
-import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.util.FormattedCharSequence;
 
 import java.lang.reflect.Method;
@@ -259,18 +258,6 @@ public final class UiTranslationRuntime {
         return withCurrentScreen(() -> translateStringAnimated(source, role), source);
     }
 
-    public static Component translateComponentInCurrentScreen(Component source, UiTextRole role) {
-        Component fallback = source == null ? Component.empty() : source;
-        return withCurrentScreen(() -> translateComponent(source, role), fallback);
-    }
-
-    public static FormattedCharSequence translateFormattedCharSequenceInCurrentScreen(
-            FormattedCharSequence source,
-            UiTextRole role
-    ) {
-        return withCurrentScreen(() -> translateFormattedCharSequence(source, role), source);
-    }
-
     public static FormattedText translateFormattedTextInCurrentScreen(FormattedText source, UiTextRole role) {
         return withCurrentScreen(() -> translateFormattedText(source, role), source);
     }
@@ -431,44 +418,11 @@ public final class UiTranslationRuntime {
         };
     }
 
-    private static UiLanguageResourceResolver.Lookup lookupNativeResource(
-            Component source,
-            String modId,
-            String targetLanguage
-    ) {
-        if (!(source.getContents() instanceof TranslatableContents contents)) {
-            return new UiLanguageResourceResolver.Lookup(
-                    UiLanguageResourceResolver.State.MISS,
-                    ""
-            );
-        }
-        boolean pending = false;
-        for (String resourceModId : nativeResourceModIds(modId)) {
-            UiLanguageResourceResolver.Lookup lookup = UiLanguageResourceResolver.lookup(
-                    resourceModId,
-                    targetLanguage,
-                    contents.getKey()
-            );
-            if (lookup.state() == UiLanguageResourceResolver.State.HIT) {
-                return lookup;
-            }
-            pending |= lookup.state() == UiLanguageResourceResolver.State.PENDING;
-        }
-        return new UiLanguageResourceResolver.Lookup(
-                pending ? UiLanguageResourceResolver.State.PENDING : UiLanguageResourceResolver.State.MISS,
-                ""
-        );
-    }
-
     private static List<String> nativeResourceModIds(String fallbackModId) {
         if (fallbackModId == null || fallbackModId.isBlank()) {
             return List.of();
         }
         return List.of(fallbackModId);
-    }
-
-    private static boolean hasTranslationKey(Component source) {
-        return source.getContents() instanceof TranslatableContents;
     }
 
     private static Component componentFromFormattedSequence(FormattedCharSequence source) {
@@ -560,15 +514,6 @@ public final class UiTranslationRuntime {
             return Component.empty();
         }
         return result;
-    }
-
-    private static Component nativeComponent(Component source, String template) {
-        String value = format(template, ((TranslatableContents) source.getContents()).getArgs());
-        Component translated = Component.literal(value).setStyle(source.getStyle());
-        for (Component sibling : source.getSiblings()) {
-            translated = translated.copy().append(sibling.copy());
-        }
-        return translated;
     }
 
     private static Component aiSource(Component source) {

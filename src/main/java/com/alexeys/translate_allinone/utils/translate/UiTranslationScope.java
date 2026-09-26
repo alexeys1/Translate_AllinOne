@@ -170,26 +170,6 @@ public final class UiTranslationScope {
         return new Scope(frame);
     }
 
-    public static Scope enterTooltip() {
-        Frame parent = currentFrame();
-        if (parent == null) {
-            return Scope.inactive();
-        }
-        Frame frame = parent.child(UiTextRole.TOOLTIP, parent.input, true);
-        FRAMES.get().push(frame);
-        return new Scope(frame);
-    }
-
-    public static Scope enterRole(UiTextRole role) {
-        Frame parent = currentFrame();
-        if (parent == null) {
-            return Scope.inactive();
-        }
-        Frame frame = parent.child(role == null ? parent.role : role, parent.input, parent.tooltip);
-        FRAMES.get().push(frame);
-        return new Scope(frame);
-    }
-
     public static boolean isActive() {
         return currentFrame() != null;
     }

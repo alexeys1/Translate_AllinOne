@@ -1698,10 +1698,6 @@ public final class WynnDialogueTranslationSupport {
         return npcName;
     }
 
-    private static DialogueDisplayState resolveDialogueTranslation(String dialogue, boolean allowPrefixFallback) {
-        return resolveDialogueDisplayState(dialogue, allowPrefixFallback, false);
-    }
-
     private static DialogueDisplayState resolveDialogueDisplayState(String dialogue, boolean allowPrefixFallback, boolean allowQueue) {
         if (dialogue == null || dialogue.isBlank()) {
             return DialogueDisplayState.of(dialogue == null ? "" : dialogue, false, "");
@@ -2494,82 +2490,6 @@ public final class WynnDialogueTranslationSupport {
         );
     }
 
-    private static boolean shouldKeepExistingDialogueForInferredChoicePayload(
-            OverlayReadableParse inferredPayloadParse,
-            DialogueCandidate existingCandidate
-    ) {
-        if (inferredPayloadParse == null
-                || !inferredPayloadParse.matched()
-                || existingCandidate == null
-                || existingCandidate.dialogue() == null
-                || existingCandidate.dialogue().isBlank()
-                || inferredPayloadParse.optionsText().isBlank()) {
-            return false;
-        }
-
-        String candidateDialogue = prepareDialogueValue(existingCandidate.dialogue());
-        String inferredDialogue = prepareDialogueValue(inferredPayloadParse.dialogue());
-        if (candidateDialogue.isBlank()
-                || inferredDialogue.isBlank()
-                || inferredDialogue.length() <= candidateDialogue.length()
-                || !inferredDialogue.startsWith(candidateDialogue)) {
-            return false;
-        }
-        if (endsWithDialogueCompletionPunctuation(existingCandidate.dialogue())) {
-            if (candidateDialogue.endsWith("...") && inferredDialogue.length() > candidateDialogue.length()) {
-                String continuation = inferredDialogue.substring(candidateDialogue.length()).stripLeading();
-                if (!continuation.isBlank()
-                        && Character.isLetter(continuation.charAt(0))
-                        && !OVERLAY_CHOICE_OPTION_START_PATTERN.matcher(continuation).lookingAt()) {
-                    return false;
-                }
-            }
-            return true;
-        }
-        return hasCompletedSentenceBeforeEnd(inferredDialogue.substring(candidateDialogue.length()));
-    }
-
-    private static boolean shouldPreferInferredChoicePayload(
-            OverlayReadableParse existingPayloadParse,
-            OverlayReadableParse inferredPayloadParse,
-            DialogueCandidate existingCandidate
-    ) {
-        if (existingPayloadParse == null
-                || inferredPayloadParse == null
-                || !inferredPayloadParse.matched()
-                || existingCandidate == null) {
-            return false;
-        }
-
-        String candidateDialogue = prepareDialogueValue(existingCandidate.dialogue());
-        String existingDialogue = prepareDialogueValue(existingPayloadParse.dialogue());
-        String inferredDialogue = prepareDialogueValue(inferredPayloadParse.dialogue());
-        if (candidateDialogue.isBlank()
-                || existingDialogue.isBlank()
-                || inferredDialogue.isBlank()
-                || inferredDialogue.length() <= existingDialogue.length()) {
-            return false;
-        }
-        if (!inferredDialogue.startsWith(candidateDialogue)) {
-            return false;
-        }
-        if (endsWithDialogueCompletionPunctuation(existingCandidate.dialogue())) {
-            if (!(candidateDialogue.endsWith("...") && inferredDialogue.length() > candidateDialogue.length())) {
-                return false;
-            }
-            String continuation = inferredDialogue.substring(candidateDialogue.length()).stripLeading();
-            if (continuation.isBlank()
-                    || !Character.isLetter(continuation.charAt(0))
-                    || OVERLAY_CHOICE_OPTION_START_PATTERN.matcher(continuation).lookingAt()) {
-                return false;
-            }
-        }
-        if (hasCompletedSentenceBeforeEnd(inferredDialogue.substring(candidateDialogue.length()))) {
-            return false;
-        }
-        return !inferredPayloadParse.optionsText().isBlank();
-    }
-
     private static boolean hasCompletedSentenceBeforeEnd(String value) {
         String normalized = normalizeDisplayText(value);
         if (normalized.isBlank()) {
@@ -2587,45 +2507,6 @@ public final class WynnDialogueTranslationSupport {
             }
         }
         return false;
-    }
-
-    private static OverlayReadableParse inferChoiceOptionOverlayPayload(
-            OverlayPromptMarker promptMarker,
-            OverlayReadableParse payloadParse,
-            List<String> readableSegments
-    ) {
-        if (promptMarker == null || payloadParse == null || !payloadParse.matched()) {
-            return OverlayReadableParse.rejected(true, "choice_payload_inference_unavailable");
-        }
-
-        OverlayChoicePayloadSplit flatSplit = inferChoicePayloadSplitFromFlatText(payloadParse.dialogue());
-        OverlayChoicePayloadSplit segmentSplit = inferChoicePayloadSplitFromSegments(
-                readableSegments,
-                payloadParse.npcName()
-        );
-        OverlayChoicePayloadSplit bestSplit = chooseBetterInferredChoicePayloadSplit(segmentSplit, flatSplit);
-        if (!bestSplit.matched()) {
-            return OverlayReadableParse.rejected(true, bestSplit.rejectionReason());
-        }
-
-        String segmentedOptionsText = extractOverlayChoiceOptionsTextFromSegments(
-                readableSegments,
-                bestSplit.dialogue(),
-                payloadParse.npcName()
-        );
-        String optionsText = chooseBetterOverlayChoiceOptionsText(segmentedOptionsText, bestSplit.optionsText());
-        if (optionsText.isBlank()) {
-            return OverlayReadableParse.rejected(true, "choice_options_missing");
-        }
-
-        return OverlayReadableParse.matched(
-                promptMarker.mode(),
-                promptMarker.index(),
-                true,
-                payloadParse.npcName(),
-                bestSplit.dialogue(),
-                optionsText
-        );
     }
 
     private static OverlayChoicePayloadSplit chooseBetterInferredChoicePayloadSplit(
@@ -3232,14 +3113,6 @@ public final class WynnDialogueTranslationSupport {
         String remaining = normalizedValue.substring(normalizedDialogue.length()).trim();
         remaining = stripLeadingDialogueCompletionPunctuation(remaining);
         return new ChoiceDialoguePrefixRemoval(true, remaining);
-    }
-
-    private static boolean isOverlayChoiceDialogueSegment(String value, String dialogue) {
-        String preparedValue = prepareDialogueValue(value);
-        String preparedDialogue = prepareDialogueValue(dialogue);
-        return !preparedValue.isBlank()
-                && !preparedDialogue.isBlank()
-                && (preparedDialogue.contains(preparedValue) || preparedValue.contains(preparedDialogue));
     }
 
     private static String stripOverlayChoiceNpcTail(String value, String npcName) {

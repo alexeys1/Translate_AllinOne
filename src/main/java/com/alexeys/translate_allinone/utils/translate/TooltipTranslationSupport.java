@@ -125,10 +125,6 @@ public final class TooltipTranslationSupport {
         return TooltipTemplateRuntime.translateLine(line, useTagStylePreservation);
     }
 
-    public static List<Component> buildTranslatedTooltip(List<Component> originalTooltip, String animationKey) {
-        return buildTranslatedTooltipResult(originalTooltip, animationKey).translatedTooltip();
-    }
-
     public static Set<String> collectTranslationTemplateKeys(List<Component> tooltip, ItemTranslateConfig config) {
         if (!TranslationFeatureGate.isEnabled() || tooltip == null || tooltip.isEmpty() || config == null || !config.enabled) {
             return Set.of();

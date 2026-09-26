@@ -140,15 +140,6 @@ public abstract class UiTranslationOdinMixin {
         }
     }
 
-    private static void translate_allinone$callNvgTextBox(long vg, float x, float y, float rowHeight, String text) {
-        try {
-            Class.forName("org.lwjgl.nanovg.NanoVG")
-                    .getMethod("nvgTextBox", long.class, float.class, float.class, float.class, CharSequence.class)
-                    .invoke(null, vg, x, y, rowHeight, text);
-        } catch (ReflectiveOperationException | RuntimeException ignored) {
-        }
-    }
-
     private static void translate_allinone$callNvgTextBoxBounds(long vg, float x, float y, float rowHeight, String text, float[] bounds) {
         try {
             Class.forName("org.lwjgl.nanovg.NanoVG")

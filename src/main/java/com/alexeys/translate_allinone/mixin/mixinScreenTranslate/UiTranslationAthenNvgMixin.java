@@ -102,17 +102,6 @@ public abstract class UiTranslationAthenNvgMixin {
         }
     }
 
-    private static float translate_allinone$callNvgText(long vg, float x, float y, String text) {
-        try {
-            Object result = Class.forName("org.lwjgl.nanovg.NanoVG")
-                    .getMethod("nvgText", long.class, float.class, float.class, CharSequence.class)
-                    .invoke(null, vg, x, y, text);
-            return ((Number) result).floatValue();
-        } catch (ReflectiveOperationException | RuntimeException ignored) {
-            return 0.0f;
-        }
-    }
-
     private static float translate_allinone$callNvgTextBounds(long vg, float x, float y, String text, float[] bounds) {
         try {
             Object result = Class.forName("org.lwjgl.nanovg.NanoVG")
@@ -121,15 +110,6 @@ public abstract class UiTranslationAthenNvgMixin {
             return ((Number) result).floatValue();
         } catch (ReflectiveOperationException | RuntimeException ignored) {
             return 0.0f;
-        }
-    }
-
-    private static void translate_allinone$callNvgTextBox(long vg, float x, float y, float rowHeight, String text) {
-        try {
-            Class.forName("org.lwjgl.nanovg.NanoVG")
-                    .getMethod("nvgTextBox", long.class, float.class, float.class, float.class, CharSequence.class)
-                    .invoke(null, vg, x, y, rowHeight, text);
-        } catch (ReflectiveOperationException | RuntimeException ignored) {
         }
     }
 

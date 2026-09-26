@@ -10,7 +10,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 
 public final class DictionaryFileSelectionSupport {
     public enum Slot {
@@ -148,27 +147,6 @@ public final class DictionaryFileSelectionSupport {
         config.normalize();
     }
 
-    public static Path resolveItemDictionaryPath() {
-        DictionaryConfig config = currentDictionaryConfig();
-        if (!isDictionaryEnabled(config) || !isSlotEnabled(config, Slot.ITEM_SKILL)) {
-            return null;
-        }
-        List<Path> paths = resolveItemSkillDictionaryPaths(config);
-        if (paths.isEmpty()) {
-            return null;
-        }
-        return paths.size() >= 2 ? paths.get(0) : null;
-    }
-
-    public static Path resolveSkillDictionaryPath() {
-        DictionaryConfig config = currentDictionaryConfig();
-        if (!isDictionaryEnabled(config) || !isSlotEnabled(config, Slot.ITEM_SKILL)) {
-            return null;
-        }
-        List<Path> paths = resolveItemSkillDictionaryPaths(config);
-        return paths.size() >= 2 ? paths.get(1) : null;
-    }
-
     public static List<Path> resolveItemSkillDictionaryPaths() {
         DictionaryConfig config = currentDictionaryConfig();
         if (!isDictionaryEnabled(config) || !isSlotEnabled(config, Slot.ITEM_SKILL)) {
@@ -213,10 +191,6 @@ public final class DictionaryFileSelectionSupport {
             return null;
         }
         return WynncraftDictionaryInstaller.resolveConfigDictionaryFile(selectedFile);
-    }
-
-    public static boolean hasCustomSelection(DictionaryConfig config, Slot slot) {
-        return !getSelectedFile(config, slot).isBlank();
     }
 
     public static String describeEffectiveSelection(DictionaryConfig config, Slot slot) {

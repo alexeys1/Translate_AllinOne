@@ -1,6 +1,5 @@
 package com.alexeys.translate_allinone.utils.translate;
 
-import com.alexeys.translate_allinone.utils.AnimationManager;
 import com.alexeys.translate_allinone.utils.cache.ItemTemplateCache;
 import com.alexeys.translate_allinone.utils.cache.LookupResult;
 import com.alexeys.translate_allinone.utils.cache.TranslationStatus;
@@ -452,29 +451,6 @@ final class TooltipParagraphSupport {
             offset += Character.charCount(codePoint);
         }
         return count;
-    }
-
-    private static ParagraphTranslationAttempt translateParagraphBlockLineByLine(TooltipParagraphBlock block) {
-        if (block == null || block.preparedLines() == null || block.preparedLines().isEmpty()) {
-            return new ParagraphTranslationAttempt(List.of(), false, false);
-        }
-
-        List<TooltipTranslationSupport.TooltipLineResult> lineResults = new ArrayList<>(block.preparedLines().size());
-        boolean pending = false;
-        boolean missingKeyIssue = false;
-
-        for (PreparedTooltipTemplate preparedLine : block.preparedLines()) {
-            TooltipTranslationSupport.TooltipLineResult lineResult = TooltipTemplateRuntime.translatePreparedTemplate(preparedLine);
-            if (lineResult.pending()) {
-                pending = true;
-            }
-            if (lineResult.missingKeyIssue()) {
-                missingKeyIssue = true;
-            }
-            lineResults.add(lineResult);
-        }
-
-        return new ParagraphTranslationAttempt(lineResults, pending, missingKeyIssue);
     }
 
     private static List<TooltipTranslationSupport.TooltipLineResult> renderTranslatedParagraphBlock(

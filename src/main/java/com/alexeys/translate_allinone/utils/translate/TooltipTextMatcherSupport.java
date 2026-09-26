@@ -12,7 +12,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
@@ -68,10 +67,6 @@ public final class TooltipTextMatcherSupport {
             .build();
     private static final Map<String, DevTooltipLogState> DEV_TOOLTIP_LOG_STATE_BY_SOURCE = new ConcurrentHashMap<>();
     private TooltipTextMatcherSupport() {
-    }
-
-    public static boolean shouldTranslateTooltipLine(Component line, boolean isFirstContentLine, ItemTranslateConfig config) {
-        return evaluateTooltipLine(line, isFirstContentLine, config).shouldTranslate();
     }
 
     public static TooltipLineDecision evaluateTooltipLine(Component line, boolean isFirstContentLine, ItemTranslateConfig config) {
@@ -253,10 +248,6 @@ public final class TooltipTextMatcherSupport {
                 && config.debug.enabled;
     }
 
-    public static boolean isDevModeEnabled(ItemTranslateConfig config) {
-        return isDevEnabled(config);
-    }
-
     public static boolean shouldLogTooltipFilterResult(ItemTranslateConfig config) {
         return isDevEnabled(config)
                 && config.debug.log_tooltip_filter_result;
@@ -280,11 +271,6 @@ public final class TooltipTextMatcherSupport {
     public static boolean shouldLogTooltipStyleMap(ItemTranslateConfig config) {
         return isDevEnabled(config)
                 && config.debug.log_tooltip_style_map;
-    }
-
-    public static boolean shouldLogItemBatchTiming(ItemTranslateConfig config) {
-        return isDevEnabled(config)
-                && config.debug.log_item_batch_timing;
     }
 
     public static boolean shouldLogItemCacheMigration(ItemTranslateConfig config) {
