@@ -75,7 +75,8 @@ public final class ProviderManagerSectionSupport {
                 translator.t("label.global_translation"),
                 providerManager::isTranslationEnabled,
                 onToggleTranslationEnabled,
-                translator.t("desc.global_translation")
+                translator.t("desc.global_translation"),
+                new ProviderManagerConfig().translation_enabled
         );
         addGroupBox(
                 groupBoxAdder,

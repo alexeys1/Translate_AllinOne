@@ -183,6 +183,7 @@
   "text.translate_allinone.configscreen.desc.provider_type": "此API供应商的类型/格式",
   "text.translate_allinone.configscreen.label.request_preview": "请求地址预览：%s",
   "text.translate_allinone.configscreen.button.reset": "重置",
+  "text.translate_allinone.configscreen.desc.reset_option": "将该选项恢复为默认值",
   "text.translate_allinone.configscreen.label.route_model": "路由模型：%s",
   "text.translate_allinone.configscreen.button.save_and_close": "保存并关闭",
   "text.translate_allinone.configscreen.desc.scoreboard_enabled": "启用计分板文本的翻译功能",

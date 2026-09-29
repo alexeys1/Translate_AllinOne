@@ -34,6 +34,7 @@ import java.util.function.Predicate;
 import net.minecraft.network.chat.Component;
 
 public final class ConfigSectionContentSupport {
+    private static final ModConfig DEFAULTS = new ModConfig();
     private static final int ROW_STEP = 24;
     private static final int MIN_CONTENT_HEIGHT = 20;
     private static final int SLIDER_STEP = 30;
@@ -81,9 +82,9 @@ public final class ConfigSectionContentSupport {
             case CHAT_OUTPUT -> {
                 ChatTranslateConfig.ChatOutputTranslateConfig output = config.chatTranslate.output;
                 int basicStart = y;
-                toggleAdder.add(x, y, width, translator.t("label.enabled"), () -> output.enabled, value -> output.enabled = value, translator.t("desc.chat_output_enabled"));
+                toggleAdder.add(x, y, width, translator.t("label.enabled"), () -> output.enabled, value -> output.enabled = value, translator.t("desc.chat_output_enabled"), DEFAULTS.chatTranslate.output.enabled);
                 y += ROW_STEP;
-                toggleAdder.add(x, y, width, translator.t("label.auto_translate"), () -> output.auto_translate, value -> output.auto_translate = value, tooltip(translator, "label.auto_translate"));
+                toggleAdder.add(x, y, width, translator.t("label.auto_translate"), () -> output.auto_translate, value -> output.auto_translate = value, tooltip(translator, "label.auto_translate"), DEFAULTS.chatTranslate.output.auto_translate);
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -92,10 +93,10 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.skyblock_npc_auto_translate"),
                         () -> output.skyblock_npc_auto_translate,
                         value -> output.skyblock_npc_auto_translate = value,
-                        translator.t("desc.skyblock_npc_auto_translate")
+                        translator.t("desc.skyblock_npc_auto_translate"), DEFAULTS.chatTranslate.output.skyblock_npc_auto_translate
                 );
                 y += ROW_STEP;
-                toggleAdder.add(x, y, width, translator.t("label.streaming"), () -> output.streaming_response, value -> output.streaming_response = value, translator.t("desc.chat_output_streaming"));
+                toggleAdder.add(x, y, width, translator.t("label.streaming"), () -> output.streaming_response, value -> output.streaming_response = value, translator.t("desc.chat_output_streaming"), DEFAULTS.chatTranslate.output.streaming_response);
                 y += ROW_STEP;
                 textFieldRowAdder.add(
                         x,
@@ -108,7 +109,8 @@ public final class ConfigSectionContentSupport {
                         value -> output.target_language = sanitizeLanguage(value),
                         value -> true,
                         true,
-                        tooltip(translator, "label.target_language")
+                        tooltip(translator, "label.target_language"),
+                        DEFAULTS.chatTranslate.output.target_language
                 );
                 y += ROW_STEP;
                     actionAdder.add(
@@ -117,7 +119,9 @@ public final class ConfigSectionContentSupport {
                             width,
                             translator.t("label.original_display_mode", originalDisplayModeText(translator, output.original_display_mode)),
                             originalDisplayModeCycle,
-                            tooltip(translator, "label.original_display_mode")
+                            tooltip(translator, "label.original_display_mode"),
+                            () -> output.original_display_mode = DEFAULTS.chatTranslate.output.original_display_mode,
+                            () -> !DEFAULTS.chatTranslate.output.original_display_mode.equals(output.original_display_mode)
                     );
                     y += ROW_STEP;
                     sliderAdder.add(
@@ -129,7 +133,7 @@ public final class ConfigSectionContentSupport {
                             ChatTranslateConfig.ChatOutputTranslateConfig.MAX_ORIGINAL_SUBTITLE_MAX_LENGTH,
                             () -> output.original_subtitle_max_length,
                             value -> output.original_subtitle_max_length = value,
-                            tooltip(translator, "label.original_subtitle_max_length")
+                            tooltip(translator, "label.original_subtitle_max_length"), DEFAULTS.chatTranslate.output.original_subtitle_max_length
                     );
                     y += SLIDER_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.basic"), x, width, basicStart, y);
@@ -150,7 +154,7 @@ public final class ConfigSectionContentSupport {
                 }
 
                 int basicStart = y;
-                toggleAdder.add(x, y, width, translator.t("label.enabled"), () -> input.enabled, value -> input.enabled = value, translator.t("desc.chat_input_enabled"));
+                toggleAdder.add(x, y, width, translator.t("label.enabled"), () -> input.enabled, value -> input.enabled = value, translator.t("desc.chat_input_enabled"), DEFAULTS.chatTranslate.input.enabled);
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -159,9 +163,9 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.chat_input_panel_enabled"),
                         () -> Boolean.TRUE.equals(input.assistant_panel_enabled),
                         value -> input.assistant_panel_enabled = value
-                , tooltip(translator, "label.chat_input_panel_enabled"));
+                , tooltip(translator, "label.chat_input_panel_enabled"), DEFAULTS.chatTranslate.input.assistant_panel_enabled);
                 y += ROW_STEP;
-                toggleAdder.add(x, y, width, translator.t("label.streaming"), () -> input.streaming_response, value -> input.streaming_response = value, translator.t("desc.chat_input_streaming"));
+                toggleAdder.add(x, y, width, translator.t("label.streaming"), () -> input.streaming_response, value -> input.streaming_response = value, translator.t("desc.chat_input_streaming"), DEFAULTS.chatTranslate.input.streaming_response);
                 y += ROW_STEP;
                 textFieldRowAdder.add(
                         x,
@@ -174,7 +178,8 @@ public final class ConfigSectionContentSupport {
                         value -> input.target_language = sanitizeLanguage(value),
                         value -> true,
                         true,
-                        tooltip(translator, "label.target_language")
+                        tooltip(translator, "label.target_language"),
+                        DEFAULTS.chatTranslate.input.target_language
                 );
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.basic"), x, width, basicStart, y);
@@ -209,11 +214,11 @@ public final class ConfigSectionContentSupport {
                 }
 
                 int basicStart = y;
-                toggleAdder.add(x, y, width, translator.t("label.enabled"), () -> item.enabled, value -> item.enabled = value, translator.t("desc.item_enabled"));
+                toggleAdder.add(x, y, width, translator.t("label.enabled"), () -> item.enabled, value -> item.enabled = value, translator.t("desc.item_enabled"), DEFAULTS.itemTranslate.enabled);
                 y += ROW_STEP;
-                toggleAdder.add(x, y, width, translator.t("label.translate_item_name"), () -> item.enabled_translate_item_custom_name, value -> item.enabled_translate_item_custom_name = value, tooltip(translator, "label.translate_item_name"));
+                toggleAdder.add(x, y, width, translator.t("label.translate_item_name"), () -> item.enabled_translate_item_custom_name, value -> item.enabled_translate_item_custom_name = value, tooltip(translator, "label.translate_item_name"), DEFAULTS.itemTranslate.enabled_translate_item_custom_name);
                 y += ROW_STEP;
-                toggleAdder.add(x, y, width, translator.t("label.translate_item_lore"), () -> item.enabled_translate_item_lore, value -> item.enabled_translate_item_lore = value, tooltip(translator, "label.translate_item_lore"));
+                toggleAdder.add(x, y, width, translator.t("label.translate_item_lore"), () -> item.enabled_translate_item_lore, value -> item.enabled_translate_item_lore = value, tooltip(translator, "label.translate_item_lore"), DEFAULTS.itemTranslate.enabled_translate_item_lore);
                 y += ROW_STEP;
                 textFieldRowAdder.add(
                         x,
@@ -226,7 +231,8 @@ public final class ConfigSectionContentSupport {
                         value -> item.target_language = sanitizeLanguage(value),
                         value -> true,
                         true,
-                        tooltip(translator, "label.target_language")
+                        tooltip(translator, "label.target_language"),
+                        DEFAULTS.itemTranslate.target_language
                 );
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.basic"), x, width, basicStart, y);
@@ -240,7 +246,9 @@ public final class ConfigSectionContentSupport {
                         width,
                         translator.t("label.hotkey_mode", modeText(translator, item.keybinding.mode.name())),
                         () -> hotkeyCycleMode.handle(HotkeyTarget.ITEM)
-                , translator.t("desc.item_hotkey_mode"));
+                , translator.t("desc.item_hotkey_mode"),
+                        () -> item.keybinding.mode = DEFAULTS.itemTranslate.keybinding.mode,
+                        () -> item.keybinding.mode != DEFAULTS.itemTranslate.keybinding.mode);
                 y += ROW_STEP;
                 actionAdder.add(x, y, width, bindingLabelProvider.label(HotkeyTarget.ITEM, item.keybinding.binding), () -> hotkeyStartBinding.handle(HotkeyTarget.ITEM), tooltip(translator, "desc.item_hotkey"));
                 y += ROW_STEP;
@@ -262,7 +270,7 @@ public final class ConfigSectionContentSupport {
                         16,
                         () -> item.max_concurrent_requests,
                         value -> item.max_concurrent_requests = value
-                , tooltip(translator, "label.item_threads"));
+                , tooltip(translator, "label.item_threads"), DEFAULTS.itemTranslate.max_concurrent_requests);
                 y += SLIDER_STEP;
 
                 sliderAdder.add(
@@ -274,7 +282,7 @@ public final class ConfigSectionContentSupport {
                         64,
                         () -> item.max_batch_size,
                         value -> item.max_batch_size = value
-                , tooltip(translator, "label.item_batch_size"));
+                , tooltip(translator, "label.item_batch_size"), DEFAULTS.itemTranslate.max_batch_size);
                 y += SLIDER_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.performance"), x, width, performanceStart, y);
 
@@ -337,7 +345,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.debug_log_llm_request_text_stats"),
                         () -> debug.log_llm_request_text_stats,
                         value -> debug.log_llm_request_text_stats = value
-                , tooltip(translator, "label.debug_log_llm_request_text_stats"));
+                , tooltip(translator, "label.debug_log_llm_request_text_stats"), DEFAULTS.debug.log_llm_request_text_stats);
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.llm_requests"), x, width, llmDebugStart, y);
 
@@ -350,7 +358,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.chat_output_dev_enabled"),
                         () -> output.debug.enabled,
                         value -> output.debug.enabled = value
-                , tooltip(translator, "label.chat_output_dev_enabled"));
+                , tooltip(translator, "label.chat_output_dev_enabled"), DEFAULTS.chatTranslate.output.debug.enabled);
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -359,7 +367,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.chat_output_dev_log_intercept"),
                         () -> output.debug.log_intercepted_message,
                         value -> output.debug.log_intercepted_message = value
-                , tooltip(translator, "label.chat_output_dev_log_intercept"));
+                , tooltip(translator, "label.chat_output_dev_log_intercept"), DEFAULTS.chatTranslate.output.debug.log_intercepted_message);
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -368,7 +376,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.chat_output_dev_log_llm_submission"),
                         () -> output.debug.log_llm_submission,
                         value -> output.debug.log_llm_submission = value
-                , tooltip(translator, "label.chat_output_dev_log_llm_submission"));
+                , tooltip(translator, "label.chat_output_dev_log_llm_submission"), DEFAULTS.chatTranslate.output.debug.log_llm_submission);
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -377,7 +385,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.chat_output_dev_log_reflow_mapping"),
                         () -> output.debug.log_reflow_mapping,
                         value -> output.debug.log_reflow_mapping = value
-                , tooltip(translator, "label.chat_output_dev_log_reflow_mapping"));
+                , tooltip(translator, "label.chat_output_dev_log_reflow_mapping"), DEFAULTS.chatTranslate.output.debug.log_reflow_mapping);
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.chat_output_debug"), x, width, chatOutputDebugStart, y);
 
@@ -393,7 +401,7 @@ public final class ConfigSectionContentSupport {
                             item.debug.enabled = value;
                             ComponentTranslationDebugLogger.refresh(config);
                         },
-                        tooltip(translator, "label.item_dev_enabled")
+                        tooltip(translator, "label.item_dev_enabled"), DEFAULTS.itemTranslate.debug.enabled
                 );
                 y += ROW_STEP;
                 toggleAdder.add(
@@ -406,7 +414,7 @@ public final class ConfigSectionContentSupport {
                             item.debug.log_component_flow = value;
                             ComponentTranslationDebugLogger.refresh(config);
                         }
-                , tooltip(translator, "label.item_dev_log_component_flow"));
+                , tooltip(translator, "label.item_dev_log_component_flow"), DEFAULTS.itemTranslate.debug.log_component_flow);
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -418,7 +426,7 @@ public final class ConfigSectionContentSupport {
                             item.debug.log_component_text_content = value;
                             ComponentTranslationDebugLogger.refresh(config);
                         }
-                , tooltip(translator, "label.item_dev_log_component_text_content"));
+                , tooltip(translator, "label.item_dev_log_component_text_content"), DEFAULTS.itemTranslate.debug.log_component_text_content);
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -430,7 +438,7 @@ public final class ConfigSectionContentSupport {
                             item.debug.log_component_timing = value;
                             ComponentTranslationDebugLogger.refresh(config);
                         }
-                , tooltip(translator, "label.item_dev_log_component_timing"));
+                , tooltip(translator, "label.item_dev_log_component_timing"), DEFAULTS.itemTranslate.debug.log_component_timing);
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -439,7 +447,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.item_dev_log_tooltip_filter"),
                         () -> item.debug.log_tooltip_filter_result,
                         value -> item.debug.log_tooltip_filter_result = value
-                , tooltip(translator, "label.item_dev_log_tooltip_filter"));
+                , tooltip(translator, "label.item_dev_log_tooltip_filter"), DEFAULTS.itemTranslate.debug.log_tooltip_filter_result);
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -448,7 +456,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.item_dev_log_tooltip_nodes"),
                         () -> item.debug.log_tooltip_node_summary,
                         value -> item.debug.log_tooltip_node_summary = value
-                , tooltip(translator, "label.item_dev_log_tooltip_nodes"));
+                , tooltip(translator, "label.item_dev_log_tooltip_nodes"), DEFAULTS.itemTranslate.debug.log_tooltip_node_summary);
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -457,7 +465,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.item_dev_log_tooltip_paragraph"),
                         () -> item.debug.log_tooltip_paragraph_result,
                         value -> item.debug.log_tooltip_paragraph_result = value
-                , tooltip(translator, "label.item_dev_log_tooltip_paragraph"));
+                , tooltip(translator, "label.item_dev_log_tooltip_paragraph"), DEFAULTS.itemTranslate.debug.log_tooltip_paragraph_result);
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -466,7 +474,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.item_dev_log_tooltip_style_map"),
                         () -> item.debug.log_tooltip_style_map,
                         value -> item.debug.log_tooltip_style_map = value
-                , tooltip(translator, "label.item_dev_log_tooltip_style_map"));
+                , tooltip(translator, "label.item_dev_log_tooltip_style_map"), DEFAULTS.itemTranslate.debug.log_tooltip_style_map);
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -475,7 +483,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.item_dev_log_tooltip_timing"),
                         () -> item.debug.log_tooltip_timing,
                         value -> item.debug.log_tooltip_timing = value
-                , tooltip(translator, "label.item_dev_log_tooltip_timing"));
+                , tooltip(translator, "label.item_dev_log_tooltip_timing"), DEFAULTS.itemTranslate.debug.log_tooltip_timing);
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -484,7 +492,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.item_dev_log_batch_timing"),
                         () -> item.debug.log_item_batch_timing,
                         value -> item.debug.log_item_batch_timing = value
-                , tooltip(translator, "label.item_dev_log_batch_timing"));
+                , tooltip(translator, "label.item_dev_log_batch_timing"), DEFAULTS.itemTranslate.debug.log_item_batch_timing);
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -493,7 +501,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.item_dev_log_cache_migration"),
                         () -> item.debug.log_cache_migration,
                         value -> item.debug.log_cache_migration = value
-                , tooltip(translator, "label.item_dev_log_cache_migration"));
+                , tooltip(translator, "label.item_dev_log_cache_migration"), DEFAULTS.itemTranslate.debug.log_cache_migration);
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.item_debug"), x, width, itemDebugStart, y);
 
@@ -509,7 +517,7 @@ public final class ConfigSectionContentSupport {
                             resolvedOtherTranslations.debug.enabled = value;
                             ComponentTranslationDebugLogger.refresh(config);
                         },
-                        tooltip(translator, "label.other_translations_dev_enabled")
+                        tooltip(translator, "label.other_translations_dev_enabled"), DEFAULTS.otherTranslations.debug.enabled
                 );
                 y += ROW_STEP;
                 toggleAdder.add(
@@ -522,7 +530,7 @@ public final class ConfigSectionContentSupport {
                             resolvedOtherTranslations.debug.log_component_entity_identity = value;
                             ComponentTranslationDebugLogger.refresh(config);
                         },
-                        tooltip(translator, "label.other_translations_dev_log_component_entity_identity")
+                        tooltip(translator, "label.other_translations_dev_log_component_entity_identity"), DEFAULTS.otherTranslations.debug.log_component_entity_identity
                 );
                 y += ROW_STEP;
                 addGroupBox(
@@ -543,7 +551,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.wynn_npc_dialogue_dev_enabled"),
                         () -> resolvedWynnCraft.npc_dialogue.debug.enabled,
                         value -> resolvedWynnCraft.npc_dialogue.debug.enabled = value
-                , tooltip(translator, "label.wynn_npc_dialogue_dev_enabled"));
+                , tooltip(translator, "label.wynn_npc_dialogue_dev_enabled"), DEFAULTS.wynnCraft.npc_dialogue.debug.enabled);
                 y += ROW_STEP;
                 addGroupBox(
                         groupBoxAdder,
@@ -562,7 +570,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.wynntils_task_tracker_dev_enabled"),
                         () -> resolvedWynnCraft.wynntils_task_tracker.debug.enabled,
                         value -> resolvedWynnCraft.wynntils_task_tracker.debug.enabled = value
-                , tooltip(translator, "label.wynntils_task_tracker_dev_enabled"));
+                , tooltip(translator, "label.wynntils_task_tracker_dev_enabled"), DEFAULTS.wynnCraft.wynntils_task_tracker.debug.enabled);
                 y += ROW_STEP;
                 addGroupBox(
                         groupBoxAdder,
@@ -581,7 +589,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.item_dev_log_items_local_hits"),
                         () -> item.debug.log_items_local_hits,
                         value -> item.debug.log_items_local_hits = value
-                , tooltip(translator, "label.item_dev_log_items_local_hits"));
+                , tooltip(translator, "label.item_dev_log_items_local_hits"), DEFAULTS.itemTranslate.debug.log_items_local_hits);
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -590,7 +598,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.item_dev_log_skills_local_hits"),
                         () -> item.debug.log_skills_local_hits,
                         value -> item.debug.log_skills_local_hits = value
-                , tooltip(translator, "label.item_dev_log_skills_local_hits"));
+                , tooltip(translator, "label.item_dev_log_skills_local_hits"), DEFAULTS.itemTranslate.debug.log_skills_local_hits);
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -599,7 +607,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.wynn_npc_dialogue_log_dialogues_local_hits"),
                         () -> resolvedWynnCraft.npc_dialogue.debug.log_dialogues_local_hits,
                         value -> resolvedWynnCraft.npc_dialogue.debug.log_dialogues_local_hits = value
-                , tooltip(translator, "label.wynn_npc_dialogue_log_dialogues_local_hits"));
+                , tooltip(translator, "label.wynn_npc_dialogue_log_dialogues_local_hits"), DEFAULTS.wynnCraft.npc_dialogue.debug.log_dialogues_local_hits);
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -608,7 +616,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.wynntils_task_tracker_log_quests_local_hits"),
                         () -> resolvedWynnCraft.wynntils_task_tracker.debug.log_quests_local_hits,
                         value -> resolvedWynnCraft.wynntils_task_tracker.debug.log_quests_local_hits = value
-                , tooltip(translator, "label.wynntils_task_tracker_log_quests_local_hits"));
+                , tooltip(translator, "label.wynntils_task_tracker_log_quests_local_hits"), DEFAULTS.wynnCraft.wynntils_task_tracker.debug.log_quests_local_hits);
                 y += ROW_STEP;
                 addGroupBox(
                         groupBoxAdder,
@@ -631,11 +639,11 @@ public final class ConfigSectionContentSupport {
                     scoreboard.keybinding.refreshBinding = new InputBindingConfig();
                 }
                 int basicStart = y;
-                toggleAdder.add(x, y, width, translator.t("label.enabled"), () -> scoreboard.enabled, value -> scoreboard.enabled = value, translator.t("desc.scoreboard_enabled"));
+                toggleAdder.add(x, y, width, translator.t("label.enabled"), () -> scoreboard.enabled, value -> scoreboard.enabled = value, translator.t("desc.scoreboard_enabled"), DEFAULTS.scoreboardTranslate.enabled);
                 y += ROW_STEP;
-                toggleAdder.add(x, y, width, translator.t("label.translate_prefix_suffix"), () -> scoreboard.enabled_translate_prefix_and_suffix_name, value -> scoreboard.enabled_translate_prefix_and_suffix_name = value, tooltip(translator, "label.translate_prefix_suffix"));
+                toggleAdder.add(x, y, width, translator.t("label.translate_prefix_suffix"), () -> scoreboard.enabled_translate_prefix_and_suffix_name, value -> scoreboard.enabled_translate_prefix_and_suffix_name = value, tooltip(translator, "label.translate_prefix_suffix"), DEFAULTS.scoreboardTranslate.enabled_translate_prefix_and_suffix_name);
                 y += ROW_STEP;
-                toggleAdder.add(x, y, width, translator.t("label.translate_player_name"), () -> scoreboard.enabled_translate_player_name, value -> scoreboard.enabled_translate_player_name = value, tooltip(translator, "label.translate_player_name"));
+                toggleAdder.add(x, y, width, translator.t("label.translate_player_name"), () -> scoreboard.enabled_translate_player_name, value -> scoreboard.enabled_translate_player_name = value, tooltip(translator, "label.translate_player_name"), DEFAULTS.scoreboardTranslate.enabled_translate_player_name);
                 y += ROW_STEP;
                 if (MinecraftVersionCapabilities.current().externalScoreboardTranslation()) {
                     if (scoreboard.external_custom_scoreboard_mode == null) {
@@ -654,7 +662,11 @@ public final class ConfigSectionContentSupport {
                                     )
                             ),
                             scoreboardExternalModeCycle,
-                            translator.t("desc.external_custom_scoreboard_mode")
+                            translator.t("desc.external_custom_scoreboard_mode"),
+                            () -> scoreboard.external_custom_scoreboard_mode =
+                                    DEFAULTS.scoreboardTranslate.external_custom_scoreboard_mode,
+                            () -> scoreboard.external_custom_scoreboard_mode
+                                    != DEFAULTS.scoreboardTranslate.external_custom_scoreboard_mode
                     );
                     y += ROW_STEP;
                 }
@@ -669,7 +681,8 @@ public final class ConfigSectionContentSupport {
                         value -> scoreboard.target_language = sanitizeLanguage(value),
                         value -> true,
                         true,
-                        tooltip(translator, "label.target_language")
+                        tooltip(translator, "label.target_language"),
+                        DEFAULTS.scoreboardTranslate.target_language
                 );
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.basic"), x, width, basicStart, y);
@@ -682,7 +695,9 @@ public final class ConfigSectionContentSupport {
                         width,
                         translator.t("label.hotkey_mode", modeText(translator, scoreboard.keybinding.mode.name())),
                         () -> hotkeyCycleMode.handle(HotkeyTarget.SCOREBOARD)
-                , translator.t("desc.scoreboard_hotkey_mode"));
+                , translator.t("desc.scoreboard_hotkey_mode"),
+                        () -> scoreboard.keybinding.mode = DEFAULTS.scoreboardTranslate.keybinding.mode,
+                        () -> scoreboard.keybinding.mode != DEFAULTS.scoreboardTranslate.keybinding.mode);
                 y += ROW_STEP;
                 actionAdder.add(x, y, width, bindingLabelProvider.label(HotkeyTarget.SCOREBOARD, scoreboard.keybinding.binding), () -> hotkeyStartBinding.handle(HotkeyTarget.SCOREBOARD), tooltip(translator, "desc.scoreboard_hotkey"));
                 y += ROW_STEP;
@@ -727,7 +742,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.other_translations_enabled"),
                         () -> otherTranslations.enabled,
                         value -> otherTranslations.enabled = value,
-                        translator.t("desc.other_translations_enabled")
+                        translator.t("desc.other_translations_enabled"), DEFAULTS.otherTranslations.enabled
                 );
                 y += ROW_STEP;
                 toggleAdder.add(
@@ -737,7 +752,8 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.screen_translation_enabled"),
                         () -> otherTranslations.enabled_screen_translation,
                         screenTranslationEnabledSetter,
-                        translator.t("desc.screen_translation_enabled")
+                        translator.t("desc.screen_translation_enabled"),
+                        DEFAULTS.otherTranslations.enabled_screen_translation
                 );
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.basic"), x, width, basicStart, y);
@@ -751,42 +767,42 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.translate_vanilla_advancements"),
                         () -> otherTranslations.enabled_translate_vanilla_advancements,
                         value -> otherTranslations.enabled_translate_vanilla_advancements = value,
-                        tooltip(translator, "label.translate_vanilla_advancements")
+                        tooltip(translator, "label.translate_vanilla_advancements"), DEFAULTS.otherTranslations.enabled_translate_vanilla_advancements
                 );
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.advancements"), x, width, advancementsStart, y);
 
                 y += GROUP_GAP;
                 int signStart = y;
-                toggleAdder.add(x, y, width, translator.t("label.translate_signs"), () -> otherTranslations.enabled_translate_signs, value -> otherTranslations.enabled_translate_signs = value, translator.t("desc.translate_signs"));
+                toggleAdder.add(x, y, width, translator.t("label.translate_signs"), () -> otherTranslations.enabled_translate_signs, value -> otherTranslations.enabled_translate_signs = value, translator.t("desc.translate_signs"), DEFAULTS.otherTranslations.enabled_translate_signs);
                 y += ROW_STEP;
-                toggleAdder.add(x, y, width, translator.t("label.continuous_sign_translation"), () -> otherTranslations.continuous_sign_translation, value -> otherTranslations.continuous_sign_translation = value, translator.t("desc.continuous_sign_translation"));
+                toggleAdder.add(x, y, width, translator.t("label.continuous_sign_translation"), () -> otherTranslations.continuous_sign_translation, value -> otherTranslations.continuous_sign_translation = value, translator.t("desc.continuous_sign_translation"), DEFAULTS.otherTranslations.continuous_sign_translation);
                 y += ROW_STEP;
-                sliderAdder.add(x, y, width, translator.t("label.sign_translation_radius"), 1, 16, () -> otherTranslations.sign_translation_radius, value -> otherTranslations.sign_translation_radius = value, translator.t("desc.sign_translation_radius"));
+                sliderAdder.add(x, y, width, translator.t("label.sign_translation_radius"), 1, 16, () -> otherTranslations.sign_translation_radius, value -> otherTranslations.sign_translation_radius = value, translator.t("desc.sign_translation_radius"), DEFAULTS.otherTranslations.sign_translation_radius);
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.sign_translation"), x, width, signStart, y);
 
                 y += GROUP_GAP;
                 int entityStart = y;
-                toggleAdder.add(x, y, width, translator.t("label.translate_entity_text"), () -> otherTranslations.enabled_translate_entity_text, value -> otherTranslations.enabled_translate_entity_text = value, translator.t("desc.translate_entity_text"));
+                toggleAdder.add(x, y, width, translator.t("label.translate_entity_text"), () -> otherTranslations.enabled_translate_entity_text, value -> otherTranslations.enabled_translate_entity_text = value, translator.t("desc.translate_entity_text"), DEFAULTS.otherTranslations.enabled_translate_entity_text);
                 y += ROW_STEP;
-                toggleAdder.add(x, y, width, translator.t("label.translate_entity_name_tags"), () -> otherTranslations.translate_entity_name_tags, value -> otherTranslations.translate_entity_name_tags = value, translator.t("desc.translate_entity_name_tags"));
+                toggleAdder.add(x, y, width, translator.t("label.translate_entity_name_tags"), () -> otherTranslations.translate_entity_name_tags, value -> otherTranslations.translate_entity_name_tags = value, translator.t("desc.translate_entity_name_tags"), DEFAULTS.otherTranslations.translate_entity_name_tags);
                 y += ROW_STEP;
-                toggleAdder.add(x, y, width, translator.t("label.translate_text_display_entities"), () -> otherTranslations.translate_text_display_entities, value -> otherTranslations.translate_text_display_entities = value, translator.t("desc.translate_text_display_entities"));
+                toggleAdder.add(x, y, width, translator.t("label.translate_text_display_entities"), () -> otherTranslations.translate_text_display_entities, value -> otherTranslations.translate_text_display_entities = value, translator.t("desc.translate_text_display_entities"), DEFAULTS.otherTranslations.translate_text_display_entities);
                 y += ROW_STEP;
-                toggleAdder.add(x, y, width, translator.t("label.translate_item_entity_hover_labels"), () -> otherTranslations.translate_item_entity_hover_labels, value -> otherTranslations.translate_item_entity_hover_labels = value, translator.t("desc.translate_item_entity_hover_labels"));
+                toggleAdder.add(x, y, width, translator.t("label.translate_item_entity_hover_labels"), () -> otherTranslations.translate_item_entity_hover_labels, value -> otherTranslations.translate_item_entity_hover_labels = value, translator.t("desc.translate_item_entity_hover_labels"), DEFAULTS.otherTranslations.translate_item_entity_hover_labels);
                 y += ROW_STEP;
-                sliderAdder.add(x, y, width, translator.t("label.entity_translation_radius"), 1, 16, () -> otherTranslations.entity_translation_radius, value -> otherTranslations.entity_translation_radius = value, translator.t("desc.entity_translation_radius"));
+                sliderAdder.add(x, y, width, translator.t("label.entity_translation_radius"), 1, 16, () -> otherTranslations.entity_translation_radius, value -> otherTranslations.entity_translation_radius = value, translator.t("desc.entity_translation_radius"), DEFAULTS.otherTranslations.entity_translation_radius);
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.entity_text"), x, width, entityStart, y);
 
                 y += GROUP_GAP;
                 int bookStart = y;
-                toggleAdder.add(x, y, width, translator.t("label.translate_written_books"), () -> otherTranslations.enabled_translate_written_books, value -> otherTranslations.enabled_translate_written_books = value, translator.t("desc.translate_written_books"));
+                toggleAdder.add(x, y, width, translator.t("label.translate_written_books"), () -> otherTranslations.enabled_translate_written_books, value -> otherTranslations.enabled_translate_written_books = value, translator.t("desc.translate_written_books"), DEFAULTS.otherTranslations.enabled_translate_written_books);
                 y += ROW_STEP;
-                toggleAdder.add(x, y, width, translator.t("label.book_prefetch_adjacent_pages"), () -> otherTranslations.book_prefetch_adjacent_pages, value -> otherTranslations.book_prefetch_adjacent_pages = value, translator.t("desc.book_prefetch_adjacent_pages"));
+                toggleAdder.add(x, y, width, translator.t("label.book_prefetch_adjacent_pages"), () -> otherTranslations.book_prefetch_adjacent_pages, value -> otherTranslations.book_prefetch_adjacent_pages = value, translator.t("desc.book_prefetch_adjacent_pages"), DEFAULTS.otherTranslations.book_prefetch_adjacent_pages);
                 y += ROW_STEP;
-                sliderAdder.add(x, y, width, translator.t("label.book_max_page_characters"), 256, 16_384, () -> otherTranslations.book_max_page_characters, value -> otherTranslations.book_max_page_characters = value, translator.t("desc.book_max_page_characters"));
+                sliderAdder.add(x, y, width, translator.t("label.book_max_page_characters"), 256, 16_384, () -> otherTranslations.book_max_page_characters, value -> otherTranslations.book_max_page_characters = value, translator.t("desc.book_max_page_characters"), DEFAULTS.otherTranslations.book_max_page_characters);
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.written_books"), x, width, bookStart, y);
 
@@ -798,7 +814,9 @@ public final class ConfigSectionContentSupport {
                         width,
                         translator.t("label.hotkey_mode", modeText(translator, otherTranslations.keybinding.mode.name())),
                         () -> hotkeyCycleMode.handle(HotkeyTarget.OTHER_TRANSLATIONS),
-                        translator.t("desc.other_translations_hotkey_mode")
+                        translator.t("desc.other_translations_hotkey_mode"),
+                        () -> otherTranslations.keybinding.mode = DEFAULTS.otherTranslations.keybinding.mode,
+                        () -> otherTranslations.keybinding.mode != DEFAULTS.otherTranslations.keybinding.mode
                 );
                 y += ROW_STEP;
                 actionAdder.add(
@@ -841,7 +859,7 @@ public final class ConfigSectionContentSupport {
                         16,
                         () -> otherTranslations.max_concurrent_requests,
                         value -> otherTranslations.max_concurrent_requests = value,
-                        tooltip(translator, "desc.other_translations_threads")
+                        tooltip(translator, "desc.other_translations_threads"), DEFAULTS.otherTranslations.max_concurrent_requests
                 );
                 y += SLIDER_STEP;
                 sliderAdder.add(
@@ -853,7 +871,7 @@ public final class ConfigSectionContentSupport {
                         64,
                         () -> otherTranslations.max_batch_size,
                         value -> otherTranslations.max_batch_size = value,
-                        tooltip(translator, "desc.other_translations_batch_size")
+                        tooltip(translator, "desc.other_translations_batch_size"), DEFAULTS.otherTranslations.max_batch_size
                 );
                 y += SLIDER_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.performance"), x, width, performanceStart, y);
@@ -871,7 +889,8 @@ public final class ConfigSectionContentSupport {
                         value -> otherTranslations.target_language = sanitizeLanguage(value),
                         value -> true,
                         true,
-                        tooltip(translator, "label.target_language")
+                        tooltip(translator, "label.target_language"),
+                        DEFAULTS.otherTranslations.target_language
                 );
                 y += ROW_STEP;
                 routeSelectorAdder.add(config.providerManager, RouteSlot.OTHER_TRANSLATIONS, x, y, width);
@@ -919,7 +938,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.enabled"),
                         () -> wynnCraft.npc_dialogue.enabled,
                         value -> wynnCraft.npc_dialogue.enabled = value
-        , translator.t("desc.wynn_npc_dialogue_enabled"));
+        , translator.t("desc.wynn_npc_dialogue_enabled"), DEFAULTS.wynnCraft.npc_dialogue.enabled);
         y += ROW_STEP;
         toggleAdder.add(
                 x,
@@ -928,7 +947,7 @@ public final class ConfigSectionContentSupport {
                 translator.t("label.wynn_npc_dialogue_use_hud"),
                 () -> wynnCraft.npc_dialogue.use_hud,
                 value -> wynnCraft.npc_dialogue.use_hud = value,
-                translator.t("desc.wynn_npc_dialogue_use_hud")
+                translator.t("desc.wynn_npc_dialogue_use_hud"), DEFAULTS.wynnCraft.npc_dialogue.use_hud
         );
         y += ROW_STEP;
                 toggleAdder.add(
@@ -938,7 +957,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.translate_wynn_npc_dialogue_npc_name"),
                         () -> wynnCraft.npc_dialogue.translate_npc_name,
                         value -> wynnCraft.npc_dialogue.translate_npc_name = value
-                , tooltip(translator, "label.translate_wynn_npc_dialogue_npc_name"));
+                , tooltip(translator, "label.translate_wynn_npc_dialogue_npc_name"), DEFAULTS.wynnCraft.npc_dialogue.translate_npc_name);
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -947,7 +966,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.translate_wynn_npc_dialogue_options"),
                         () -> wynnCraft.npc_dialogue.translate_options,
                         value -> wynnCraft.npc_dialogue.translate_options = value
-                , tooltip(translator, "label.translate_wynn_npc_dialogue_options"));
+                , tooltip(translator, "label.translate_wynn_npc_dialogue_options"), DEFAULTS.wynnCraft.npc_dialogue.translate_options);
                 y += ROW_STEP;
                 actionAdder.add(
                         x,
@@ -970,7 +989,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.enabled"),
                         () -> wynnCraft.wynntils_task_tracker.enabled,
                         value -> wynnCraft.wynntils_task_tracker.enabled = value
-                , translator.t("desc.wynntils_task_tracker_enabled"));
+                , translator.t("desc.wynntils_task_tracker_enabled"), DEFAULTS.wynnCraft.wynntils_task_tracker.enabled);
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -979,7 +998,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.translate_wynntils_task_tracker_title"),
                         () -> wynnCraft.wynntils_task_tracker.translate_title,
                         value -> wynnCraft.wynntils_task_tracker.translate_title = value
-                , tooltip(translator, "label.translate_wynntils_task_tracker_title"));
+                , tooltip(translator, "label.translate_wynntils_task_tracker_title"), DEFAULTS.wynnCraft.wynntils_task_tracker.translate_title);
                 y += ROW_STEP;
                 toggleAdder.add(
                         x,
@@ -988,7 +1007,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.translate_wynntils_task_tracker_description"),
                         () -> wynnCraft.wynntils_task_tracker.translate_description,
                         value -> wynnCraft.wynntils_task_tracker.translate_description = value
-                , tooltip(translator, "label.translate_wynntils_task_tracker_description"));
+                , tooltip(translator, "label.translate_wynntils_task_tracker_description"), DEFAULTS.wynnCraft.wynntils_task_tracker.translate_description);
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.wynntils_task_tracker"), x, width, trackerStart, y);
 
@@ -1000,7 +1019,11 @@ public final class ConfigSectionContentSupport {
                         width,
                         translator.t("label.hotkey_mode", modeText(translator, wynnCraft.wynntils_task_tracker.keybinding.mode.name())),
                         () -> hotkeyCycleMode.handle(HotkeyTarget.WYNNTILS_TASK_TRACKER)
-                , translator.t("desc.wynn_hotkey_mode"));
+                , translator.t("desc.wynn_hotkey_mode"),
+                        () -> wynnCraft.wynntils_task_tracker.keybinding.mode =
+                                DEFAULTS.wynnCraft.wynntils_task_tracker.keybinding.mode,
+                        () -> wynnCraft.wynntils_task_tracker.keybinding.mode
+                                != DEFAULTS.wynnCraft.wynntils_task_tracker.keybinding.mode);
                 y += ROW_STEP;
                 actionAdder.add(
                         x,
@@ -1045,7 +1068,8 @@ public final class ConfigSectionContentSupport {
                         value -> wynnCraft.target_language = sanitizeLanguage(value),
                         value -> true,
                         true,
-                        tooltip(translator, "label.target_language")
+                        tooltip(translator, "label.target_language"),
+                        DEFAULTS.wynnCraft.target_language
                 );
                 y += ROW_STEP;
                 routeSelectorAdder.add(config.providerManager, RouteSlot.WYNNCRAFT, x, y, width);
@@ -1069,7 +1093,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.dictionary_enabled"),
                         resolvedDictionaryConfig::isEnabled,
                         value -> resolvedDictionaryConfig.enabled = value
-                , tooltip(translator, "label.dictionary_enabled"));
+                , tooltip(translator, "label.dictionary_enabled"), DEFAULTS.dictionary.enabled);
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.dictionary_general"), x, width, masterStart, y);
 
@@ -1132,7 +1156,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.dictionary_text_debug_enabled"),
                         resolvedDictionaryConfig::isTextDebugEnabled,
                         value -> resolvedDictionaryConfig.text_debug_enabled = value
-                , tooltip(translator, "label.dictionary_text_debug_enabled"));
+                , tooltip(translator, "label.dictionary_text_debug_enabled"), DEFAULTS.dictionary.text_debug_enabled);
                 y += ROW_STEP;
                 actionAdder.add(x, y, width, translator.t("button.open_dictionary_directory"), openDictionaryDirectoryAction, tooltip(translator, "button.open_dictionary_directory"));
                 y += ROW_STEP;
@@ -1155,7 +1179,7 @@ public final class ConfigSectionContentSupport {
                         translator.t("label.cache_backup_enabled"),
                         cacheBackup::isEnabled,
                         value -> cacheBackup.enabled = value
-                , tooltip(translator, "label.cache_backup_enabled"));
+                , tooltip(translator, "label.cache_backup_enabled"), DEFAULTS.cacheBackup.enabled);
                 y += ROW_STEP;
                 textFieldRowAdder.add(
                         x,
@@ -1176,7 +1200,9 @@ public final class ConfigSectionContentSupport {
                             }
                         },
                         value -> isAllowedNumericInput(value, CacheBackupConfig.MAX_BACKUP_INTERVAL_MINUTES),
-                        true
+                        true,
+                        null,
+                        Integer.toString(DEFAULTS.cacheBackup.backup_interval_minutes)
                 );
                 y += ROW_STEP;
                 textFieldRowAdder.add(
@@ -1198,7 +1224,9 @@ public final class ConfigSectionContentSupport {
                             }
                         },
                         value -> isAllowedNumericInput(value, CacheBackupConfig.MAX_MAX_BACKUP_COUNT),
-                        true
+                        true,
+                        null,
+                        Integer.toString(DEFAULTS.cacheBackup.max_backup_count)
                 );
                 y += ROW_STEP;
                 addGroupBox(groupBoxAdder, translator.t("group.backup_policy"), x, width, policyStart, y);
@@ -1437,7 +1465,7 @@ public final class ConfigSectionContentSupport {
                 translator.t(enabledLabelKey),
                 () -> DictionaryFileSelectionSupport.isSlotEnabled(dictionaryConfig, slot),
                 value -> DictionaryFileSelectionSupport.setSlotEnabled(dictionaryConfig, slot, value)
-        , tooltip(translator, enabledLabelKey));
+        , tooltip(translator, enabledLabelKey), DictionaryFileSelectionSupport.isSlotEnabled(DEFAULTS.dictionary, slot));
         y += ROW_STEP;
         textFieldRowAdder.add(
                 x,
@@ -1508,15 +1536,53 @@ public final class ConfigSectionContentSupport {
 
     @FunctionalInterface
     public interface IntSliderAdder {
-        void add(int x, int y, int width, Component label, int min, int max, IntSupplier getter, IntConsumer setter, Component tooltip);
+        void add(
+                int x,
+                int y,
+                int width,
+                Component label,
+                int min,
+                int max,
+                IntSupplier getter,
+                IntConsumer setter,
+                Component tooltip,
+                int defaultValue
+        );
     }
 
     @FunctionalInterface
     public interface ActionAdder {
-        void add(int x, int y, int width, Component label, Runnable action, Component tooltip, BooleanSupplier enabled);
+        void add(
+                int x,
+                int y,
+                int width,
+                Component label,
+                Runnable action,
+                Component tooltip,
+                BooleanSupplier enabled,
+                Runnable resetAction,
+                BooleanSupplier modified
+        );
+
+        default void add(int x, int y, int width, Component label, Runnable action, Component tooltip, BooleanSupplier enabled) {
+            add(x, y, width, label, action, tooltip, enabled, null, null);
+        }
+
+        default void add(
+                int x,
+                int y,
+                int width,
+                Component label,
+                Runnable action,
+                Component tooltip,
+                Runnable resetAction,
+                BooleanSupplier modified
+        ) {
+            add(x, y, width, label, action, tooltip, () -> true, resetAction, modified);
+        }
 
         default void add(int x, int y, int width, Component label, Runnable action, Component tooltip) {
-            add(x, y, width, label, action, tooltip, () -> true);
+            add(x, y, width, label, action, tooltip, () -> true, null, null);
         }
     }
 
@@ -1533,8 +1599,25 @@ public final class ConfigSectionContentSupport {
                 Consumer<String> changed,
                 Predicate<String> textPredicate,
                 boolean editable,
-                Component tooltip
+                Component tooltip,
+                String defaultValue
         );
+
+        default void add(
+                int x,
+                int y,
+                int width,
+                Component label,
+                int maxLength,
+                String initialValue,
+                Component placeholder,
+                Consumer<String> changed,
+                Predicate<String> textPredicate,
+                boolean editable,
+                Component tooltip
+        ) {
+            add(x, y, width, label, maxLength, initialValue, placeholder, changed, textPredicate, editable, tooltip, null);
+        }
 
         default void add(
                 int x,

@@ -195,6 +195,7 @@
   "text.translate_allinone.configscreen.desc.provider_type": "The type/format of this API provider",
   "text.translate_allinone.configscreen.label.request_preview": "Request Preview: %s",
   "text.translate_allinone.configscreen.button.reset": "RESET",
+  "text.translate_allinone.configscreen.desc.reset_option": "Restore this option to its default value",
   "text.translate_allinone.configscreen.label.route_model": "Route Model: %s",
   "text.translate_allinone.configscreen.button.save_and_close": "SAVE & CLOSE",
   "text.translate_allinone.configscreen.desc.scoreboard_enabled": "Enable scoreboard text translation",

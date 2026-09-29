@@ -134,7 +134,16 @@ public final class ConfigUiRuntimeSupport {
 
     @FunctionalInterface
     public interface ToggleAdder {
-        void add(int x, int y, int width, Component label, BooleanSupplier getter, Consumer<Boolean> setter, Component tooltip);
+        void add(
+                int x,
+                int y,
+                int width,
+                Component label,
+                BooleanSupplier getter,
+                Consumer<Boolean> setter,
+                Component tooltip,
+                boolean defaultValue
+        );
     }
 
     @FunctionalInterface

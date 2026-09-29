@@ -1,5 +1,6 @@
 package com.alexeys.translate_allinone.gui.configui.render;
 
+import com.alexeys.translate_allinone.Translate_AllinOne;
 import com.alexeys.translate_allinone.gui.configui.controls.ActionBlock;
 import com.alexeys.translate_allinone.gui.configui.controls.CheckboxBlock;
 import com.alexeys.translate_allinone.gui.configui.controls.GroupBox;
@@ -9,10 +10,18 @@ import java.util.List;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.FontDescription;
+import net.minecraft.network.chat.Style;
+import net.minecraft.resources.Identifier;
 
 import static com.alexeys.translate_allinone.gui.configui.render.ConfigUiDraw.drawOutline;
 
 public final class ConfigUiControlRenderer {
+    private static final Identifier RESET_FONT = Identifier.fromNamespaceAndPath(Translate_AllinOne.MOD_ID, "reset_icon");
+    private static final Component RESET_ICON = Component.literal("\u27F2")
+            .withStyle(Style.EMPTY.withFont(new FontDescription.Resource(RESET_FONT)));
+    private static final int RESET_ICON_HEIGHT = 8;
+
     private ConfigUiControlRenderer() {
     }
 
@@ -34,6 +43,18 @@ public final class ConfigUiControlRenderer {
             }
             context.fill(block.x(), block.y(), block.x() + block.width(), block.y() + block.height(), background);
             drawOutline(context, block.x(), block.y(), block.width(), block.height(), borderColor);
+
+            if (block.resetIcon()) {
+                context.text(
+                        textRenderer,
+                        RESET_ICON,
+                        block.x() + (block.width() - textRenderer.width(RESET_ICON)) / 2,
+                        block.y() + (block.height() - RESET_ICON_HEIGHT) / 2,
+                        textColor,
+                        false
+                );
+                continue;
+            }
 
             Component label = trimText(textRenderer, block.label(), Math.max(0, block.width() - 12));
             int textY = block.y() + 6;
