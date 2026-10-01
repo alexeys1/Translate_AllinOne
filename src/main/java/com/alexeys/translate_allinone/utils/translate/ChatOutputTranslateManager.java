@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -42,6 +43,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -77,6 +79,7 @@ public class ChatOutputTranslateManager {
     private static final int MAX_TRIMMED_LINES = 100;
     private static final long STREAMING_UPDATE_INTERVAL_MS = 100L;
     private static final Map<UUID, Long> streamingUpdateLastApplied = new ConcurrentHashMap<>();
+    private static final ChatOutputRetryBudget retryBudget = new ChatOutputRetryBudget();
     private static final long ROUTE_ERROR_DISPLAY_MS = 2_000L;
     private static final String TRANSLATION_ERROR_KEY = "text.translate_allinone.chat.output_translation_error";
     private static final String NO_ROUTED_MODEL_ERROR_KEY = "text.translate_allinone.translation.error.no_routed_model";
@@ -255,6 +258,9 @@ public class ChatOutputTranslateManager {
         String skyblockCacheKey = !skyblockNpcMessage
                 ? null
                 : buildSkyblockNpcCacheKey(chatOutputConfig.target_language, preparedTranslation.textToTranslate());
+        final String requestSingleFlightKey = chatOutputCacheKey == null
+                ? "uncached\u001f" + preparedTranslation.textToTranslate()
+                : chatOutputCacheKey;
         if (forceRefresh) {
             if (chatOutputCacheKey != null) {
                 ChatOutputTranslationCache.getInstance().forceRefresh(List.of(chatOutputCacheKey));
@@ -262,6 +268,7 @@ public class ChatOutputTranslateManager {
             if (skyblockCacheKey != null) {
                 SkyblockNpcTranslationCache.getInstance().forceRefresh(List.of(skyblockCacheKey));
             }
+            retryBudget.reset(requestSingleFlightKey);
         }
         LookupResult chatOutputCacheLookup = chatOutputCacheKey == null
                 ? null
@@ -278,7 +285,7 @@ public class ChatOutputTranslateManager {
             return;
         }
         String cachedFailure = resolveCachedFailure(skyblockCacheLookup, chatOutputCacheLookup);
-        if (cachedFailure != null) {
+        if (cachedFailure != null && !retryCachedFailure(requestSingleFlightKey, chatOutputCacheKey, skyblockCacheKey)) {
             long requestGeneration = translationGeneration.incrementAndGet();
             activeTranslationLines.put(messageId, targetLine);
             translationGenerations.put(messageId, requestGeneration);
@@ -302,9 +309,6 @@ public class ChatOutputTranslateManager {
 
         final long finalRequestGeneration = requestGeneration;
         final GuiMessage finalTargetLine = targetLine;
-        final String requestSingleFlightKey = chatOutputCacheKey == null
-                ? "uncached\u001f" + preparedTranslation.textToTranslate()
-                : chatOutputCacheKey;
         translationExecutor.submit(() -> {
             String requestContext = "route=chat_output,messageId=" + messageId;
             long watchdogRequestId = 0L;
@@ -325,7 +329,8 @@ public class ChatOutputTranslateManager {
                     return;
                 }
                 String lateCachedFailure = resolveCachedFailure(lateSkyblockCacheLookup, lateChatOutputCacheLookup);
-                if (lateCachedFailure != null) {
+                if (lateCachedFailure != null
+                        && !retryCachedFailure(requestSingleFlightKey, chatOutputCacheKey, skyblockCacheKey)) {
                     completeCachedFailure(messageId, finalRequestGeneration, lateCachedFailure);
                     return;
                 }
@@ -376,7 +381,8 @@ public class ChatOutputTranslateManager {
                     return;
                 }
                 String ownerCachedFailure = resolveCachedFailure(ownerSkyblockCacheLookup, ownerChatOutputCacheLookup);
-                if (ownerCachedFailure != null) {
+                if (ownerCachedFailure != null
+                        && !retryCachedFailure(requestSingleFlightKey, chatOutputCacheKey, skyblockCacheKey)) {
                     inFlightTranslations.fail(
                             requestSingleFlightKey,
                             sharedClaim,
@@ -401,100 +407,70 @@ public class ChatOutputTranslateManager {
                         List.of(requestSingleFlightKey)
                 );
 
+                final String finalRequestContext = requestContext;
                 if (chatOutputConfig.streaming_response) {
-                    final StringBuilder rawResponseBuffer = new StringBuilder();
-                    final StringBuilder fullResponseBuffer = new StringBuilder();
-                    final StringBuilder visibleContentBuffer = new StringBuilder();
-                    final AtomicBoolean inThinkTag = new AtomicBoolean(false);
-
-                    LlmRequestLifecycle.consume(llm.getStreamingCompletion(apiMessages, requestContext), chunk -> {
-                        fullResponseBuffer.append(chunk);
-                        rawResponseBuffer.append(chunk);
-
-                        while (true) {
-                            if (inThinkTag.get()) {
-                                int endTagIndex = rawResponseBuffer.indexOf("</think>");
-                                if (endTagIndex != -1) {
-                                    inThinkTag.set(false);
-                                    rawResponseBuffer.delete(0, endTagIndex + "</think>".length());
-                                    scheduleInProgressChatLineUpdate(messageId, finalRequestGeneration, Component.literal(visibleContentBuffer.toString().replaceAll("</?s\\d+>", "")));
-                                    continue;
-                                } else {
-                                    int startTagIndex = rawResponseBuffer.indexOf("<think>");
-                                    if (startTagIndex != -1) {
-                                        String thinkContent = rawResponseBuffer.substring(startTagIndex + "<think>".length());
-                                        scheduleInProgressChatLineUpdate(messageId, finalRequestGeneration, Component.literal("Thinking: ").append(thinkContent).withStyle(ChatFormatting.GRAY));
-                                    }
-                                    break;
-                                }
-                            } else {
-                                int startTagIndex = rawResponseBuffer.indexOf("<think>");
-                                if (startTagIndex != -1) {
-                                    String translationPart = rawResponseBuffer.substring(0, startTagIndex);
-                                    visibleContentBuffer.append(translationPart);
-                                    scheduleInProgressChatLineUpdate(messageId, finalRequestGeneration, Component.literal(visibleContentBuffer.toString().replaceAll("</?s\\d+>", "")));
-
-                                    rawResponseBuffer.delete(0, startTagIndex);
-                                    inThinkTag.set(true);
-                                    continue;
-                                } else {
-                                    visibleContentBuffer.append(rawResponseBuffer.toString());
-                                    rawResponseBuffer.setLength(0);
-                                    scheduleInProgressChatLineUpdate(messageId, finalRequestGeneration, Component.literal(visibleContentBuffer.toString().replaceAll("</?s\\d+>", "")));
-                                    break;
-                                }
-                            }
-                        }
-                    });
+                    TranslationAttempt attempt = runWithInRoundRetry(
+                            requestSingleFlightKey,
+                            messageId,
+                            finalRequestGeneration,
+                            originalMessage,
+                            () -> consumeStreamingTranslation(llm, apiMessages, finalRequestContext, messageId, finalRequestGeneration)
+                    );
 
                     TranslationQueueWatchdog.requestSucceeded(watchdogRequestId);
                     watchdogRequestId = 0L;
 
-                    Component finalStyledText = rebuildTranslatedText(visibleContentBuffer.toString().stripLeading(), preparedTranslation);
-                    String finalTranslation = visibleContentBuffer.toString().stripLeading();
-                    if (finalTranslation.isBlank()) {
-                        throw new IllegalStateException("Provider returned an empty translation");
-                    }
+                    Component finalStyledText = rebuildTranslatedText(attempt.translation(), preparedTranslation);
                     logReflowResult(
                             messageId,
                             true,
-                            fullResponseBuffer.toString(),
-                            visibleContentBuffer.toString().stripLeading(),
+                            attempt.rawResponse(),
+                            attempt.translation(),
                             finalStyledText,
                             styleMap
                     );
-                    inFlightTranslations.complete(requestSingleFlightKey, sharedClaim, finalTranslation);
+                    inFlightTranslations.complete(requestSingleFlightKey, sharedClaim, attempt.translation());
                     updateChatLineWithFinalText(messageId, finalRequestGeneration, finalStyledText);
                 } else {
-                    String result = llm.getCompletion(apiMessages, requestContext).join();
-                    TranslationContentVerdict outputVerdict = judgeChatOutputTranslation(
-                            result,
-                            textToTranslate,
-                            chatOutputConfig.target_language
+                    TranslationAttempt attempt = runWithInRoundRetry(
+                            requestSingleFlightKey,
+                            messageId,
+                            finalRequestGeneration,
+                            originalMessage,
+                            () -> completeTranslation(
+                                    llm,
+                                    apiMessages,
+                                    finalRequestContext,
+                                    textToTranslate,
+                                    chatOutputConfig.target_language
+                            )
                     );
-                    if (!outputVerdict.accepted()) {
-                        throw new IllegalArgumentException(
-                                "Provider response rejected by the content quality gate: "
-                                        + outputVerdict.reason()
-                        );
-                    }
-                    final String finalTranslation = PlainTextResponseDecoder.decode(result).text();
+
                     TranslationQueueWatchdog.requestSucceeded(watchdogRequestId);
                     watchdogRequestId = 0L;
                     if (shouldLogReflowMapping()) {
-                        LOGGER.info("Finished translation for message ID: {}. Result: {}", messageId, result);
+                        LOGGER.info("Finished translation for message ID: {}. Result: {}", messageId, attempt.rawResponse());
                     }
-                    Component finalStyledText = rebuildTranslatedText(finalTranslation, preparedTranslation);
-                    logReflowResult(messageId, false, result, finalTranslation, finalStyledText, styleMap);
-                    cacheTranslation(skyblockCacheKey, chatOutputCacheKey, finalTranslation);
-                    inFlightTranslations.complete(requestSingleFlightKey, sharedClaim, finalTranslation);
+                    Component finalStyledText = rebuildTranslatedText(attempt.translation(), preparedTranslation);
+                    logReflowResult(
+                            messageId,
+                            false,
+                            attempt.rawResponse(),
+                            attempt.translation(),
+                            finalStyledText,
+                            styleMap
+                    );
+                    cacheTranslation(skyblockCacheKey, chatOutputCacheKey, attempt.translation());
+                    inFlightTranslations.complete(requestSingleFlightKey, sharedClaim, attempt.translation());
                     updateChatLineWithFinalText(messageId, finalRequestGeneration, finalStyledText);
                 }
+                retryBudget.reset(requestSingleFlightKey);
             } catch (Exception e) {
                 Throwable cause = TranslateExceptionUtils.unwrapThrowable(e);
                 if (sharedClaim != null && sharedClaim.owner() && !sharedClaim.future().isDone()) {
                     if (isTranslationActive(messageId, finalRequestGeneration)) {
                         cacheTranslationFailure(skyblockCacheKey, chatOutputCacheKey, cause.getMessage());
+                        retryBudget.recordFailedRound(requestSingleFlightKey, System.currentTimeMillis());
                     }
                     inFlightTranslations.fail(requestSingleFlightKey, sharedClaim, cause);
                 } else if (sharedClaim != null
@@ -509,6 +485,140 @@ public class ChatOutputTranslateManager {
                 completeCachedFailure(messageId, finalRequestGeneration, cause.getMessage());
             }
         });
+    }
+
+    private static boolean retryCachedFailure(String requestKey, String chatOutputCacheKey, String skyblockCacheKey) {
+        if (!retryBudget.claimAutomaticRetry(requestKey, System.currentTimeMillis())) {
+            return false;
+        }
+        if (chatOutputCacheKey != null) {
+            ChatOutputTranslationCache.getInstance().forceRefresh(List.of(chatOutputCacheKey));
+        }
+        if (skyblockCacheKey != null) {
+            SkyblockNpcTranslationCache.getInstance().forceRefresh(List.of(skyblockCacheKey));
+        }
+        return true;
+    }
+
+    private static TranslationAttempt runWithInRoundRetry(
+            String requestKey,
+            UUID messageId,
+            long requestGeneration,
+            Component originalMessage,
+            Supplier<TranslationAttempt> attempt
+    ) {
+        int callsInRound = 0;
+        while (true) {
+            callsInRound++;
+            retryBudget.recordProviderCall(requestKey);
+            try {
+                return attempt.get();
+            } catch (RuntimeException attemptFailure) {
+                if (attemptFailure instanceof CancellationException
+                        || !retryBudget.canRetryInRound(requestKey, callsInRound)
+                        || !isTranslationActive(messageId, requestGeneration)) {
+                    throw attemptFailure;
+                }
+                pendingAnimationSources.put(messageId, originalMessage);
+                if (!awaitInRoundBackoff()) {
+                    throw attemptFailure;
+                }
+            }
+        }
+    }
+
+    private static boolean awaitInRoundBackoff() {
+        try {
+            Thread.sleep(ChatOutputRetryBudget.IN_ROUND_BACKOFF_MILLIS);
+            return true;
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
+    private static TranslationAttempt completeTranslation(
+            LLM llm,
+            List<OpenAIRequest.Message> apiMessages,
+            String requestContext,
+            String sourceText,
+            String targetLanguage
+    ) {
+        String rawResponse = llm.getCompletion(apiMessages, requestContext).join();
+        TranslationContentVerdict outputVerdict = judgeChatOutputTranslation(
+                rawResponse,
+                sourceText,
+                targetLanguage
+        );
+        if (!outputVerdict.accepted()) {
+            throw new IllegalArgumentException(
+                    "Provider response rejected by the content quality gate: "
+                            + outputVerdict.reason()
+            );
+        }
+        return new TranslationAttempt(PlainTextResponseDecoder.decode(rawResponse).text(), rawResponse);
+    }
+
+    private static TranslationAttempt consumeStreamingTranslation(
+            LLM llm,
+            List<OpenAIRequest.Message> apiMessages,
+            String requestContext,
+            UUID messageId,
+            long requestGeneration
+    ) {
+        final StringBuilder rawResponseBuffer = new StringBuilder();
+        final StringBuilder fullResponseBuffer = new StringBuilder();
+        final StringBuilder visibleContentBuffer = new StringBuilder();
+        final AtomicBoolean inThinkTag = new AtomicBoolean(false);
+
+        LlmRequestLifecycle.consume(llm.getStreamingCompletion(apiMessages, requestContext), chunk -> {
+            fullResponseBuffer.append(chunk);
+            rawResponseBuffer.append(chunk);
+
+            while (true) {
+                if (inThinkTag.get()) {
+                    int endTagIndex = rawResponseBuffer.indexOf("</think>");
+                    if (endTagIndex != -1) {
+                        inThinkTag.set(false);
+                        rawResponseBuffer.delete(0, endTagIndex + "</think>".length());
+                        scheduleInProgressChatLineUpdate(messageId, requestGeneration, Component.literal(visibleContentBuffer.toString().replaceAll("</?s\\d+>", "")));
+                        continue;
+                    } else {
+                        int startTagIndex = rawResponseBuffer.indexOf("<think>");
+                        if (startTagIndex != -1) {
+                            String thinkContent = rawResponseBuffer.substring(startTagIndex + "<think>".length());
+                            scheduleInProgressChatLineUpdate(messageId, requestGeneration, Component.literal("Thinking: ").append(thinkContent).withStyle(ChatFormatting.GRAY));
+                        }
+                        break;
+                    }
+                } else {
+                    int startTagIndex = rawResponseBuffer.indexOf("<think>");
+                    if (startTagIndex != -1) {
+                        String translationPart = rawResponseBuffer.substring(0, startTagIndex);
+                        visibleContentBuffer.append(translationPart);
+                        scheduleInProgressChatLineUpdate(messageId, requestGeneration, Component.literal(visibleContentBuffer.toString().replaceAll("</?s\\d+>", "")));
+
+                        rawResponseBuffer.delete(0, startTagIndex);
+                        inThinkTag.set(true);
+                        continue;
+                    } else {
+                        visibleContentBuffer.append(rawResponseBuffer.toString());
+                        rawResponseBuffer.setLength(0);
+                        scheduleInProgressChatLineUpdate(messageId, requestGeneration, Component.literal(visibleContentBuffer.toString().replaceAll("</?s\\d+>", "")));
+                        break;
+                    }
+                }
+            }
+        });
+
+        String translation = visibleContentBuffer.toString().stripLeading();
+        if (translation.isBlank()) {
+            throw new IllegalStateException("Provider returned an empty translation");
+        }
+        return new TranslationAttempt(translation, fullResponseBuffer.toString());
+    }
+
+    private record TranslationAttempt(String translation, String rawResponse) {
     }
 
     public static void restoreOriginal(UUID messageId) {
@@ -1084,6 +1194,7 @@ public class ChatOutputTranslateManager {
         cancelPendingTranslations();
         ChatOutputTranslationCache.getInstance().clearTranslationQueue();
         SkyblockNpcTranslationCache.getInstance().clearTranslationQueue();
+        retryBudget.clear();
     }
 
     private static void restorePendingOriginalLines(Map<UUID, GuiMessage> pendingLines) {
