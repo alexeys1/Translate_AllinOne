@@ -45,6 +45,18 @@ class JsonStringCacheReadGateTest {
         assertEquals(1, cache.readGate().invalidationCount());
     }
 
+    @Test
+    void acceptsCachedTranslationThatLostStyleTags() {
+        String key = "target=Chinese:<s0>Player123</s0> has joined the island";
+        cache.updateTranslations(Map.of(key, "玩家123 加入了空岛"));
+
+        LookupResult result = cache.peek(key);
+
+        assertEquals(TranslationStatus.TRANSLATED, result.status());
+        assertEquals("玩家123 加入了空岛", result.translation());
+        assertEquals(0, cache.readGate().invalidationCount());
+    }
+
     private static class TestJsonCache extends JsonStringTranslationCacheService {
         TestJsonCache(Path directory) {
             super(

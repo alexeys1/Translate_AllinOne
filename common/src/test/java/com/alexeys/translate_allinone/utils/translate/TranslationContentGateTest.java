@@ -356,11 +356,60 @@ class TranslationContentGateTest {
     }
 
     @Test
-    void rejectsStyleTagIdChange() {
+    void acceptsStyleTagIdChanges() {
         TranslationContentVerdict verdict = TranslationContentGate.evaluate(
                 TranslationMode.TRANSLATE,
                 "<s1>Hello</s1> world",
                 "<s2>你好</s2> 世界",
+                "Chinese"
+        );
+
+        assertTrue(verdict.accepted());
+    }
+
+    @Test
+    void acceptsStyleTagDefectsInChatShapedText() {
+        String source = "<s0>Player123</s0> has joined the <s1>SkyBlock</s1> island";
+
+        assertTrue(TranslationContentGate.evaluate(
+                TranslationMode.TRANSLATE,
+                source,
+                "<s0>玩家123</s0> 加入了 <s1>空岛",
+                "Chinese"
+        ).accepted());
+        assertTrue(TranslationContentGate.evaluate(
+                TranslationMode.TRANSLATE,
+                source,
+                "玩家123 加入了 空岛",
+                "Chinese"
+        ).accepted());
+        assertTrue(TranslationContentGate.evaluate(
+                TranslationMode.TRANSLATE,
+                "<s0>Player123</s0><s1> has joined the island</s1>",
+                "<s0>玩家123加入了空岛</s0>",
+                "Chinese"
+        ).accepted());
+    }
+
+    @Test
+    void rejectsDroppedNumericPlaceholderDespiteStyleTags() {
+        TranslationContentVerdict verdict = TranslationContentGate.evaluate(
+                TranslationMode.TRANSLATE,
+                "<s0>Dealt </s0>{d1}<s1> damage</s1>",
+                "<s0>造成 </s0><s1> 点伤害</s1>",
+                "Chinese"
+        );
+
+        assertFalse(verdict.accepted());
+        assertEquals(TranslationContentVerdict.PROTECTED_TOKEN_MISMATCH, verdict.reason());
+    }
+
+    @Test
+    void rejectsDroppedGlyphPlaceholderDespiteStyleTags() {
+        TranslationContentVerdict verdict = TranslationContentGate.evaluate(
+                TranslationMode.TRANSLATE,
+                "<s0>Power</s0> {g1} increases your damage",
+                "<s0>力量</s0> 提升你的伤害",
                 "Chinese"
         );
 
