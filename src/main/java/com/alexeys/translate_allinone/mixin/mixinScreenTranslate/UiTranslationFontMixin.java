@@ -1,6 +1,5 @@
 package com.alexeys.translate_allinone.mixin.mixinScreenTranslate;
 
-import com.alexeys.translate_allinone.utils.translate.UiScreenAdapter;
 import com.alexeys.translate_allinone.utils.translate.UiTextRole;
 import com.alexeys.translate_allinone.utils.translate.UiTranslationLazySplitList;
 import com.alexeys.translate_allinone.utils.translate.UiTranslationRuntime;
@@ -109,29 +108,8 @@ public abstract class UiTranslationFontMixin {
             return splitter.stringWidth(source);
         }
 
-        UiScreenAdapter adapter = UiTranslationScope.adapter();
-        if (adapter != null && "noammaddons".equals(adapter.modId())
-                && isNoammAddonsSortingWidthCall()) {
-            return splitter.stringWidth(source);
-        }
         String visible = UiTranslationRuntime.translateString(source, UiTranslationScope.role());
         return splitter.stringWidth(visible);
-    }
-
-    private static boolean isNoammAddonsSortingWidthCall() {
-        return StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE)
-                .walk(frames -> frames
-                        .limit(16)
-                        .anyMatch(frame -> {
-                            String className = frame.getDeclaringClass().getName();
-                            String methodName = frame.getMethodName();
-                            if ("com.github.noamm9.ui.clickgui.Panel".equals(className)
-                                    && "getSorting".equals(methodName)) {
-                                return true;
-                            }
-                            return "com.github.noamm9.features.FeatureManager".equals(className)
-                                    && "createFeatureList".equals(methodName);
-                        }));
     }
 
 }

@@ -6,6 +6,7 @@ import com.alexeys.translate_allinone.mixin.mixinScreenTranslate.UiTranslationCo
 import com.alexeys.translate_allinone.mixin.mixinScreenTranslate.UiTranslationFontMixin;
 import com.alexeys.translate_allinone.mixin.mixinScreenTranslate.UiTranslationGuiGraphicsExtractorMixin;
 import com.alexeys.translate_allinone.mixin.mixinScreenTranslate.UiTranslationGuiTextRenderStateMixin;
+import com.alexeys.translate_allinone.mixin.mixinScreenTranslate.UiTranslationNoammSortingMixin;
 import com.alexeys.translate_allinone.mixin.mixinScreenTranslate.UiTranslationRenderingTextCollectorMixin;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
@@ -74,6 +75,31 @@ class UiTranslationScopeBoundaryTest {
                 assertTrue(bytecode.contains("enterInternal"), mixinClass.getName());
                 assertFalse(bytecode.contains("InCurrentScreen"), mixinClass.getName());
             }
+        }
+    }
+
+    @Test
+    void noammPanelSortingMeasuresOriginalText() throws IOException {
+        try (InputStream stream = UiTranslationNoammSortingMixin.class.getResourceAsStream(
+                UiTranslationNoammSortingMixin.class.getSimpleName() + ".class"
+        )) {
+            assertNotNull(stream);
+            String bytecode = new String(stream.readAllBytes(), StandardCharsets.ISO_8859_1);
+            assertTrue(bytecode.contains("com.github.noamm9.ui.clickgui.components.CategoryPanel"));
+            assertTrue(bytecode.contains("getSorting"));
+            assertTrue(bytecode.contains("enterInternal"));
+        }
+    }
+
+    @Test
+    void fontMeasurementsDoNotSniffThirdPartyCallers() throws IOException {
+        try (InputStream stream = UiTranslationFontMixin.class.getResourceAsStream(
+                UiTranslationFontMixin.class.getSimpleName() + ".class"
+        )) {
+            assertNotNull(stream);
+            String bytecode = new String(stream.readAllBytes(), StandardCharsets.ISO_8859_1);
+            assertFalse(bytecode.contains("noamm9"));
+            assertFalse(bytecode.contains("StackWalker"));
         }
     }
 }
