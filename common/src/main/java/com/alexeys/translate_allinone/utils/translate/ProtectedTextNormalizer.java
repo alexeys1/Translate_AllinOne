@@ -8,6 +8,7 @@ import java.util.regex.Pattern;
 public final class ProtectedTextNormalizer {
 
     public static final int MIN_SOURCE_LETTERS = 8;
+    public static final int MIN_SOURCE_LETTERS_FOR_LANGUAGE_CHECKS = 20;
     public static final int MIN_SOURCE_LETTERS_FOR_TRUNCATION_CHECK = 24;
     public static final int TRUNCATION_SIGNAL_RATIO = 8;
 

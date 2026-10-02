@@ -244,6 +244,20 @@ class TranslationContentGateTest {
     }
 
     @Test
+    void acceptsRepeatedProperNounForChineseTarget() {
+        for (String properNoun : new String[]{"Agarimoo", "Ragnarock", "WebSocket", "Mushed Glowy Tonic"}) {
+            TranslationContentVerdict verdict = TranslationContentGate.evaluate(
+                    TranslationMode.TRANSLATE,
+                    properNoun,
+                    properNoun,
+                    "Chinese"
+            );
+
+            assertTrue(verdict.accepted(), properNoun);
+        }
+    }
+
+    @Test
     void acceptsPureUrlCopy() {
         TranslationContentVerdict verdict = TranslationContentGate.evaluate(
                 TranslationMode.TRANSLATE,
