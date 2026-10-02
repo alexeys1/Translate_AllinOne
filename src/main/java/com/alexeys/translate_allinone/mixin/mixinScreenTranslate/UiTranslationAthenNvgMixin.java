@@ -39,7 +39,7 @@ public abstract class UiTranslationAthenNvgMixin {
             remap = false
     )
     private static float translate_allinone$redirectNvgTextBounds(long vg, float x, float y, CharSequence text, float[] bounds) {
-        return translate_allinone$callNvgTextBounds(vg, x, y, translate_allinone$translateAthen(text == null ? null : text.toString(), UiTextRole.OPTION), bounds);
+        return NvgAnimatedTextRenderer.textBounds(vg, x, y, translate_allinone$translateAthen(text == null ? null : text.toString(), UiTextRole.OPTION), bounds);
     }
 
     @Redirect(
@@ -65,7 +65,7 @@ public abstract class UiTranslationAthenNvgMixin {
             remap = false
     )
     private static void translate_allinone$redirectNvgTextBoxBounds(long vg, float x, float y, float rowHeight, CharSequence text, float[] bounds) {
-        translate_allinone$callNvgTextBoxBounds(vg, x, y, rowHeight, translate_allinone$translateAthen(text == null ? null : text.toString(), UiTextRole.DESCRIPTION), bounds);
+        NvgAnimatedTextRenderer.textBoxBounds(vg, x, y, rowHeight, translate_allinone$translateAthen(text == null ? null : text.toString(), UiTextRole.DESCRIPTION), bounds);
     }
 
     @Redirect(
@@ -99,26 +99,6 @@ public abstract class UiTranslationAthenNvgMixin {
             return translated == null ? "" : translated;
         } finally {
             scope.close();
-        }
-    }
-
-    private static float translate_allinone$callNvgTextBounds(long vg, float x, float y, String text, float[] bounds) {
-        try {
-            Object result = Class.forName("org.lwjgl.nanovg.NanoVG")
-                    .getMethod("nvgTextBounds", long.class, float.class, float.class, CharSequence.class, float[].class)
-                    .invoke(null, vg, x, y, text, bounds);
-            return ((Number) result).floatValue();
-        } catch (ReflectiveOperationException | RuntimeException ignored) {
-            return 0.0f;
-        }
-    }
-
-    private static void translate_allinone$callNvgTextBoxBounds(long vg, float x, float y, float rowHeight, String text, float[] bounds) {
-        try {
-            Class.forName("org.lwjgl.nanovg.NanoVG")
-                    .getMethod("nvgTextBoxBounds", long.class, float.class, float.class, float.class, CharSequence.class, float[].class)
-                    .invoke(null, vg, x, y, rowHeight, text, bounds);
-        } catch (ReflectiveOperationException | RuntimeException ignored) {
         }
     }
 

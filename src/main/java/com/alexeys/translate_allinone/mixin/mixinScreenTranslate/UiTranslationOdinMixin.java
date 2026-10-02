@@ -69,7 +69,7 @@ public abstract class UiTranslationOdinMixin {
         try (UiTranslationScope.Scope scope = UiTranslationScope.enter("com.odtheking.odin.clickgui.ClickGUI")) {
             translated = UiTranslationRuntime.translateStringInCurrentScreen(raw, UiTextRole.OPTION);
         }
-        return translate_allinone$callNvgTextBounds(vg, x, y, translated == null ? "" : translated, bounds);
+        return NvgAnimatedTextRenderer.textBounds(vg, x, y, translated == null ? "" : translated, bounds);
     }
 
     @Redirect(
@@ -105,7 +105,7 @@ public abstract class UiTranslationOdinMixin {
         try (UiTranslationScope.Scope scope = UiTranslationScope.enter("com.odtheking.odin.clickgui.ClickGUI")) {
             translated = UiTranslationRuntime.translateStringInCurrentScreen(raw, UiTextRole.DESCRIPTION);
         }
-        translate_allinone$callNvgTextBoxBounds(vg, x, y, rowHeight, translated == null ? "" : translated, bounds);
+        NvgAnimatedTextRenderer.textBoxBounds(vg, x, y, rowHeight, translated == null ? "" : translated, bounds);
     }
 
     @Inject(
@@ -129,23 +129,4 @@ public abstract class UiTranslationOdinMixin {
         }
     }
 
-    private static float translate_allinone$callNvgTextBounds(long vg, float x, float y, String text, float[] bounds) {
-        try {
-            Object result = Class.forName("org.lwjgl.nanovg.NanoVG")
-                    .getMethod("nvgTextBounds", long.class, float.class, float.class, CharSequence.class, float[].class)
-                    .invoke(null, vg, x, y, text, bounds);
-            return ((Number) result).floatValue();
-        } catch (ReflectiveOperationException | RuntimeException ignored) {
-            return 0.0f;
-        }
-    }
-
-    private static void translate_allinone$callNvgTextBoxBounds(long vg, float x, float y, float rowHeight, String text, float[] bounds) {
-        try {
-            Class.forName("org.lwjgl.nanovg.NanoVG")
-                    .getMethod("nvgTextBoxBounds", long.class, float.class, float.class, float.class, CharSequence.class, float[].class)
-                    .invoke(null, vg, x, y, rowHeight, text, bounds);
-        } catch (ReflectiveOperationException | RuntimeException ignored) {
-        }
-    }
 }

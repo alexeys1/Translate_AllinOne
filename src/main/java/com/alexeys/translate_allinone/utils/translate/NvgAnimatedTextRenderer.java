@@ -18,6 +18,7 @@ public final class NvgAnimatedTextRenderer {
     private static Method NVG_TEXT;
     private static Method NVG_TEXT_BOUNDS;
     private static Method NVG_TEXT_BOX;
+    private static Method NVG_TEXT_BOX_BOUNDS;
     private static Method NVG_TEXT_ALIGN_GET;
     private static Method NVG_TEXT_ALIGN_SET;
     private static Method NVG_FILL_COLOR;
@@ -59,6 +60,24 @@ public final class NvgAnimatedTextRenderer {
             drawStyledTextBox(vg, x, y, breakRowWidth, text);
         } catch (RuntimeException ignored) {
             callTextBox(vg, x, y, breakRowWidth, text);
+        }
+    }
+
+    public static float textBounds(long vg, float x, float y, String text, float[] bounds) {
+        try {
+            ensureInitialized();
+            Object result = NVG_TEXT_BOUNDS.invoke(null, vg, x, y, text, bounds);
+            return ((Number) result).floatValue();
+        } catch (ReflectiveOperationException | RuntimeException ignored) {
+            return 0.0f;
+        }
+    }
+
+    public static void textBoxBounds(long vg, float x, float y, float breakRowWidth, String text, float[] bounds) {
+        try {
+            ensureInitialized();
+            NVG_TEXT_BOX_BOUNDS.invoke(null, vg, x, y, breakRowWidth, text, bounds);
+        } catch (ReflectiveOperationException | RuntimeException ignored) {
         }
     }
 
@@ -308,6 +327,7 @@ public final class NvgAnimatedTextRenderer {
         NVG_TEXT = nvg.getMethod("nvgText", long.class, float.class, float.class, CharSequence.class);
         NVG_TEXT_BOUNDS = nvg.getMethod("nvgTextBounds", long.class, float.class, float.class, CharSequence.class, float[].class);
         NVG_TEXT_BOX = nvg.getMethod("nvgTextBox", long.class, float.class, float.class, float.class, CharSequence.class);
+        NVG_TEXT_BOX_BOUNDS = nvg.getMethod("nvgTextBoxBounds", long.class, float.class, float.class, float.class, CharSequence.class, float[].class);
         try {
             NVG_TEXT_ALIGN_GET = nvg.getMethod("nvgTextAlign", long.class);
         } catch (NoSuchMethodException ignored) {
