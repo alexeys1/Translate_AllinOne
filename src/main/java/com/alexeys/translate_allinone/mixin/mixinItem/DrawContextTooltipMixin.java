@@ -14,6 +14,7 @@ import com.alexeys.translate_allinone.utils.translate.TooltipTextMatcherSupport;
 import com.alexeys.translate_allinone.utils.translate.TooltipTranslationContext;
 import com.alexeys.translate_allinone.utils.translate.TooltipTranslationSupport;
 import com.alexeys.translate_allinone.utils.translate.UiTranslationRuntime;
+import com.alexeys.translate_allinone.utils.translate.UiTranslationScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.spongepowered.asm.mixin.Mixin;
@@ -22,7 +23,9 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import net.minecraft.client.Minecraft;
@@ -62,6 +65,10 @@ public abstract class DrawContextTooltipMixin {
     private static final ThreadLocal<Boolean> translate_allinone$isProcessing = ThreadLocal.withInitial(() -> false);
 
     @Unique
+    private static final ThreadLocal<Deque<UiTranslationScope.Scope>> translate_allinone$tooltipInternalScopes =
+            ThreadLocal.withInitial(() -> new ArrayDeque<UiTranslationScope.Scope>());
+
+    @Unique
     private static int translate_allinone$lastTooltipHash = 0;
 
     @Unique
@@ -82,6 +89,47 @@ public abstract class DrawContextTooltipMixin {
 
     @Unique
     private record ParsedTooltip(List<OrderedTooltipLine> orderedLines, int hash) {
+    }
+
+    @Inject(
+            method = "setTooltipForNextFrameInternal(Lnet/minecraft/client/gui/Font;Ljava/util/List;IILnet/minecraft/client/gui/screens/inventory/tooltip/ClientTooltipPositioner;Lnet/minecraft/resources/Identifier;Z)V",
+            at = @At("HEAD")
+    )
+    private void translate_allinone$enterTooltipInternalScope(
+            Font textRenderer,
+            List<ClientTooltipComponent> components,
+            int x,
+            int y,
+            ClientTooltipPositioner positioner,
+            Identifier texture,
+            boolean recalculateWidth,
+            CallbackInfo ci
+    ) {
+        translate_allinone$tooltipInternalScopes.get().push(UiTranslationScope.enterInternal());
+    }
+
+    @Inject(
+            method = "setTooltipForNextFrameInternal(Lnet/minecraft/client/gui/Font;Ljava/util/List;IILnet/minecraft/client/gui/screens/inventory/tooltip/ClientTooltipPositioner;Lnet/minecraft/resources/Identifier;Z)V",
+            at = @At("RETURN")
+    )
+    private void translate_allinone$leaveTooltipInternalScope(
+            Font textRenderer,
+            List<ClientTooltipComponent> components,
+            int x,
+            int y,
+            ClientTooltipPositioner positioner,
+            Identifier texture,
+            boolean recalculateWidth,
+            CallbackInfo ci
+    ) {
+        Deque<UiTranslationScope.Scope> scopes = translate_allinone$tooltipInternalScopes.get();
+        UiTranslationScope.Scope scope = scopes.poll();
+        if (scope != null) {
+            scope.close();
+        }
+        if (scopes.isEmpty()) {
+            translate_allinone$tooltipInternalScopes.remove();
+        }
     }
 
     @Inject(

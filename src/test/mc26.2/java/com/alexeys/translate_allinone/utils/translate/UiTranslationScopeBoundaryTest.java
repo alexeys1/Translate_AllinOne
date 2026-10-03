@@ -1,5 +1,6 @@
 package com.alexeys.translate_allinone.utils.translate;
 
+import com.alexeys.translate_allinone.mixin.mixinItem.DrawContextTooltipMixin;
 import com.alexeys.translate_allinone.mixin.mixinScreenTranslate.UiTranslationActiveTextCollectorMixin;
 import com.alexeys.translate_allinone.mixin.mixinScreenTranslate.UiTranslationChatComponentMixin;
 import com.alexeys.translate_allinone.mixin.mixinScreenTranslate.UiTranslationCommandSuggestionsMixin;
@@ -88,6 +89,28 @@ class UiTranslationScopeBoundaryTest {
             assertTrue(bytecode.contains("com.github.noamm9.ui.clickgui.components.CategoryPanel"));
             assertTrue(bytecode.contains("getSorting"));
             assertTrue(bytecode.contains("enterInternal"));
+        }
+    }
+
+    @Test
+    void tooltipSubmissionUsesInternalScope() throws IOException {
+        try (InputStream stream = DrawContextTooltipMixin.class.getResourceAsStream(
+                DrawContextTooltipMixin.class.getSimpleName() + ".class"
+        )) {
+            assertNotNull(stream);
+            String bytecode = new String(stream.readAllBytes(), StandardCharsets.ISO_8859_1);
+            assertTrue(bytecode.contains("enterInternal"), DrawContextTooltipMixin.class.getName());
+        }
+    }
+
+    @Test
+    void screenTranslateKeepsTextTooltipSubmission() throws IOException {
+        try (InputStream stream = UiTranslationGuiGraphicsExtractorMixin.class.getResourceAsStream(
+                UiTranslationGuiGraphicsExtractorMixin.class.getSimpleName() + ".class"
+        )) {
+            assertNotNull(stream);
+            String bytecode = new String(stream.readAllBytes(), StandardCharsets.ISO_8859_1);
+            assertTrue(bytecode.contains("setTooltipForNextFrame"), UiTranslationGuiGraphicsExtractorMixin.class.getName());
         }
     }
 
