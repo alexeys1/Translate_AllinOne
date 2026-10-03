@@ -5,6 +5,7 @@ import com.alexeys.translate_allinone.utils.cache.component.ComponentTranslation
 import com.alexeys.translate_allinone.utils.config.ModConfig;
 import com.alexeys.translate_allinone.utils.config.ProviderRouteResolver;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
+import com.alexeys.translate_allinone.utils.translate.ProtectedTextNormalizer;
 import com.alexeys.translate_allinone.utils.translate.TranslationContentGate;
 import com.alexeys.translate_allinone.utils.translate.TranslationFeatureGate;
 import com.alexeys.translate_allinone.utils.translate.TranslationQueueWatchdog;
@@ -1339,12 +1340,25 @@ public final class ComponentTranslationRuntimeCore {
         if (document == null || document.units() == null || document.units().isEmpty()) {
             return false;
         }
+        StringBuilder translatable = new StringBuilder();
         for (ComponentTextUnit unit : document.units()) {
-            if (!TranslationContentGate.alreadyInTargetLanguage(unit.sourceText(), targetLanguage)) {
-                return false;
+            String sourceText = unit.sourceText();
+            if (hasTranslatableLetters(sourceText)) {
+                translatable.append(sourceText).append(' ');
             }
         }
-        return true;
+        return translatable.length() > 0
+                && TranslationContentGate.alreadyInTargetLanguage(translatable.toString(), targetLanguage);
+    }
+
+    private static boolean hasTranslatableLetters(String value) {
+        if (value == null || value.isEmpty()) {
+            return false;
+        }
+        String withoutPlaceholders = EXTRA_PLACEHOLDER_PATTERN.matcher(
+                ProtectedTextNormalizer.stripProtectedContent(value)
+        ).replaceAll(" ");
+        return withoutPlaceholders.codePoints().anyMatch(Character::isLetter);
     }
 
     private static ComponentTranslationResponse identityResponse(

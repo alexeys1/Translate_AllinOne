@@ -136,6 +136,93 @@ class ComponentTranslationRuntimeCoreTest {
     }
 
     @Test
+    void alreadyTargetLanguageGuardIgnoresUnitsWithoutTranslatableLetters() {
+        ComponentTranslationDocument document = new ComponentTranslationDocument(
+                ComponentTranslationDocument.PROTOCOL,
+                ComponentTranslationPolicy.CURRENT_VERSION,
+                ComponentTranslationRoute.CHAT_OUTPUT,
+                JsonParser.parseString("{\"text\":\"有人说，当 {taio.private.a} 真防御。\"}"),
+                List.of(
+                        new ComponentTextUnit("u0", "/text", "有人说，当", Map.of(), "chat"),
+                        new ComponentTextUnit("u1", "/text", "{taio.private.a}", Map.of(), "chat"),
+                        new ComponentTextUnit("u2", "/text", "真防御", Map.of(), "chat"),
+                        new ComponentTextUnit("u3", "/text", "。", Map.of(), "chat")
+                ),
+                Map.of()
+        );
+
+        ComponentTranslationRuntimeCore.Resolution<String> resolution = ComponentTranslationRuntimeCore.resolve(
+                document,
+                "zh_cn",
+                "",
+                null,
+                response -> response.translations().get("u0"),
+                "test"
+        );
+
+        assertEquals(ComponentTranslationRuntimeCore.State.CACHE_HIT, resolution.state());
+        assertEquals("有人说，当", resolution.value());
+        assertEquals(0, errors.get());
+    }
+
+    @Test
+    void alreadyTargetLanguageGuardAggregatesShortFragments() {
+        ComponentTranslationDocument document = new ComponentTranslationDocument(
+                ComponentTranslationDocument.PROTOCOL,
+                ComponentTranslationPolicy.CURRENT_VERSION,
+                ComponentTranslationRoute.SCREEN_UI,
+                JsonParser.parseString(
+                        "{\"text\":\"放置一个宝珠，为10米范围内的20名玩家提供增益，范围半径30格。\"}"
+                ),
+                List.of(
+                        new ComponentTextUnit("u0", "/text", "放置一个宝珠，为", Map.of(), "screen-ui"),
+                        new ComponentTextUnit("u1", "/text", "{d1}", Map.of(), "screen-ui"),
+                        new ComponentTextUnit("u2", "/text", "米", Map.of(), "screen-ui"),
+                        new ComponentTextUnit("u3", "/text", "范围内的", Map.of(), "screen-ui"),
+                        new ComponentTextUnit("u4", "/text", "{d1}", Map.of(), "screen-ui"),
+                        new ComponentTextUnit("u5", "/text", "名玩家提供增益，范围半径", Map.of(), "screen-ui"),
+                        new ComponentTextUnit("u6", "/text", "{d1}", Map.of(), "screen-ui"),
+                        new ComponentTextUnit("u7", "/text", "格。", Map.of(), "screen-ui")
+                ),
+                Map.of()
+        );
+
+        ComponentTranslationRuntimeCore.Resolution<String> resolution = ComponentTranslationRuntimeCore.resolve(
+                document,
+                "zh_cn",
+                "",
+                null,
+                response -> response.translations().get("u0"),
+                "screen"
+        );
+
+        assertEquals(ComponentTranslationRuntimeCore.State.CACHE_HIT, resolution.state());
+        assertEquals("放置一个宝珠，为", resolution.value());
+        assertEquals(0, errors.get());
+    }
+
+    @Test
+    void alreadyTargetLanguageGuardStillResolvesDocumentsWithoutTranslatableLetters() {
+        ComponentTranslationDocument document = new ComponentTranslationDocument(
+                ComponentTranslationDocument.PROTOCOL,
+                ComponentTranslationPolicy.CURRENT_VERSION,
+                ComponentTranslationRoute.CHAT_OUTPUT,
+                JsonParser.parseString("{\"text\":\"{taio.private.a}\"}"),
+                List.of(new ComponentTextUnit("u0", "/text", "{taio.private.a}", Map.of(), "chat")),
+                Map.of()
+        );
+
+        assertThrows(AssertionError.class, () -> ComponentTranslationRuntimeCore.resolve(
+                document,
+                "zh_cn",
+                "",
+                null,
+                response -> response.translations().get("u0"),
+                "test"
+        ));
+    }
+
+    @Test
     void validatesCandidatesBeforeCommitting() {
         AtomicInteger commits = new AtomicInteger();
         ComponentTranslationRuntimeCore.CandidatePromotion<String> accepted =
