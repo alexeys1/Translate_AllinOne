@@ -44,6 +44,7 @@ public final class UiTranslationRuntime {
     private static volatile int SCREEN_TRANSLATION_VERSION = 0;
     private static int FRAME_ID = 0;
     private static boolean translationKeyPressed;
+    private static final ThreadLocal<Integer> NON_ORIGINATING_DEPTH = ThreadLocal.withInitial(() -> 0);
 
     private UiTranslationRuntime() {
     }
@@ -108,6 +109,24 @@ public final class UiTranslationRuntime {
         }
     }
 
+    public static <T> T withoutOriginatingRequests(Supplier<T> action) {
+        NON_ORIGINATING_DEPTH.set(NON_ORIGINATING_DEPTH.get() + 1);
+        try {
+            return action.get();
+        } finally {
+            int depth = NON_ORIGINATING_DEPTH.get() - 1;
+            if (depth <= 0) {
+                NON_ORIGINATING_DEPTH.remove();
+            } else {
+                NON_ORIGINATING_DEPTH.set(depth);
+            }
+        }
+    }
+
+    static boolean mayOriginateRequest() {
+        return NON_ORIGINATING_DEPTH.get() <= 0;
+    }
+
     public static UiTranslationResult resolve(Component source, UiTextRole requestedRole) {
         UiScreenAdapter adapter = UiTranslationScope.adapter();
         UiTextRole role = resolveRole(requestedRole);
@@ -145,6 +164,16 @@ public final class UiTranslationRuntime {
         if (cached != null) {
             UiTranslationDiagnostics.recordText(adapter, role, sourceText, null, cached.status());
             return cached;
+        }
+        if (!mayOriginateRequest()) {
+            return UiTranslationResult.original(
+                    modId,
+                    screenId,
+                    role,
+                    safeSource,
+                    targetLanguage,
+                    UiTranslationStatus.ORIGINAL
+            );
         }
 
         boolean userInput = UiTranslationScope.isUserInput() && role != UiTextRole.DESCRIPTION;

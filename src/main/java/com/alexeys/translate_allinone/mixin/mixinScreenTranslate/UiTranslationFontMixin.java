@@ -22,8 +22,22 @@ public abstract class UiTranslationFontMixin {
     @ModifyVariable(
             method = {
                     "width(Lnet/minecraft/network/chat/FormattedText;)I",
+                    "wordWrapHeight(Lnet/minecraft/network/chat/FormattedText;I)I"
+            },
+            at = @At("HEAD"),
+            argsOnly = true,
+            ordinal = 0,
+            require = 0
+    )
+    private FormattedText translate_allinone$translatedMeasuredText(FormattedText source) {
+        return UiTranslationRuntime.withoutOriginatingRequests(
+                () -> UiTranslationRuntime.translateFormattedText(source, UiTranslationScope.role())
+        );
+    }
+
+    @ModifyVariable(
+            method = {
                     "substrByWidth(Lnet/minecraft/network/chat/FormattedText;I)Lnet/minecraft/network/chat/FormattedText;",
-                    "wordWrapHeight(Lnet/minecraft/network/chat/FormattedText;I)I",
                     "splitIgnoringLanguage(Lnet/minecraft/network/chat/FormattedText;I)Ljava/util/List;"
             },
             at = @At("HEAD"),
@@ -66,7 +80,9 @@ public abstract class UiTranslationFontMixin {
             require = 0
     )
     private FormattedCharSequence translate_allinone$translatedSequenceWidth(FormattedCharSequence source) {
-        return UiTranslationRuntime.translateFormattedCharSequence(source, UiTranslationScope.role());
+        return UiTranslationRuntime.withoutOriginatingRequests(
+                () -> UiTranslationRuntime.translateFormattedCharSequence(source, UiTranslationScope.role())
+        );
     }
 
     @ModifyVariable(
@@ -108,7 +124,9 @@ public abstract class UiTranslationFontMixin {
             return splitter.stringWidth(source);
         }
 
-        String visible = UiTranslationRuntime.translateString(source, UiTranslationScope.role());
+        String visible = UiTranslationRuntime.withoutOriginatingRequests(
+                () -> UiTranslationRuntime.translateString(source, UiTranslationScope.role())
+        );
         return splitter.stringWidth(visible);
     }
 
