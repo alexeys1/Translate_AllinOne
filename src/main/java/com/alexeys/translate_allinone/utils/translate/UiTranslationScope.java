@@ -20,7 +20,6 @@ public final class UiTranslationScope {
     private static final ThreadLocal<Integer> INTERNAL_DEPTH = ThreadLocal.withInitial(() -> 0);
     private static final long SCREEN_SESSION_INACTIVITY_NANOS = 750_000_000L;
     private static volatile Object activeScreenSession;
-    private static volatile String activeClassNameSession;
     private static volatile long activeSessionLastActivityNanos;
     private static final Set<Screen> SCREEN_REMOVAL_HOOKED = Collections.newSetFromMap(
             new WeakHashMap<>()
@@ -31,34 +30,6 @@ public final class UiTranslationScope {
 
     public static Scope enter(Screen screen) {
         return enterObject(screen);
-    }
-
-    public static Scope enter(Object screenObject) {
-        return enterObject(screenObject);
-    }
-
-    public static Scope enter(String className) {
-        Frame parent = currentFrame();
-        UiScreenAdapter adapter = className == null ? null : UiScreenAdapterRegistry.resolve(className);
-        if (adapter == null && parent != null) {
-            adapter = parent.adapter;
-        }
-        UiTranslationDiagnostics.recordScreen(className, adapter);
-        if (adapter == null) {
-            return Scope.inactive();
-        }
-        if (parent == null) {
-            trackClassNameSession(className);
-        }
-        Frame frame = new Frame(
-                adapter,
-                parent == null ? new HashMap<>() : parent.cache,
-                UiTextRole.OPTION,
-                false,
-                false
-        );
-        FRAMES.get().push(frame);
-        return new Scope(frame);
     }
 
     private static Scope enterObject(Object screenObject) {
@@ -95,13 +66,11 @@ public final class UiTranslationScope {
                 UiTranslationRuntime.onScreenClosed();
                 UiTranslationRuntime.onScreenOpened();
             }
-            activeClassNameSession = null;
             activeSessionLastActivityNanos = now;
             return;
         }
         endActiveSession();
         activeScreenSession = screenObject;
-        activeClassNameSession = null;
         activeSessionLastActivityNanos = now;
         if (screenObject instanceof Screen screen && SCREEN_REMOVAL_HOOKED.add(screen)) {
             ScreenEvents.remove(screen).register(removed -> {
@@ -113,29 +82,8 @@ public final class UiTranslationScope {
         UiTranslationRuntime.onScreenOpened();
     }
 
-    private static void trackClassNameSession(String className) {
-        long now = System.nanoTime();
-        if (activeScreenSession != null
-                && now - activeSessionLastActivityNanos < SCREEN_SESSION_INACTIVITY_NANOS) {
-            return;
-        }
-        if (activeClassNameSession != null && className.equals(activeClassNameSession)) {
-            if (now - activeSessionLastActivityNanos >= SCREEN_SESSION_INACTIVITY_NANOS) {
-                UiTranslationRuntime.onScreenClosed();
-                UiTranslationRuntime.onScreenOpened();
-            }
-            activeSessionLastActivityNanos = now;
-            return;
-        }
-        endActiveSession();
-        activeClassNameSession = className;
-        activeScreenSession = null;
-        activeSessionLastActivityNanos = now;
-        UiTranslationRuntime.onScreenOpened();
-    }
-
     private static boolean hasActiveSession() {
-        return activeScreenSession != null || activeClassNameSession != null;
+        return activeScreenSession != null;
     }
 
     private static boolean isSessionStale() {
@@ -149,7 +97,6 @@ public final class UiTranslationScope {
             return;
         }
         activeScreenSession = null;
-        activeClassNameSession = null;
         activeSessionLastActivityNanos = 0L;
         UiTranslationRuntime.onScreenClosed();
     }
