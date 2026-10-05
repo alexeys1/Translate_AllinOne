@@ -31,6 +31,7 @@ public final class ComponentTranslationRuntimeState<F> {
     );
     private final AtomicLong sessionEpoch = new AtomicLong();
     private final AtomicInteger screenUiFailures = new AtomicInteger();
+    private volatile boolean screenUiSessionActive;
     private volatile int screenUiFailureBudget;
     private final Object workLock = new Object();
     private final Map<String, TranslationWork> works = new LinkedHashMap<>();
@@ -63,11 +64,17 @@ public final class ComponentTranslationRuntimeState<F> {
     public void beginScreenUiSession(int failureBudget) {
         screenUiFailures.set(0);
         screenUiFailureBudget = Math.max(0, failureBudget);
+        screenUiSessionActive = true;
     }
 
     public void endScreenUiSession() {
+        screenUiSessionActive = false;
         screenUiFailureBudget = 0;
         screenUiFailures.set(0);
+    }
+
+    public boolean hasScreenUiSession() {
+        return screenUiSessionActive;
     }
 
     public boolean screenUiFailureBudgetExhausted() {

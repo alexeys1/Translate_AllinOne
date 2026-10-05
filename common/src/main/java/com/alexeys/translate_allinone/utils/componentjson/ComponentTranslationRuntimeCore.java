@@ -449,6 +449,7 @@ public final class ComponentTranslationRuntimeCore {
 
     public static void endScreenUiSession() {
         STATE.endScreenUiSession();
+        discardScreenUiQueue();
     }
 
     private static void clearRuntimeState() {
@@ -691,6 +692,10 @@ public final class ComponentTranslationRuntimeCore {
                 failWork(request.cacheKey(), request.epoch());
             }
             finishRequest(route, batch);
+            return;
+        }
+        if (route == DispatchRoute.SCREEN_UI && !STATE.hasScreenUiSession()) {
+            abandonBatch(route, batch, "screen session closed");
             return;
         }
         PendingRequest first = batch.requests().get(0);
@@ -1070,6 +1075,13 @@ public final class ComponentTranslationRuntimeCore {
             startSingleRequest(route, batch, pending, index + 1, provider);
             return;
         }
+        if (route == DispatchRoute.SCREEN_UI && !STATE.hasScreenUiSession()) {
+            for (int remaining = index; remaining < pending.size(); remaining++) {
+                abandonRequest(pending.get(remaining), "screen session closed");
+            }
+            finishRequest(route, batch);
+            return;
+        }
         if (route == DispatchRoute.SCREEN_UI && STATE.screenUiFailureBudgetExhausted()) {
             for (int remaining = index; remaining < pending.size(); remaining++) {
                 recordRequestFailure(
@@ -1211,6 +1223,40 @@ public final class ComponentTranslationRuntimeCore {
             state.active.remove(batch);
         }
         drain(route);
+    }
+
+    private static void discardScreenUiQueue() {
+        DispatchState state = DISPATCH.get(DispatchRoute.SCREEN_UI);
+        List<PendingRequest> queued;
+        synchronized (state) {
+            if (state.queue.isEmpty()) {
+                return;
+            }
+            queued = new ArrayList<>(state.queue);
+            state.queue.clear();
+        }
+        for (PendingRequest request : queued) {
+            abandonRequest(request, "screen session closed");
+        }
+    }
+
+    private static void abandonBatch(DispatchRoute route, PendingBatch batch, String reason) {
+        for (PendingRequest request : batch.requests()) {
+            abandonRequest(request, reason);
+        }
+        finishRequest(route, batch);
+    }
+
+    private static void abandonRequest(PendingRequest request, String reason) {
+        failWork(request.cacheKey(), request.epoch());
+        ComponentTranslationMetrics.record(request.document(), ComponentTranslationMetrics.Outcome.JOB_EXPIRED);
+        ComponentTranslationDebugLogger.flow(
+                request.document().route(),
+                "queue route={} result=discarded reason={} key={}",
+                request.document().route().wireName(),
+                reason,
+                request.cacheKey()
+        );
     }
 
     private static ComponentTranslationRuntimeState.FailureState<FailureDisposition> terminalFailure(
