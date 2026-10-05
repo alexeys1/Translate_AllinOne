@@ -30,8 +30,8 @@ public final class ComponentTranslationRuntimeState<F> {
             }
     );
     private final AtomicLong sessionEpoch = new AtomicLong();
-    private final AtomicInteger screenUiRequestsRemaining = new AtomicInteger();
-    private final AtomicInteger screenUiRetriesRemaining = new AtomicInteger();
+    private final AtomicInteger screenUiFailures = new AtomicInteger();
+    private volatile int screenUiFailureBudget;
     private final Object workLock = new Object();
     private final Map<String, TranslationWork> works = new LinkedHashMap<>();
     private final Map<PreparedRequestMemoKey, ComponentTranslationPreparedRequest> preparedRequests =
@@ -60,34 +60,22 @@ public final class ComponentTranslationRuntimeState<F> {
         return sessionEpoch.incrementAndGet();
     }
 
-    public void beginScreenUiSession(int requestBudget, int retryBudget) {
-        screenUiRequestsRemaining.set(Math.max(0, requestBudget));
-        screenUiRetriesRemaining.set(Math.max(0, retryBudget));
+    public void beginScreenUiSession(int failureBudget) {
+        screenUiFailures.set(0);
+        screenUiFailureBudget = Math.max(0, failureBudget);
     }
 
     public void endScreenUiSession() {
-        screenUiRequestsRemaining.set(0);
-        screenUiRetriesRemaining.set(0);
+        screenUiFailureBudget = 0;
+        screenUiFailures.set(0);
     }
 
-    public boolean tryAcquireScreenUiRequest() {
-        return tryAcquire(screenUiRequestsRemaining);
+    public boolean screenUiFailureBudgetExhausted() {
+        return screenUiFailures.get() >= screenUiFailureBudget;
     }
 
-    public boolean tryAcquireScreenUiRetry() {
-        return tryAcquire(screenUiRetriesRemaining);
-    }
-
-    private static boolean tryAcquire(AtomicInteger budget) {
-        while (true) {
-            int current = budget.get();
-            if (current <= 0) {
-                return false;
-            }
-            if (budget.compareAndSet(current, current - 1)) {
-                return true;
-            }
-        }
+    public void recordScreenUiFailure() {
+        screenUiFailures.incrementAndGet();
     }
 
     public void clear() {

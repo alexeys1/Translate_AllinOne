@@ -322,8 +322,8 @@ public final class ComponentTranslationRuntime {
         return epoch;
     }
 
-    public static void beginScreenUiSession(int requestBudget, int retryBudget) {
-        ComponentTranslationRuntimeCore.beginScreenUiSession(requestBudget, retryBudget);
+    public static void beginScreenUiSession(int failureBudget) {
+        ComponentTranslationRuntimeCore.beginScreenUiSession(failureBudget);
     }
 
     public static void endScreenUiSession() {

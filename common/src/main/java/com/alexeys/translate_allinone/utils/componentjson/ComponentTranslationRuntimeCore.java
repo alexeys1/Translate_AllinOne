@@ -443,8 +443,8 @@ public final class ComponentTranslationRuntimeCore {
         return epoch;
     }
 
-    public static void beginScreenUiSession(int requestBudget, int retryBudget) {
-        STATE.beginScreenUiSession(requestBudget, retryBudget);
+    public static void beginScreenUiSession(int failureBudget) {
+        STATE.beginScreenUiSession(failureBudget);
     }
 
     public static void endScreenUiSession() {
@@ -752,11 +752,11 @@ public final class ComponentTranslationRuntimeCore {
             startParagraphRequest(route, batch, first, provider);
             return;
         }
-        if (route == DispatchRoute.SCREEN_UI && !STATE.tryAcquireScreenUiRequest()) {
+        if (route == DispatchRoute.SCREEN_UI && STATE.screenUiFailureBudgetExhausted()) {
             failBatch(
                     route,
                     batch,
-                    "Screen UI request budget exhausted",
+                    "Screen UI failure budget exhausted",
                     null,
                     FailureDisposition.INFRASTRUCTURE_FAILURE
             );
@@ -1066,11 +1066,11 @@ public final class ComponentTranslationRuntimeCore {
             finishRequest(route, batch);
             return;
         }
-        if (route == DispatchRoute.SCREEN_UI && !STATE.tryAcquireScreenUiRequest()) {
+        if (route == DispatchRoute.SCREEN_UI && STATE.screenUiFailureBudgetExhausted()) {
             for (int remaining = index; remaining < pending.size(); remaining++) {
                 recordRequestFailure(
                         pending.get(remaining),
-                        "Screen UI request budget exhausted",
+                        "Screen UI failure budget exhausted",
                         null,
                         FailureDisposition.INFRASTRUCTURE_FAILURE
                 );
@@ -1132,6 +1132,9 @@ public final class ComponentTranslationRuntimeCore {
     ) {
         failWork(request.cacheKey(), request.epoch());
         if (request.epoch() == STATE.epoch()) {
+            if (request.document().route() == ComponentTranslationRoute.SCREEN_UI) {
+                STATE.recordScreenUiFailure();
+            }
             String resolvedMessage = message == null || message.isBlank() ? "Component translation failed" : message;
             Throwable cause = error == null ? null : TranslateExceptionUtils.unwrapThrowable(error);
             FailureDisposition resolvedDisposition = disposition == null
