@@ -1066,6 +1066,10 @@ public final class ComponentTranslationRuntimeCore {
             finishRequest(route, batch);
             return;
         }
+        if (pending.get(index).epoch() != STATE.epoch()) {
+            startSingleRequest(route, batch, pending, index + 1, provider);
+            return;
+        }
         if (route == DispatchRoute.SCREEN_UI && STATE.screenUiFailureBudgetExhausted()) {
             for (int remaining = index; remaining < pending.size(); remaining++) {
                 recordRequestFailure(
@@ -1076,6 +1080,21 @@ public final class ComponentTranslationRuntimeCore {
                 );
             }
             finishRequest(route, batch);
+            return;
+        }
+        DispatchState dispatchState = DISPATCH.get(route);
+        long now = System.currentTimeMillis();
+        long delayMillis;
+        synchronized (dispatchState) {
+            delayMillis = rateLimitDelayMillis(route, dispatchState, now);
+            if (delayMillis <= 0L) {
+                dispatchState.requestStartTimes.add(now);
+            }
+        }
+        if (delayMillis > 0L) {
+            CompletableFuture.delayedExecutor(delayMillis, TimeUnit.MILLISECONDS).execute(
+                    () -> startSingleRequest(route, batch, pending, index, provider)
+            );
             return;
         }
         PendingRequest request = pending.get(index);
