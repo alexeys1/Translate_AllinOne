@@ -39,7 +39,7 @@ public final class ComponentTranslationRuntimeCore {
     private static final long ITEM_BATCH_COLLECT_DELAY_MILLIS = 10L;
     private static final long REQUEST_RATE_WINDOW_MILLIS = TimeUnit.MINUTES.toMillis(1);
     private static final int OTHER_TRANSLATIONS_REQUESTS_PER_MINUTE = 60;
-    private static final int SCREEN_UI_REQUESTS_PER_MINUTE = 10;
+    private static final int SCREEN_UI_REQUESTS_PER_MINUTE = 20;
     private static volatile Access access;
     private static final Map<DispatchRoute, DispatchState> DISPATCH = createDispatchStates();
     private static final ComponentTranslationRuntimeState<FailureDisposition> STATE =
