@@ -112,6 +112,10 @@ public final class UiTranslationScope {
         }
     }
 
+    static void clearSessionMemo() {
+        activeSessionCache = new HashMap<>();
+    }
+
     public static Scope enterInput() {
         Frame parent = currentFrame();
         if (parent == null) {

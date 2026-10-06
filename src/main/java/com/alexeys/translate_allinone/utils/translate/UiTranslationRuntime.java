@@ -32,6 +32,7 @@ public final class UiTranslationRuntime {
             ThreadLocal.withInitial(() -> Collections.newSetFromMap(new IdentityHashMap<>()));
     private static int FRAME_ID = 0;
     private static boolean translationKeyPressed;
+    private static boolean refreshKeyPressed;
     private static final ThreadLocal<Integer> NON_ORIGINATING_DEPTH = ThreadLocal.withInitial(() -> 0);
 
     private UiTranslationRuntime() {
@@ -74,6 +75,14 @@ public final class UiTranslationRuntime {
             ComponentTranslationRuntime.clearFailures(ComponentTranslationRoute.SCREEN_UI);
         }
         translationKeyPressed = pressed;
+    }
+
+    private static void tickRefreshTrigger(OtherTranslationsConfig config) {
+        boolean pressed = ComponentRenderTranslationSupport.isRefreshPressed(config);
+        if (pressed && !refreshKeyPressed) {
+            UiTranslationScope.clearSessionMemo();
+        }
+        refreshKeyPressed = pressed;
     }
 
     public static <T> T withoutOriginatingRequests(Supplier<T> action) {
@@ -340,7 +349,9 @@ public final class UiTranslationRuntime {
         HANDLED_FORMATTED_SEQUENCES.remove();
         FRAME_ID++;
         UiTranslationScope.discardStaleFrames(FRAME_ID);
-        tickManualRetryTrigger(currentConfig());
+        OtherTranslationsConfig config = currentConfig();
+        tickManualRetryTrigger(config);
+        tickRefreshTrigger(config);
     }
 
     public static void expireIdleScreenSessions() {
@@ -352,6 +363,7 @@ public final class UiTranslationRuntime {
         UiTranslationDiagnostics.reset();
         HANDLED_FORMATTED_SEQUENCES.remove();
         translationKeyPressed = false;
+        refreshKeyPressed = false;
     }
 
     public static <T> T withoutNestedTranslation(Supplier<T> action) {

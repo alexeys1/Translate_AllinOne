@@ -174,14 +174,8 @@ public final class ComponentRenderTranslationSupport {
             Set<String> privateTokens
     ) {
         try {
-            ComponentDynamicTemplate template = ComponentDynamicTemplate.prepare(original, privateTokens);
-            ComponentTranslationDocument document = ComponentTranslationRuntime.prepare(
-                    template.templateComponent(),
-                    route,
-                    context,
-                    policyVersion,
-                    template.privatePlaceholders()
-            );
+            PreparedDocument prepared = prepareDocument(original, route, context, policyVersion, privateTokens);
+            ComponentTranslationDocument document = prepared.document();
             if (document.units().isEmpty()) {
                 return TranslationResult.original(original, document);
             }
@@ -193,7 +187,7 @@ public final class ComponentRenderTranslationSupport {
                     config.target_language,
                     null,
                     () -> null,
-                    response -> template.restore(new ComponentTranslationApplier().apply(document, response)),
+                    response -> prepared.template().restore(new ComponentTranslationApplier().apply(document, response)),
                     context
             );
             if (resolution.state() == ComponentTranslationRuntime.State.CACHE_HIT && resolution.value() != null) {
@@ -262,6 +256,46 @@ public final class ComponentRenderTranslationSupport {
             );
         } catch (RuntimeException ignored) {
         }
+    }
+
+    static void forceRefreshWithoutQueue(
+            Component original,
+            ComponentTranslationRoute route,
+            String context,
+            String policyVersion,
+            OtherTranslationsConfig config,
+            Set<String> privateTokens
+    ) {
+        if (!TranslationFeatureGate.isEnabled() || original == null || config == null || !isRefreshPressed(config)) {
+            return;
+        }
+        try {
+            maybeForceRefresh(prepareDocument(original, route, context, policyVersion, privateTokens).document(), config);
+        } catch (RuntimeException ignored) {
+        }
+    }
+
+    private static PreparedDocument prepareDocument(
+            Component original,
+            ComponentTranslationRoute route,
+            String context,
+            String policyVersion,
+            Set<String> privateTokens
+    ) {
+        ComponentDynamicTemplate template = ComponentDynamicTemplate.prepare(original, privateTokens);
+        return new PreparedDocument(
+                template,
+                ComponentTranslationRuntime.prepare(
+                        template.templateComponent(),
+                        route,
+                        context,
+                        policyVersion,
+                        template.privatePlaceholders()
+                )
+        );
+    }
+
+    private record PreparedDocument(ComponentDynamicTemplate template, ComponentTranslationDocument document) {
     }
 
     static boolean isEligible(Component component, int maximumCharacters) {
