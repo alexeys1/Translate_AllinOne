@@ -19,7 +19,6 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -31,16 +30,6 @@ public final class UiTranslationRuntime {
     private static final int MAX_SCREEN_UI_FAILURES_PER_SESSION = 20;
     private static final ThreadLocal<Set<FormattedCharSequence>> HANDLED_FORMATTED_SEQUENCES =
             ThreadLocal.withInitial(() -> Collections.newSetFromMap(new IdentityHashMap<>()));
-    private static final int SCREEN_TRANSLATION_NOTIFY_LIMIT = 8192;
-    private static final Set<String> NOTIFIED_SCREEN_TRANSLATIONS = Collections.newSetFromMap(
-            new LinkedHashMap<>(256, 0.75f, true) {
-                @Override
-                protected boolean removeEldestEntry(Map.Entry<String, Boolean> eldest) {
-                    return size() > SCREEN_TRANSLATION_NOTIFY_LIMIT;
-                }
-            }
-    );
-    private static volatile int SCREEN_TRANSLATION_VERSION = 0;
     private static int FRAME_ID = 0;
     private static boolean translationKeyPressed;
     private static final ThreadLocal<Integer> NON_ORIGINATING_DEPTH = ThreadLocal.withInitial(() -> 0);
@@ -50,10 +39,6 @@ public final class UiTranslationRuntime {
 
     public static int currentFrameId() {
         return FRAME_ID;
-    }
-
-    public static int screenTranslationVersion() {
-        return SCREEN_TRANSLATION_VERSION;
     }
 
     static void onScreenOpened() {
@@ -91,20 +76,6 @@ public final class UiTranslationRuntime {
         translationKeyPressed = pressed;
     }
 
-    static void notifyScreenTranslationAvailable(String source, UiTextRole role, String targetLanguage) {
-        if (source == null || role == null || role != UiTextRole.OPTION) {
-            return;
-        }
-        String key = role.wireName() + '\u0000'
-                + (targetLanguage == null ? "" : targetLanguage) + '\u0000'
-                + source;
-        synchronized (NOTIFIED_SCREEN_TRANSLATIONS) {
-            if (NOTIFIED_SCREEN_TRANSLATIONS.add(key)) {
-                SCREEN_TRANSLATION_VERSION++;
-            }
-        }
-    }
-
     public static <T> T withoutOriginatingRequests(Supplier<T> action) {
         NON_ORIGINATING_DEPTH.set(NON_ORIGINATING_DEPTH.get() + 1);
         try {
@@ -137,6 +108,7 @@ public final class UiTranslationRuntime {
             tickManualRetryTrigger(config);
         }
 
+        boolean displaysTranslation = ComponentRenderTranslationSupport.shouldRenderTranslated(config);
         if (!UiTranslationScope.isActive()
                 || UiTranslationScope.isInternal()
                 || adapter == null
@@ -144,7 +116,7 @@ public final class UiTranslationRuntime {
                 || config == null
                 || !config.enabled
                 || !config.enabled_screen_translation
-                || !ComponentRenderTranslationSupport.shouldRenderTranslated(config)) {
+                || (!displaysTranslation && !ComponentRenderTranslationSupport.isRefreshPressed(config))) {
             return UiTranslationResult.original(
                     modId,
                     screenId,
@@ -157,7 +129,7 @@ public final class UiTranslationRuntime {
 
         String sourceText = safeSource.getString();
         UiTranslationResult cached = UiTranslationScope.lookup(sourceText, role, targetLanguage);
-        if (cached != null) {
+        if (cached != null && displaysTranslation) {
             UiTranslationDiagnostics.recordText(adapter, role, sourceText, null, cached.status());
             return cached;
         }
@@ -196,12 +168,32 @@ public final class UiTranslationRuntime {
         try {
             Component translationSource = aiSource(safeSource);
             Set<String> decorativeGlyphs = UiScreenTextPolicy.decorativeGlyphs(sourceText);
+            String requestContext = adapter.modId() + "/" + adapter.screenId() + "/" + role.wireName();
+            String requestPolicyVersion = POLICY_VERSION + ":" + role.wireName();
+            if (!displaysTranslation) {
+                ComponentRenderTranslationSupport.forceRefreshWithoutQueue(
+                        translationSource,
+                        ComponentTranslationRoute.SCREEN_UI,
+                        requestContext,
+                        requestPolicyVersion,
+                        config,
+                        decorativeGlyphs
+                );
+                return UiTranslationResult.original(
+                        modId,
+                        screenId,
+                        role,
+                        safeSource,
+                        targetLanguage,
+                        UiTranslationStatus.ORIGINAL
+                );
+            }
             ComponentRenderTranslationSupport.TranslationResult translated =
                     ComponentRenderTranslationSupport.translate(
                             translationSource,
                             ComponentTranslationRoute.SCREEN_UI,
-                            adapter.modId() + "/" + adapter.screenId() + "/" + role.wireName(),
-                            POLICY_VERSION + ":" + role.wireName(),
+                            requestContext,
+                            requestPolicyVersion,
                             config,
                             true,
                             decorativeGlyphs

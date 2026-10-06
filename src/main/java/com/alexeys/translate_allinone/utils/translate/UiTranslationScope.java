@@ -19,7 +19,9 @@ public final class UiTranslationScope {
     private static final ThreadLocal<Deque<Frame>> FRAMES = ThreadLocal.withInitial(ArrayDeque::new);
     private static final ThreadLocal<Integer> INTERNAL_DEPTH = ThreadLocal.withInitial(() -> 0);
     private static final long SCREEN_SESSION_INACTIVITY_NANOS = 750_000_000L;
+    private static final int SESSION_MEMO_LIMIT = 4096;
     private static volatile Object activeScreenSession;
+    private static volatile Map<CacheKey, UiTranslationResult> activeSessionCache = Map.of();
     private static volatile long activeSessionLastActivityNanos;
     private static final Set<Screen> SCREEN_REMOVAL_HOOKED = Collections.newSetFromMap(
             new WeakHashMap<>()
@@ -50,7 +52,7 @@ public final class UiTranslationScope {
         }
         Frame frame = new Frame(
                 adapter,
-                parent == null ? new HashMap<>() : parent.cache,
+                parent == null ? activeSessionCache : parent.cache,
                 UiTextRole.OPTION,
                 false,
                 false
@@ -63,6 +65,7 @@ public final class UiTranslationScope {
         long now = System.nanoTime();
         if (activeScreenSession == screenObject) {
             if (now - activeSessionLastActivityNanos >= SCREEN_SESSION_INACTIVITY_NANOS) {
+                activeSessionCache = new HashMap<>();
                 UiTranslationRuntime.onScreenClosed();
                 UiTranslationRuntime.onScreenOpened();
             }
@@ -71,6 +74,7 @@ public final class UiTranslationScope {
         }
         endActiveSession();
         activeScreenSession = screenObject;
+        activeSessionCache = new HashMap<>();
         activeSessionLastActivityNanos = now;
         if (screenObject instanceof Screen screen && SCREEN_REMOVAL_HOOKED.add(screen)) {
             ScreenEvents.remove(screen).register(removed -> {
@@ -97,6 +101,7 @@ public final class UiTranslationScope {
             return;
         }
         activeScreenSession = null;
+        activeSessionCache = Map.of();
         activeSessionLastActivityNanos = 0L;
         UiTranslationRuntime.onScreenClosed();
     }
@@ -149,8 +154,10 @@ public final class UiTranslationScope {
     static void remember(String source, UiTextRole role, String targetLanguage, UiTranslationResult result) {
         Frame frame = currentFrame();
         if (frame != null && result != null && result.translated()) {
+            if (frame.cache.size() >= SESSION_MEMO_LIMIT) {
+                frame.cache.clear();
+            }
             frame.cache.put(new CacheKey(source, role, targetLanguage), result);
-            UiTranslationRuntime.notifyScreenTranslationAvailable(source, role, targetLanguage);
         }
     }
 

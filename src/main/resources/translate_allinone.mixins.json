@@ -53,8 +53,6 @@
     "mixinScreenTranslate.UiTranslationFontMixin",
     "mixinScreenTranslate.UiTranslationEditBoxMixin",
     "mixinScreenTranslate.UiTranslationElementaFontMixin",
-    "mixinScreenTranslate.UiTranslationModMenuSortingMixin",
-    "mixinScreenTranslate.UiTranslationModMenuListMixin",
     "mixinScreenTranslate.UiTranslationNoammSortingMixin"
   ],
   "injectors": {
