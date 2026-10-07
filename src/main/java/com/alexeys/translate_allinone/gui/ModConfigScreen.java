@@ -89,7 +89,6 @@ public class ModConfigScreen extends Screen {
     private static final String DEBUG_SECTION_ACCOUNT_UUID = "ef7acee7-f759-4d1e-a1ba-5a8dc7656d01";
     private static final String SCREEN_STATE_FILE_NAME = "config_screen_state.json";
     private static final int RESET_SLOT_WIDTH = 20;
-    private static final int RESET_SLOT_HEIGHT = 20;
     private static final int RESET_SLOT_GAP = 2;
 
     private static final int COLOR_BG = 0xFF0C0C0C;
@@ -1595,11 +1594,12 @@ public class ModConfigScreen extends Screen {
             boolean defaultValue
     ) {
         int controlWidth = optionControlWidth(width);
+        int controlHeight = 20;
         checkboxBlocks.add(new CheckboxBlock(
                 x,
                 y,
                 controlWidth,
-                20,
+                controlHeight,
                 () -> label,
                 getter.getAsBoolean(),
                 setter,
@@ -1609,17 +1609,18 @@ public class ModConfigScreen extends Screen {
         addResetSlot(
                 x + controlWidth + RESET_SLOT_GAP,
                 y,
+                controlHeight,
                 () -> getter.getAsBoolean() != defaultValue,
                 () -> setter.accept(defaultValue)
         );
     }
 
-    private void addResetSlot(int x, int y, BooleanSupplier modified, Runnable resetAction) {
+    private void addResetSlot(int x, int y, int height, BooleanSupplier modified, Runnable resetAction) {
         contentActionBlockRegistry.add(
                 x,
                 y,
                 RESET_SLOT_WIDTH,
-                RESET_SLOT_HEIGHT,
+                height,
                 () -> Component.empty(),
                 () -> {
                     resetAction.run();
@@ -1660,8 +1661,9 @@ public class ModConfigScreen extends Screen {
         }
 
         int controlWidth = optionControlWidth(width);
-        contentActionBlockRegistry.add(x, y, controlWidth, 20, label, action, tooltip, enabled);
-        addResetSlot(x + controlWidth + RESET_SLOT_GAP, y, modified, resetAction);
+        int controlHeight = 20;
+        contentActionBlockRegistry.add(x, y, controlWidth, controlHeight, label, action, tooltip, enabled);
+        addResetSlot(x + controlWidth + RESET_SLOT_GAP, y, controlHeight, modified, resetAction);
     }
 
     private void addActionRow(int x, int y, int width, Component label, Runnable action, Component tooltip, BooleanSupplier enabled) {
@@ -1697,8 +1699,9 @@ public class ModConfigScreen extends Screen {
         int fieldGap = 6;
         int fieldX = x + labelWidth + fieldGap;
         int fieldWidth = Math.max(72, controlWidth - labelWidth - fieldGap);
+        int controlHeight = 20;
 
-        contentActionBlockRegistry.add(x, y, labelWidth, 20, label, () -> {
+        contentActionBlockRegistry.add(x, y, labelWidth, controlHeight, label, () -> {
         }, tooltip);
         EditBox field = addTextField(
                 fieldX,
@@ -1715,6 +1718,7 @@ public class ModConfigScreen extends Screen {
             addResetSlot(
                     x + controlWidth + RESET_SLOT_GAP,
                     y,
+                    controlHeight,
                     () -> !field.getValue().equals(defaultValue),
                     () -> field.setValue(defaultValue)
             );
@@ -2137,7 +2141,8 @@ public class ModConfigScreen extends Screen {
         sliderBlocks.add(new IntSliderBlock(x, y, controlWidth, SLIDER_BLOCK_HEIGHT, label, min, max, getter, setter, font, SLIDER_STYLE, tooltip));
         addResetSlot(
                 x + controlWidth + RESET_SLOT_GAP,
-                y + (SLIDER_BLOCK_HEIGHT - 20) / 2,
+                y,
+                SLIDER_BLOCK_HEIGHT,
                 () -> getter.getAsInt() != defaultValue,
                 () -> setter.accept(defaultValue)
         );
