@@ -30,6 +30,7 @@ public class Translate_AllinOne implements ModInitializer {
 		ConfigManager.register();
 		ComponentTranslationDebugLogger.register();
 		LLM.configureRequestTextStatsLogging(() -> getConfig().debug.log_llm_request_text_stats);
+		LLM.refreshRequestTextStatsLogging();
 		TranslationQueueResetCoordinator.register();
 		ComponentTranslationStoreRegistry.getInstance().forModule(ComponentCacheModule.SCREEN_UI).load();
 		WynncraftDictionaryInstaller.ensureInstalled();

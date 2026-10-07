@@ -16,6 +16,7 @@ public final class ComponentTranslationDebugLogger {
     private static final int TIMING_LOG_LIMIT = 8;
     private static final int ERROR_LOG_LIMIT = 8;
     private static final int MAX_LOG_TEXT_CHUNK_CHARS = 256;
+    private static final int TEXT_CONTENT_LOG_STATE_LIMIT = 4096;
     private static final int MAX_RESPONSE_PREVIEW_CHARS = 1_024;
     private static final ConcurrentHashMap<String, ThrottleState> THROTTLES = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<String, Long> TEXT_CONTENT_LOG_TIMES = new ConcurrentHashMap<>();
@@ -72,11 +73,6 @@ public final class ComponentTranslationDebugLogger {
             Translate_AllinOne.LOGGER.info("[component] " + message, arguments);
         }
     }
-
-
-
-
-
 
     public static void textContent(ComponentTranslationDocument document, String cacheKey) {
         if (document == null || !isTextContentEnabled(document.route())) {
@@ -327,6 +323,9 @@ public final class ComponentTranslationDebugLogger {
     }
 
     private static boolean registerTextContentKey(String deduplicationKey) {
+        if (TEXT_CONTENT_LOG_TIMES.size() > TEXT_CONTENT_LOG_STATE_LIMIT) {
+            TEXT_CONTENT_LOG_TIMES.clear();
+        }
         long now = System.currentTimeMillis();
         Long previous = TEXT_CONTENT_LOG_TIMES.putIfAbsent(deduplicationKey, now);
         if (previous != null && now - previous < THROTTLE_WINDOW_MILLIS) {

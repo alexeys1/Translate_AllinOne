@@ -24,6 +24,7 @@ import net.minecraft.network.chat.contents.TranslatableContents;
 public final class TooltipTextMatcherSupport {
     private static final Logger LOGGER = LoggerFactory.getLogger("Translate_AllinOne/TooltipTextMatcherSupport");
     private static final long DEV_LOG_REPEAT_WINDOW_MILLIS = 1200L;
+    private static final int DEV_TOOLTIP_LOG_STATE_LIMIT = 4096;
     private static final Pattern NAMESPACED_IDENTIFIER_PATTERN = Pattern.compile("^\\[?#?[A-Za-z0-9_.-]+:[A-Za-z0-9_/.-]+\\]?$");
     private static final Pattern GENERIC_IDENTIFIER_PATTERN = Pattern.compile("^(?=.*[A-Za-z])[A-Za-z0-9]+(?:[._/][A-Za-z0-9]+)+$");
     private static final Pattern BARE_INTERNAL_TOKEN_PATTERN = Pattern.compile("^[a-z][a-z0-9_-]{9,}$");
@@ -310,6 +311,9 @@ public final class TooltipTextMatcherSupport {
 
         int signature = computeTooltipSignature(tooltipLines);
         long nowMillis = System.currentTimeMillis();
+        if (DEV_TOOLTIP_LOG_STATE_BY_SOURCE.size() > DEV_TOOLTIP_LOG_STATE_LIMIT) {
+            DEV_TOOLTIP_LOG_STATE_BY_SOURCE.clear();
+        }
         DevTooltipLogState previous = DEV_TOOLTIP_LOG_STATE_BY_SOURCE.get(source);
         if (previous != null
                 && previous.signature() == signature

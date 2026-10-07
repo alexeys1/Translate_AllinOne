@@ -32,6 +32,10 @@ public class LLM {
         LlmRequestDebugLogger.configureRequestTextStatsLogging(enabledSupplier);
     }
 
+    public static void refreshRequestTextStatsLogging() {
+        LlmRequestDebugLogger.refresh();
+    }
+
     private final OpenAIClient openAIClient;
     private final OllamaClient ollamaClient;
     private final ProviderSettings settings;

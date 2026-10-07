@@ -22,8 +22,10 @@ import java.util.function.BooleanSupplier;
 final class LlmRequestDebugLogger {
     private static final Logger LOGGER = LoggerFactory.getLogger("translate_allinone");
     private static volatile BooleanSupplier requestTextStatsEnabled = () -> false;
+    private static volatile boolean statsEnabled;
     private static final int MESSAGE_PREVIEW_HEAD_CHARS = 220;
     private static final int MESSAGE_PREVIEW_TAIL_CHARS = 140;
+    private static final int FINGERPRINT_COUNTER_LIMIT = 4096;
     private static final ConcurrentMap<String, AtomicInteger> REQUEST_FINGERPRINT_COUNTS = new ConcurrentHashMap<>();
     private static final ConcurrentMap<String, AtomicInteger> ROLE_FINGERPRINT_COUNTS = new ConcurrentHashMap<>();
 
@@ -32,6 +34,15 @@ final class LlmRequestDebugLogger {
 
     static void configureRequestTextStatsLogging(BooleanSupplier enabledSupplier) {
         requestTextStatsEnabled = enabledSupplier == null ? () -> false : enabledSupplier;
+    }
+
+    static void refresh() {
+        boolean nowEnabled = shouldLogLlmRequestTextStats();
+        if (statsEnabled && !nowEnabled) {
+            REQUEST_FINGERPRINT_COUNTS.clear();
+            ROLE_FINGERPRINT_COUNTS.clear();
+        }
+        statsEnabled = nowEnabled;
     }
 
     static void logIfEnabled(
@@ -355,6 +366,9 @@ final class LlmRequestDebugLogger {
     }
 
     private static int incrementCounter(ConcurrentMap<String, AtomicInteger> counters, String key) {
+        if (counters.size() > FINGERPRINT_COUNTER_LIMIT) {
+            counters.clear();
+        }
         return counters.computeIfAbsent(key == null ? "" : key, ignored -> new AtomicInteger(0)).incrementAndGet();
     }
 
