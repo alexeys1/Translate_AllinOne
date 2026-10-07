@@ -79,12 +79,13 @@ public class AnimationManager {
                     && now - entry.builtAtMillis() < PENDING_ANIMATION_REFRESH_INTERVAL_MS) {
                 getAlertProgress(animationKey, alertMissingKeys, now);
                 cleanupTransitionStates(now);
-                return entry.result();
+                return entry.result().copy();
             }
         }
         MutableComponent result = buildAnimatedStyledText(originalText, animationKey, alertMissingKeys);
         if (animationKey != null && !animationKey.isBlank()) {
             PENDING_ANIMATIONS.put(animationKey, new PendingAnimationEntry(originalText, result, now));
+            result = result.copy();
         }
         cleanupTransitionStates(now);
         return result;
