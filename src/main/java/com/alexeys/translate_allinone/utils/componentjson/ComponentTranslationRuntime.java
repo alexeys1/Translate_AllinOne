@@ -559,11 +559,6 @@ public final class ComponentTranslationRuntime {
         }
 
         @Override
-        public void textContent(ComponentTranslationDocument document, String cacheKey) {
-            ComponentTranslationDebugLogger.textContent(document, cacheKey);
-        }
-
-        @Override
         public void entityIdentityMiss(
                 ComponentTranslationDocument document,
                 String targetLanguage,

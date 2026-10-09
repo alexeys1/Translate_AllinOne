@@ -139,7 +139,6 @@ public final class UiTranslationRuntime {
         String sourceText = safeSource.getString();
         UiTranslationResult cached = UiTranslationScope.lookup(sourceText, role, targetLanguage);
         if (cached != null && displaysTranslation) {
-            UiTranslationDiagnostics.recordText(adapter, role, sourceText, null, cached.status());
             return cached;
         }
         if (!mayOriginateRequest()) {
@@ -169,7 +168,6 @@ public final class UiTranslationRuntime {
                     targetLanguage,
                     false
             );
-            UiTranslationDiagnostics.recordText(adapter, role, sourceText, decision, result.status());
             if (decision.reason() != UiTextFilter.Reason.USER_INPUT) {
                 UiTranslationScope.remember(sourceText, role, targetLanguage, result);
             }
@@ -232,7 +230,6 @@ public final class UiTranslationRuntime {
                     targetLanguage,
                     false
             );
-            UiTranslationDiagnostics.recordText(adapter, role, sourceText, decision, result.status());
             UiTranslationScope.remember(sourceText, role, targetLanguage, result);
             return result;
         } catch (RuntimeException error) {
@@ -245,7 +242,6 @@ public final class UiTranslationRuntime {
                     targetLanguage,
                     false
             );
-            UiTranslationDiagnostics.recordText(adapter, role, sourceText, decision, result.status());
             UiTranslationScope.remember(sourceText, role, targetLanguage, result);
             return result;
         }
@@ -363,7 +359,6 @@ public final class UiTranslationRuntime {
 
     public static void reset() {
         UiLanguageResourceResolver.clear();
-        UiTranslationDiagnostics.reset();
         HANDLED_FORMATTED_SEQUENCES.remove();
         translationKeyPressed = false;
         refreshKeyPressed = false;

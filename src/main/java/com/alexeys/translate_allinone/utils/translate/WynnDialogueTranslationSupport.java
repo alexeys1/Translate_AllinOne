@@ -8,6 +8,8 @@ import com.alexeys.translate_allinone.utils.cache.TranslationStatus;
 import com.alexeys.translate_allinone.utils.cache.WynnDialogueTextCache;
 import com.alexeys.translate_allinone.utils.config.ModConfig;
 import com.alexeys.translate_allinone.utils.config.ProviderRouteResolver;
+import com.alexeys.translate_allinone.utils.config.pojos.DebugConfig;
+import com.alexeys.translate_allinone.utils.config.pojos.LogLevel;
 import com.alexeys.translate_allinone.utils.config.pojos.WynnCraftConfig;
 import com.alexeys.translate_allinone.utils.input.KeybindingManager;
 import java.util.ArrayList;
@@ -536,8 +538,16 @@ public final class WynnDialogueTranslationSupport {
     }
 
     static boolean isDebugEnabled() {
-        WynnCraftConfig.NpcDialogueConfig config = getDialogueConfig();
-        return config != null && config.debug != null && config.debug.enabled;
+        return flowLevel() != LogLevel.OFF;
+    }
+
+    private static LogLevel flowLevel() {
+        try {
+            DebugConfig debug = Translate_AllinOne.getConfig().debug;
+            return debug == null || debug.flow == null ? LogLevel.OFF : debug.flow;
+        } catch (IllegalStateException ignored) {
+            return LogLevel.OFF;
+        }
     }
 
     private static WynnDialogueTextCache cache() {
@@ -612,10 +622,16 @@ public final class WynnDialogueTranslationSupport {
     }
 
     private static boolean isDialoguesLocalHitLoggingEnabled() {
-        WynnCraftConfig.NpcDialogueConfig config = getDialogueConfig();
-        return config != null
-                && config.debug != null
-                && config.debug.log_dialogues_local_hits;
+        return localHitsEnabled();
+    }
+
+    private static boolean localHitsEnabled() {
+        try {
+            DebugConfig debug = Translate_AllinOne.getConfig().debug;
+            return debug != null && debug.localHits != LogLevel.OFF;
+        } catch (IllegalStateException ignored) {
+            return false;
+        }
     }
 
     static void devLog(String message, Object... args) {

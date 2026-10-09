@@ -19,6 +19,7 @@ import com.alexeys.translate_allinone.utils.config.pojos.DebugConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.DictionaryConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.InputBindingConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ItemTranslateConfig;
+import com.alexeys.translate_allinone.utils.config.pojos.LogLevel;
 import com.alexeys.translate_allinone.utils.config.pojos.OtherTranslationsConfig;
 import com.alexeys.translate_allinone.utils.config.ModConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ProviderManagerConfig;
@@ -66,6 +67,7 @@ public final class ConfigSectionContentSupport {
             HotkeyAction hotkeyCycleMode,
             Runnable scoreboardExternalModeCycle,
             Runnable originalDisplayModeCycle,
+            Consumer<DebugDimension> debugLevelCycle,
             Consumer<Boolean> screenTranslationEnabledSetter,
             DictionaryFilePickerAction dictionaryFilePickerAction,
             Runnable openDictionaryDirectoryAction,
@@ -209,9 +211,6 @@ public final class ConfigSectionContentSupport {
                 if (item.keybinding.refreshBinding == null) {
                     item.keybinding.refreshBinding = new InputBindingConfig();
                 }
-                if (item.debug == null) {
-                    item.debug = new ItemTranslateConfig.DebugConfig();
-                }
 
                 int basicStart = y;
                 toggleAdder.add(x, y, width, translator.t("label.enabled"), () -> item.enabled, value -> item.enabled = value, translator.t("desc.item_enabled"), DEFAULTS.itemTranslate.enabled);
@@ -293,338 +292,29 @@ public final class ConfigSectionContentSupport {
                 return routeStart + ROW_STEP;
             }
             case DEBUG -> {
-                if (config.debug == null) {
-                    config.debug = new DebugConfig();
-                }
                 DebugConfig debug = config.debug;
-                ComponentTranslationDebugLogger.refresh(config);
-                ChatTranslateConfig.ChatOutputTranslateConfig output = config.chatTranslate.output;
-                if (output.debug == null) {
-                    output.debug = new ChatTranslateConfig.ChatOutputTranslateConfig.DebugConfig();
+                if (debug == null) {
+                    debug = new DebugConfig();
+                    config.debug = debug;
                 }
-                ItemTranslateConfig item = config.itemTranslate;
-                if (item.debug == null) {
-                    item.debug = new ItemTranslateConfig.DebugConfig();
-                }
-                OtherTranslationsConfig otherTranslations = config.otherTranslations;
-                if (otherTranslations == null) {
-                    otherTranslations = new OtherTranslationsConfig();
-                    config.otherTranslations = otherTranslations;
-                }
-                if (otherTranslations.debug == null) {
-                    otherTranslations.debug = new OtherTranslationsConfig.DebugConfig();
-                }
-                OtherTranslationsConfig resolvedOtherTranslations = otherTranslations;
-                WynnCraftConfig wynnCraft = config.wynnCraft;
-                if (wynnCraft == null) {
-                    wynnCraft = new WynnCraftConfig();
-                    config.wynnCraft = wynnCraft;
-                }
-                if (wynnCraft.npc_dialogue == null) {
-                    wynnCraft.npc_dialogue = new WynnCraftConfig.NpcDialogueConfig();
-                }
-                if (wynnCraft.npc_dialogue.hud == null) {
-                    wynnCraft.npc_dialogue.hud = new WynnCraftConfig.HudConfig();
-                }
-                if (wynnCraft.npc_dialogue.debug == null) {
-                    wynnCraft.npc_dialogue.debug = new WynnCraftConfig.DebugConfig();
-                }
-                if (wynnCraft.wynntils_task_tracker == null) {
-                    wynnCraft.wynntils_task_tracker = new WynnCraftConfig.WynntilsTaskTrackerConfig();
-                }
-                if (wynnCraft.wynntils_task_tracker.debug == null) {
-                    wynnCraft.wynntils_task_tracker.debug = new WynnCraftConfig.DebugConfig();
-                }
-                WynnCraftConfig resolvedWynnCraft = wynnCraft;
+                DebugConfig resolvedDebug = debug;
 
-                int llmDebugStart = y;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.debug_log_llm_request_text_stats"),
-                        () -> debug.log_llm_request_text_stats,
-                        value -> debug.log_llm_request_text_stats = value
-                , tooltip(translator, "label.debug_log_llm_request_text_stats"), DEFAULTS.debug.log_llm_request_text_stats);
-                y += ROW_STEP;
-                addGroupBox(groupBoxAdder, translator.t("group.llm_requests"), x, width, llmDebugStart, y);
-
-                y += GROUP_GAP;
-                int chatOutputDebugStart = y;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.chat_output_dev_enabled"),
-                        () -> output.debug.enabled,
-                        value -> output.debug.enabled = value
-                , tooltip(translator, "label.chat_output_dev_enabled"), DEFAULTS.chatTranslate.output.debug.enabled);
-                y += ROW_STEP;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.chat_output_dev_log_intercept"),
-                        () -> output.debug.log_intercepted_message,
-                        value -> output.debug.log_intercepted_message = value
-                , tooltip(translator, "label.chat_output_dev_log_intercept"), DEFAULTS.chatTranslate.output.debug.log_intercepted_message);
-                y += ROW_STEP;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.chat_output_dev_log_llm_submission"),
-                        () -> output.debug.log_llm_submission,
-                        value -> output.debug.log_llm_submission = value
-                , tooltip(translator, "label.chat_output_dev_log_llm_submission"), DEFAULTS.chatTranslate.output.debug.log_llm_submission);
-                y += ROW_STEP;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.chat_output_dev_log_reflow_mapping"),
-                        () -> output.debug.log_reflow_mapping,
-                        value -> output.debug.log_reflow_mapping = value
-                , tooltip(translator, "label.chat_output_dev_log_reflow_mapping"), DEFAULTS.chatTranslate.output.debug.log_reflow_mapping);
-                y += ROW_STEP;
-                addGroupBox(groupBoxAdder, translator.t("group.chat_output_debug"), x, width, chatOutputDebugStart, y);
-
-                y += GROUP_GAP;
-                int itemDebugStart = y;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.item_dev_enabled"),
-                        () -> item.debug.enabled,
-                        value -> {
-                            item.debug.enabled = value;
-                            ComponentTranslationDebugLogger.refresh(config);
-                        },
-                        tooltip(translator, "label.item_dev_enabled"), DEFAULTS.itemTranslate.debug.enabled
-                );
-                y += ROW_STEP;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.item_dev_log_component_flow"),
-                        () -> item.debug.log_component_flow,
-                        value -> {
-                            item.debug.log_component_flow = value;
-                            ComponentTranslationDebugLogger.refresh(config);
-                        }
-                , tooltip(translator, "label.item_dev_log_component_flow"), DEFAULTS.itemTranslate.debug.log_component_flow);
-                y += ROW_STEP;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.item_dev_log_component_text_content"),
-                        () -> item.debug.log_component_text_content,
-                        value -> {
-                            item.debug.log_component_text_content = value;
-                            ComponentTranslationDebugLogger.refresh(config);
-                        }
-                , tooltip(translator, "label.item_dev_log_component_text_content"), DEFAULTS.itemTranslate.debug.log_component_text_content);
-                y += ROW_STEP;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.item_dev_log_component_timing"),
-                        () -> item.debug.log_component_timing,
-                        value -> {
-                            item.debug.log_component_timing = value;
-                            ComponentTranslationDebugLogger.refresh(config);
-                        }
-                , tooltip(translator, "label.item_dev_log_component_timing"), DEFAULTS.itemTranslate.debug.log_component_timing);
-                y += ROW_STEP;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.item_dev_log_tooltip_filter"),
-                        () -> item.debug.log_tooltip_filter_result,
-                        value -> item.debug.log_tooltip_filter_result = value
-                , tooltip(translator, "label.item_dev_log_tooltip_filter"), DEFAULTS.itemTranslate.debug.log_tooltip_filter_result);
-                y += ROW_STEP;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.item_dev_log_tooltip_nodes"),
-                        () -> item.debug.log_tooltip_node_summary,
-                        value -> item.debug.log_tooltip_node_summary = value
-                , tooltip(translator, "label.item_dev_log_tooltip_nodes"), DEFAULTS.itemTranslate.debug.log_tooltip_node_summary);
-                y += ROW_STEP;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.item_dev_log_tooltip_paragraph"),
-                        () -> item.debug.log_tooltip_paragraph_result,
-                        value -> item.debug.log_tooltip_paragraph_result = value
-                , tooltip(translator, "label.item_dev_log_tooltip_paragraph"), DEFAULTS.itemTranslate.debug.log_tooltip_paragraph_result);
-                y += ROW_STEP;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.item_dev_log_tooltip_style_map"),
-                        () -> item.debug.log_tooltip_style_map,
-                        value -> item.debug.log_tooltip_style_map = value
-                , tooltip(translator, "label.item_dev_log_tooltip_style_map"), DEFAULTS.itemTranslate.debug.log_tooltip_style_map);
-                y += ROW_STEP;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.item_dev_log_tooltip_timing"),
-                        () -> item.debug.log_tooltip_timing,
-                        value -> item.debug.log_tooltip_timing = value
-                , tooltip(translator, "label.item_dev_log_tooltip_timing"), DEFAULTS.itemTranslate.debug.log_tooltip_timing);
-                y += ROW_STEP;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.item_dev_log_batch_timing"),
-                        () -> item.debug.log_item_batch_timing,
-                        value -> item.debug.log_item_batch_timing = value
-                , tooltip(translator, "label.item_dev_log_batch_timing"), DEFAULTS.itemTranslate.debug.log_item_batch_timing);
-                y += ROW_STEP;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.item_dev_log_cache_migration"),
-                        () -> item.debug.log_cache_migration,
-                        value -> item.debug.log_cache_migration = value
-                , tooltip(translator, "label.item_dev_log_cache_migration"), DEFAULTS.itemTranslate.debug.log_cache_migration);
-                y += ROW_STEP;
-                addGroupBox(groupBoxAdder, translator.t("group.item_debug"), x, width, itemDebugStart, y);
-
-                y += GROUP_GAP;
-                int otherTranslationsDebugStart = y;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.other_translations_dev_enabled"),
-                        () -> resolvedOtherTranslations.debug.enabled,
-                        value -> {
-                            resolvedOtherTranslations.debug.enabled = value;
-                            ComponentTranslationDebugLogger.refresh(config);
-                        },
-                        tooltip(translator, "label.other_translations_dev_enabled"), DEFAULTS.otherTranslations.debug.enabled
-                );
-                y += ROW_STEP;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.other_translations_dev_log_component_entity_identity"),
-                        () -> resolvedOtherTranslations.debug.log_component_entity_identity,
-                        value -> {
-                            resolvedOtherTranslations.debug.log_component_entity_identity = value;
-                            ComponentTranslationDebugLogger.refresh(config);
-                        },
-                        tooltip(translator, "label.other_translations_dev_log_component_entity_identity"), DEFAULTS.otherTranslations.debug.log_component_entity_identity
-                );
-                y += ROW_STEP;
-                addGroupBox(
-                        groupBoxAdder,
-                        translator.t("group.other_translations_debug"),
-                        x,
-                        width,
-                        otherTranslationsDebugStart,
-                        y
-                );
-
-                y += GROUP_GAP;
-                int dialogueDebugStart = y;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.wynn_npc_dialogue_dev_enabled"),
-                        () -> resolvedWynnCraft.npc_dialogue.debug.enabled,
-                        value -> resolvedWynnCraft.npc_dialogue.debug.enabled = value
-                , tooltip(translator, "label.wynn_npc_dialogue_dev_enabled"), DEFAULTS.wynnCraft.npc_dialogue.debug.enabled);
-                y += ROW_STEP;
-                addGroupBox(
-                        groupBoxAdder,
-                        translator.t("group.wynn_npc_dialogue_debug"),
-                        x,
-                        width,
-                        dialogueDebugStart,
-                        y);
-
-                y += GROUP_GAP;
-                int trackerDebugStart = y;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.wynntils_task_tracker_dev_enabled"),
-                        () -> resolvedWynnCraft.wynntils_task_tracker.debug.enabled,
-                        value -> resolvedWynnCraft.wynntils_task_tracker.debug.enabled = value
-                , tooltip(translator, "label.wynntils_task_tracker_dev_enabled"), DEFAULTS.wynnCraft.wynntils_task_tracker.debug.enabled);
-                y += ROW_STEP;
-                addGroupBox(
-                        groupBoxAdder,
-                        translator.t("group.wynntils_task_tracker_debug"),
-                        x,
-                        width,
-                        trackerDebugStart,
-                        y);
-
-                y += GROUP_GAP;
-                int localHitLogsStart = y;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.item_dev_log_items_local_hits"),
-                        () -> item.debug.log_items_local_hits,
-                        value -> item.debug.log_items_local_hits = value
-                , tooltip(translator, "label.item_dev_log_items_local_hits"), DEFAULTS.itemTranslate.debug.log_items_local_hits);
-                y += ROW_STEP;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.item_dev_log_skills_local_hits"),
-                        () -> item.debug.log_skills_local_hits,
-                        value -> item.debug.log_skills_local_hits = value
-                , tooltip(translator, "label.item_dev_log_skills_local_hits"), DEFAULTS.itemTranslate.debug.log_skills_local_hits);
-                y += ROW_STEP;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.wynn_npc_dialogue_log_dialogues_local_hits"),
-                        () -> resolvedWynnCraft.npc_dialogue.debug.log_dialogues_local_hits,
-                        value -> resolvedWynnCraft.npc_dialogue.debug.log_dialogues_local_hits = value
-                , tooltip(translator, "label.wynn_npc_dialogue_log_dialogues_local_hits"), DEFAULTS.wynnCraft.npc_dialogue.debug.log_dialogues_local_hits);
-                y += ROW_STEP;
-                toggleAdder.add(
-                        x,
-                        y,
-                        width,
-                        translator.t("label.wynntils_task_tracker_log_quests_local_hits"),
-                        () -> resolvedWynnCraft.wynntils_task_tracker.debug.log_quests_local_hits,
-                        value -> resolvedWynnCraft.wynntils_task_tracker.debug.log_quests_local_hits = value
-                , tooltip(translator, "label.wynntils_task_tracker_log_quests_local_hits"), DEFAULTS.wynnCraft.wynntils_task_tracker.debug.log_quests_local_hits);
-                y += ROW_STEP;
-                addGroupBox(
-                        groupBoxAdder,
-                        translator.t("group.log_hits"),
-                        x,
-                        width,
-                        localHitLogsStart,
-                        y);
+                int debugStart = y;
+                for (DebugDimension dimension : DebugDimension.values()) {
+                    actionAdder.add(
+                            x,
+                            y,
+                            width,
+                            translator.t(
+                                    dimension.labelKey(),
+                                    translator.t(levelStateKey(levelOf(resolvedDebug, dimension)))
+                            ),
+                            () -> debugLevelCycle.accept(dimension),
+                            tooltip(translator, dimension.labelKey())
+                    );
+                    y += ROW_STEP;
+                }
+                addGroupBox(groupBoxAdder, translator.t("group.debug_dimensions"), x, width, debugStart, y);
                 return y;
             }
             case SCOREBOARD -> {
@@ -908,14 +598,8 @@ public final class ConfigSectionContentSupport {
                 if (wynnCraft.npc_dialogue == null) {
                     wynnCraft.npc_dialogue = new WynnCraftConfig.NpcDialogueConfig();
                 }
-                if (wynnCraft.npc_dialogue.debug == null) {
-                    wynnCraft.npc_dialogue.debug = new WynnCraftConfig.DebugConfig();
-                }
                 if (wynnCraft.wynntils_task_tracker == null) {
                     wynnCraft.wynntils_task_tracker = new WynnCraftConfig.WynntilsTaskTrackerConfig();
-                }
-                if (wynnCraft.wynntils_task_tracker.debug == null) {
-                    wynnCraft.wynntils_task_tracker.debug = new WynnCraftConfig.DebugConfig();
                 }
                 if (wynnCraft.wynntils_task_tracker.keybinding == null) {
                     wynnCraft.wynntils_task_tracker.keybinding = new WynnCraftConfig.KeybindingConfig();
@@ -1658,6 +1342,81 @@ public final class ConfigSectionContentSupport {
     @FunctionalInterface
     public interface ProviderSectionAdder {
         int add(ProviderManagerConfig providerManager, int x, int y, int width, int viewportHeight);
+    }
+
+    public static LogLevel levelOf(DebugConfig debug, DebugDimension dimension) {
+        if (debug == null) {
+            return LogLevel.OFF;
+        }
+        LogLevel level = dimensionLevel(debug, dimension);
+        return level == null ? LogLevel.OFF : level;
+    }
+
+    public static void setLevel(DebugConfig debug, DebugDimension dimension, LogLevel level) {
+        if (debug == null) {
+            return;
+        }
+        switch (dimension) {
+            case FLOW -> debug.flow = level;
+            case TIMING -> debug.timing = level;
+            case STRUCTURE -> debug.structure = level;
+            case LOCAL_HITS -> debug.localHits = level;
+            case LLM_STATS -> debug.llmStats = level;
+        }
+    }
+
+    public static String levelStateKey(LogLevel level) {
+        if (level == LogLevel.SUMMARY) {
+            return "state.debug_level_summary";
+        }
+        if (level == LogLevel.DETAIL) {
+            return "state.debug_level_detail";
+        }
+        return "state.debug_level_off";
+    }
+
+    public static LogLevel nextLevel(LogLevel level) {
+        if (level == LogLevel.SUMMARY) {
+            return LogLevel.DETAIL;
+        }
+        if (level == LogLevel.DETAIL) {
+            return LogLevel.OFF;
+        }
+        return LogLevel.SUMMARY;
+    }
+
+    private static LogLevel dimensionLevel(DebugConfig debug, DebugDimension dimension) {
+        return switch (dimension) {
+            case FLOW -> debug.flow;
+            case TIMING -> debug.timing;
+            case STRUCTURE -> debug.structure;
+            case LOCAL_HITS -> debug.localHits;
+            case LLM_STATS -> debug.llmStats;
+        };
+    }
+
+    public enum DebugDimension {
+        FLOW("label.debug_flow", "label.debug_name_flow"),
+        TIMING("label.debug_timing", "label.debug_name_timing"),
+        STRUCTURE("label.debug_structure", "label.debug_name_structure"),
+        LOCAL_HITS("label.debug_local_hits", "label.debug_name_local_hits"),
+        LLM_STATS("label.debug_llm_stats", "label.debug_name_llm_stats");
+
+        private final String labelKey;
+        private final String nameKey;
+
+        DebugDimension(String labelKey, String nameKey) {
+            this.labelKey = labelKey;
+            this.nameKey = nameKey;
+        }
+
+        public String labelKey() {
+            return labelKey;
+        }
+
+        public String nameKey() {
+            return nameKey;
+        }
     }
 
     public enum HotkeyTarget {

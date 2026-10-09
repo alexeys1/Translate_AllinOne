@@ -13,6 +13,8 @@ import com.alexeys.translate_allinone.utils.cache.TranslationStatus;
 import com.alexeys.translate_allinone.utils.config.ProviderRouteResolver;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.alexeys.translate_allinone.utils.config.pojos.ChatTranslateConfig;
+import com.alexeys.translate_allinone.utils.config.pojos.DebugConfig;
+import com.alexeys.translate_allinone.utils.config.pojos.LogLevel;
 import com.alexeys.translate_allinone.utils.llmapi.LLM;
 import com.alexeys.translate_allinone.utils.llmapi.LlmRequestLifecycle;
 import com.alexeys.translate_allinone.utils.llmapi.ProviderSettings;
@@ -1813,31 +1815,35 @@ public class ChatOutputTranslateManager {
     }
 
     private static boolean shouldLogInterceptedMessage() {
-        ChatTranslateConfig.ChatOutputTranslateConfig.DebugConfig debugConfig = getDebugConfig();
-        return debugConfig != null && debugConfig.enabled && debugConfig.log_intercepted_message;
+        return chatOutputDebugLevel(DebugDimension.FLOW) != LogLevel.OFF;
     }
 
     private static boolean shouldLogLlmSubmission() {
-        ChatTranslateConfig.ChatOutputTranslateConfig.DebugConfig debugConfig = getDebugConfig();
-        return debugConfig != null && debugConfig.enabled && debugConfig.log_llm_submission;
+        return chatOutputDebugLevel(DebugDimension.LLM_STATS) == LogLevel.DETAIL;
     }
 
     private static boolean shouldLogReflowMapping() {
-        ChatTranslateConfig.ChatOutputTranslateConfig.DebugConfig debugConfig = getDebugConfig();
-        return debugConfig != null && debugConfig.enabled && debugConfig.log_reflow_mapping;
+        return chatOutputDebugLevel(DebugDimension.FLOW) != LogLevel.OFF;
     }
 
-    private static ChatTranslateConfig.ChatOutputTranslateConfig.DebugConfig getDebugConfig() {
+    private static LogLevel chatOutputDebugLevel(DebugDimension dimension) {
         try {
-            if (Translate_AllinOne.getConfig() == null
-                    || Translate_AllinOne.getConfig().chatTranslate == null
-                    || Translate_AllinOne.getConfig().chatTranslate.output == null) {
-                return null;
+            DebugConfig debug = Translate_AllinOne.getConfig().debug;
+            if (debug == null) {
+                return LogLevel.OFF;
             }
-            return Translate_AllinOne.getConfig().chatTranslate.output.debug;
+            return switch (dimension) {
+                case FLOW -> debug.flow;
+                case LLM_STATS -> debug.llmStats;
+            };
         } catch (Throwable ignored) {
-            return null;
+            return LogLevel.OFF;
         }
+    }
+
+    private enum DebugDimension {
+        FLOW,
+        LLM_STATS
     }
 
     private static String describeApiMessages(List<OpenAIRequest.Message> apiMessages) {

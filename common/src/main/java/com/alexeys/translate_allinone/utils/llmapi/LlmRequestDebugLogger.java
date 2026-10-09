@@ -17,11 +17,14 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BooleanSupplier;
+import java.util.function.IntSupplier;
 
 final class LlmRequestDebugLogger {
     private static final Logger LOGGER = LoggerFactory.getLogger("translate_allinone");
-    private static volatile BooleanSupplier requestTextStatsEnabled = () -> false;
+    private static final int LEVEL_OFF = 0;
+    private static final int LEVEL_SUMMARY = 1;
+    private static final int LEVEL_DETAIL = 2;
+    private static volatile IntSupplier requestTextStatsLevel = () -> LEVEL_OFF;
     private static volatile boolean statsEnabled;
     private static final int MESSAGE_PREVIEW_HEAD_CHARS = 220;
     private static final int MESSAGE_PREVIEW_TAIL_CHARS = 140;
@@ -32,8 +35,8 @@ final class LlmRequestDebugLogger {
     private LlmRequestDebugLogger() {
     }
 
-    static void configureRequestTextStatsLogging(BooleanSupplier enabledSupplier) {
-        requestTextStatsEnabled = enabledSupplier == null ? () -> false : enabledSupplier;
+    static void configureRequestTextStatsLogging(IntSupplier levelSupplier) {
+        requestTextStatsLevel = levelSupplier == null ? () -> LEVEL_OFF : levelSupplier;
     }
 
     static void refresh() {
@@ -61,6 +64,9 @@ final class LlmRequestDebugLogger {
 
         RequestTextStats stats = summarize(messages);
         SeenCounts seenCounts = registerSeenCounts(stats);
+        String messagePreview = requestTextStatsInDetail()
+                ? formatMessagePreview(stats.messages())
+                : "<omitted at summary level>";
         LOGGER.info(
                 "[LLMDev:request] api={} provider={} model={} streaming={} structuredOutput={} dispatch={} sendAttempt={} messages={} totalChars={} totalCodePoints={} totalUtf8Bytes={} estimatedTokens={} charsByRole={} estimatedTokensByRole={} tokenShareByRole={} roleFingerprints={} roleSeenCounts={} messageStats={} messagePreview={} requestFingerprint={} requestSeenCount={} context={}",
                 api,
@@ -81,7 +87,7 @@ final class LlmRequestDebugLogger {
                 formatRoleFingerprints(stats.roleStats()),
                 formatRoleSeenCounts(seenCounts.roleSeenCounts()),
                 formatMessageStats(stats.messages()),
-                formatMessagePreview(stats.messages()),
+                messagePreview,
                 stats.requestFingerprint(),
                 seenCounts.requestSeenCount(),
                 requestContext == null ? "" : requestContext
@@ -155,10 +161,18 @@ final class LlmRequestDebugLogger {
     }
 
     private static boolean shouldLogLlmRequestTextStats() {
+        return requestTextStatsOrdinal() != LEVEL_OFF;
+    }
+
+    private static boolean requestTextStatsInDetail() {
+        return requestTextStatsOrdinal() >= LEVEL_DETAIL;
+    }
+
+    private static int requestTextStatsOrdinal() {
         try {
-            return requestTextStatsEnabled.getAsBoolean();
+            return requestTextStatsLevel.getAsInt();
         } catch (Throwable ignored) {
-            return false;
+            return LEVEL_OFF;
         }
     }
 

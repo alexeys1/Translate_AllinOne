@@ -41,10 +41,6 @@ public final class UiTranslationScope {
         if (adapter == null && parent != null) {
             adapter = parent.adapter;
         }
-        UiTranslationDiagnostics.recordScreen(
-                screenObject == null ? null : screenObject.getClass().getName(),
-                adapter
-        );
         if (adapter == null) {
             return Scope.inactive();
         }

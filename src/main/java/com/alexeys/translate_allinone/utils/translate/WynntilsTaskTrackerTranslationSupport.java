@@ -8,6 +8,8 @@ import com.alexeys.translate_allinone.utils.cache.TranslationStatus;
 import com.alexeys.translate_allinone.utils.cache.WynntilsTaskTrackerTextCache;
 import com.alexeys.translate_allinone.utils.config.ProviderRouteResolver;
 import com.alexeys.translate_allinone.utils.config.ModConfig;
+import com.alexeys.translate_allinone.utils.config.pojos.DebugConfig;
+import com.alexeys.translate_allinone.utils.config.pojos.LogLevel;
 import com.alexeys.translate_allinone.utils.config.pojos.WynnCraftConfig;
 import com.alexeys.translate_allinone.utils.input.KeybindingManager;
 import com.alexeys.translate_allinone.utils.text.LegacyComponentTextCodec;
@@ -160,8 +162,16 @@ public final class WynntilsTaskTrackerTranslationSupport {
     }
 
     public static boolean isDebugEnabled() {
-        WynnCraftConfig.WynntilsTaskTrackerConfig trackerConfig = getTrackerConfig();
-        return trackerConfig != null && trackerConfig.debug != null && trackerConfig.debug.enabled;
+        return flowLevel() != LogLevel.OFF;
+    }
+
+    private static LogLevel flowLevel() {
+        try {
+            DebugConfig debug = Translate_AllinOne.getConfig().debug;
+            return debug == null || debug.flow == null ? LogLevel.OFF : debug.flow;
+        } catch (IllegalStateException ignored) {
+            return LogLevel.OFF;
+        }
     }
 
     public static boolean shouldUsePlainTitleFont() {
@@ -235,10 +245,12 @@ public final class WynntilsTaskTrackerTranslationSupport {
     }
 
     private static boolean isQuestLocalHitLoggingEnabled() {
-        WynnCraftConfig.WynntilsTaskTrackerConfig trackerConfig = getTrackerConfig();
-        return trackerConfig != null
-                && trackerConfig.debug != null
-                && trackerConfig.debug.log_quests_local_hits;
+        try {
+            DebugConfig debug = Translate_AllinOne.getConfig().debug;
+            return debug != null && debug.localHits != LogLevel.OFF;
+        } catch (IllegalStateException ignored) {
+            return false;
+        }
     }
 
     private static void maybeForceRefreshCurrentTemplate(String translationTemplateKey) {

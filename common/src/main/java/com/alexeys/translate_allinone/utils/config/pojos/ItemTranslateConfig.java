@@ -1,7 +1,5 @@
 package com.alexeys.translate_allinone.utils.config.pojos;
 
-import com.google.gson.annotations.SerializedName;
-
 public class ItemTranslateConfig {
     public boolean enabled = false;
     public boolean enabled_translate_item_custom_name = false;
@@ -11,10 +9,7 @@ public class ItemTranslateConfig {
     public int max_batch_size = 10;
     public String target_language = "Chinese";
 
-    public boolean log_skills_local_hits = false;
     public KeybindingConfig keybinding = new KeybindingConfig();
-    @SerializedName(value = "debug", alternate = {"dev"})
-    public DebugConfig debug = new DebugConfig();
 
     public enum KeybindingMode {
         HOLD_TO_TRANSLATE,
@@ -26,21 +21,5 @@ public class ItemTranslateConfig {
         public KeybindingMode mode = KeybindingMode.HOLD_TO_TRANSLATE;
         public InputBindingConfig binding = new InputBindingConfig();
         public InputBindingConfig refreshBinding = new InputBindingConfig();
-    }
-
-    public static class DebugConfig {
-        public boolean enabled = false;
-        public boolean log_items_local_hits = false;
-        public boolean log_skills_local_hits = false;
-        public boolean log_tooltip_filter_result = false;
-        public boolean log_tooltip_node_summary = false;
-        public boolean log_tooltip_paragraph_result = false;
-        public boolean log_tooltip_style_map = false;
-        public boolean log_tooltip_timing = false;
-        public boolean log_component_flow = false;
-        public boolean log_component_text_content = false;
-        public boolean log_component_timing = false;
-        public boolean log_item_batch_timing = false;
-        public boolean log_cache_migration = false;
     }
 }

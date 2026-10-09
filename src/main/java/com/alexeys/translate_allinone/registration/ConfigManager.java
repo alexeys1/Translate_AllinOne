@@ -13,7 +13,6 @@ import com.alexeys.translate_allinone.utils.translate.WynnDialogueTranslateManag
 import com.alexeys.translate_allinone.utils.translate.WynntilsTaskTrackerTranslateManager;
 import com.alexeys.translate_allinone.utils.config.pojos.ChatTranslateConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.CacheBackupConfig;
-import com.alexeys.translate_allinone.utils.config.pojos.DebugConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.DictionaryConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.InputBindingConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ItemTranslateConfig;
@@ -152,7 +151,6 @@ public class ConfigManager {
             boolean shouldRewriteConfig = parsedConfig == null || hasLegacyConfigAliases(rawConfig);
             boolean missingOtherTranslationsMasterSwitch = shouldRewriteOtherTranslationsMasterSwitch(rawConfig);
             ModConfig loadedConfig = normalizeConfig(parsedConfig);
-            boolean migratedLegacyItemDebugConfig = migrateLegacyItemDebugConfig(rawConfig, loadedConfig);
             boolean migratedLegacyItemWynnCompatibilityConfig = ConfigMigrationSupport.hasDeprecatedWynnItemCompatibilityConfig(rawConfig);
             boolean migratedLegacyWynnTargetLanguageConfig = migrateLegacyWynnTargetLanguageConfig(rawConfig, loadedConfig);
             boolean migratedLegacyVanillaAdvancementConfig = migrateLegacyVanillaAdvancementConfig(rawConfig, loadedConfig);
@@ -168,7 +166,6 @@ public class ConfigManager {
 
             if (shouldRewriteConfig
                     || migratedApiKeyEncryption
-                    || migratedLegacyItemDebugConfig
                     || migratedLegacyItemWynnCompatibilityConfig
                     || migratedLegacyWynnTargetLanguageConfig
                     || migratedLegacyVanillaAdvancementConfig
@@ -542,23 +539,8 @@ public class ConfigManager {
         if (configToUse.wynnCraft.npc_dialogue.options_hud == null) {
             configToUse.wynnCraft.npc_dialogue.options_hud = WynnCraftConfig.HudConfig.optionsDefaults();
         }
-        if (configToUse.wynnCraft.npc_dialogue.debug == null) {
-            configToUse.wynnCraft.npc_dialogue.debug = new WynnCraftConfig.DebugConfig();
-        }
-        if (!configToUse.wynnCraft.npc_dialogue.debug.log_dialogues_local_hits
-                && (configToUse.wynnCraft.npc_dialogue.log_dialogues_local_hits
-                || configToUse.wynnCraft.npc_dialogue.debug.log_local_dictionary_hits)) {
-            configToUse.wynnCraft.npc_dialogue.debug.log_dialogues_local_hits = true;
-        }
         if (configToUse.wynnCraft.wynntils_task_tracker == null) {
             configToUse.wynnCraft.wynntils_task_tracker = new WynnCraftConfig.WynntilsTaskTrackerConfig();
-        }
-        if (configToUse.wynnCraft.wynntils_task_tracker.debug == null) {
-            configToUse.wynnCraft.wynntils_task_tracker.debug = new WynnCraftConfig.DebugConfig();
-        }
-        if (!configToUse.wynnCraft.wynntils_task_tracker.debug.log_quests_local_hits
-                && configToUse.wynnCraft.wynntils_task_tracker.debug.log_local_dictionary_hits) {
-            configToUse.wynnCraft.wynntils_task_tracker.debug.log_quests_local_hits = true;
         }
         if (configToUse.wynnCraft.wynntils_task_tracker.keybinding == null) {
             configToUse.wynnCraft.wynntils_task_tracker.keybinding = new WynnCraftConfig.KeybindingConfig();
@@ -575,9 +557,6 @@ public class ConfigManager {
         if (configToUse.cacheBackup.enabled == null) {
             configToUse.cacheBackup.enabled = CacheBackupConfig.DEFAULT_ENABLED;
         }
-        if (configToUse.debug == null) {
-            configToUse.debug = new DebugConfig();
-        }
         if (configToUse.providerManager == null) {
             configToUse.providerManager = new ProviderManagerConfig();
         }
@@ -587,9 +566,6 @@ public class ConfigManager {
         }
         if (configToUse.chatTranslate.output == null) {
             configToUse.chatTranslate.output = new ChatTranslateConfig.ChatOutputTranslateConfig();
-        }
-        if (configToUse.chatTranslate.output.debug == null) {
-            configToUse.chatTranslate.output.debug = new ChatTranslateConfig.ChatOutputTranslateConfig.DebugConfig();
         }
         if (configToUse.chatTranslate.output.target_language == null
                 || configToUse.chatTranslate.output.target_language.isBlank()) {
@@ -646,9 +622,6 @@ public class ConfigManager {
         if (configToUse.otherTranslations.keybinding.refreshBinding == null) {
             configToUse.otherTranslations.keybinding.refreshBinding = new InputBindingConfig();
         }
-        if (configToUse.otherTranslations.debug == null) {
-            configToUse.otherTranslations.debug = new OtherTranslationsConfig.DebugConfig();
-        }
         configToUse.otherTranslations.max_concurrent_requests = Math.max(1, configToUse.otherTranslations.max_concurrent_requests);
         configToUse.otherTranslations.max_batch_size = Math.max(1, configToUse.otherTranslations.max_batch_size);
         configToUse.otherTranslations.sign_translation_radius = clamp(
@@ -666,15 +639,6 @@ public class ConfigManager {
                 256,
                 16_384
         );
-        if (configToUse.itemTranslate.debug == null) {
-            configToUse.itemTranslate.debug = new ItemTranslateConfig.DebugConfig();
-        }
-        if (!configToUse.itemTranslate.debug.log_items_local_hits
-                && !configToUse.itemTranslate.debug.log_skills_local_hits
-                && configToUse.itemTranslate.log_skills_local_hits) {
-            configToUse.itemTranslate.debug.log_items_local_hits = true;
-            configToUse.itemTranslate.debug.log_skills_local_hits = true;
-        }
         if (configToUse.scoreboardTranslate.keybinding == null) {
             configToUse.scoreboardTranslate.keybinding = new ScoreboardConfig.KeybindingConfig();
         }
@@ -687,9 +651,6 @@ public class ConfigManager {
         if (configToUse.scoreboardTranslate.external_custom_scoreboard_mode == null) {
             configToUse.scoreboardTranslate.external_custom_scoreboard_mode =
                     ScoreboardConfig.ExternalCustomScoreboardMode.DISABLED;
-        }
-        if (configToUse.scoreboardTranslate.debug == null) {
-            configToUse.scoreboardTranslate.debug = new ScoreboardConfig.DebugConfig();
         }
         configToUse.wynnCraft.npc_dialogue.hud.scale_percent = clamp(
                 configToUse.wynnCraft.npc_dialogue.hud.scale_percent,
@@ -787,24 +748,6 @@ public class ConfigManager {
         }
     }
 
-    private static boolean migrateLegacyItemDebugConfig(JsonElement rawConfig, ModConfig loadedConfig) {
-        if (loadedConfig == null || loadedConfig.itemTranslate == null || loadedConfig.itemTranslate.debug == null) {
-            return false;
-        }
-
-        boolean migratedLegacyItemDevMode = false;
-        if (!hasExplicitItemDebugEnabled(rawConfig) && isLegacyItemDevModeEnabled(rawConfig)) {
-            loadedConfig.itemTranslate.debug.enabled = true;
-            migratedLegacyItemDevMode = true;
-        }
-
-        boolean migratedLegacyLocalHitLogging = migrateLegacyItemLocalHitLogging(rawConfig, loadedConfig);
-
-        return migratedLegacyItemDevMode
-                || migratedLegacyLocalHitLogging
-                || shouldRewriteLegacyItemDebugObject(rawConfig);
-    }
-
     private static boolean migrateLegacyComponentRoutingConfig(JsonElement rawConfig, ModConfig loadedConfig) {
         if (rawConfig == null || !rawConfig.isJsonObject() || loadedConfig == null) {
             return false;
@@ -813,7 +756,7 @@ public class ConfigManager {
         JsonObject item = getItemTranslateObject(rawConfig);
         JsonObject scoreboard = getNestedObject(root, "scoreboardTranslate");
         JsonObject other = getOtherTranslationsObject(rawConfig);
-        boolean migrated = hasAnyField(item,
+        return hasAnyField(item,
                 "component_json_v1_tooltip_lines",
                 "component_json_v1_tooltip_structured",
                 "component_json_v1_tooltip_paragraph",
@@ -824,17 +767,6 @@ public class ConfigManager {
                 "component_json_v1_signs",
                 "component_json_v1_entity_text",
                 "component_json_v1_written_books");
-        if (loadedConfig.itemTranslate != null && loadedConfig.itemTranslate.debug != null) {
-            JsonObject debug = getNestedObject(item, "debug");
-            migrated |= migrateBoolean(debug, "log_component_v1_flow", loadedConfig.itemTranslate.debug, "log_component_flow");
-            migrated |= migrateBoolean(debug, "log_component_v1_text_content", loadedConfig.itemTranslate.debug, "log_component_text_content");
-            migrated |= migrateBoolean(debug, "log_component_v1_timing", loadedConfig.itemTranslate.debug, "log_component_timing");
-        }
-        if (loadedConfig.otherTranslations != null && loadedConfig.otherTranslations.debug != null) {
-            JsonObject debug = getNestedObject(other, "debug");
-            migrated |= migrateBoolean(debug, "log_component_v1_entity_identity", loadedConfig.otherTranslations.debug, "log_component_entity_identity");
-        }
-        return migrated;
     }
 
     private static boolean removeOtherTranslationsRequestsPerMinute(JsonElement rawConfig) {
@@ -896,31 +828,6 @@ public class ConfigManager {
                 || root.has("scoreboardConfig")
                 || root.has("chatTranslateConfig")
                 || root.has("ChatTranslateConfig");
-    }
-
-    private static boolean migrateBoolean(JsonObject source, String oldName, Object target, String newName) {
-        if (source == null || !source.has(oldName) || !source.get(oldName).isJsonPrimitive()
-                || !source.get(oldName).getAsJsonPrimitive().isBoolean()) {
-            return false;
-        }
-        if (source.has(newName)) {
-            return true;
-        }
-        boolean value = source.get(oldName).getAsBoolean();
-        if (target instanceof ItemTranslateConfig.DebugConfig itemDebug) {
-            switch (newName) {
-                case "log_component_flow" -> itemDebug.log_component_flow = value;
-                case "log_component_text_content" -> itemDebug.log_component_text_content = value;
-                case "log_component_timing" -> itemDebug.log_component_timing = value;
-                default -> throw new IllegalArgumentException("Unknown item Component debug field: " + newName);
-            }
-        } else if (target instanceof OtherTranslationsConfig.DebugConfig otherDebug) {
-            if (!"log_component_entity_identity".equals(newName)) {
-                throw new IllegalArgumentException("Unknown other Component debug field: " + newName);
-            }
-            otherDebug.log_component_entity_identity = value;
-        }
-        return true;
     }
 
     private static boolean migrateLegacyWynnTargetLanguageConfig(JsonElement rawConfig, ModConfig loadedConfig) {
@@ -1032,57 +939,6 @@ public class ConfigManager {
         copy.type = source.type == null ? InputBindingConfig.InputType.KEYSYM : source.type;
         copy.code = source.code;
         return copy;
-    }
-
-    private static boolean hasExplicitItemDebugEnabled(JsonElement rawConfig) {
-        JsonObject debugObject = getItemDebugObject(rawConfig);
-        if (debugObject != null && debugObject.has("enabled")) {
-            return true;
-        }
-
-        JsonObject legacyDevObject = getLegacyItemDevObject(rawConfig);
-        return legacyDevObject != null && legacyDevObject.has("enabled");
-    }
-
-    private static boolean shouldRewriteLegacyItemDebugObject(JsonElement rawConfig) {
-        return getLegacyItemDevObject(rawConfig) != null && getItemDebugObject(rawConfig) == null;
-    }
-
-    private static boolean migrateLegacyItemLocalHitLogging(JsonElement rawConfig, ModConfig loadedConfig) {
-        if (!hasLegacyItemLocalHitLogging(rawConfig)) {
-            return false;
-        }
-
-        if (isLegacyItemLocalHitLoggingEnabled(rawConfig)
-                && !loadedConfig.itemTranslate.debug.log_items_local_hits
-                && !loadedConfig.itemTranslate.debug.log_skills_local_hits) {
-            loadedConfig.itemTranslate.debug.log_items_local_hits = true;
-            loadedConfig.itemTranslate.debug.log_skills_local_hits = true;
-        }
-        return true;
-    }
-
-    private static boolean hasLegacyItemLocalHitLogging(JsonElement rawConfig) {
-        JsonObject itemTranslateObject = getItemTranslateObject(rawConfig);
-        return hasBooleanField(itemTranslateObject, "log_local_dictionary_hits")
-                || hasBooleanField(getItemDebugObject(rawConfig), "log_local_dictionary_hits")
-                || hasBooleanField(getLegacyItemDevObject(rawConfig), "log_local_dictionary_hits");
-    }
-
-    private static boolean isLegacyItemLocalHitLoggingEnabled(JsonElement rawConfig) {
-        JsonObject itemTranslateObject = getItemTranslateObject(rawConfig);
-        return getBooleanField(itemTranslateObject, "log_local_dictionary_hits")
-                || getBooleanField(getItemDebugObject(rawConfig), "log_local_dictionary_hits")
-                || getBooleanField(getLegacyItemDevObject(rawConfig), "log_local_dictionary_hits");
-    }
-
-    private static boolean isLegacyItemDevModeEnabled(JsonElement rawConfig) {
-        JsonObject itemTranslateObject = getItemTranslateObject(rawConfig);
-        if (itemTranslateObject == null || !itemTranslateObject.has("dev_mode")) {
-            return false;
-        }
-        JsonElement legacyDevMode = itemTranslateObject.get("dev_mode");
-        return legacyDevMode != null && legacyDevMode.isJsonPrimitive() && legacyDevMode.getAsBoolean();
     }
 
     private static boolean hasBooleanField(JsonObject object, String fieldName) {

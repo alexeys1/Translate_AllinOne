@@ -126,7 +126,6 @@ public final class ComponentTranslationRuntimeCore {
             );
             return new Resolution<>(State.INELIGIBLE, null, "", e.getMessage());
         }
-        ComponentTranslationDebugLogger.textContent(document, request.identity().key());
 
         if (alreadyInTargetLanguage(document, targetLanguage)) {
             T identityValue = null;
@@ -1644,8 +1643,6 @@ public final class ComponentTranslationRuntimeCore {
 
         void error(ComponentTranslationRoute route, String message, Object... arguments);
 
-        void textContent(ComponentTranslationDocument document, String cacheKey);
-
         void entityIdentityMiss(
                 ComponentTranslationDocument document,
                 String targetLanguage,
@@ -1743,10 +1740,6 @@ public final class ComponentTranslationRuntimeCore {
 
         private static void error(ComponentTranslationRoute route, String message, Object... arguments) {
             access().error(route, message, arguments);
-        }
-
-        private static void textContent(ComponentTranslationDocument document, String cacheKey) {
-            access().textContent(document, cacheKey);
         }
 
         private static void entityIdentityMiss(

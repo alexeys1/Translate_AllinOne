@@ -9,7 +9,9 @@ import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationMe
 import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationPolicy;
 import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationRoute;
 import com.alexeys.translate_allinone.utils.componentjson.ComponentJsonException;
+import com.alexeys.translate_allinone.utils.config.pojos.DebugConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ItemTranslateConfig;
+import com.alexeys.translate_allinone.utils.config.pojos.LogLevel;
 import com.alexeys.translate_allinone.utils.text.StylePreserver;
 import com.alexeys.translate_allinone.utils.text.TemplateProcessor;
 import com.alexeys.translate_allinone.utils.textmatcher.FlatNode;
@@ -1622,10 +1624,10 @@ final class TooltipTemplateRuntime {
             String translation
     ) {
         String resolvedStatus = status == null || status.isBlank() ? "hit" : status;
-        String resolvedDictionaryId = resolveItemLocalLookupLogDictionaryId(config, dictionaryId);
-        if (!isItemLocalHitLoggingEnabled(config, resolvedDictionaryId)) {
+        if (!localHitsEnabled()) {
             return;
         }
+        String resolvedDictionaryId = dictionaryId == null || dictionaryId.isBlank() ? "item_skill" : dictionaryId;
 
         String normalized = originalText == null ? "" : originalText.replaceAll("\\s+", " ").trim();
         String normalizedLookup = lookupText == null || lookupText.isBlank()
@@ -1656,34 +1658,13 @@ final class TooltipTemplateRuntime {
         );
     }
 
-    private static String resolveItemLocalLookupLogDictionaryId(ItemTranslateConfig config, String dictionaryId) {
-        if (dictionaryId != null && !dictionaryId.isBlank()) {
-            return dictionaryId;
-        }
-        if (config == null || config.debug == null) {
-            return "item_skill";
-        }
-        if (config.debug.log_items_local_hits && !config.debug.log_skills_local_hits) {
-            return "items";
-        }
-        if (config.debug.log_skills_local_hits && !config.debug.log_items_local_hits) {
-            return "skills";
-        }
-        return "item_skill";
-    }
-
-    private static boolean isItemLocalHitLoggingEnabled(ItemTranslateConfig config, String dictionaryId) {
-        if (config == null || config.debug == null) {
+    private static boolean localHitsEnabled() {
+        try {
+            DebugConfig debug = Translate_AllinOne.getConfig().debug;
+            return debug != null && debug.localHits != LogLevel.OFF;
+        } catch (IllegalStateException ignored) {
             return false;
         }
-
-        String resolvedDictionaryId = dictionaryId == null ? "" : dictionaryId.trim().toLowerCase(Locale.ROOT);
-        return switch (resolvedDictionaryId) {
-            case "item", "items" -> config.debug.log_items_local_hits;
-            case "skill", "skills" -> config.debug.log_skills_local_hits;
-            case "item_skill" -> config.debug.log_items_local_hits || config.debug.log_skills_local_hits;
-            default -> config.debug.log_items_local_hits || config.debug.log_skills_local_hits;
-        };
     }
 
     private static ItemTranslateConfig currentItemTranslateConfig() {

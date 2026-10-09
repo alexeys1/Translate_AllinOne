@@ -622,10 +622,6 @@ class ComponentTranslationRuntimeCoreTest {
         }
 
         @Override
-        public void textContent(ComponentTranslationDocument document, String cacheKey) {
-        }
-
-        @Override
         public void entityIdentityMiss(
                 ComponentTranslationDocument document,
                 String targetLanguage,

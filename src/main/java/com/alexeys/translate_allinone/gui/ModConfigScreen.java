@@ -42,19 +42,23 @@ import com.alexeys.translate_allinone.utils.config.ui.ModelSettingsValueSupport;
 import com.alexeys.translate_allinone.utils.config.ui.ProviderManagerMutationSupport;
 import com.alexeys.translate_allinone.utils.config.ui.ProviderProfileSupport;
 import com.alexeys.translate_allinone.utils.cache.CacheBackupManager;
+import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationDebugLogger;
 import com.alexeys.translate_allinone.utils.config.ModConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderType;
 import com.alexeys.translate_allinone.utils.config.pojos.CacheBackupConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ChatTranslateConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.CustomParameterEntry;
+import com.alexeys.translate_allinone.utils.config.pojos.DebugConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.DictionaryConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.InputBindingConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ItemTranslateConfig;
+import com.alexeys.translate_allinone.utils.config.pojos.LogLevel;
 import com.alexeys.translate_allinone.utils.config.pojos.OtherTranslationsConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ProviderManagerConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ScoreboardConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.WynnCraftConfig;
+import com.alexeys.translate_allinone.utils.llmapi.LLM;
 import com.alexeys.translate_allinone.utils.input.KeybindingManager;
 import com.alexeys.translate_allinone.utils.translate.DictionaryFileSelectionSupport;
 import com.alexeys.translate_allinone.utils.update.UpdateCheckManager;
@@ -743,6 +747,7 @@ public class ModConfigScreen extends Screen {
                 this::cycleHotkeyMode,
                 this::cycleExternalScoreboardMode,
                 this::cycleOriginalDisplayMode,
+                this::cycleDebugLevel,
                 this::setScreenTranslationEnabled,
                 this::openDictionaryFilesModal,
                 this::openDictionaryDirectory,
@@ -1902,6 +1907,20 @@ public class ModConfigScreen extends Screen {
                 ),
                 COLOR_STATUS_OK
         );
+        rebuildActionBlocks();
+    }
+
+    private void cycleDebugLevel(ConfigSectionContentSupport.DebugDimension dimension) {
+        DebugConfig debug = Translate_AllinOne.getConfig().debug;
+        if (debug == null) {
+            debug = new DebugConfig();
+            Translate_AllinOne.getConfig().debug = debug;
+        }
+        LogLevel next = ConfigSectionContentSupport.nextLevel(ConfigSectionContentSupport.levelOf(debug, dimension));
+        ConfigSectionContentSupport.setLevel(debug, dimension, next);
+        ComponentTranslationDebugLogger.refresh(Translate_AllinOne.getConfig());
+        LLM.refreshRequestTextStatsLogging();
+        setStatus(t("status.debug_level_changed", t(dimension.nameKey()), t(ConfigSectionContentSupport.levelStateKey(next))), COLOR_STATUS_OK);
         rebuildActionBlocks();
     }
 

@@ -1,7 +1,5 @@
 package com.alexeys.translate_allinone.utils.config.pojos;
 
-import com.google.gson.annotations.SerializedName;
-
 public class WynnCraftConfig {
     public static final String DEFAULT_TARGET_LANGUAGE = "Chinese";
 
@@ -14,11 +12,8 @@ public class WynnCraftConfig {
         public boolean use_hud = false;
         public boolean translate_npc_name = true;
         public boolean translate_options = false;
-        public boolean log_dialogues_local_hits = false;
         public HudConfig hud = new HudConfig();
         public HudConfig options_hud = HudConfig.optionsDefaults();
-        @SerializedName(value = "debug", alternate = {"dev"})
-        public DebugConfig debug = new DebugConfig();
     }
 
     public static class HudConfig {
@@ -57,15 +52,6 @@ public class WynnCraftConfig {
         public boolean translate_title = true;
         public boolean translate_description = true;
         public KeybindingConfig keybinding = new KeybindingConfig();
-        @SerializedName(value = "debug", alternate = {"dev"})
-        public DebugConfig debug = new DebugConfig();
-    }
-
-    public static class DebugConfig {
-        public boolean enabled = false;
-        public boolean log_local_dictionary_hits = false;
-        public boolean log_dialogues_local_hits = false;
-        public boolean log_quests_local_hits = false;
     }
 
     public enum KeybindingMode {

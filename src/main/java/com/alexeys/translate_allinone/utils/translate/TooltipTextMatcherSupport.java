@@ -1,7 +1,9 @@
 package com.alexeys.translate_allinone.utils.translate;
 
 import com.alexeys.translate_allinone.Translate_AllinOne;
+import com.alexeys.translate_allinone.utils.config.pojos.DebugConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ItemTranslateConfig;
+import com.alexeys.translate_allinone.utils.config.pojos.LogLevel;
 import com.alexeys.translate_allinone.utils.TranslateStringUtils;
 import com.alexeys.translate_allinone.utils.textmatcher.ContentMatcher;
 import com.alexeys.translate_allinone.utils.textmatcher.FlatNode;
@@ -244,39 +246,31 @@ public final class TooltipTextMatcherSupport {
     }
 
     public static boolean isDevEnabled(ItemTranslateConfig config) {
-        return config != null
-                && config.debug != null
-                && config.debug.enabled;
+        return structureLevel(config) != LogLevel.OFF;
     }
 
     public static boolean shouldLogTooltipFilterResult(ItemTranslateConfig config) {
-        return isDevEnabled(config)
-                && config.debug.log_tooltip_filter_result;
+        return structureLevel(config) != LogLevel.OFF;
     }
 
     public static boolean shouldLogTooltipNodeSummary(ItemTranslateConfig config) {
-        return shouldLogTooltipFilterResult(config)
-                && config.debug.log_tooltip_node_summary;
+        return structureLevel(config) == LogLevel.DETAIL;
     }
 
     public static boolean shouldLogTooltipTiming(ItemTranslateConfig config) {
-        return isDevEnabled(config)
-                && config.debug.log_tooltip_timing;
+        return timingLevel(config) != LogLevel.OFF;
     }
 
     public static boolean shouldLogTooltipParagraphResult(ItemTranslateConfig config) {
-        return isDevEnabled(config)
-                && config.debug.log_tooltip_paragraph_result;
+        return structureLevel(config) != LogLevel.OFF;
     }
 
     public static boolean shouldLogTooltipStyleMap(ItemTranslateConfig config) {
-        return isDevEnabled(config)
-                && config.debug.log_tooltip_style_map;
+        return structureLevel(config) == LogLevel.DETAIL;
     }
 
     public static boolean shouldLogItemCacheMigration(ItemTranslateConfig config) {
-        return isDevEnabled(config)
-                && config.debug.log_cache_migration;
+        return flowLevel(config) != LogLevel.OFF;
     }
 
     public static boolean shouldLogAnyTooltipDev(ItemTranslateConfig config) {
@@ -284,6 +278,39 @@ public final class TooltipTextMatcherSupport {
                 || shouldLogTooltipTiming(config)
                 || shouldLogTooltipParagraphResult(config)
                 || shouldLogTooltipStyleMap(config);
+    }
+
+    private static LogLevel structureLevel(ItemTranslateConfig config) {
+        return level(config, LevelDimension.STRUCTURE);
+    }
+
+    private static LogLevel timingLevel(ItemTranslateConfig config) {
+        return level(config, LevelDimension.TIMING);
+    }
+
+    private static LogLevel flowLevel(ItemTranslateConfig config) {
+        return level(config, LevelDimension.FLOW);
+    }
+
+    private static LogLevel level(ItemTranslateConfig config, LevelDimension dimension) {
+        if (config == null) {
+            return LogLevel.OFF;
+        }
+        DebugConfig debug = Translate_AllinOne.getConfig().debug;
+        if (debug == null) {
+            return LogLevel.OFF;
+        }
+        return switch (dimension) {
+            case STRUCTURE -> debug.structure;
+            case TIMING -> debug.timing;
+            case FLOW -> debug.flow;
+        };
+    }
+
+    private enum LevelDimension {
+        STRUCTURE,
+        TIMING,
+        FLOW
     }
 
     public static void logTooltipGuardIfDev(
