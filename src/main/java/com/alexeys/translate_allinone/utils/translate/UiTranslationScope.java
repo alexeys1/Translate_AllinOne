@@ -9,6 +9,7 @@ import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
@@ -116,23 +117,43 @@ public final class UiTranslationScope {
         activeSessionCache = new HashMap<>();
     }
 
-    public static Scope enterInput() {
+    public static Scope enterInput(String editText) {
         Frame parent = currentFrame();
         if (parent == null) {
             return Scope.inactive();
         }
-        Frame frame = parent.child(parent.role, true, parent.tooltip);
+        Frame frame = parent.child(parent.role, true, parent.tooltip, editText);
         FRAMES.get().push(frame);
         return new Scope(frame);
     }
 
-    public static boolean isActive() {
-        return currentFrame() != null;
+    public static boolean isUserInputText(String text) {
+        if (text == null || text.isBlank()) {
+            return false;
+        }
+        for (Frame frame : FRAMES.get()) {
+            if (frame.input && text.equals(frame.editText)) {
+                return true;
+            }
+        }
+        return false;
     }
 
-    public static boolean isUserInput() {
-        Frame frame = currentFrame();
-        return frame != null && frame.input;
+    static void clearInputFrames() {
+        Deque<Frame> frames = FRAMES.get();
+        Iterator<Frame> iterator = frames.iterator();
+        while (iterator.hasNext()) {
+            if (iterator.next().input) {
+                iterator.remove();
+            }
+        }
+        if (frames.isEmpty()) {
+            FRAMES.remove();
+        }
+    }
+
+    public static boolean isActive() {
+        return currentFrame() != null;
     }
 
     public static UiTextRole role() {
@@ -287,6 +308,7 @@ public final class UiTranslationScope {
         private final boolean input;
         private final boolean tooltip;
         private final int frameId;
+        private final String editText;
 
         private Frame(
                 UiScreenAdapter adapter,
@@ -295,20 +317,32 @@ public final class UiTranslationScope {
                 boolean input,
                 boolean tooltip
         ) {
+            this(adapter, cache, role, input, tooltip, null);
+        }
+
+        private Frame(
+                UiScreenAdapter adapter,
+                Map<CacheKey, UiTranslationResult> cache,
+                UiTextRole role,
+                boolean input,
+                boolean tooltip,
+                String editText
+        ) {
             this.adapter = adapter;
             this.cache = cache;
             this.role = role;
             this.input = input;
             this.tooltip = tooltip;
             this.frameId = UiTranslationRuntime.currentFrameId();
+            this.editText = editText;
         }
 
         private int frameId() {
             return frameId;
         }
 
-        private Frame child(UiTextRole nextRole, boolean nextInput, boolean nextTooltip) {
-            return new Frame(adapter, cache, nextRole, nextInput, nextTooltip);
+        private Frame child(UiTextRole nextRole, boolean nextInput, boolean nextTooltip, String nextEditText) {
+            return new Frame(adapter, cache, nextRole, nextInput, nextTooltip, nextEditText);
         }
     }
 }

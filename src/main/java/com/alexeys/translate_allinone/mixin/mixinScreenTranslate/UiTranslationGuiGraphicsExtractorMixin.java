@@ -69,7 +69,9 @@ public abstract class UiTranslationGuiGraphicsExtractorMixin {
     private FormattedCharSequence translate_allinone$translateComponent(Component source) {
         Component visible = UiTranslationRuntime.translateComponent(source, UiTextRole.OPTION);
         FormattedCharSequence sequence = visible.getVisualOrderText();
-        UiTranslationRuntime.markFormattedSequenceHandled(sequence);
+        if (visible != source) {
+            UiTranslationRuntime.markFormattedSequenceHandled(sequence);
+        }
         return sequence;
     }
 
@@ -89,7 +91,9 @@ public abstract class UiTranslationGuiGraphicsExtractorMixin {
     private FormattedCharSequence translate_allinone$translateTooltip(Component source) {
         Component visible = UiTranslationRuntime.translateComponent(source, UiTextRole.TOOLTIP);
         FormattedCharSequence sequence = visible.getVisualOrderText();
-        UiTranslationRuntime.markFormattedSequenceHandled(sequence);
+        if (visible != source) {
+            UiTranslationRuntime.markFormattedSequenceHandled(sequence);
+        }
         return sequence;
     }
 

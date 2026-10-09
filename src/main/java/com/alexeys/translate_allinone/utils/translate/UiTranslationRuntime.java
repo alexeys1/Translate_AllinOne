@@ -153,7 +153,7 @@ public final class UiTranslationRuntime {
             );
         }
 
-        boolean userInput = UiTranslationScope.isUserInput() && role != UiTextRole.DESCRIPTION;
+        boolean userInput = UiTranslationScope.isUserInputText(sourceText) && role != UiTextRole.DESCRIPTION;
         UiTextFilter.Decision decision = UiScreenTextPolicy.evaluate(
                 sourceText,
                 role,
@@ -170,7 +170,9 @@ public final class UiTranslationRuntime {
                     false
             );
             UiTranslationDiagnostics.recordText(adapter, role, sourceText, decision, result.status());
-            UiTranslationScope.remember(sourceText, role, targetLanguage, result);
+            if (decision.reason() != UiTextFilter.Reason.USER_INPUT) {
+                UiTranslationScope.remember(sourceText, role, targetLanguage, result);
+            }
             return result;
         }
 
@@ -346,6 +348,7 @@ public final class UiTranslationRuntime {
     }
 
     public static void beginFrame() {
+        UiTranslationScope.clearInputFrames();
         HANDLED_FORMATTED_SEQUENCES.remove();
         FRAME_ID++;
         UiTranslationScope.discardStaleFrames(FRAME_ID);
