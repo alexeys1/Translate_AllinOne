@@ -2,6 +2,7 @@ package com.alexeys.translate_allinone.utils.llmapi;
 
 import com.alexeys.translate_allinone.utils.TranslateExceptionUtils;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderType;
+import com.alexeys.translate_allinone.utils.config.pojos.LogLevel;
 import com.alexeys.translate_allinone.utils.llmapi.ollama.OllamaChatRequest;
 import com.alexeys.translate_allinone.utils.llmapi.ollama.OllamaChatResponse;
 import com.alexeys.translate_allinone.utils.llmapi.ollama.OllamaClient;
@@ -20,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.IntSupplier;
+import java.util.function.Supplier;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -28,12 +29,8 @@ public class LLM {
     private static final Logger LOGGER = LoggerFactory.getLogger("translate_allinone");
     private static final ConcurrentMap<String, OutputFormat> COMPONENT_OUTPUT_CAPABILITIES = new ConcurrentHashMap<>();
 
-    public static void configureRequestTextStatsLogging(IntSupplier levelSupplier) {
+    public static void configureRequestTextStatsLogging(Supplier<LogLevel> levelSupplier) {
         LlmRequestDebugLogger.configureRequestTextStatsLogging(levelSupplier);
-    }
-
-    public static void refreshRequestTextStatsLogging() {
-        LlmRequestDebugLogger.refresh();
     }
 
     private final OpenAIClient openAIClient;

@@ -1,5 +1,6 @@
 package com.alexeys.translate_allinone.utils.llmapi;
 
+import com.alexeys.translate_allinone.utils.config.pojos.LogLevel;
 import com.alexeys.translate_allinone.utils.llmapi.openai.OpenAIRequest;
 
 import org.slf4j.Logger;
@@ -17,15 +18,12 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.IntSupplier;
+import java.util.function.Supplier;
 
 final class LlmRequestDebugLogger {
     private static final Logger LOGGER = LoggerFactory.getLogger("translate_allinone");
-    private static final int LEVEL_OFF = 0;
-    private static final int LEVEL_SUMMARY = 1;
-    private static final int LEVEL_DETAIL = 2;
-    private static volatile IntSupplier requestTextStatsLevel = () -> LEVEL_OFF;
-    private static volatile boolean statsEnabled;
+    private static volatile Supplier<LogLevel> requestTextStatsLevel = () -> LogLevel.OFF;
+    private static volatile LogLevel lastRequestTextStatsLevel = LogLevel.OFF;
     private static final int MESSAGE_PREVIEW_HEAD_CHARS = 220;
     private static final int MESSAGE_PREVIEW_TAIL_CHARS = 140;
     private static final int FINGERPRINT_COUNTER_LIMIT = 4096;
@@ -35,17 +33,8 @@ final class LlmRequestDebugLogger {
     private LlmRequestDebugLogger() {
     }
 
-    static void configureRequestTextStatsLogging(IntSupplier levelSupplier) {
-        requestTextStatsLevel = levelSupplier == null ? () -> LEVEL_OFF : levelSupplier;
-    }
-
-    static void refresh() {
-        boolean nowEnabled = shouldLogLlmRequestTextStats();
-        if (statsEnabled && !nowEnabled) {
-            REQUEST_FINGERPRINT_COUNTS.clear();
-            ROLE_FINGERPRINT_COUNTS.clear();
-        }
-        statsEnabled = nowEnabled;
+    static void configureRequestTextStatsLogging(Supplier<LogLevel> levelSupplier) {
+        requestTextStatsLevel = levelSupplier == null ? () -> LogLevel.OFF : levelSupplier;
     }
 
     static void logIfEnabled(
@@ -58,17 +47,24 @@ final class LlmRequestDebugLogger {
             int sendAttempt,
             String requestContext
     ) {
-        if (!shouldLogLlmRequestTextStats()) {
+        LogLevel level = resolveRequestTextStatsLevel();
+        if (lastRequestTextStatsLevel != LogLevel.OFF && level == LogLevel.OFF) {
+            REQUEST_FINGERPRINT_COUNTS.clear();
+            ROLE_FINGERPRINT_COUNTS.clear();
+        }
+        lastRequestTextStatsLevel = level;
+        if (level == LogLevel.OFF) {
             return;
         }
 
-        RequestTextStats stats = summarize(messages);
+        boolean withPreview = level == LogLevel.DETAIL;
+        RequestTextStats stats = summarize(messages, withPreview);
         SeenCounts seenCounts = registerSeenCounts(stats);
-        String messagePreview = requestTextStatsInDetail()
+        String messagePreview = withPreview
                 ? formatMessagePreview(stats.messages())
                 : "<omitted at summary level>";
         LOGGER.info(
-                "[LLMDev:request] api={} provider={} model={} streaming={} structuredOutput={} dispatch={} sendAttempt={} messages={} totalChars={} totalCodePoints={} totalUtf8Bytes={} estimatedTokens={} charsByRole={} estimatedTokensByRole={} tokenShareByRole={} roleFingerprints={} roleSeenCounts={} messageStats={} messagePreview={} requestFingerprint={} requestSeenCount={} context={}",
+                "[LLMDev:request] api={} provider={} model={} streaming={} structuredOutput={} dispatch={} sendAttempt={} totalChars={} totalBytes={} estTokens={} roles={} messages={} messagePreview={} requestFingerprint={} requestSeenCount={} context={}",
                 api,
                 providerName(settings),
                 modelName(settings),
@@ -76,17 +72,11 @@ final class LlmRequestDebugLogger {
                 structuredOutputEnabled,
                 dispatchReason,
                 sendAttempt,
-                stats.messageCount(),
                 stats.totalChars(),
-                stats.totalCodePoints(),
                 stats.totalUtf8Bytes(),
                 stats.estimatedTokens(),
-                formatCharsByRole(stats.roleStats()),
-                formatEstimatedTokensByRole(stats.roleStats()),
-                formatTokenShareByRole(stats.roleStats()),
-                formatRoleFingerprints(stats.roleStats()),
-                formatRoleSeenCounts(seenCounts.roleSeenCounts()),
-                formatMessageStats(stats.messages()),
+                formatRoles(stats.roleStats(), seenCounts.roleSeenCounts()),
+                formatMessages(stats.messages()),
                 messagePreview,
                 stats.requestFingerprint(),
                 seenCounts.requestSeenCount(),
@@ -94,12 +84,11 @@ final class LlmRequestDebugLogger {
         );
     }
 
-    static RequestTextStats summarize(List<OpenAIRequest.Message> messages) {
+    private static RequestTextStats summarize(List<OpenAIRequest.Message> messages, boolean withPreview) {
         List<MessageTextStats> messageStats = new ArrayList<>();
         Map<String, RoleAccumulator> roleAccumulators = new LinkedHashMap<>();
         StringBuilder requestFingerprintSource = new StringBuilder();
         int totalChars = 0;
-        int totalCodePoints = 0;
         int totalUtf8Bytes = 0;
 
         if (messages != null) {
@@ -107,22 +96,19 @@ final class LlmRequestDebugLogger {
                 String role = normalizeRole(message == null ? null : message.role);
                 String content = message == null || message.content == null ? "" : message.content;
                 int charCount = content.length();
-                int codePointCount = content.codePointCount(0, content.length());
                 int utf8Bytes = utf8Length(content);
                 int estimatedTokens = estimateTokens(utf8Bytes);
 
                 messageStats.add(new MessageTextStats(
                         role,
                         charCount,
-                        codePointCount,
                         utf8Bytes,
                         estimatedTokens,
                         shortHash(content),
-                        buildPreview(content)
+                        withPreview ? buildPreview(content) : ""
                 ));
-                roleAccumulators.computeIfAbsent(role, RoleAccumulator::new).add(content, charCount, codePointCount, utf8Bytes);
+                roleAccumulators.computeIfAbsent(role, RoleAccumulator::new).add(content, charCount, utf8Bytes);
                 totalChars += charCount;
-                totalCodePoints += codePointCount;
                 totalUtf8Bytes += utf8Bytes;
                 requestFingerprintSource.append(role).append('\u0000').append(content).append('\u0001');
             }
@@ -130,9 +116,7 @@ final class LlmRequestDebugLogger {
 
         Map<String, RoleTextStats> roleStats = buildRoleStats(roleAccumulators, totalUtf8Bytes);
         return new RequestTextStats(
-                messageStats.size(),
                 totalChars,
-                totalCodePoints,
                 totalUtf8Bytes,
                 estimateTokens(totalUtf8Bytes),
                 Collections.unmodifiableMap(roleStats),
@@ -141,7 +125,7 @@ final class LlmRequestDebugLogger {
         );
     }
 
-    static SeenCounts registerSeenCounts(RequestTextStats stats) {
+    private static SeenCounts registerSeenCounts(RequestTextStats stats) {
         int requestSeenCount = incrementCounter(REQUEST_FINGERPRINT_COUNTS, stats == null ? "" : stats.requestFingerprint());
         Map<String, Integer> roleSeenCounts = new LinkedHashMap<>();
         if (stats != null && stats.roleStats() != null) {
@@ -155,24 +139,12 @@ final class LlmRequestDebugLogger {
         return new SeenCounts(requestSeenCount, Collections.unmodifiableMap(roleSeenCounts));
     }
 
-    static void resetSeenCountsForTest() {
-        REQUEST_FINGERPRINT_COUNTS.clear();
-        ROLE_FINGERPRINT_COUNTS.clear();
-    }
-
-    private static boolean shouldLogLlmRequestTextStats() {
-        return requestTextStatsOrdinal() != LEVEL_OFF;
-    }
-
-    private static boolean requestTextStatsInDetail() {
-        return requestTextStatsOrdinal() >= LEVEL_DETAIL;
-    }
-
-    private static int requestTextStatsOrdinal() {
+    private static LogLevel resolveRequestTextStatsLevel() {
         try {
-            return requestTextStatsLevel.getAsInt();
+            LogLevel level = requestTextStatsLevel.get();
+            return level == null ? LogLevel.OFF : level;
         } catch (Throwable ignored) {
-            return LEVEL_OFF;
+            return LogLevel.OFF;
         }
     }
 
@@ -202,7 +174,7 @@ final class LlmRequestDebugLogger {
         return "";
     }
 
-    private static String formatCharsByRole(Map<String, RoleTextStats> roleStats) {
+    private static String formatRoles(Map<String, RoleTextStats> roleStats, Map<String, Integer> roleSeenCounts) {
         if (roleStats == null || roleStats.isEmpty()) {
             return "{}";
         }
@@ -210,81 +182,21 @@ final class LlmRequestDebugLogger {
         boolean first = true;
         for (RoleTextStats stats : roleStats.values()) {
             if (!first) {
-                builder.append(", ");
-            }
-            builder.append(stats.role()).append('=').append(stats.charCount());
-            first = false;
-        }
-        return builder.append('}').toString();
-    }
-
-    private static String formatEstimatedTokensByRole(Map<String, RoleTextStats> roleStats) {
-        if (roleStats == null || roleStats.isEmpty()) {
-            return "{}";
-        }
-        StringBuilder builder = new StringBuilder("{");
-        boolean first = true;
-        for (RoleTextStats stats : roleStats.values()) {
-            if (!first) {
-                builder.append(", ");
-            }
-            builder.append(stats.role()).append('=').append(stats.estimatedTokens());
-            first = false;
-        }
-        return builder.append('}').toString();
-    }
-
-    private static String formatTokenShareByRole(Map<String, RoleTextStats> roleStats) {
-        if (roleStats == null || roleStats.isEmpty()) {
-            return "{}";
-        }
-        StringBuilder builder = new StringBuilder("{");
-        boolean first = true;
-        for (RoleTextStats stats : roleStats.values()) {
-            if (!first) {
-                builder.append(", ");
+                builder.append("; ");
             }
             builder.append(stats.role())
-                    .append('=')
-                    .append(String.format(Locale.ROOT, "%.2f%%", stats.tokenSharePercent()));
+                    .append(": chars=").append(stats.charCount())
+                    .append(" bytes=").append(stats.utf8Bytes())
+                    .append(" estTokens=").append(stats.estimatedTokens())
+                    .append(" share=").append(String.format(Locale.ROOT, "%.2f%%", stats.tokenSharePercent()))
+                    .append(" fp=").append(stats.fingerprint())
+                    .append(" seen=").append(roleSeenCounts == null ? 0 : roleSeenCounts.getOrDefault(stats.role(), 0));
             first = false;
         }
         return builder.append('}').toString();
     }
 
-    private static String formatRoleFingerprints(Map<String, RoleTextStats> roleStats) {
-        if (roleStats == null || roleStats.isEmpty()) {
-            return "{}";
-        }
-        StringBuilder builder = new StringBuilder("{");
-        boolean first = true;
-        for (RoleTextStats stats : roleStats.values()) {
-            if (!first) {
-                builder.append(", ");
-            }
-            builder.append(stats.role()).append('=').append(stats.fingerprint());
-            first = false;
-        }
-        return builder.append('}').toString();
-    }
-
-    private static String formatRoleSeenCounts(Map<String, Integer> roleSeenCounts) {
-        if (roleSeenCounts == null || roleSeenCounts.isEmpty()) {
-            return "{}";
-        }
-        StringBuilder builder = new StringBuilder("{");
-        boolean first = true;
-        for (Map.Entry<String, Integer> entry : roleSeenCounts.entrySet()) {
-            if (!first) {
-                builder.append(", ");
-            }
-            builder.append(entry.getKey()).append('=').append(entry.getValue());
-            first = false;
-        }
-        return builder.append('}').toString();
-    }
-
-    private static String formatMessageStats(List<MessageTextStats> messageStats) {
+    private static String formatMessages(List<MessageTextStats> messageStats) {
         if (messageStats == null || messageStats.isEmpty()) {
             return "[]";
         }
@@ -294,24 +206,17 @@ final class LlmRequestDebugLogger {
             if (i > 0) {
                 builder.append(", ");
             }
-            builder.append(stats.role())
-                    .append(':')
-                    .append(stats.charCount())
-                    .append('c')
-                    .append('/')
-                    .append(stats.utf8Bytes())
-                    .append('b')
-                    .append('/')
-                    .append('~')
-                    .append(stats.estimatedTokens())
-                    .append('t')
-                    .append('#')
-                    .append(stats.fingerprint());
+            builder.append('#').append(i)
+                    .append(' ').append(stats.role())
+                    .append(" chars=").append(stats.charCount())
+                    .append(" bytes=").append(stats.utf8Bytes())
+                    .append(" estTokens=").append(stats.estimatedTokens())
+                    .append(" fp=").append(stats.fingerprint());
         }
         return builder.append(']').toString();
     }
 
-    static String formatMessagePreview(List<MessageTextStats> messageStats) {
+    private static String formatMessagePreview(List<MessageTextStats> messageStats) {
         if (messageStats == null || messageStats.isEmpty()) {
             return "[]";
         }
@@ -321,10 +226,9 @@ final class LlmRequestDebugLogger {
             if (i > 0) {
                 builder.append(", ");
             }
-            builder.append(stats.role())
-                    .append(":\"")
-                    .append(stats.preview())
-                    .append('"');
+            builder.append('#').append(i)
+                    .append(' ').append(stats.role())
+                    .append(":\"").append(stats.preview()).append('"');
         }
         return builder.append(']').toString();
     }
@@ -345,7 +249,6 @@ final class LlmRequestDebugLogger {
                     new RoleTextStats(
                             accumulator.role,
                             accumulator.charCount,
-                            accumulator.codePointCount,
                             accumulator.utf8Bytes,
                             estimatedTokens,
                             tokenSharePercent,
@@ -380,7 +283,7 @@ final class LlmRequestDebugLogger {
     }
 
     private static int incrementCounter(ConcurrentMap<String, AtomicInteger> counters, String key) {
-        if (counters.size() > FINGERPRINT_COUNTER_LIMIT) {
+        if (counters.size() >= FINGERPRINT_COUNTER_LIMIT) {
             counters.clear();
         }
         return counters.computeIfAbsent(key == null ? "" : key, ignored -> new AtomicInteger(0)).incrementAndGet();
@@ -430,9 +333,7 @@ final class LlmRequestDebugLogger {
     }
 
     static record RequestTextStats(
-            int messageCount,
             int totalChars,
-            int totalCodePoints,
             int totalUtf8Bytes,
             int estimatedTokens,
             Map<String, RoleTextStats> roleStats,
@@ -444,7 +345,6 @@ final class LlmRequestDebugLogger {
     static record RoleTextStats(
             String role,
             int charCount,
-            int codePointCount,
             int utf8Bytes,
             int estimatedTokens,
             double tokenSharePercent,
@@ -455,7 +355,6 @@ final class LlmRequestDebugLogger {
     static record MessageTextStats(
             String role,
             int charCount,
-            int codePointCount,
             int utf8Bytes,
             int estimatedTokens,
             String fingerprint,
@@ -472,7 +371,6 @@ final class LlmRequestDebugLogger {
     private static final class RoleAccumulator {
         private final String role;
         private int charCount;
-        private int codePointCount;
         private int utf8Bytes;
         private final StringBuilder fingerprintSource = new StringBuilder();
 
@@ -480,9 +378,8 @@ final class LlmRequestDebugLogger {
             this.role = role;
         }
 
-        private void add(String content, int charCount, int codePointCount, int utf8Bytes) {
+        private void add(String content, int charCount, int utf8Bytes) {
             this.charCount += charCount;
-            this.codePointCount += codePointCount;
             this.utf8Bytes += utf8Bytes;
             this.fingerprintSource.append(content == null ? "" : content).append('\u0001');
         }
