@@ -45,10 +45,6 @@ public final class VanillaAdvancementTranslationSupport {
         return translateComponent(holder, originalTitle, "title", true);
     }
 
-    public static Text translateHoveredTitle(AdvancementEntry holder, Text originalTitle) {
-        return translateQueuedTitle(holder, originalTitle);
-    }
-
     public record HoveredAdvancementText(
             Text title,
             Text description,
@@ -85,14 +81,6 @@ public final class VanillaAdvancementTranslationSupport {
             Text originalDescription
     ) {
         return translateComponent(holder, styleDescription(display, originalDescription), "description", false);
-    }
-
-    public static Text translateHoveredDescription(
-            AdvancementEntry holder,
-            AdvancementDisplay display,
-            Text originalDescription
-    ) {
-        return translateComponent(holder, styleDescription(display, originalDescription), "description", true);
     }
 
     private static Text translateComponent(

@@ -1,6 +1,9 @@
 package com.alexeys.translate_allinone.gui.configui.modals;
 
 import com.alexeys.translate_allinone.gui.configui.controls.CheckboxBlock;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.ActionBlockAdder;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.TextFieldAdder;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.Translator;
 import com.alexeys.translate_allinone.utils.config.ui.UiRect;
 import com.alexeys.translate_allinone.gui.configui.render.ConfigUiModalSupport;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
@@ -27,9 +30,9 @@ public final class ModelSettingsModalSupport {
             boolean modelSettingsSupportsSystemDraft,
             boolean modelSettingsSetDefault,
             Translator translator,
-            FloatingActionBlockAdder floatingActionBlockAdder,
+            ActionBlockAdder ActionBlockAdder,
             FloatingCheckboxAdder floatingCheckboxAdder,
-            FloatingTextFieldAdder floatingTextFieldAdder,
+            TextFieldAdder TextFieldAdder,
             Consumer<String> onModelIdChanged,
             Consumer<String> onKeepAliveChanged,
             Consumer<String> onSystemPromptSuffixChanged,
@@ -48,7 +51,7 @@ public final class ModelSettingsModalSupport {
         int fieldX = rect.x + 24 + labelWidth + 8;
         int fieldWidth = rect.width - 24 - 24 - labelWidth - 8;
 
-        floatingActionBlockAdder.add(
+        ActionBlockAdder.add(
                 rect.x + 24,
                 rowY,
                 labelWidth,
@@ -62,7 +65,7 @@ public final class ModelSettingsModalSupport {
                 false
         , null);
 
-        TextFieldWidget modelNameField = floatingTextFieldAdder.add(
+        TextFieldWidget modelNameField = TextFieldAdder.add(
                 fieldX,
                 rowY,
                 fieldWidth,
@@ -74,7 +77,7 @@ public final class ModelSettingsModalSupport {
         );
         rowY += 24;
 
-        floatingActionBlockAdder.add(
+        ActionBlockAdder.add(
                 rect.x + 24,
                 rowY,
                 labelWidth,
@@ -88,7 +91,7 @@ public final class ModelSettingsModalSupport {
                 false,
                 translator.t("desc.temperature")
         );
-        floatingActionBlockAdder.add(
+        ActionBlockAdder.add(
                 fieldX,
                 rowY,
                 fieldWidth,
@@ -104,7 +107,7 @@ public final class ModelSettingsModalSupport {
         rowY += 24;
 
         if (profile.type == ApiProviderType.OLLAMA) {
-            floatingActionBlockAdder.add(
+            ActionBlockAdder.add(
                     rect.x + 24,
                     rowY,
                     labelWidth,
@@ -117,7 +120,7 @@ public final class ModelSettingsModalSupport {
                     style.colorText(),
                     false
             , null);
-            floatingTextFieldAdder.add(
+            TextFieldAdder.add(
                     fieldX,
                     rowY,
                     fieldWidth,
@@ -130,7 +133,7 @@ public final class ModelSettingsModalSupport {
             rowY += 24;
         }
 
-        floatingActionBlockAdder.add(
+        ActionBlockAdder.add(
                 rect.x + 24,
                 rowY,
                 labelWidth,
@@ -143,7 +146,7 @@ public final class ModelSettingsModalSupport {
                 style.colorText(),
                 false
         , null);
-        floatingTextFieldAdder.add(
+        TextFieldAdder.add(
                 fieldX,
                 rowY,
                 fieldWidth,
@@ -155,7 +158,7 @@ public final class ModelSettingsModalSupport {
         );
         rowY += 24;
 
-        floatingActionBlockAdder.add(
+        ActionBlockAdder.add(
                 rect.x + 24,
                 rowY,
                 labelWidth,
@@ -168,7 +171,7 @@ public final class ModelSettingsModalSupport {
                 style.colorText(),
                 false
         , null);
-        floatingActionBlockAdder.add(
+        ActionBlockAdder.add(
                 fieldX,
                 rowY,
                 fieldWidth,
@@ -211,7 +214,7 @@ public final class ModelSettingsModalSupport {
         int leftX = rect.x + 24;
         int rightX = leftX + half + 6;
 
-        floatingActionBlockAdder.add(
+        ActionBlockAdder.add(
                 leftX,
                 buttonsY,
                 half,
@@ -224,7 +227,7 @@ public final class ModelSettingsModalSupport {
                 true
         , null);
 
-        floatingActionBlockAdder.add(
+        ActionBlockAdder.add(
                 rightX,
                 buttonsY,
                 half,
@@ -241,25 +244,6 @@ public final class ModelSettingsModalSupport {
     }
 
     @FunctionalInterface
-    public interface Translator {
-        Text t(String key, Object... args);
-    }
-
-    @FunctionalInterface
-    public interface FloatingTextFieldAdder {
-        TextFieldWidget add(
-                int x,
-                int y,
-                int width,
-                int maxLength,
-                String initialValue,
-                Text placeholder,
-                Consumer<String> changed,
-                boolean editable
-        );
-    }
-
-    @FunctionalInterface
     public interface FloatingCheckboxAdder {
         void add(
                 int x,
@@ -270,23 +254,6 @@ public final class ModelSettingsModalSupport {
                 BooleanSupplier checked,
                 Consumer<Boolean> changed,
                 CheckboxBlock.Style style,
-                Text tooltip
-        );
-    }
-
-    @FunctionalInterface
-    public interface FloatingActionBlockAdder {
-        void add(
-                int x,
-                int y,
-                int width,
-                int height,
-                Supplier<Text> labelSupplier,
-                Runnable action,
-                int color,
-                int hoverColor,
-                int textColor,
-                boolean centered,
                 Text tooltip
         );
     }

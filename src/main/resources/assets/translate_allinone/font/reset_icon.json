@@ -1,0 +1,13 @@
+{
+  "providers": [
+    {
+      "type": "bitmap",
+      "file": "translate_allinone:font/reset.png",
+      "ascent": 7,
+      "height": 8,
+      "chars": [
+        "\u27F2"
+      ]
+    }
+  ]
+}

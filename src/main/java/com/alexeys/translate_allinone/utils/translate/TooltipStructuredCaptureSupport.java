@@ -249,7 +249,7 @@ final class TooltipStructuredCaptureSupport {
                     structuredLine.translationTemplateKeys(),
                     buildDetailedDebugSummary(structuredLine),
                     labelAttempt,
-                    "Structured label is not eligible for Component translation."
+                    "Structured label is not eligible for Text translation."
             );
         }
         if (labelAttempt.failureDisposition() != ComponentTranslationRuntime.FailureDisposition.NONE) {
@@ -286,7 +286,7 @@ final class TooltipStructuredCaptureSupport {
                         structuredLine.translationTemplateKeys(),
                         buildDetailedDebugSummary(structuredLine),
                         valueAttempt,
-                        "Structured value is not eligible for Component translation."
+                        "Structured value is not eligible for Text translation."
                 );
             }
             if (valueAttempt.failureDisposition() != ComponentTranslationRuntime.FailureDisposition.NONE) {
@@ -733,7 +733,7 @@ final class TooltipStructuredCaptureSupport {
                         enchantListMatch.translationTemplateKeys(),
                         buildDebugSummary(enchantListMatch),
                         translatedAttempt,
-                        "Structured enchantment is not eligible for Component translation."
+                        "Structured enchantment is not eligible for Text translation."
                 );
             }
             if (translatedAttempt.failureDisposition() != ComponentTranslationRuntime.FailureDisposition.NONE) {
@@ -812,7 +812,7 @@ final class TooltipStructuredCaptureSupport {
                 : attempt.failureDisposition();
         String errorMessage = reason == null ? "" : reason;
         if (errorMessage.isBlank() && disposition == ComponentTranslationRuntime.FailureDisposition.TERMINAL_CONTENT_FAILURE) {
-            errorMessage = "Structured Component translation failed validation.";
+            errorMessage = "Structured Text translation failed validation.";
         }
         String cacheKey = attempt == null ? "" : attempt.cacheKey();
         if (cacheKey.isBlank()) {

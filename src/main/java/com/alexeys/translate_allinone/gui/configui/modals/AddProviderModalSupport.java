@@ -1,5 +1,9 @@
 package com.alexeys.translate_allinone.gui.configui.modals;
 
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.ActionBlockAdder;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.ProviderTypeLabelProvider;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.TextFieldAdder;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.Translator;
 import com.alexeys.translate_allinone.utils.config.ui.UiRect;
 import com.alexeys.translate_allinone.gui.configui.render.ConfigUiModalSupport;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderType;
@@ -7,7 +11,6 @@ import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 public final class AddProviderModalSupport {
     private AddProviderModalSupport() {
@@ -21,8 +24,8 @@ public final class AddProviderModalSupport {
             boolean addProviderTypeDropdownOpen,
             Translator translator,
             ProviderTypeLabelProvider providerTypeLabelProvider,
-            FloatingActionBlockAdder floatingActionBlockAdder,
-            FloatingTextFieldAdder floatingTextFieldAdder,
+            ActionBlockAdder ActionBlockAdder,
+            TextFieldAdder TextFieldAdder,
             Consumer<String> onProviderNameChanged,
             Runnable onToggleTypeDropdown,
             Consumer<ApiProviderType> onSelectProviderType,
@@ -36,7 +39,7 @@ public final class AddProviderModalSupport {
         int fieldX = rect.x + 24 + labelWidth + 8;
         int fieldWidth = rect.width - 24 - 24 - labelWidth - 8;
 
-        floatingActionBlockAdder.add(
+        ActionBlockAdder.add(
                 rect.x + 24,
                 rowY,
                 labelWidth,
@@ -50,7 +53,7 @@ public final class AddProviderModalSupport {
                 false
         );
 
-        TextFieldWidget nameField = floatingTextFieldAdder.add(
+        TextFieldWidget nameField = TextFieldAdder.add(
                 fieldX,
                 rowY,
                 fieldWidth,
@@ -62,7 +65,7 @@ public final class AddProviderModalSupport {
         );
         rowY += 24;
 
-        floatingActionBlockAdder.add(
+        ActionBlockAdder.add(
                 rect.x + 24,
                 rowY,
                 labelWidth,
@@ -75,7 +78,7 @@ public final class AddProviderModalSupport {
                 style.colorText(),
                 false
         );
-        floatingActionBlockAdder.add(
+        ActionBlockAdder.add(
                 fieldX,
                 rowY,
                 fieldWidth,
@@ -92,7 +95,7 @@ public final class AddProviderModalSupport {
         if (addProviderTypeDropdownOpen) {
             for (ApiProviderType type : ApiProviderType.values()) {
                 boolean selected = type == addProviderTypeDraft;
-                floatingActionBlockAdder.add(
+                ActionBlockAdder.add(
                         fieldX,
                         dropdownY,
                         fieldWidth,
@@ -113,7 +116,7 @@ public final class AddProviderModalSupport {
         int leftX = rect.x + 24;
         int rightX = leftX + half + 6;
 
-        floatingActionBlockAdder.add(
+        ActionBlockAdder.add(
                 leftX,
                 buttonsY,
                 half,
@@ -126,7 +129,7 @@ public final class AddProviderModalSupport {
                 true
         );
 
-        floatingActionBlockAdder.add(
+        ActionBlockAdder.add(
                 rightX,
                 buttonsY,
                 half,
@@ -140,46 +143,6 @@ public final class AddProviderModalSupport {
         );
 
         return nameField;
-    }
-
-    @FunctionalInterface
-    public interface Translator {
-        Text t(String key, Object... args);
-    }
-
-    @FunctionalInterface
-    public interface ProviderTypeLabelProvider {
-        Text label(ApiProviderType type);
-    }
-
-    @FunctionalInterface
-    public interface FloatingTextFieldAdder {
-        TextFieldWidget add(
-                int x,
-                int y,
-                int width,
-                int maxLength,
-                String initialValue,
-                Text placeholder,
-                Consumer<String> changed,
-                boolean editable
-        );
-    }
-
-    @FunctionalInterface
-    public interface FloatingActionBlockAdder {
-        void add(
-                int x,
-                int y,
-                int width,
-                int height,
-                Supplier<Text> labelSupplier,
-                Runnable action,
-                int color,
-                int hoverColor,
-                int textColor,
-                boolean centered
-        );
     }
 
     public record Style(

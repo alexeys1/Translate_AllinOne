@@ -18,6 +18,7 @@ public final class ActionBlock {
     private final boolean centered;
     private final Text tooltip;
     private final BooleanSupplier enabled;
+    private final boolean resetIcon;
 
     public ActionBlock(
             int x,
@@ -32,7 +33,7 @@ public final class ActionBlock {
             boolean centered,
             Text tooltip
     ) {
-        this(x, y, width, height, labelSupplier, action, color, hoverColor, textColor, centered, tooltip, () -> true);
+        this(x, y, width, height, labelSupplier, action, color, hoverColor, textColor, centered, tooltip, () -> true, false);
     }
 
     public ActionBlock(
@@ -49,6 +50,24 @@ public final class ActionBlock {
             Text tooltip,
             BooleanSupplier enabled
     ) {
+        this(x, y, width, height, labelSupplier, action, color, hoverColor, textColor, centered, tooltip, enabled, false);
+    }
+
+    public ActionBlock(
+            int x,
+            int y,
+            int width,
+            int height,
+            Supplier<Text> labelSupplier,
+            Runnable action,
+            int color,
+            int hoverColor,
+            int textColor,
+            boolean centered,
+            Text tooltip,
+            BooleanSupplier enabled,
+            boolean resetIcon
+    ) {
         this.x = x;
         this.y = y;
         this.width = width;
@@ -61,6 +80,7 @@ public final class ActionBlock {
         this.centered = centered;
         this.tooltip = tooltip;
         this.enabled = enabled == null ? () -> true : enabled;
+        this.resetIcon = resetIcon;
     }
 
     public int x() {
@@ -111,6 +131,10 @@ public final class ActionBlock {
 
     public boolean enabled() {
         return enabled.getAsBoolean();
+    }
+
+    public boolean resetIcon() {
+        return resetIcon;
     }
 
     public boolean contains(double mouseX, double mouseY) {

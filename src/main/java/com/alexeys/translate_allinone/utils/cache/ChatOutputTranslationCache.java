@@ -56,13 +56,4 @@ public final class ChatOutputTranslationCache extends JsonStringTranslationCache
             return null;
         }
     }
-
-    @Override
-    protected String readGateSourceText(String key) {
-        if (key == null) {
-            return key;
-        }
-        int separator = key.indexOf('\u001f');
-        return separator >= 0 && separator + 1 < key.length() ? key.substring(separator + 1) : key;
-    }
 }

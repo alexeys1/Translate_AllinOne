@@ -42,19 +42,23 @@ import com.alexeys.translate_allinone.utils.config.ui.ModelSettingsValueSupport;
 import com.alexeys.translate_allinone.utils.config.ui.ProviderManagerMutationSupport;
 import com.alexeys.translate_allinone.utils.config.ui.ProviderProfileSupport;
 import com.alexeys.translate_allinone.utils.cache.CacheBackupManager;
+import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationDebugLogger;
 import com.alexeys.translate_allinone.utils.config.ModConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderType;
 import com.alexeys.translate_allinone.utils.config.pojos.CacheBackupConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ChatTranslateConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.CustomParameterEntry;
+import com.alexeys.translate_allinone.utils.config.pojos.DebugConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.DictionaryConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.InputBindingConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ItemTranslateConfig;
+import com.alexeys.translate_allinone.utils.config.pojos.LogLevel;
 import com.alexeys.translate_allinone.utils.config.pojos.OtherTranslationsConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ProviderManagerConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ScoreboardConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.WynnCraftConfig;
+import com.alexeys.translate_allinone.utils.llmapi.LLM;
 import com.alexeys.translate_allinone.utils.input.KeybindingManager;
 import com.alexeys.translate_allinone.utils.translate.DictionaryFileSelectionSupport;
 import com.alexeys.translate_allinone.utils.update.UpdateCheckManager;
@@ -85,6 +89,8 @@ public class ModConfigScreen extends Screen {
     private static final Gson CONFIG_STATE_GSON = new Gson();
     private static final String DEBUG_SECTION_ACCOUNT_UUID = "ef7acee7-f759-4d1e-a1ba-5a8dc7656d01";
     private static final String SCREEN_STATE_FILE_NAME = "config_screen_state.json";
+    private static final int RESET_SLOT_WIDTH = 20;
+    private static final int RESET_SLOT_GAP = 2;
 
     private static final int COLOR_BG = 0xFF0C0C0C;
     private static final int COLOR_TOP_BAR = 0xFF151515;
@@ -734,7 +740,9 @@ public class ModConfigScreen extends Screen {
                 this::startHotkeyCapture,
                 this::clearHotkeyBinding,
                 this::cycleHotkeyMode,
+                this::cycleExternalScoreboardMode,
                 this::cycleOriginalDisplayMode,
+                this::cycleDebugLevel,
                 this::setScreenTranslationEnabled,
                 this::openDictionaryFilesModal,
                 this::openDictionaryDirectory,
@@ -1565,18 +1573,61 @@ public class ModConfigScreen extends Screen {
         rebuildActionBlocks();
     }
 
-    private void addToggleAction(int x, int y, int width, Text label, BooleanSupplier getter, Consumer<Boolean> setter, Text tooltip) {
+    private void addToggleAction(
+            int x,
+            int y,
+            int width,
+            Text label,
+            BooleanSupplier getter,
+            Consumer<Boolean> setter,
+            Text tooltip,
+            boolean defaultValue
+    ) {
+        int controlWidth = optionControlWidth(width);
+        int controlHeight = 20;
         checkboxBlocks.add(new CheckboxBlock(
                 x,
                 y,
-                width,
-                20,
+                controlWidth,
+                controlHeight,
                 () -> label,
                 getter.getAsBoolean(),
                 setter,
                 CHECKBOX_STYLE,
                 tooltip
         ));
+        addResetSlot(
+                x + controlWidth + RESET_SLOT_GAP,
+                y,
+                controlHeight,
+                () -> getter.getAsBoolean() != defaultValue,
+                () -> setter.accept(defaultValue)
+        );
+    }
+
+    private void addResetSlot(int x, int y, int height, BooleanSupplier modified, Runnable resetAction) {
+        contentActionBlockRegistry.add(
+                x,
+                y,
+                RESET_SLOT_WIDTH,
+                height,
+                () -> Text.empty(),
+                () -> {
+                    resetAction.run();
+                    rebuildActionBlocks();
+                },
+                COLOR_BLOCK,
+                COLOR_BLOCK_HOVER,
+                COLOR_TEXT,
+                true,
+                t("desc.reset_option"),
+                modified,
+                true
+        );
+    }
+
+    private static int optionControlWidth(int width) {
+        return Math.max(40, width - RESET_SLOT_WIDTH - RESET_SLOT_GAP);
     }
 
     private void addGroupBox(int x, int y, int width, int height, Text title) {
@@ -1590,9 +1641,27 @@ public class ModConfigScreen extends Screen {
             Text label,
             Runnable action,
             Text tooltip,
-            BooleanSupplier enabled
+            BooleanSupplier enabled,
+            Runnable resetAction,
+            BooleanSupplier modified
     ) {
-        contentActionBlockRegistry.add(x, y, width, 20, label, action, tooltip, enabled);
+        if (resetAction == null) {
+            contentActionBlockRegistry.add(x, y, width, 20, label, action, tooltip, enabled);
+            return;
+        }
+
+        int controlWidth = optionControlWidth(width);
+        int controlHeight = 20;
+        contentActionBlockRegistry.add(x, y, controlWidth, controlHeight, label, action, tooltip, enabled);
+        addResetSlot(x + controlWidth + RESET_SLOT_GAP, y, controlHeight, modified, resetAction);
+    }
+
+    private void addActionRow(int x, int y, int width, Text label, Runnable action, Text tooltip, BooleanSupplier enabled) {
+        addActionRow(x, y, width, label, action, tooltip, enabled, null, null);
+    }
+
+    private void addActionRow(int x, int y, int width, Text label, Runnable action, Text tooltip) {
+        addActionRow(x, y, width, label, action, tooltip, () -> true, null, null);
     }
 
     private void addTextInputRow(
@@ -1606,21 +1675,25 @@ public class ModConfigScreen extends Screen {
             Consumer<String> changed,
             Predicate<String> textPredicate,
             boolean editable,
-            Text tooltip
+            Text tooltip,
+            String defaultValue
     ) {
         if (!editable) {
             addStaticTextRow(x, y, width, label, Text.literal(initialValue == null ? "" : initialValue));
             return;
         }
 
-        int labelWidth = responsiveLabelWidth(width);
+        boolean hasResetSlot = defaultValue != null;
+        int controlWidth = hasResetSlot ? optionControlWidth(width) : width;
+        int labelWidth = responsiveLabelWidth(controlWidth);
         int fieldGap = 6;
         int fieldX = x + labelWidth + fieldGap;
-        int fieldWidth = Math.max(72, width - labelWidth - fieldGap);
+        int fieldWidth = Math.max(72, controlWidth - labelWidth - fieldGap);
+        int controlHeight = 20;
 
-        contentActionBlockRegistry.add(x, y, labelWidth, 20, label, () -> {
+        contentActionBlockRegistry.add(x, y, labelWidth, controlHeight, label, () -> {
         }, tooltip);
-        addTextField(
+        TextFieldWidget field = addTextField(
                 fieldX,
                 y,
                 fieldWidth,
@@ -1631,6 +1704,15 @@ public class ModConfigScreen extends Screen {
                 textPredicate,
                 editable
         );
+        if (hasResetSlot) {
+            addResetSlot(
+                    x + controlWidth + RESET_SLOT_GAP,
+                    y,
+                    controlHeight,
+                    () -> !field.getText().equals(defaultValue),
+                    () -> field.setText(defaultValue)
+            );
+        }
     }
 
     private void addStaticTextRow(int x, int y, int width, Text label, Text value) {
@@ -1814,6 +1896,48 @@ public class ModConfigScreen extends Screen {
             }
         }
         rebuildActionBlocks();
+    }
+
+    private void cycleExternalScoreboardMode() {
+        ScoreboardConfig scoreboard = Translate_AllinOne.getConfig().scoreboardTranslate;
+        if (scoreboard.external_custom_scoreboard_mode == null) {
+            scoreboard.external_custom_scoreboard_mode =
+                    ScoreboardConfig.ExternalCustomScoreboardMode.DISABLED;
+        }
+        ScoreboardConfig.ExternalCustomScoreboardMode[] modes =
+                ScoreboardConfig.ExternalCustomScoreboardMode.values();
+        scoreboard.external_custom_scoreboard_mode =
+                modes[(scoreboard.external_custom_scoreboard_mode.ordinal() + 1) % modes.length];
+        setStatus(
+                t(
+                        "status.external_scoreboard_mode_changed",
+                        externalScoreboardModeLabel(scoreboard.external_custom_scoreboard_mode)
+                ),
+                COLOR_STATUS_OK
+        );
+        rebuildActionBlocks();
+    }
+
+    private void cycleDebugLevel(ConfigSectionContentSupport.DebugDimension dimension) {
+        DebugConfig debug = Translate_AllinOne.getConfig().debug;
+        if (debug == null) {
+            debug = new DebugConfig();
+            Translate_AllinOne.getConfig().debug = debug;
+        }
+        LogLevel next = ConfigSectionContentSupport.nextLevel(ConfigSectionContentSupport.levelOf(debug, dimension));
+        ConfigSectionContentSupport.setLevel(debug, dimension, next);
+        ComponentTranslationDebugLogger.refresh(Translate_AllinOne.getConfig());
+        LLM.refreshRequestTextStatsLogging();
+        setStatus(t("status.debug_level_changed", t(dimension.nameKey()), t(ConfigSectionContentSupport.levelStateKey(next))), COLOR_STATUS_OK);
+        rebuildActionBlocks();
+    }
+
+    private Text externalScoreboardModeLabel(ScoreboardConfig.ExternalCustomScoreboardMode mode) {
+        return switch (mode) {
+            case DISABLED -> t("state.external_scoreboard_disabled");
+            case AUTO -> t("state.external_scoreboard_auto");
+            case FORCE -> t("state.external_scoreboard_force");
+        };
     }
 
     private InputBindingConfig ensureBinding(ConfigSectionContentSupport.HotkeyTarget target) {
@@ -2014,9 +2138,18 @@ public class ModConfigScreen extends Screen {
             int max,
             IntSupplier getter,
             IntConsumer setter,
-            Text tooltip
+            Text tooltip,
+            int defaultValue
     ) {
-        sliderBlocks.add(new IntSliderBlock(x, y, width, SLIDER_BLOCK_HEIGHT, label, min, max, getter, setter, textRenderer, SLIDER_STYLE, tooltip));
+        int controlWidth = optionControlWidth(width);
+        sliderBlocks.add(new IntSliderBlock(x, y, controlWidth, SLIDER_BLOCK_HEIGHT, label, min, max, getter, setter, textRenderer, SLIDER_STYLE, tooltip));
+        addResetSlot(
+                x + controlWidth + RESET_SLOT_GAP,
+                y,
+                SLIDER_BLOCK_HEIGHT,
+                () -> getter.getAsInt() != defaultValue,
+                () -> setter.accept(defaultValue)
+        );
     }
 
     private Text resolveHoveredTooltip(double mouseX, double mouseY, boolean modalOpen) {

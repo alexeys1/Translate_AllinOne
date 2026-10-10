@@ -16,7 +16,7 @@ public abstract class UiTranslationScreenMixin {
     private UiTranslationScope.Scope translate_allinone$uiScope;
 
     @Inject(
-            method = "render(Lnet/minecraft/client/gui/DrawContext;IIF)V",
+            method = "renderWithTooltip(Lnet/minecraft/client/gui/DrawContext;IIF)V",
             at = @At("HEAD"),
             require = 0
     )
@@ -32,7 +32,7 @@ public abstract class UiTranslationScreenMixin {
     }
 
     @Inject(
-            method = "render(Lnet/minecraft/client/gui/DrawContext;IIF)V",
+            method = "renderWithTooltip(Lnet/minecraft/client/gui/DrawContext;IIF)V",
             at = @At("RETURN"),
             require = 0
     )

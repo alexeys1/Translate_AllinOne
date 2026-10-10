@@ -11,7 +11,6 @@ import com.alexeys.translate_allinone.utils.llmapi.LlmRequestLifecycle;
 import com.alexeys.translate_allinone.utils.translate.ApiKeyDecryptFailureNotifier;
 import com.alexeys.translate_allinone.utils.cache.ItemTemplateCache;
 import com.alexeys.translate_allinone.utils.cache.WynntilsTaskTrackerTextCache;
-import com.alexeys.translate_allinone.utils.translate.ItemTranslateManager;
 import com.alexeys.translate_allinone.utils.translate.BookTranslationSupport;
 import com.alexeys.translate_allinone.utils.translate.ChatInputTranslateManager;
 import com.alexeys.translate_allinone.utils.translate.ChatOutputTranslateManager;
@@ -56,7 +55,6 @@ public class LifecycleEventManager {
         ScoreboardTranslationInputSupport.reset();
         WynnDialogueTranslationSupport.resetSession();
         ChatOutputTranslateManager.clearTranslationQueue();
-        ItemTranslateManager.getInstance().clearTranslationQueue();
 
         if (!enabled) {
             ChatInputTranslateManager.restorePendingInput();
@@ -153,7 +151,6 @@ public class LifecycleEventManager {
 
     private static void stopTranslationManagers() {
         LlmRequestLifecycle.cancelActiveRequests();
-        ItemTranslateManager.getInstance().stop();
         WynnDialogueTranslateManager.getInstance().stop();
         WynntilsTaskTrackerTranslateManager.getInstance().stop();
         WynnDialogueTranslationSupport.resetSession();
@@ -165,7 +162,6 @@ public class LifecycleEventManager {
         ChatOutputTranslationCache.getInstance().load();
         SkyblockNpcTranslationCache.getInstance().load();
         ItemTemplateCache.getInstance().load();
-        ItemTranslateManager.getInstance().start();
         WynnDialogueTextCache.getInstance().load();
         WynnDialogueTranslateManager.getInstance().start();
         WynntilsTaskTrackerTextCache.getInstance().load();

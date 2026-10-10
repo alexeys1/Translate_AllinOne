@@ -3,12 +3,15 @@ package com.alexeys.translate_allinone.gui.configui.support;
 import com.alexeys.translate_allinone.registration.ConfigManager;
 import com.alexeys.translate_allinone.utils.cache.CacheBackupManager;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
+import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderType;
 import com.alexeys.translate_allinone.utils.llmapi.ProviderConnectionTester;
-import com.alexeys.translate_allinone.utils.translate.ItemTranslateManager;
 import com.alexeys.translate_allinone.utils.translate.WynnSharedDictionaryService;
 import java.util.concurrent.CompletableFuture;
-import net.minecraft.text.Text;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
+import net.minecraft.client.gui.widget.TextFieldWidget;
+import net.minecraft.text.Text;
 
 public final class ConfigUiRuntimeSupport {
     private ConfigUiRuntimeSupport() {
@@ -25,7 +28,6 @@ public final class ConfigUiRuntimeSupport {
             ConfigManager.save();
             CompletableFuture.runAsync(CacheBackupManager::enforceBackupLimit);
             WynnSharedDictionaryService.getInstance().loadAll();
-            ItemTranslateManager.getInstance().requestRuntimeRefresh();
             statusSetter.set(translator.t("status.config_saved", ConfigManager.getConfigPath().getFileName()), okColor);
             return true;
         } catch (Exception e) {
@@ -82,5 +84,75 @@ public final class ConfigUiRuntimeSupport {
     @FunctionalInterface
     public interface ErrorLogger {
         void error(String message, Throwable throwable);
+    }
+
+    @FunctionalInterface
+    public interface ActionBlockAdder {
+        void add(
+                int x,
+                int y,
+                int width,
+                int height,
+                Supplier<Text> labelSupplier,
+                Runnable action,
+                int color,
+                int hoverColor,
+                int textColor,
+                boolean centered,
+                Text tooltip
+        );
+
+        default void add(
+                int x,
+                int y,
+                int width,
+                int height,
+                Supplier<Text> labelSupplier,
+                Runnable action,
+                int color,
+                int hoverColor,
+                int textColor,
+                boolean centered
+        ) {
+            add(x, y, width, height, labelSupplier, action, color, hoverColor, textColor, centered, null);
+        }
+    }
+
+    @FunctionalInterface
+    public interface TextFieldAdder {
+        TextFieldWidget add(
+                int x,
+                int y,
+                int width,
+                int maxLength,
+                String initialValue,
+                Text placeholder,
+                Consumer<String> changed,
+                boolean editable
+        );
+    }
+
+    @FunctionalInterface
+    public interface ToggleAdder {
+        void add(
+                int x,
+                int y,
+                int width,
+                Text label,
+                BooleanSupplier getter,
+                Consumer<Boolean> setter,
+                Text tooltip,
+                boolean defaultValue
+        );
+    }
+
+    @FunctionalInterface
+    public interface GroupBoxAdder {
+        void add(int x, int y, int width, int height, Text title);
+    }
+
+    @FunctionalInterface
+    public interface ProviderTypeLabelProvider {
+        Text label(ApiProviderType providerType);
     }
 }

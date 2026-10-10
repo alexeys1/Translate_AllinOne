@@ -24,6 +24,21 @@ public abstract class UiTranslationFontMixin {
     @ModifyVariable(
             method = {
                     "getWidth(Lnet/minecraft/text/StringVisitable;)I",
+                    "getWrappedLinesHeight(Lnet/minecraft/text/StringVisitable;I)I"
+            },
+            at = @At("HEAD"),
+            argsOnly = true,
+            ordinal = 0,
+            require = 0
+    )
+    private StringVisitable translate_allinone$translatedMeasuredText(StringVisitable source) {
+        return UiTranslationRuntime.withoutOriginatingRequests(
+                () -> UiTranslationRuntime.translateFormattedText(source, UiTranslationScope.role())
+        );
+    }
+
+    @ModifyVariable(
+            method = {
                     "trimToWidth(Lnet/minecraft/text/StringVisitable;I)Lnet/minecraft/text/StringVisitable;",
                     "getWrappedLinesHeight(Lnet/minecraft/text/StringVisitable;I)I"
             },
@@ -67,7 +82,9 @@ public abstract class UiTranslationFontMixin {
             require = 0
     )
     private OrderedText translate_allinone$translatedSequenceWidth(OrderedText source) {
-        return UiTranslationRuntime.translateFormattedCharSequence(source, UiTranslationScope.role());
+        return UiTranslationRuntime.withoutOriginatingRequests(
+                () -> UiTranslationRuntime.translateFormattedCharSequence(source, UiTranslationScope.role())
+        );
     }
 
     @ModifyVariable(
@@ -148,7 +165,9 @@ public abstract class UiTranslationFontMixin {
                 && isNoammAddonsSortingWidthCall()) {
             return splitter.getWidth(source);
         }
-        String visible = UiTranslationRuntime.translateString(source, UiTranslationScope.role());
+        String visible = UiTranslationRuntime.withoutOriginatingRequests(
+                () -> UiTranslationRuntime.translateString(source, UiTranslationScope.role())
+        );
         return splitter.getWidth(visible);
     }
 

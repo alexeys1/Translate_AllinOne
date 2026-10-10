@@ -49,24 +49,6 @@ public class AnimationManager {
         return STRIP_FORMATTING_PATTERN.matcher(text).replaceAll("");
     }
 
-    public static MutableText getAnimatedText(String text) {
-        String plainText = stripFormatting(text);
-        MutableText animatedText = Text.empty();
-        long time = System.currentTimeMillis();
-
-        int codePointIndex = 0;
-        for (int offset = 0; offset < plainText.length(); ) {
-            int codePoint = plainText.codePointAt(offset);
-            float sine = (float) (Math.sin(time / 200.0 + codePointIndex / 5.0) + 1.0) / 2.0f;
-            int color = ColorHelper.Argb.lerp(sine, DARK_GREY, LIGHT_GREY);
-            animatedText.append(Text.literal(new String(Character.toChars(codePoint)))
-                    .setStyle(Style.EMPTY.withColor(TextColor.fromRgb(color))));
-            offset += Character.charCount(codePoint);
-            codePointIndex++;
-        }
-        return animatedText;
-    }
-
     public static MutableText getAnimatedStyledText(Text originalText) {
         return getAnimatedStyledText(originalText, null, false);
     }
@@ -83,12 +65,13 @@ public class AnimationManager {
                     && now - entry.builtAtMillis() < PENDING_ANIMATION_REFRESH_INTERVAL_MS) {
                 getAlertProgress(animationKey, alertMissingKeys, now);
                 cleanupTransitionStates(now);
-                return entry.result();
+                return entry.result().copy();
             }
         }
         MutableText result = buildAnimatedStyledText(originalText, animationKey, alertMissingKeys);
         if (animationKey != null && !animationKey.isBlank()) {
             PENDING_ANIMATIONS.put(animationKey, new PendingAnimationEntry(originalText, result, now));
+            result = result.copy();
         }
         cleanupTransitionStates(now);
         return result;
