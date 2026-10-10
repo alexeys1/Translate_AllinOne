@@ -410,5 +410,6 @@
   "text.translate_allinone.configscreen.modal.model.temperature.other_translations": "其他翻译",
   "text.translate_allinone.configscreen.route.other_translations": "其他翻译",
   "text.translate_allinone.configscreen.section.other_translations": "其他翻译",
-  "text.translate_allinone.configscreen.prompt_editor.route.sign_book": "告示牌与书本"
+  "text.translate_allinone.configscreen.prompt_editor.route.sign_book": "告示牌与书本",
+  "text.translate_allinone.configscreen.prompt_editor.route.screen_ui": "界面文本"
 }

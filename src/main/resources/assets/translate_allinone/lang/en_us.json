@@ -410,5 +410,6 @@
   "text.translate_allinone.configscreen.modal.model.temperature.other_translations": "Other Translations",
   "text.translate_allinone.configscreen.route.other_translations": "OTHER TRANSLATIONS",
   "text.translate_allinone.configscreen.section.other_translations": "Other Translations",
-  "text.translate_allinone.configscreen.prompt_editor.route.sign_book": "Signs and Books"
+  "text.translate_allinone.configscreen.prompt_editor.route.sign_book": "Signs and Books",
+  "text.translate_allinone.configscreen.prompt_editor.route.screen_ui": "Screen UI"
 }
