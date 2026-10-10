@@ -2,7 +2,6 @@ package com.alexeys.translate_allinone.utils.translate;
 
 import com.alexeys.translate_allinone.Translate_AllinOne;
 import com.alexeys.translate_allinone.mixin.mixinChatHud.ChatHudAccessor;
-import com.alexeys.translate_allinone.utils.TranslateStringUtils;
 import com.alexeys.translate_allinone.utils.AnimationManager;
 import com.alexeys.translate_allinone.utils.MessageUtils;
 import com.alexeys.translate_allinone.utils.TranslateExceptionUtils;
@@ -398,8 +397,8 @@ public class ChatOutputTranslateManager {
                 LLM llm = new LLM(settings);
 
                 List<OpenAIRequest.Message> apiMessages = getMessages(providerProfile, chatOutputConfig.target_language, textToTranslate);
-                requestContext = buildRequestContext(providerProfile, chatOutputConfig.target_language, textToTranslate, apiMessages, chatOutputConfig.streaming_response, messageId);
-                logLlmSubmission(messageId, providerProfile, chatOutputConfig, originalMessage, textToTranslate, styleMap, apiMessages, requestContext);
+                requestContext = buildRequestContext(providerProfile, chatOutputConfig.target_language, messageId);
+                logLlmSubmission(messageId, providerProfile, chatOutputConfig, apiMessages, requestContext);
 
                 if (shouldLogReflowMapping()) {
                     LOGGER.info("Starting translation for message ID: {}. Marked text: {}", messageId, textToTranslate);
@@ -1709,36 +1708,20 @@ public class ChatOutputTranslateManager {
     private static String buildRequestContext(
             ApiProviderProfile profile,
             String targetLanguage,
-            String markedText,
-            List<OpenAIRequest.Message> messages,
-            boolean streaming,
             UUID messageId
     ) {
-        String providerId = profile == null ? "" : profile.id;
-        String modelId = profile == null ? "" : profile.model_id;
-        int messageCount = messages == null ? 0 : messages.size();
-        String roles = messages == null
-                ? "[]"
-                : messages.stream().map(message -> message == null ? "null" : String.valueOf(message.role)).collect(java.util.stream.Collectors.joining(",", "[", "]"));
-        String sample = TranslateStringUtils.truncate(TranslateStringUtils.normalizeWhitespace(markedText), 160);
-        return "route=chat_output"
-                + ", messageId=" + messageId
-                + ", provider=" + providerId
-                + ", model=" + modelId
-                + ", target=" + (targetLanguage == null ? "" : targetLanguage)
-                + ", streaming=" + streaming
-                + ", messages=" + messageCount
-                + ", roles=" + roles
-                + ", sample=\"" + sample + "\"";
+        return "[route=chat_output"
+                + " provider=" + (profile == null ? "" : profile.id)
+                + " model=" + (profile == null ? "" : profile.model_id)
+                + " target=" + (targetLanguage == null ? "" : targetLanguage)
+                + " messageId=" + messageId
+                + "]";
     }
 
     private static void logLlmSubmission(
             UUID messageId,
             ApiProviderProfile providerProfile,
             ChatTranslateConfig.ChatOutputTranslateConfig chatOutputConfig,
-            Component originalMessage,
-            String markedText,
-            Map<Integer, Style> styleMap,
             List<OpenAIRequest.Message> apiMessages,
             String requestContext
     ) {
@@ -1747,15 +1730,12 @@ public class ChatOutputTranslateManager {
         }
 
         LOGGER.info(
-                "[ChatOutputDev:llm_submit] messageId={} provider={} model={} target={} streaming={} originalText=\"{}\" markedText=\"{}\" styleMap={} apiMessages={} context={}",
+                "[ChatOutputDev:llm_submit] messageId={} provider={} model={} target={} streaming={} apiMessages={} context={}",
                 messageId,
                 providerProfile == null ? "" : providerProfile.id,
                 providerProfile == null ? "" : providerProfile.model_id,
                 chatOutputConfig == null || chatOutputConfig.target_language == null ? "" : chatOutputConfig.target_language,
                 chatOutputConfig != null && chatOutputConfig.streaming_response,
-                escapeForLog(originalMessage == null ? "" : originalMessage.getString()),
-                escapeForLog(markedText),
-                describeStyleMap(styleMap),
                 describeApiMessages(apiMessages),
                 requestContext == null ? "" : requestContext
         );
@@ -1819,7 +1799,16 @@ public class ChatOutputTranslateManager {
     }
 
     private static boolean shouldLogLlmSubmission() {
-        return chatOutputDebugLevel(DebugDimension.LLM_STATS) == LogLevel.DETAIL;
+        return llmStatsDebugLevel() == LogLevel.DETAIL;
+    }
+
+    private static LogLevel llmStatsDebugLevel() {
+        try {
+            DebugConfig debug = Translate_AllinOne.getConfig().debug;
+            return debug == null || debug.llmStats == null ? LogLevel.OFF : debug.llmStats;
+        } catch (Throwable ignored) {
+            return LogLevel.OFF;
+        }
     }
 
     private static boolean shouldLogReflowMapping() {
@@ -1834,7 +1823,6 @@ public class ChatOutputTranslateManager {
             }
             return switch (dimension) {
                 case FLOW -> debug.flow;
-                case LLM_STATS -> debug.llmStats;
             };
         } catch (Throwable ignored) {
             return LogLevel.OFF;
@@ -1842,8 +1830,7 @@ public class ChatOutputTranslateManager {
     }
 
     private enum DebugDimension {
-        FLOW,
-        LLM_STATS
+        FLOW
     }
 
     private static String describeApiMessages(List<OpenAIRequest.Message> apiMessages) {
@@ -1856,7 +1843,7 @@ public class ChatOutputTranslateManager {
             OpenAIRequest.Message message = apiMessages.get(index);
             String role = message == null || message.role == null ? "" : message.role;
             String content = message == null || message.content == null ? "" : message.content;
-            parts.add("#" + index + "{role=" + role + ",content=\"" + escapeForLog(content) + "\"}");
+            parts.add("#" + index + " " + role + ":\"" + escapeForLog(content) + "\"");
         }
         return parts.toString();
     }

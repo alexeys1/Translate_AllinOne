@@ -8,7 +8,6 @@ import com.alexeys.translate_allinone.utils.cache.component.ComponentCacheModule
 import com.alexeys.translate_allinone.utils.cache.component.ComponentTranslationStoreRegistry;
 import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationDebugLogger;
 import com.alexeys.translate_allinone.utils.config.ModConfig;
-import com.alexeys.translate_allinone.utils.config.pojos.LogLevel;
 import com.alexeys.translate_allinone.utils.llmapi.LLM;
 import com.alexeys.translate_allinone.utils.translate.DictionaryHotReloadManager;
 import com.alexeys.translate_allinone.utils.translate.TranslationQueueResetCoordinator;
@@ -30,8 +29,7 @@ public class Translate_AllinOne implements ModInitializer {
 		VersionUpgradeBackupManager.backupIfVersionChanged();
 		ConfigManager.register();
 		ComponentTranslationDebugLogger.register();
-		LLM.configureRequestTextStatsLogging(Translate_AllinOne::llmStatsLevelOrdinal);
-		LLM.refreshRequestTextStatsLogging();
+		LLM.configureRequestTextStatsLogging(() -> getConfig().debug.llmStats);
 		TranslationQueueResetCoordinator.register();
 		ComponentTranslationStoreRegistry.getInstance().forModule(ComponentCacheModule.SCREEN_UI).load();
 		WynncraftDictionaryInstaller.ensureInstalled();
@@ -44,10 +42,5 @@ public class Translate_AllinOne implements ModInitializer {
 
 	public static ModConfig getConfig() {
 		return ConfigManager.getConfig();
-	}
-
-	private static int llmStatsLevelOrdinal() {
-		LogLevel level = getConfig().debug.llmStats;
-		return level == null ? LogLevel.OFF.ordinal() : level.ordinal();
 	}
 }
