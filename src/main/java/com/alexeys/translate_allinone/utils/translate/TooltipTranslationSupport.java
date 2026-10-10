@@ -2,7 +2,9 @@ package com.alexeys.translate_allinone.utils.translate;
 
 import com.alexeys.translate_allinone.Translate_AllinOne;
 import com.alexeys.translate_allinone.utils.cache.ItemTemplateCache;
+import com.alexeys.translate_allinone.utils.config.pojos.DebugConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ItemTranslateConfig;
+import com.alexeys.translate_allinone.utils.config.pojos.LogLevel;
 import com.alexeys.translate_allinone.utils.input.KeybindingManager;
 import com.alexeys.translate_allinone.utils.translate.TooltipRoutePlanner.TooltipParagraphBlock;
 import com.alexeys.translate_allinone.utils.translate.TooltipRoutePlanner.TooltipPlan;
@@ -23,6 +25,15 @@ import java.util.function.Consumer;
 
 public final class TooltipTranslationSupport {
     private static final Logger LOGGER = LoggerFactory.getLogger("Translate_AllinOne/TooltipTranslationSupport");
+
+    private static boolean flowLogEnabled() {
+        try {
+            DebugConfig debug = Translate_AllinOne.getConfig().debug;
+            return debug != null && debug.flow != null && debug.flow != LogLevel.OFF;
+        } catch (IllegalStateException ignored) {
+            return false;
+        }
+    }
 
     private static final class TooltipFrameCache {
         int fingerprint;
@@ -124,10 +135,6 @@ public final class TooltipTranslationSupport {
             return new TooltipLineResult(line, false, false);
         }
         return TooltipTemplateRuntime.translateLine(line, useTagStylePreservation);
-    }
-
-    public static List<Text> buildTranslatedTooltip(List<Text> originalTooltip, String animationKey) {
-        return buildTranslatedTooltipResult(originalTooltip, animationKey).translatedTooltip();
     }
 
     public static Set<String> collectTranslationTemplateKeys(List<Text> tooltip, ItemTranslateConfig config) {
@@ -315,7 +322,7 @@ public final class TooltipTranslationSupport {
         }
 
         if (shouldQueueRemoteTranslationKeys(tooltip, showRefreshNotice)) {
-            if (config.debug.enabled) {
+            if (flowLogEnabled()) {
                 LOGGER.info(
                         "[ItemDev:llm-enqueue] source=\"{}\" keyCount={}",
                         "screen-mirror",

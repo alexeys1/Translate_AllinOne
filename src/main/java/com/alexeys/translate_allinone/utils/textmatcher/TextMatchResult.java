@@ -2,11 +2,9 @@ package com.alexeys.translate_allinone.utils.textmatcher;
 
 import net.minecraft.text.MutableText;
 import net.minecraft.text.PlainTextContent;
-import net.minecraft.text.Style;
 
 import java.util.Map;
 import java.util.List;
-import java.util.Set;
 
 public final class TextMatchResult {
     public static final TextMatchResult FAILURE = new TextMatchResult(false, List.of(), List.of(), Map.of(), -1, -1);
@@ -60,33 +58,8 @@ public final class TextMatchResult {
         return matchedBranches;
     }
 
-    public Set<String> groupNames() {
-        return captures.keySet();
-    }
-
-    public String groupText(String name) {
-        List<FlatNode> nodes = captures.get(name);
-        if (nodes == null || nodes.isEmpty()) {
-            return null;
-        }
-
-        StringBuilder builder = new StringBuilder();
-        for (FlatNode node : nodes) {
-            builder.append(node.extractString());
-        }
-        return builder.toString();
-    }
-
     public List<FlatNode> groupNodes(String name) {
         return captures.get(name);
-    }
-
-    public Style groupStyle(String name) {
-        List<FlatNode> nodes = captures.get(name);
-        if (nodes == null || nodes.isEmpty()) {
-            return null;
-        }
-        return nodes.get(0).style();
     }
 
     public int startIndex() {

@@ -167,7 +167,7 @@ record ParagraphTranslationPlan(
             }
         }
         if (rendered.getString().isBlank()) {
-            return RenderResult.rejected("Paragraph Component reconstruction is empty.");
+            return RenderResult.rejected("Paragraph Text reconstruction is empty.");
         }
         return RenderResult.accepted(rendered);
     }

@@ -57,7 +57,6 @@ final class TooltipComponentTranslationSupport {
                 || prepared == null
                 || config == null
                 || !isEligibleLine(prepared.sourceLine(), config)) {
-            logTooltipText(route, context, "INELIGIBLE", prepared);
             return new LineTranslationAttempt(
                     null,
                     ComponentTranslationRuntime.FailureDisposition.INELIGIBLE,
@@ -74,7 +73,7 @@ final class TooltipComponentTranslationSupport {
                             prepared,
                             route,
                             context,
-                            "Failed to prepare tooltip Component translation: " + describeError(error),
+                            "Failed to prepare tooltip Text translation: " + describeError(error),
                             error
                     ),
                     ComponentTranslationRuntime.FailureDisposition.TERMINAL_CONTENT_FAILURE,
@@ -83,7 +82,6 @@ final class TooltipComponentTranslationSupport {
             );
         }
         if (preparedDocument == null) {
-            logTooltipText(route, context, "INELIGIBLE", prepared);
             return new LineTranslationAttempt(
                     null,
                     ComponentTranslationRuntime.FailureDisposition.INELIGIBLE,
@@ -93,7 +91,6 @@ final class TooltipComponentTranslationSupport {
         }
 
         ComponentTranslationDocument document = preparedDocument.document();
-        logTooltipText(route, context, "COMPONENT_TEXT", prepared);
         String targetLanguage = config.target_language;
         try {
             String cacheKey = ComponentTranslationRuntime.cacheKey(document, targetLanguage);
@@ -119,7 +116,7 @@ final class TooltipComponentTranslationSupport {
                                     translatedTemplate.getString()
                             );
                             if (translated == null) {
-                                throw new IllegalArgumentException("Component tooltip template could not be rendered.");
+                                throw new IllegalArgumentException("Text tooltip template could not be rendered.");
                             }
                             return translated;
                         } finally {
@@ -133,9 +130,6 @@ final class TooltipComponentTranslationSupport {
                     context,
                     queueIfMissing && !suppressQueue
             );
-            if (resolution.state() == ComponentTranslationRuntime.State.INELIGIBLE) {
-                logTooltipText(route, context, "INELIGIBLE", prepared);
-            }
             return new LineTranslationAttempt(
                     toLineResult(prepared, cacheKey, resolution),
                     resolution.failureDisposition(),
@@ -148,7 +142,7 @@ final class TooltipComponentTranslationSupport {
                             prepared,
                             route,
                             context,
-                            "Failed to resolve tooltip Component translation: " + describeError(error),
+                            "Failed to resolve tooltip Text translation: " + describeError(error),
                             error
                     ),
                     ComponentTranslationRuntime.FailureDisposition.INFRASTRUCTURE_FAILURE,
@@ -206,20 +200,13 @@ final class TooltipComponentTranslationSupport {
         } catch (RuntimeException error) {
             return originalParagraphAttempt(
                     block,
-                    "Failed to prepare tooltip paragraph Component translation: " + describeError(error)
+                    "Failed to prepare tooltip paragraph Text translation: " + describeError(error)
             );
         }
         if (bundle == null) {
-            logParagraphText(block, "INELIGIBLE");
             return null;
         }
         List<Text> lines = block.preparedLines().stream().map(PreparedTooltipTemplate::sourceLine).toList();
-        ComponentTranslationDebugLogger.tooltipText(
-                ComponentTranslationRoute.TOOLTIP_PARAGRAPH,
-                "tooltip:paragraph:coherent",
-                "COMPONENT_TEXT",
-                lines
-        );
 
         String targetLanguage = config.target_language;
         String cacheKey;
@@ -271,12 +258,8 @@ final class TooltipComponentTranslationSupport {
         } catch (RuntimeException error) {
             return originalParagraphAttempt(
                     block,
-                    "Failed to resolve tooltip paragraph Component translation: " + describeError(error)
+                    "Failed to resolve tooltip paragraph Text translation: " + describeError(error)
             );
-        }
-
-        if (resolution.state() == ComponentTranslationRuntime.State.INELIGIBLE) {
-            logParagraphText(block, "INELIGIBLE");
         }
 
         boolean validCacheHit = resolution.state() == ComponentTranslationRuntime.State.CACHE_HIT
@@ -690,36 +673,6 @@ final class TooltipComponentTranslationSupport {
             }
         }
         return refreshed;
-    }
-
-    private static void logTooltipText(
-            ComponentTranslationRoute route,
-            String context,
-            String marker,
-            PreparedTooltipTemplate prepared
-    ) {
-        ComponentTranslationDebugLogger.tooltipText(
-                route,
-                context,
-                marker,
-                prepared == null ? null : prepared.sourceLine()
-        );
-    }
-
-    private static void logParagraphText(TooltipParagraphBlock block, String marker) {
-        if (block == null || block.preparedLines() == null) {
-            return;
-        }
-        List<Text> labels = new ArrayList<>(block.preparedLines().size());
-        for (PreparedTooltipTemplate preparedLine : block.preparedLines()) {
-            labels.add(preparedLine == null ? null : preparedLine.sourceLine());
-        }
-        ComponentTranslationDebugLogger.tooltipText(
-                ComponentTranslationRoute.TOOLTIP_PARAGRAPH,
-                "tooltip:paragraph:coherent",
-                marker,
-                labels
-        );
     }
 
     private static void addTemplateKey(Set<String> templateKeys, String templateKey) {

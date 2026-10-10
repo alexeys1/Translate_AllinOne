@@ -1,5 +1,8 @@
 package com.alexeys.translate_allinone.gui.configui.modals;
 
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.ActionBlockAdder;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.TextFieldAdder;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.Translator;
 import com.alexeys.translate_allinone.utils.config.ui.UiRect;
 import com.alexeys.translate_allinone.gui.configui.render.ConfigUiModalSupport;
 import java.util.function.Consumer;
@@ -18,9 +21,9 @@ public final class ModelTemperatureModalSupport {
             String scoreboardTemperatureDraft,
             String wynntilsTaskTrackerTemperatureDraft,
             String wynnNpcDialogueTemperatureDraft,
-            ModelSettingsModalSupport.Translator translator,
-            ModelSettingsModalSupport.FloatingActionBlockAdder floatingActionBlockAdder,
-            ModelSettingsModalSupport.FloatingTextFieldAdder floatingTextFieldAdder,
+            Translator translator,
+            ActionBlockAdder ActionBlockAdder,
+            TextFieldAdder TextFieldAdder,
             Consumer<String> onChatTemperatureChanged,
             Consumer<String> onItemTemperatureChanged,
             Consumer<String> onScoreboardTemperatureChanged,
@@ -46,8 +49,8 @@ public final class ModelTemperatureModalSupport {
                 chatTemperatureDraft,
                 onChatTemperatureChanged,
                 translator,
-                floatingActionBlockAdder,
-                floatingTextFieldAdder,
+                ActionBlockAdder,
+                TextFieldAdder,
                 style
         );
         rowY += 28;
@@ -62,8 +65,8 @@ public final class ModelTemperatureModalSupport {
                 itemTemperatureDraft,
                 onItemTemperatureChanged,
                 translator,
-                floatingActionBlockAdder,
-                floatingTextFieldAdder,
+                ActionBlockAdder,
+                TextFieldAdder,
                 style
         );
         rowY += 28;
@@ -78,8 +81,8 @@ public final class ModelTemperatureModalSupport {
                 scoreboardTemperatureDraft,
                 onScoreboardTemperatureChanged,
                 translator,
-                floatingActionBlockAdder,
-                floatingTextFieldAdder,
+                ActionBlockAdder,
+                TextFieldAdder,
                 style
         );
         rowY += 28;
@@ -94,8 +97,8 @@ public final class ModelTemperatureModalSupport {
                 wynntilsTaskTrackerTemperatureDraft,
                 onWynntilsTaskTrackerTemperatureChanged,
                 translator,
-                floatingActionBlockAdder,
-                floatingTextFieldAdder,
+                ActionBlockAdder,
+                TextFieldAdder,
                 style
         );
         rowY += 28;
@@ -110,8 +113,8 @@ public final class ModelTemperatureModalSupport {
                 wynnNpcDialogueTemperatureDraft,
                 onWynnNpcDialogueTemperatureChanged,
                 translator,
-                floatingActionBlockAdder,
-                floatingTextFieldAdder,
+                ActionBlockAdder,
+                TextFieldAdder,
                 style
         );
 
@@ -120,7 +123,7 @@ public final class ModelTemperatureModalSupport {
         int leftX = rect.x + 24;
         int rightX = leftX + half + 6;
 
-        floatingActionBlockAdder.add(
+        ActionBlockAdder.add(
                 leftX,
                 buttonsY,
                 half,
@@ -134,7 +137,7 @@ public final class ModelTemperatureModalSupport {
                 null
         );
 
-        floatingActionBlockAdder.add(
+        ActionBlockAdder.add(
                 rightX,
                 buttonsY,
                 half,
@@ -160,12 +163,12 @@ public final class ModelTemperatureModalSupport {
             Text label,
             String value,
             Consumer<String> changed,
-            ModelSettingsModalSupport.Translator translator,
-            ModelSettingsModalSupport.FloatingActionBlockAdder floatingActionBlockAdder,
-            ModelSettingsModalSupport.FloatingTextFieldAdder floatingTextFieldAdder,
+            Translator translator,
+            ActionBlockAdder ActionBlockAdder,
+            TextFieldAdder TextFieldAdder,
             ModelSettingsModalSupport.Style style
     ) {
-        floatingActionBlockAdder.add(
+        ActionBlockAdder.add(
                 labelX,
                 rowY,
                 labelWidth,
@@ -179,7 +182,7 @@ public final class ModelTemperatureModalSupport {
                 false,
                 translator.t("desc.temperature")
         );
-        return floatingTextFieldAdder.add(
+        return TextFieldAdder.add(
                 fieldX,
                 rowY,
                 fieldWidth,

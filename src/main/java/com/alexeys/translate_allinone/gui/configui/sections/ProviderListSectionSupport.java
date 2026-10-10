@@ -1,5 +1,8 @@
 package com.alexeys.translate_allinone.gui.configui.sections;
 
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.ActionBlockAdder;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.TextFieldAdder;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.Translator;
 import com.alexeys.translate_allinone.utils.config.ui.ProviderProfileSupport;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.alexeys.translate_allinone.utils.config.pojos.ProviderManagerConfig;
@@ -8,7 +11,6 @@ import net.minecraft.text.Text;
 
 import java.util.List;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 public final class ProviderListSectionSupport {
     private static final int ROW_STEP = 24;
@@ -119,42 +121,6 @@ public final class ProviderListSectionSupport {
         , translator.t("desc.add_provider"));
 
         return new RenderResult(providerSearchField, addButtonY + 20);
-    }
-
-    @FunctionalInterface
-    public interface ActionBlockAdder {
-        void add(
-                int x,
-                int y,
-                int width,
-                int height,
-                Supplier<Text> labelSupplier,
-                Runnable action,
-                int color,
-                int hoverColor,
-                int textColor,
-                boolean centered,
-                Text tooltip
-        );
-    }
-
-    @FunctionalInterface
-    public interface TextFieldAdder {
-        TextFieldWidget add(
-                int x,
-                int y,
-                int width,
-                int maxLength,
-                String initialValue,
-                Text placeholder,
-                Consumer<String> changed,
-                boolean editable
-        );
-    }
-
-    @FunctionalInterface
-    public interface Translator {
-        Text t(String key, Object... args);
     }
 
     public record RenderResult(TextFieldWidget providerSearchField, int contentBottomY) {

@@ -188,14 +188,6 @@ public final class WynnDialogueHudRenderer {
         lastRenderedPayload = "";
     }
 
-    public static EditorPreviewSnapshot getEditorPreviewSnapshot(
-            TextRenderer textRenderer,
-            int viewportWidth,
-            int viewportHeight
-    ) {
-        return getEditorPreviewLayout(textRenderer, viewportWidth, viewportHeight).dialogue();
-    }
-
     public static EditorPreviewLayout getEditorPreviewLayout(
             TextRenderer textRenderer,
             int viewportWidth,

@@ -1,5 +1,8 @@
 package com.alexeys.translate_allinone.gui.configui.modals;
 
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.ActionBlockAdder;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.TextFieldAdder;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.Translator;
 import com.alexeys.translate_allinone.utils.config.ui.ParameterListLocation;
 import com.alexeys.translate_allinone.utils.config.ui.ParameterTreeRow;
 import com.alexeys.translate_allinone.utils.config.ui.UiRect;
@@ -34,8 +37,8 @@ public final class CustomParametersModalSupport {
             Supplier<String> selectedPathSupplier,
             Consumer<String> selectedPathSetter,
             Translator translator,
-            FloatingActionBlockAdder floatingActionBlockAdder,
-            FloatingTextFieldAdder floatingTextFieldAdder,
+            ActionBlockAdder ActionBlockAdder,
+            TextFieldAdder TextFieldAdder,
             Consumer<Text> errorReporter,
             Runnable rebuildCustomFocus,
             Runnable onCancel,
@@ -56,7 +59,7 @@ public final class CustomParametersModalSupport {
             selectedPathSetter.accept(rows.get(0).path());
         }
 
-        floatingActionBlockAdder.add(
+        ActionBlockAdder.add(
                 leftX,
                 contentTop,
                 leftWidth,
@@ -73,7 +76,7 @@ public final class CustomParametersModalSupport {
         int rowY = contentTop + 24;
         int maxRowsBottom = contentBottom - 70;
         if (rows.isEmpty()) {
-            floatingActionBlockAdder.add(
+            ActionBlockAdder.add(
                     leftX,
                     rowY,
                     leftWidth,
@@ -99,7 +102,7 @@ public final class CustomParametersModalSupport {
                 String valueText = entry.is_object ? "" : " = " + ProviderProfileSupport.sanitizeText(entry.value);
                 Text label = Text.literal(indent + typePrefix + ProviderProfileSupport.sanitizeText(entry.key) + valueText);
 
-                floatingActionBlockAdder.add(
+                ActionBlockAdder.add(
                         leftX,
                         rowY,
                         leftWidth,
@@ -118,7 +121,7 @@ public final class CustomParametersModalSupport {
             }
         }
 
-        floatingActionBlockAdder.add(
+        ActionBlockAdder.add(
                 leftX,
                 contentBottom - 44,
                 leftWidth,
@@ -139,7 +142,7 @@ public final class CustomParametersModalSupport {
         TextFieldWidget customParameterValueField = null;
         CustomParameterEntry selectedEntry = CustomParameterTreeSupport.findByPath(modelSettingsCustomParametersDraft, selectedPathSupplier.get());
         if (selectedEntry == null) {
-            floatingActionBlockAdder.add(
+            ActionBlockAdder.add(
                     rightX,
                     contentTop,
                     rightWidth,
@@ -158,7 +161,7 @@ public final class CustomParametersModalSupport {
             int valueX = rightX + labelWidth + 6;
             int valueWidth = Math.max(80, rightWidth - labelWidth - 6);
 
-            floatingActionBlockAdder.add(
+            ActionBlockAdder.add(
                     rightX,
                     editorY,
                     labelWidth,
@@ -171,7 +174,7 @@ public final class CustomParametersModalSupport {
                     style.colorText(),
                     false
             );
-            customParameterNameField = floatingTextFieldAdder.add(
+            customParameterNameField = TextFieldAdder.add(
                     valueX,
                     editorY,
                     valueWidth,
@@ -183,7 +186,7 @@ public final class CustomParametersModalSupport {
             );
             editorY += 24;
 
-            floatingActionBlockAdder.add(
+            ActionBlockAdder.add(
                     rightX,
                     editorY,
                     labelWidth,
@@ -196,7 +199,7 @@ public final class CustomParametersModalSupport {
                     style.colorText(),
                     false
             );
-            customParameterValueField = floatingTextFieldAdder.add(
+            customParameterValueField = TextFieldAdder.add(
                     valueX,
                     editorY,
                     valueWidth,
@@ -208,7 +211,7 @@ public final class CustomParametersModalSupport {
             );
             editorY += 24;
 
-            floatingActionBlockAdder.add(
+            ActionBlockAdder.add(
                     rightX,
                     editorY,
                     rightWidth,
@@ -223,7 +226,7 @@ public final class CustomParametersModalSupport {
             );
             editorY += 24;
 
-            floatingActionBlockAdder.add(
+            ActionBlockAdder.add(
                     rightX,
                     editorY,
                     rightWidth,
@@ -245,7 +248,7 @@ public final class CustomParametersModalSupport {
             editorY += 24;
 
             int half = (rightWidth - 6) / 2;
-            floatingActionBlockAdder.add(
+            ActionBlockAdder.add(
                     rightX,
                     editorY,
                     half,
@@ -268,7 +271,7 @@ public final class CustomParametersModalSupport {
                     false
             );
 
-            floatingActionBlockAdder.add(
+            ActionBlockAdder.add(
                     rightX + half + 6,
                     editorY,
                     half,
@@ -290,7 +293,7 @@ public final class CustomParametersModalSupport {
             );
             editorY += 24;
 
-            floatingActionBlockAdder.add(
+            ActionBlockAdder.add(
                     rightX,
                     editorY,
                     rightWidth,
@@ -321,7 +324,7 @@ public final class CustomParametersModalSupport {
         int half = (rect.width - 48 - 6) / 2;
         int leftButtonX = rect.x + 24;
         int rightButtonX = leftButtonX + half + 6;
-        floatingActionBlockAdder.add(
+        ActionBlockAdder.add(
                 leftButtonX,
                 buttonsY,
                 half,
@@ -333,7 +336,7 @@ public final class CustomParametersModalSupport {
                 style.colorText(),
                 true
         );
-        floatingActionBlockAdder.add(
+        ActionBlockAdder.add(
                 rightButtonX,
                 buttonsY,
                 half,
@@ -364,41 +367,6 @@ public final class CustomParametersModalSupport {
     }
 
     public record Fields(TextFieldWidget nameField, TextFieldWidget valueField) {
-    }
-
-    @FunctionalInterface
-    public interface Translator {
-        Text t(String key, Object... args);
-    }
-
-    @FunctionalInterface
-    public interface FloatingTextFieldAdder {
-        TextFieldWidget add(
-                int x,
-                int y,
-                int width,
-                int maxLength,
-                String initialValue,
-                Text placeholder,
-                Consumer<String> changed,
-                boolean editable
-        );
-    }
-
-    @FunctionalInterface
-    public interface FloatingActionBlockAdder {
-        void add(
-                int x,
-                int y,
-                int width,
-                int height,
-                Supplier<Text> labelSupplier,
-                Runnable action,
-                int color,
-                int hoverColor,
-                int textColor,
-                boolean centered
-        );
     }
 
     public record Style(

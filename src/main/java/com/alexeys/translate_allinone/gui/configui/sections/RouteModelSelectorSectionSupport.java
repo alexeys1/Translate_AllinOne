@@ -1,12 +1,13 @@
 package com.alexeys.translate_allinone.gui.configui.sections;
 
 import com.alexeys.translate_allinone.gui.configui.model.RouteModelOption;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.ActionBlockAdder;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.Translator;
 import com.alexeys.translate_allinone.utils.config.ui.RouteSlot;
 import com.alexeys.translate_allinone.utils.config.pojos.ProviderManagerConfig;
 import net.minecraft.text.Text;
 
 import java.util.List;
-import java.util.function.Supplier;
 
 public final class RouteModelSelectorSectionSupport {
     private static final int OPTION_HEIGHT = 20;
@@ -27,7 +28,7 @@ public final class RouteModelSelectorSectionSupport {
             boolean dropdownOpen,
             Translator translator,
             ActionBlockAdder actionBlockAdder,
-            FloatingActionBlockAdder floatingActionBlockAdder,
+            ActionBlockAdder ActionBlockAdder,
             Runnable onToggleDropdown,
             RouteSelectionHandler onSelected,
             Style style
@@ -74,7 +75,7 @@ public final class RouteModelSelectorSectionSupport {
             int color = selected ? style.colorBlockAccent() : style.colorBlock();
             int hoverColor = selected ? style.colorBlockAccentHover() : style.colorBlockHover();
             int textColor = selected ? style.colorTextAccent() : style.colorText();
-            floatingActionBlockAdder.add(
+            ActionBlockAdder.add(
                     dropdownX,
                     optionY,
                     dropdownWidth,
@@ -110,45 +111,8 @@ public final class RouteModelSelectorSectionSupport {
     }
 
     @FunctionalInterface
-    public interface Translator {
-        Text t(String key, Object... args);
-    }
-
-    @FunctionalInterface
     public interface RouteSelectionHandler {
         void onSelected(String routeKey, Text displayLabel);
-    }
-
-    @FunctionalInterface
-    public interface ActionBlockAdder {
-        void add(
-                int x,
-                int y,
-                int width,
-                int height,
-                Supplier<Text> labelSupplier,
-                Runnable action,
-                int color,
-                int hoverColor,
-                int textColor,
-                boolean centered
-        );
-    }
-
-    @FunctionalInterface
-    public interface FloatingActionBlockAdder {
-        void add(
-                int x,
-                int y,
-                int width,
-                int height,
-                Supplier<Text> labelSupplier,
-                Runnable action,
-                int color,
-                int hoverColor,
-                int textColor,
-                boolean centered
-        );
     }
 
     public record Style(

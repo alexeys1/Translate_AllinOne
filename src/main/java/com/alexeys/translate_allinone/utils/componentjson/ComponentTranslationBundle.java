@@ -19,17 +19,17 @@ public record ComponentTranslationBundle(
 
     public ComponentTranslationBundle {
         if (cacheDocument == null || documents == null || templates == null || semanticSlots == null || accentAnchors == null) {
-            throw new IllegalArgumentException("Component translation bundle is incomplete.");
+            throw new IllegalArgumentException("Text translation bundle is incomplete.");
         }
         documents = List.copyOf(documents);
         templates = List.copyOf(templates);
         semanticSlots = List.copyOf(semanticSlots);
         accentAnchors = List.copyOf(accentAnchors);
         if (documents.size() != templates.size()) {
-            throw new IllegalArgumentException("Component translation bundle templates do not match its documents.");
+            throw new IllegalArgumentException("Text translation bundle templates do not match its documents.");
         }
         if (documents.isEmpty() && cacheDocument.route() != ComponentTranslationRoute.TOOLTIP_PARAGRAPH) {
-            throw new IllegalArgumentException("Component translation bundle has no local documents.");
+            throw new IllegalArgumentException("Text translation bundle has no local documents.");
         }
     }
 
@@ -78,7 +78,7 @@ public record ComponentTranslationBundle(
             boolean isolateBatchContext
     ) {
         if (components == null || components.isEmpty() || route == null) {
-            throw new IllegalArgumentException("Component translation bundle input is incomplete.");
+            throw new IllegalArgumentException("Text translation bundle input is incomplete.");
         }
 
         List<ComponentDynamicTemplate> templates = new ArrayList<>(components.size());

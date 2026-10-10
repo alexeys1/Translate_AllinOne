@@ -1,6 +1,5 @@
 package com.alexeys.translate_allinone.utils.translate;
 
-import net.minecraft.text.MutableText;
 import net.minecraft.text.Style;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
@@ -47,14 +46,6 @@ public record WynnDialogueTextTemplate(
                 .map(ChoiceSlot::readableText)
                 .filter(value -> !value.isBlank())
                 .toList());
-    }
-
-    public Text rebuildOriginal() {
-        MutableText rebuilt = Text.empty();
-        for (TemplateToken token : tokens) {
-            rebuilt.append(Text.literal(token.text()).setStyle(token.style()));
-        }
-        return rebuilt;
     }
 
     private static void appendLine(StringBuilder builder, String line) {

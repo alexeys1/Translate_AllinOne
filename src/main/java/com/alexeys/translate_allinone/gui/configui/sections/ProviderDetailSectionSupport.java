@@ -1,15 +1,18 @@
 package com.alexeys.translate_allinone.gui.configui.sections;
 
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.ActionBlockAdder;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.GroupBoxAdder;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.ProviderTypeLabelProvider;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.TextFieldAdder;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.Translator;
 import com.alexeys.translate_allinone.utils.config.ui.ProviderEditorSupport;
 import com.alexeys.translate_allinone.utils.config.ui.ProviderProfileSupport;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
-import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderType;
 import net.minecraft.text.Text;
 
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 public final class ProviderDetailSectionSupport {
     private static final int ROW_STEP = 24;
@@ -500,37 +503,6 @@ public final class ProviderDetailSectionSupport {
     }
 
     @FunctionalInterface
-    public interface ActionBlockAdder {
-        void add(
-                int x,
-                int y,
-                int width,
-                int height,
-                Supplier<Text> labelSupplier,
-                Runnable action,
-                int color,
-                int hoverColor,
-                int textColor,
-                boolean centered,
-                Text tooltip
-        );
-    }
-
-    @FunctionalInterface
-    public interface TextFieldAdder {
-        void add(
-                int x,
-                int y,
-                int width,
-                int maxLength,
-                String initialValue,
-                Text placeholder,
-                Consumer<String> changed,
-                boolean editable
-        );
-    }
-
-    @FunctionalInterface
     public interface SecretTextFieldAdder {
         void add(
                 int x,
@@ -543,21 +515,6 @@ public final class ProviderDetailSectionSupport {
                 boolean masked,
                 boolean clearOnFirstEdit
         );
-    }
-
-    @FunctionalInterface
-    public interface Translator {
-        Text t(String key, Object... args);
-    }
-
-    @FunctionalInterface
-    public interface GroupBoxAdder {
-        void add(int x, int y, int width, int height, Text title);
-    }
-
-    @FunctionalInterface
-    public interface ProviderTypeLabelProvider {
-        Text label(ApiProviderType providerType);
     }
 
     public record Style(
