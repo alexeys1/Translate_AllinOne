@@ -409,6 +409,7 @@
   "text.translate_allinone.configscreen.prompt_editor.route.wynntils_task_tracker": "Wynntils Task Tracker",
   "text.translate_allinone.configscreen.prompt_editor.route.sign_book": "Signs and Books",
   "text.translate_allinone.configscreen.prompt_editor.route.entity_text": "Entity Text",
+  "text.translate_allinone.configscreen.prompt_editor.route.screen_ui": "Screen UI",
   "text.translate_allinone.configscreen.prompt_editor.title": "Edit Prompts",
   "text.translate_allinone.configscreen.prompt_editor.screen_title": "Edit Prompts - %s",
   "text.translate_allinone.configscreen.prompt_editor.unsaved": "(unsaved)",

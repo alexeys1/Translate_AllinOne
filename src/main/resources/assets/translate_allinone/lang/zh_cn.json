@@ -395,6 +395,7 @@
   "text.translate_allinone.configscreen.prompt_editor.route.wynntils_task_tracker": "Wynntils 任务追踪",
   "text.translate_allinone.configscreen.prompt_editor.route.sign_book": "告示牌与书本",
   "text.translate_allinone.configscreen.prompt_editor.route.entity_text": "实体文本",
+  "text.translate_allinone.configscreen.prompt_editor.route.screen_ui": "界面文本",
   "text.translate_allinone.configscreen.prompt_editor.title": "编辑提示词",
   "text.translate_allinone.configscreen.prompt_editor.screen_title": "编辑提示词 - %s",
   "text.translate_allinone.configscreen.prompt_editor.unsaved": "(未保存)",

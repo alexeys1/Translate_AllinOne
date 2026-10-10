@@ -50,6 +50,9 @@ public class PromptEditorScreen extends Screen {
 
     private static final int TOP_BAR_HEIGHT = 40;
     private static final int LEFT_PANEL_WIDTH = 200;
+    private static final int ROUTE_PANEL_TOP_PADDING = 12;
+    private static final int ROUTE_ROW_MAX_PITCH = 28;
+    private static final int ROUTE_ROW_MIN_PITCH = 14;
     private static final int LINE_HEIGHT = 12;
     private static final int EDITOR_PADDING = 12;
     private static final int LINE_NUMBER_WIDTH = 32;
@@ -85,7 +88,8 @@ public class PromptEditorScreen extends Screen {
 
     private static final String[] ROUTE_KEYS = {
             "item", "scoreboard", "chat_output", "chat_input_translate",
-            "wynn_npc_dialogue", "wynntils_task_tracker", "sign_book", "entity_text"
+            "wynn_npc_dialogue", "wynntils_task_tracker", "sign_book", "entity_text",
+            "screen_ui"
     };
 
     public PromptEditorScreen(Screen parent, String providerId) {
@@ -468,7 +472,7 @@ public class PromptEditorScreen extends Screen {
         }
 
         if (mouseX < LEFT_PANEL_WIDTH) {
-            int routeIndex = (int) ((mouseY - TOP_BAR_HEIGHT - 12) / 28);
+            int routeIndex = (int) ((mouseY - TOP_BAR_HEIGHT - ROUTE_PANEL_TOP_PADDING) / routeRowPitch());
             if (routeIndex >= 0 && routeIndex < ROUTE_KEYS.length) {
                 selectedRoute = ROUTE_KEYS[routeIndex];
                 cursorPos = currentText().length();
@@ -585,31 +589,39 @@ public class PromptEditorScreen extends Screen {
         }
     }
 
+    private int routeRowPitch() {
+        int available = this.height - TOP_BAR_HEIGHT - ROUTE_PANEL_TOP_PADDING;
+        return Math.max(ROUTE_ROW_MIN_PITCH, Math.min(ROUTE_ROW_MAX_PITCH, available / ROUTE_KEYS.length));
+    }
+
     private void renderLeftPanel(GuiGraphicsExtractor context, int mouseX, int mouseY) {
-        int y = TOP_BAR_HEIGHT + 12;
+        int y = TOP_BAR_HEIGHT + ROUTE_PANEL_TOP_PADDING;
+        int pitch = routeRowPitch();
+        int rowHeight = Math.max(this.font.lineHeight, pitch - 4);
+        int textOffset = (rowHeight - this.font.lineHeight) / 2;
         for (int i = 0; i < ROUTE_KEYS.length; i++) {
             String routeKey = ROUTE_KEYS[i];
             boolean selected = routeKey.equals(selectedRoute);
-            boolean hovered = mouseX >= 0 && mouseX < LEFT_PANEL_WIDTH && mouseY >= y && mouseY < y + 24;
+            boolean hovered = mouseX >= 0 && mouseX < LEFT_PANEL_WIDTH && mouseY >= y && mouseY < y + rowHeight;
 
             int bgColor = selected ? COLOR_BLOCK_SELECTED : (hovered ? COLOR_BLOCK_HOVER : COLOR_BLOCK);
             if (selected && hovered) bgColor = COLOR_BLOCK_SELECTED_HOVER;
 
-            context.fill(8, y, LEFT_PANEL_WIDTH - 8, y + 24, bgColor);
+            context.fill(8, y, LEFT_PANEL_WIDTH - 8, y + rowHeight, bgColor);
 
             String text = currentText().toString();
             boolean hasContent = !text.isEmpty();
             int textColor = selected ? COLOR_TEXT_ACCENT : (hasContent ? COLOR_TEXT : COLOR_TEXT_MUTED);
 
-            context.text(this.font, routeDisplayName(routeKey), 16, y + 6, textColor, false);
+            context.text(this.font, routeDisplayName(routeKey), 16, y + textOffset, textColor, false);
 
             if (hasContent) {
                 String indicator = "*";
                 int indicatorWidth = this.font.width(indicator);
-                context.text(this.font, indicator, LEFT_PANEL_WIDTH - 16 - indicatorWidth, y + 6, 0xFF59D185, false);
+                context.text(this.font, indicator, LEFT_PANEL_WIDTH - 16 - indicatorWidth, y + textOffset, 0xFF59D185, false);
             }
 
-            y += 28;
+            y += pitch;
         }
     }
 
