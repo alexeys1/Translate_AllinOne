@@ -45,6 +45,7 @@
     "mixinScreenTranslate.UiTranslationChatComponentMixin",
     "mixinScreenTranslate.UiTranslationCommandSuggestionsMixin",
     "mixinScreenTranslate.UiTranslationDrawContextMixin",
+    "mixinScreenTranslate.UiTranslationTextConsumerMixin",
     "mixinScreenTranslate.UiTranslationFontMixin",
     "mixinScreenTranslate.UiTranslationEditBoxMixin",
     "mixinScreenTranslate.UiTranslationElementaFontMixin",
