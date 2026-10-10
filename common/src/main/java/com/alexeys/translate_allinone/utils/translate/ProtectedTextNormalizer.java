@@ -8,6 +8,7 @@ import java.util.regex.Pattern;
 public final class ProtectedTextNormalizer {
 
     public static final int MIN_SOURCE_LETTERS = 8;
+    public static final int MIN_SOURCE_LETTERS_FOR_LANGUAGE_CHECKS = 20;
     public static final int MIN_SOURCE_LETTERS_FOR_TRUNCATION_CHECK = 24;
     public static final int TRUNCATION_SIGNAL_RATIO = 8;
 
@@ -162,13 +163,13 @@ public final class ProtectedTextNormalizer {
         if (token == null || token.isEmpty()) {
             return false;
         }
-        if (token.startsWith("{c")) {
+        if (token.startsWith("{c")
+                || token.startsWith("<s")
+                || token.startsWith("</s")) {
             return false;
         }
         char first = token.charAt(0);
         return first == '\u00A7'
-                || token.startsWith("<s")
-                || token.startsWith("</s")
                 || token.startsWith("{")
                 || token.startsWith("%")
                 || token.startsWith("\\")

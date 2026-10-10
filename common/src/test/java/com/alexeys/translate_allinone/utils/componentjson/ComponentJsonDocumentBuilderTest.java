@@ -32,6 +32,39 @@ class ComponentJsonDocumentBuilderTest {
     }
 
     @Test
+    void blankSourceTextNeverBecomesItsOwnUnit() {
+        JsonObject source = JsonParser.parseString(
+                "{\"text\":\"Save \",\"extra\":[{\"text\":\" \"},{\"text\":\"\"},{\"text\":\"Changes\"}]}"
+        ).getAsJsonObject();
+
+        ComponentTranslationDocument document = new ComponentJsonDocumentBuilder().build(
+                source,
+                ComponentTranslationPolicy.forRoute(ComponentTranslationRoute.SCOREBOARD)
+        );
+
+        assertEquals(List.of("/text", "/extra/2/text"), document.units().stream()
+                .map(ComponentTextUnit::jsonPointer)
+                .toList());
+        assertEquals(List.of("Save ", "Changes"), document.units().stream()
+                .map(ComponentTextUnit::sourceText)
+                .toList());
+    }
+
+    @Test
+    void entirelyBlankComponentProducesNoUnits() {
+        JsonObject source = JsonParser.parseString(
+                "{\"text\":\"\",\"extra\":[{\"text\":\" \"}]}"
+        ).getAsJsonObject();
+
+        ComponentTranslationDocument document = new ComponentJsonDocumentBuilder().build(
+                source,
+                ComponentTranslationPolicy.forRoute(ComponentTranslationRoute.SCOREBOARD)
+        );
+
+        assertEquals(List.of(), document.units());
+    }
+
+    @Test
     void enforcesConfiguredTextUnitLimit() {
         ComponentJsonLimits limits = new ComponentJsonLimits(1024, 10, 20, 1024, 4, 1, 100, 100);
         JsonObject source = JsonParser.parseString(

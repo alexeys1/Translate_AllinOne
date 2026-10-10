@@ -69,8 +69,20 @@ class ProtectedTextNormalizerTest {
     @Test
     void extractsHardProtectedTokensForMismatchComparison() {
         assertEquals(
-                java.util.List.of("§a", "<s1>", "</s1>", "{d1}", "\\n"),
+                java.util.List.of("§a", "{d1}", "\\n"),
                 ProtectedTextNormalizer.extractHardProtectedTokens("§a<s1>Hello</s1>{d1}\\n")
+        );
+    }
+
+    @Test
+    void ignoresStyleTagsInHardTokenComparison() {
+        assertEquals(
+                java.util.List.of(),
+                ProtectedTextNormalizer.extractHardProtectedTokens("<s0>Hello</s0></s1><s2>")
+        );
+        assertEquals(
+                java.util.List.of("{g1}"),
+                ProtectedTextNormalizer.extractHardProtectedTokens("<s0>Power</s0> {g1}")
         );
     }
 

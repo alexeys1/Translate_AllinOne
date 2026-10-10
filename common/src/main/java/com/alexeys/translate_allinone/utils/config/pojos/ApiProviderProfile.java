@@ -161,16 +161,6 @@ public class ApiProviderProfile {
         return settings == null ? temperatureForScene(scene) : settings.temperatureFor(scene);
     }
 
-    public String activeKeepAliveTime() {
-        ModelSettings settings = getActiveModelSettings();
-        return settings == null ? keep_alive_time : settings.keep_alive_time;
-    }
-
-    public List<CustomParameterEntry> activeCustomParameters() {
-        ModelSettings settings = getActiveModelSettings();
-        return settings == null ? copyCustomParameters(custom_parameters) : copyCustomParameters(settings.custom_parameters);
-    }
-
     private void syncLegacyFieldsFrom(ModelSettings active) {
         if (active == null) {
             return;
