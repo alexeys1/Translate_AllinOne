@@ -7,7 +7,6 @@ import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.alexeys.translate_allinone.utils.llmapi.LLM;
 import com.alexeys.translate_allinone.utils.llmapi.LlmPayloadJsonSupport;
 import com.alexeys.translate_allinone.utils.llmapi.ProviderSettings;
-import com.alexeys.translate_allinone.utils.TranslateStringUtils;
 import com.alexeys.translate_allinone.utils.llmapi.openai.OpenAIRequest;
 import com.google.gson.Gson;
 
@@ -201,7 +200,7 @@ public final class WynntilsTaskTrackerTranslateManager {
                 systemPrompt,
                 userPrompt,
                 providerProfile.activeSupportsSystemMessage());
-        String requestContext = buildRequestContext(providerProfile, targetLanguage, originalTexts, messages);
+        String requestContext = buildRequestContext(providerProfile, targetLanguage, originalTexts);
         WynntilsTaskTrackerTranslationSupport.devLog(
                 "llm_submit context={} payload={}",
                 requestContext,
@@ -379,22 +378,14 @@ TranslationQueueWatchdog.requestCompleted(
     private String buildRequestContext(
             ApiProviderProfile profile,
             String targetLanguage,
-            List<String> originalTexts,
-            List<OpenAIRequest.Message> messages
+            List<String> originalTexts
     ) {
-        String providerId = profile == null ? "" : profile.id;
-        String modelId = profile == null ? "" : profile.model_id;
-        int messageCount = messages == null ? 0 : messages.size();
-        String sample = originalTexts == null || originalTexts.isEmpty()
-                ? ""
-                : TranslateStringUtils.truncate(TranslateStringUtils.normalizeWhitespace(originalTexts.getFirst()), 160);
-        return "route=wynntils_task_tracker"
-                + ", provider=" + providerId
-                + ", model=" + modelId
-                + ", target=" + targetLanguage
-                + ", batch=" + (originalTexts == null ? 0 : originalTexts.size())
-                + ", messages=" + messageCount
-                + ", sample=\"" + sample + "\"";
+        return "[route=wynntils_task_tracker"
+                + " provider=" + (profile == null ? "" : profile.id)
+                + " model=" + (profile == null ? "" : profile.model_id)
+                + " target=" + targetLanguage
+                + " batch=" + (originalTexts == null ? 0 : originalTexts.size())
+                + "]";
     }
 
     private String getTargetLanguage() {

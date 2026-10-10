@@ -1,7 +1,6 @@
 package com.alexeys.translate_allinone.utils.translate;
 
 import com.alexeys.translate_allinone.Translate_AllinOne;
-import com.alexeys.translate_allinone.utils.TranslateStringUtils;
 import com.alexeys.translate_allinone.utils.config.ProviderRouteResolver;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.alexeys.translate_allinone.utils.config.pojos.ChatTranslateConfig;
@@ -210,15 +209,7 @@ public class ChatInputTranslateManager {
                 LLM llm = new LLM(settings);
 
                 List<OpenAIRequest.Message> apiMessages = getMessages(providerProfile, inputConfig.target_language, originalTextRef.get(), mode, instruction);
-                requestContext = buildRequestContext(
-                        providerProfile,
-                        inputConfig.target_language,
-                        originalTextRef.get(),
-                        apiMessages,
-                        inputConfig.streaming_response,
-                        mode,
-                        instruction
-                );
+                requestContext = buildRequestContext(providerProfile, inputConfig.target_language, mode);
 
                 if (inputConfig.streaming_response) {
                     final StringBuilder rawResponseBuffer = new StringBuilder();
@@ -425,30 +416,14 @@ public class ChatInputTranslateManager {
     private static String buildRequestContext(
             ApiProviderProfile profile,
             String targetLanguage,
-            String originalText,
-            List<OpenAIRequest.Message> messages,
-            boolean streaming,
-            TransformMode mode,
-            String instruction
+            TransformMode mode
     ) {
-        String providerId = profile == null ? "" : profile.id;
-        String modelId = profile == null ? "" : profile.model_id;
-        int messageCount = messages == null ? 0 : messages.size();
-        String roles = messages == null
-                ? "[]"
-                : messages.stream().map(message -> message == null ? "null" : String.valueOf(message.role)).collect(java.util.stream.Collectors.joining(",", "[", "]"));
-        String sample = TranslateStringUtils.truncate(TranslateStringUtils.normalizeWhitespace(originalText), 160);
-        String instructionSample = TranslateStringUtils.truncate(TranslateStringUtils.normalizeWhitespace(instruction), 120);
-        return "route=chat_input"
-                + ", provider=" + providerId
-                + ", model=" + modelId
-                + ", target=" + (targetLanguage == null ? "" : targetLanguage)
-                + ", mode=" + mode.name().toLowerCase()
-                + ", streaming=" + streaming
-                + ", messages=" + messageCount
-                + ", roles=" + roles
-                + ", instruction=\"" + instructionSample + "\""
-                + ", sample=\"" + sample + "\"";
+        return "[route=chat_input"
+                + " provider=" + (profile == null ? "" : profile.id)
+                + " model=" + (profile == null ? "" : profile.model_id)
+                + " target=" + (targetLanguage == null ? "" : targetLanguage)
+                + " mode=" + mode.name().toLowerCase()
+                + "]";
     }
 
     private static boolean isTransformModeSupported(ApiProviderProfile providerProfile, TransformMode mode) {
