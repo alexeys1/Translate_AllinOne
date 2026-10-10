@@ -123,6 +123,9 @@ public final class ComponentJsonDocumentBuilder {
             ComponentTranslationPolicy policy,
             List<ComponentTextUnit> units
     ) {
+        if (text.isBlank()) {
+            return;
+        }
         if (!policy.allowsLiteral(text)) {
             return;
         }

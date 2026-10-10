@@ -5,6 +5,7 @@ import com.alexeys.translate_allinone.utils.cache.component.ComponentTranslation
 import com.alexeys.translate_allinone.utils.config.ModConfig;
 import com.alexeys.translate_allinone.utils.config.ProviderRouteResolver;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
+import com.alexeys.translate_allinone.utils.translate.ProtectedTextNormalizer;
 import com.alexeys.translate_allinone.utils.translate.TranslationContentGate;
 import com.alexeys.translate_allinone.utils.translate.TranslationFeatureGate;
 import com.alexeys.translate_allinone.utils.translate.TranslationQueueWatchdog;
@@ -38,7 +39,7 @@ public final class ComponentTranslationRuntimeCore {
     private static final long ITEM_BATCH_COLLECT_DELAY_MILLIS = 10L;
     private static final long REQUEST_RATE_WINDOW_MILLIS = TimeUnit.MINUTES.toMillis(1);
     private static final int OTHER_TRANSLATIONS_REQUESTS_PER_MINUTE = 60;
-    private static final int SCREEN_UI_REQUESTS_PER_MINUTE = 10;
+    private static final int SCREEN_UI_REQUESTS_PER_MINUTE = 20;
     private static volatile Access access;
     private static final Map<DispatchRoute, DispatchState> DISPATCH = createDispatchStates();
     private static final ComponentTranslationRuntimeState<FailureDisposition> STATE =
@@ -125,7 +126,6 @@ public final class ComponentTranslationRuntimeCore {
             );
             return new Resolution<>(State.INELIGIBLE, null, "", e.getMessage());
         }
-        ComponentTranslationDebugLogger.textContent(document, request.identity().key());
 
         if (alreadyInTargetLanguage(document, targetLanguage)) {
             T identityValue = null;
@@ -442,12 +442,13 @@ public final class ComponentTranslationRuntimeCore {
         return epoch;
     }
 
-    public static void beginScreenUiSession(int requestBudget, int retryBudget) {
-        STATE.beginScreenUiSession(requestBudget, retryBudget);
+    public static void beginScreenUiSession(int failureBudget) {
+        STATE.beginScreenUiSession(failureBudget);
     }
 
     public static void endScreenUiSession() {
         STATE.endScreenUiSession();
+        discardScreenUiQueue();
     }
 
     private static void clearRuntimeState() {
@@ -692,6 +693,10 @@ public final class ComponentTranslationRuntimeCore {
             finishRequest(route, batch);
             return;
         }
+        if (route == DispatchRoute.SCREEN_UI && !STATE.hasScreenUiSession()) {
+            abandonBatch(route, batch, "screen session closed");
+            return;
+        }
         PendingRequest first = batch.requests().get(0);
         ApiProviderProfile provider = ProviderRouteResolver.resolve(
                 access().config(),
@@ -751,11 +756,11 @@ public final class ComponentTranslationRuntimeCore {
             startParagraphRequest(route, batch, first, provider);
             return;
         }
-        if (route == DispatchRoute.SCREEN_UI && !STATE.tryAcquireScreenUiRequest()) {
+        if (route == DispatchRoute.SCREEN_UI && STATE.screenUiFailureBudgetExhausted()) {
             failBatch(
                     route,
                     batch,
-                    "Screen UI request budget exhausted",
+                    "Screen UI failure budget exhausted",
                     null,
                     FailureDisposition.INFRASTRUCTURE_FAILURE
             );
@@ -1065,16 +1070,42 @@ public final class ComponentTranslationRuntimeCore {
             finishRequest(route, batch);
             return;
         }
-        if (route == DispatchRoute.SCREEN_UI && !STATE.tryAcquireScreenUiRequest()) {
+        if (pending.get(index).epoch() != STATE.epoch()) {
+            startSingleRequest(route, batch, pending, index + 1, provider);
+            return;
+        }
+        if (route == DispatchRoute.SCREEN_UI && !STATE.hasScreenUiSession()) {
+            for (int remaining = index; remaining < pending.size(); remaining++) {
+                abandonRequest(pending.get(remaining), "screen session closed");
+            }
+            finishRequest(route, batch);
+            return;
+        }
+        if (route == DispatchRoute.SCREEN_UI && STATE.screenUiFailureBudgetExhausted()) {
             for (int remaining = index; remaining < pending.size(); remaining++) {
                 recordRequestFailure(
                         pending.get(remaining),
-                        "Screen UI request budget exhausted",
+                        "Screen UI failure budget exhausted",
                         null,
                         FailureDisposition.INFRASTRUCTURE_FAILURE
                 );
             }
             finishRequest(route, batch);
+            return;
+        }
+        DispatchState dispatchState = DISPATCH.get(route);
+        long now = System.currentTimeMillis();
+        long delayMillis;
+        synchronized (dispatchState) {
+            delayMillis = rateLimitDelayMillis(route, dispatchState, now);
+            if (delayMillis <= 0L) {
+                dispatchState.requestStartTimes.add(now);
+            }
+        }
+        if (delayMillis > 0L) {
+            CompletableFuture.delayedExecutor(delayMillis, TimeUnit.MILLISECONDS).execute(
+                    () -> startSingleRequest(route, batch, pending, index, provider)
+            );
             return;
         }
         PendingRequest request = pending.get(index);
@@ -1131,6 +1162,9 @@ public final class ComponentTranslationRuntimeCore {
     ) {
         failWork(request.cacheKey(), request.epoch());
         if (request.epoch() == STATE.epoch()) {
+            if (request.document().route() == ComponentTranslationRoute.SCREEN_UI) {
+                STATE.recordScreenUiFailure();
+            }
             String resolvedMessage = message == null || message.isBlank() ? "Component translation failed" : message;
             Throwable cause = error == null ? null : TranslateExceptionUtils.unwrapThrowable(error);
             FailureDisposition resolvedDisposition = disposition == null
@@ -1188,6 +1222,40 @@ public final class ComponentTranslationRuntimeCore {
             state.active.remove(batch);
         }
         drain(route);
+    }
+
+    private static void discardScreenUiQueue() {
+        DispatchState state = DISPATCH.get(DispatchRoute.SCREEN_UI);
+        List<PendingRequest> queued;
+        synchronized (state) {
+            if (state.queue.isEmpty()) {
+                return;
+            }
+            queued = new ArrayList<>(state.queue);
+            state.queue.clear();
+        }
+        for (PendingRequest request : queued) {
+            abandonRequest(request, "screen session closed");
+        }
+    }
+
+    private static void abandonBatch(DispatchRoute route, PendingBatch batch, String reason) {
+        for (PendingRequest request : batch.requests()) {
+            abandonRequest(request, reason);
+        }
+        finishRequest(route, batch);
+    }
+
+    private static void abandonRequest(PendingRequest request, String reason) {
+        failWork(request.cacheKey(), request.epoch());
+        ComponentTranslationMetrics.record(request.document(), ComponentTranslationMetrics.Outcome.JOB_EXPIRED);
+        ComponentTranslationDebugLogger.flow(
+                request.document().route(),
+                "queue route={} result=discarded reason={} key={}",
+                request.document().route().wireName(),
+                reason,
+                request.cacheKey()
+        );
     }
 
     private static ComponentTranslationRuntimeState.FailureState<FailureDisposition> terminalFailure(
@@ -1339,12 +1407,25 @@ public final class ComponentTranslationRuntimeCore {
         if (document == null || document.units() == null || document.units().isEmpty()) {
             return false;
         }
+        StringBuilder translatable = new StringBuilder();
         for (ComponentTextUnit unit : document.units()) {
-            if (!TranslationContentGate.alreadyInTargetLanguage(unit.sourceText(), targetLanguage)) {
-                return false;
+            String sourceText = unit.sourceText();
+            if (hasTranslatableLetters(sourceText)) {
+                translatable.append(sourceText).append(' ');
             }
         }
-        return true;
+        return translatable.length() > 0
+                && TranslationContentGate.alreadyInTargetLanguage(translatable.toString(), targetLanguage);
+    }
+
+    private static boolean hasTranslatableLetters(String value) {
+        if (value == null || value.isEmpty()) {
+            return false;
+        }
+        String withoutPlaceholders = EXTRA_PLACEHOLDER_PATTERN.matcher(
+                ProtectedTextNormalizer.stripProtectedContent(value)
+        ).replaceAll(" ");
+        return withoutPlaceholders.codePoints().anyMatch(Character::isLetter);
     }
 
     private static ComponentTranslationResponse identityResponse(
@@ -1562,8 +1643,6 @@ public final class ComponentTranslationRuntimeCore {
 
         void error(ComponentTranslationRoute route, String message, Object... arguments);
 
-        void textContent(ComponentTranslationDocument document, String cacheKey);
-
         void entityIdentityMiss(
                 ComponentTranslationDocument document,
                 String targetLanguage,
@@ -1661,10 +1740,6 @@ public final class ComponentTranslationRuntimeCore {
 
         private static void error(ComponentTranslationRoute route, String message, Object... arguments) {
             access().error(route, message, arguments);
-        }
-
-        private static void textContent(ComponentTranslationDocument document, String cacheKey) {
-            access().textContent(document, cacheKey);
         }
 
         private static void entityIdentityMiss(

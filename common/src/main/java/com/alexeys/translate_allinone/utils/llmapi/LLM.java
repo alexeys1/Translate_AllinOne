@@ -20,7 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BooleanSupplier;
+import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -28,8 +28,12 @@ public class LLM {
     private static final Logger LOGGER = LoggerFactory.getLogger("translate_allinone");
     private static final ConcurrentMap<String, OutputFormat> COMPONENT_OUTPUT_CAPABILITIES = new ConcurrentHashMap<>();
 
-    public static void configureRequestTextStatsLogging(BooleanSupplier enabledSupplier) {
-        LlmRequestDebugLogger.configureRequestTextStatsLogging(enabledSupplier);
+    public static void configureRequestTextStatsLogging(IntSupplier levelSupplier) {
+        LlmRequestDebugLogger.configureRequestTextStatsLogging(levelSupplier);
+    }
+
+    public static void refreshRequestTextStatsLogging() {
+        LlmRequestDebugLogger.refresh();
     }
 
     private final OpenAIClient openAIClient;
