@@ -9,6 +9,7 @@ import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
@@ -19,8 +20,9 @@ public final class UiTranslationScope {
     private static final ThreadLocal<Deque<Frame>> FRAMES = ThreadLocal.withInitial(ArrayDeque::new);
     private static final ThreadLocal<Integer> INTERNAL_DEPTH = ThreadLocal.withInitial(() -> 0);
     private static final long SCREEN_SESSION_INACTIVITY_NANOS = 750_000_000L;
+    private static final int SESSION_MEMO_LIMIT = 4096;
     private static volatile Object activeScreenSession;
-    private static volatile String activeClassNameSession;
+    private static volatile Map<CacheKey, UiTranslationResult> activeSessionCache = Map.of();
     private static volatile long activeSessionLastActivityNanos;
     private static final Set<Screen> SCREEN_REMOVAL_HOOKED = Collections.newSetFromMap(
             new WeakHashMap<>()
@@ -33,44 +35,12 @@ public final class UiTranslationScope {
         return enterObject(screen);
     }
 
-    public static Scope enter(Object screenObject) {
-        return enterObject(screenObject);
-    }
-
-    public static Scope enter(String className) {
-        Frame parent = currentFrame();
-        UiScreenAdapter adapter = className == null ? null : UiScreenAdapterRegistry.resolve(className);
-        if (adapter == null && parent != null) {
-            adapter = parent.adapter;
-        }
-        UiTranslationDiagnostics.recordScreen(className, adapter);
-        if (adapter == null) {
-            return Scope.inactive();
-        }
-        if (parent == null) {
-            trackClassNameSession(className);
-        }
-        Frame frame = new Frame(
-                adapter,
-                parent == null ? new HashMap<>() : parent.cache,
-                UiTextRole.OPTION,
-                false,
-                false
-        );
-        FRAMES.get().push(frame);
-        return new Scope(frame);
-    }
-
     private static Scope enterObject(Object screenObject) {
         Frame parent = currentFrame();
         UiScreenAdapter adapter = screenObject == null ? null : UiScreenAdapterRegistry.resolve(screenObject.getClass());
         if (adapter == null && parent != null) {
             adapter = parent.adapter;
         }
-        UiTranslationDiagnostics.recordScreen(
-                screenObject == null ? null : screenObject.getClass().getName(),
-                adapter
-        );
         if (adapter == null) {
             return Scope.inactive();
         }
@@ -79,7 +49,7 @@ public final class UiTranslationScope {
         }
         Frame frame = new Frame(
                 adapter,
-                parent == null ? new HashMap<>() : parent.cache,
+                parent == null ? activeSessionCache : parent.cache,
                 UiTextRole.OPTION,
                 false,
                 false
@@ -92,16 +62,16 @@ public final class UiTranslationScope {
         long now = System.nanoTime();
         if (activeScreenSession == screenObject) {
             if (now - activeSessionLastActivityNanos >= SCREEN_SESSION_INACTIVITY_NANOS) {
+                activeSessionCache = new HashMap<>();
                 UiTranslationRuntime.onScreenClosed();
                 UiTranslationRuntime.onScreenOpened();
             }
-            activeClassNameSession = null;
             activeSessionLastActivityNanos = now;
             return;
         }
         endActiveSession();
         activeScreenSession = screenObject;
-        activeClassNameSession = null;
+        activeSessionCache = new HashMap<>();
         activeSessionLastActivityNanos = now;
         if (screenObject instanceof Screen screen && SCREEN_REMOVAL_HOOKED.add(screen)) {
             ScreenEvents.remove(screen).register(removed -> {
@@ -113,29 +83,8 @@ public final class UiTranslationScope {
         UiTranslationRuntime.onScreenOpened();
     }
 
-    private static void trackClassNameSession(String className) {
-        long now = System.nanoTime();
-        if (activeScreenSession != null
-                && now - activeSessionLastActivityNanos < SCREEN_SESSION_INACTIVITY_NANOS) {
-            return;
-        }
-        if (activeClassNameSession != null && className.equals(activeClassNameSession)) {
-            if (now - activeSessionLastActivityNanos >= SCREEN_SESSION_INACTIVITY_NANOS) {
-                UiTranslationRuntime.onScreenClosed();
-                UiTranslationRuntime.onScreenOpened();
-            }
-            activeSessionLastActivityNanos = now;
-            return;
-        }
-        endActiveSession();
-        activeClassNameSession = className;
-        activeScreenSession = null;
-        activeSessionLastActivityNanos = now;
-        UiTranslationRuntime.onScreenOpened();
-    }
-
     private static boolean hasActiveSession() {
-        return activeScreenSession != null || activeClassNameSession != null;
+        return activeScreenSession != null;
     }
 
     private static boolean isSessionStale() {
@@ -149,7 +98,7 @@ public final class UiTranslationScope {
             return;
         }
         activeScreenSession = null;
-        activeClassNameSession = null;
+        activeSessionCache = Map.of();
         activeSessionLastActivityNanos = 0L;
         UiTranslationRuntime.onScreenClosed();
     }
@@ -160,43 +109,47 @@ public final class UiTranslationScope {
         }
     }
 
-    public static Scope enterInput() {
+    static void clearSessionMemo() {
+        activeSessionCache = new HashMap<>();
+    }
+
+    public static Scope enterInput(String editText) {
         Frame parent = currentFrame();
         if (parent == null) {
             return Scope.inactive();
         }
-        Frame frame = parent.child(parent.role, true, parent.tooltip);
+        Frame frame = parent.child(parent.role, true, parent.tooltip, editText);
         FRAMES.get().push(frame);
         return new Scope(frame);
     }
 
-    public static Scope enterTooltip() {
-        Frame parent = currentFrame();
-        if (parent == null) {
-            return Scope.inactive();
+    public static boolean isUserInputText(String text) {
+        if (text == null || text.isBlank()) {
+            return false;
         }
-        Frame frame = parent.child(UiTextRole.TOOLTIP, parent.input, true);
-        FRAMES.get().push(frame);
-        return new Scope(frame);
+        for (Frame frame : FRAMES.get()) {
+            if (frame.input && text.equals(frame.editText)) {
+                return true;
+            }
+        }
+        return false;
     }
 
-    public static Scope enterRole(UiTextRole role) {
-        Frame parent = currentFrame();
-        if (parent == null) {
-            return Scope.inactive();
+    static void clearInputFrames() {
+        Deque<Frame> frames = FRAMES.get();
+        Iterator<Frame> iterator = frames.iterator();
+        while (iterator.hasNext()) {
+            if (iterator.next().input) {
+                iterator.remove();
+            }
         }
-        Frame frame = parent.child(role == null ? parent.role : role, parent.input, parent.tooltip);
-        FRAMES.get().push(frame);
-        return new Scope(frame);
+        if (frames.isEmpty()) {
+            FRAMES.remove();
+        }
     }
 
     public static boolean isActive() {
         return currentFrame() != null;
-    }
-
-    public static boolean isUserInput() {
-        Frame frame = currentFrame();
-        return frame != null && frame.input;
     }
 
     public static UiTextRole role() {
@@ -222,8 +175,10 @@ public final class UiTranslationScope {
     static void remember(String source, UiTextRole role, String targetLanguage, UiTranslationResult result) {
         Frame frame = currentFrame();
         if (frame != null && result != null && result.translated()) {
+            if (frame.cache.size() >= SESSION_MEMO_LIMIT) {
+                frame.cache.clear();
+            }
             frame.cache.put(new CacheKey(source, role, targetLanguage), result);
-            UiTranslationRuntime.notifyScreenTranslationAvailable(source, role, targetLanguage);
         }
     }
 
@@ -349,6 +304,7 @@ public final class UiTranslationScope {
         private final boolean input;
         private final boolean tooltip;
         private final int frameId;
+        private final String editText;
 
         private Frame(
                 UiScreenAdapter adapter,
@@ -357,20 +313,32 @@ public final class UiTranslationScope {
                 boolean input,
                 boolean tooltip
         ) {
+            this(adapter, cache, role, input, tooltip, null);
+        }
+
+        private Frame(
+                UiScreenAdapter adapter,
+                Map<CacheKey, UiTranslationResult> cache,
+                UiTextRole role,
+                boolean input,
+                boolean tooltip,
+                String editText
+        ) {
             this.adapter = adapter;
             this.cache = cache;
             this.role = role;
             this.input = input;
             this.tooltip = tooltip;
             this.frameId = UiTranslationRuntime.currentFrameId();
+            this.editText = editText;
         }
 
         private int frameId() {
             return frameId;
         }
 
-        private Frame child(UiTextRole nextRole, boolean nextInput, boolean nextTooltip) {
-            return new Frame(adapter, cache, nextRole, nextInput, nextTooltip);
+        private Frame child(UiTextRole nextRole, boolean nextInput, boolean nextTooltip, String nextEditText) {
+            return new Frame(adapter, cache, nextRole, nextInput, nextTooltip, nextEditText);
         }
     }
 }

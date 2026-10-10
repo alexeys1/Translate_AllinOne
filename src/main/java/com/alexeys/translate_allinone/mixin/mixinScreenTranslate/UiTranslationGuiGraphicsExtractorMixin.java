@@ -6,18 +6,69 @@ import com.alexeys.translate_allinone.utils.translate.UiTranslationRuntime;
 import com.alexeys.translate_allinone.utils.translate.UiTranslationScope;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
+import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipPositioner;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.FormattedText;
+import net.minecraft.resources.Identifier;
 import net.minecraft.util.FormattedCharSequence;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.List;
 
 @Mixin(GuiGraphicsExtractor.class)
 public abstract class UiTranslationGuiGraphicsExtractorMixin {
+    @Unique
+    private static final ThreadLocal<Deque<UiTranslationScope.Scope>> translate_allinone$tooltipPaintScopes =
+            ThreadLocal.withInitial(() -> new ArrayDeque<UiTranslationScope.Scope>());
+
+    @Inject(
+            method = "tooltip(Lnet/minecraft/client/gui/Font;Ljava/util/List;IILnet/minecraft/client/gui/screens/inventory/tooltip/ClientTooltipPositioner;Lnet/minecraft/resources/Identifier;)V",
+            at = @At("HEAD")
+    )
+    private void translate_allinone$enterTooltipPaintScope(
+            Font font,
+            List<ClientTooltipComponent> components,
+            int x,
+            int y,
+            ClientTooltipPositioner positioner,
+            Identifier texture,
+            CallbackInfo callbackInfo
+    ) {
+        translate_allinone$tooltipPaintScopes.get().push(UiTranslationScope.enterInternal());
+    }
+
+    @Inject(
+            method = "tooltip(Lnet/minecraft/client/gui/Font;Ljava/util/List;IILnet/minecraft/client/gui/screens/inventory/tooltip/ClientTooltipPositioner;Lnet/minecraft/resources/Identifier;)V",
+            at = @At("RETURN")
+    )
+    private void translate_allinone$leaveTooltipPaintScope(
+            Font font,
+            List<ClientTooltipComponent> components,
+            int x,
+            int y,
+            ClientTooltipPositioner positioner,
+            Identifier texture,
+            CallbackInfo callbackInfo
+    ) {
+        Deque<UiTranslationScope.Scope> scopes = translate_allinone$tooltipPaintScopes.get();
+        UiTranslationScope.Scope scope = scopes.poll();
+        if (scope != null) {
+            scope.close();
+        }
+        if (scopes.isEmpty()) {
+            translate_allinone$tooltipPaintScopes.remove();
+        }
+    }
+
     @ModifyVariable(
             method = {
                     "text(Lnet/minecraft/client/gui/Font;Lnet/minecraft/util/FormattedCharSequence;III)V",
@@ -69,7 +120,9 @@ public abstract class UiTranslationGuiGraphicsExtractorMixin {
     private FormattedCharSequence translate_allinone$translateComponent(Component source) {
         Component visible = UiTranslationRuntime.translateComponent(source, UiTextRole.OPTION);
         FormattedCharSequence sequence = visible.getVisualOrderText();
-        UiTranslationRuntime.markFormattedSequenceHandled(sequence);
+        if (visible != source) {
+            UiTranslationRuntime.markFormattedSequenceHandled(sequence);
+        }
         return sequence;
     }
 
@@ -89,7 +142,9 @@ public abstract class UiTranslationGuiGraphicsExtractorMixin {
     private FormattedCharSequence translate_allinone$translateTooltip(Component source) {
         Component visible = UiTranslationRuntime.translateComponent(source, UiTextRole.TOOLTIP);
         FormattedCharSequence sequence = visible.getVisualOrderText();
-        UiTranslationRuntime.markFormattedSequenceHandled(sequence);
+        if (visible != source) {
+            UiTranslationRuntime.markFormattedSequenceHandled(sequence);
+        }
         return sequence;
     }
 

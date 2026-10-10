@@ -1,6 +1,5 @@
 package com.alexeys.translate_allinone.utils.translate;
 
-import com.alexeys.translate_allinone.utils.AnimationManager;
 import com.alexeys.translate_allinone.utils.cache.ItemTemplateCache;
 import com.alexeys.translate_allinone.utils.cache.LookupResult;
 import com.alexeys.translate_allinone.utils.cache.TranslationStatus;
@@ -452,29 +451,6 @@ final class TooltipParagraphSupport {
             offset += Character.charCount(codePoint);
         }
         return count;
-    }
-
-    private static ParagraphTranslationAttempt translateParagraphBlockLineByLine(TooltipParagraphBlock block) {
-        if (block == null || block.preparedLines() == null || block.preparedLines().isEmpty()) {
-            return new ParagraphTranslationAttempt(List.of(), false, false);
-        }
-
-        List<TooltipTranslationSupport.TooltipLineResult> lineResults = new ArrayList<>(block.preparedLines().size());
-        boolean pending = false;
-        boolean missingKeyIssue = false;
-
-        for (PreparedTooltipTemplate preparedLine : block.preparedLines()) {
-            TooltipTranslationSupport.TooltipLineResult lineResult = TooltipTemplateRuntime.translatePreparedTemplate(preparedLine);
-            if (lineResult.pending()) {
-                pending = true;
-            }
-            if (lineResult.missingKeyIssue()) {
-                missingKeyIssue = true;
-            }
-            lineResults.add(lineResult);
-        }
-
-        return new ParagraphTranslationAttempt(lineResults, pending, missingKeyIssue);
     }
 
     private static List<TooltipTranslationSupport.TooltipLineResult> renderTranslatedParagraphBlock(
@@ -1829,8 +1805,8 @@ final class TooltipParagraphSupport {
         }
 
         String sourceText = buildParagraphLocalDictionaryLookupSource(block);
-        int sourceLetterCount = countAsciiLetters(sourceText);
-        if (chineseTargetLanguage && sourceLetterCount >= 8 && !containsCjk(visibleText)) {
+        int sourceLetterCount = ProtectedTextNormalizer.countAsciiLetters(sourceText);
+        if (chineseTargetLanguage && sourceLetterCount >= 8 && !ProtectedTextNormalizer.containsCjk(visibleText)) {
             return new ParagraphQualityIssue(
                     ParagraphRenderStage.CONTENT_QUALITY,
                     ParagraphRejectReason.MISSING_TARGET_LANGUAGE_SIGNAL,
@@ -1838,7 +1814,7 @@ final class TooltipParagraphSupport {
             );
         }
 
-        String connector = chineseTargetLanguage && containsCjk(visibleText)
+        String connector = chineseTargetLanguage && ProtectedTextNormalizer.containsCjk(visibleText)
                 ? findStandaloneEnglishConnector(visibleText)
                 : null;
         if (connector != null) {
@@ -1865,7 +1841,7 @@ final class TooltipParagraphSupport {
             );
         }
 
-        int translatedCjkCount = countCjk(visibleText);
+        int translatedCjkCount = ProtectedTextNormalizer.countCjk(visibleText);
         int translatedSignalCount = countTranslatedSignalUnits(visibleText);
         if (paragraphLooksTooShortForChineseOutput(sourceLetterCount, translatedSignalCount)) {
             return new ParagraphQualityIssue(
@@ -2136,45 +2112,6 @@ final class TooltipParagraphSupport {
 
         Matcher matcher = ENGLISH_CONNECTOR_PATTERN.matcher(text);
         return matcher.find() ? matcher.group() : null;
-    }
-
-    private static int countAsciiLetters(String text) {
-        if (text == null || text.isEmpty()) {
-            return 0;
-        }
-
-        int count = 0;
-        for (int index = 0; index < text.length(); index++) {
-            char current = text.charAt(index);
-            if ((current >= 'A' && current <= 'Z') || (current >= 'a' && current <= 'z')) {
-                count++;
-            }
-        }
-        return count;
-    }
-
-    private static boolean containsCjk(String text) {
-        return countCjk(text) > 0;
-    }
-
-    private static int countCjk(String text) {
-        if (text == null || text.isEmpty()) {
-            return 0;
-        }
-
-        int count = 0;
-        for (int offset = 0; offset < text.length(); ) {
-            int codePoint = text.codePointAt(offset);
-            Character.UnicodeScript script = Character.UnicodeScript.of(codePoint);
-            if (script == Character.UnicodeScript.HAN
-                    || script == Character.UnicodeScript.HIRAGANA
-                    || script == Character.UnicodeScript.KATAKANA
-                    || script == Character.UnicodeScript.HANGUL) {
-                count++;
-            }
-            offset += Character.charCount(codePoint);
-        }
-        return count;
     }
 
     private static boolean isMeaningfulTranslatedSignalCodePoint(int codePoint) {

@@ -1,7 +1,9 @@
 package com.alexeys.translate_allinone.utils.translate;
 
 import com.alexeys.translate_allinone.Translate_AllinOne;
+import com.alexeys.translate_allinone.utils.config.pojos.DebugConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ItemTranslateConfig;
+import com.alexeys.translate_allinone.utils.config.pojos.LogLevel;
 import com.alexeys.translate_allinone.utils.TranslateStringUtils;
 import com.alexeys.translate_allinone.utils.textmatcher.ContentMatcher;
 import com.alexeys.translate_allinone.utils.textmatcher.FlatNode;
@@ -12,7 +14,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
@@ -25,6 +26,7 @@ import net.minecraft.network.chat.contents.TranslatableContents;
 public final class TooltipTextMatcherSupport {
     private static final Logger LOGGER = LoggerFactory.getLogger("Translate_AllinOne/TooltipTextMatcherSupport");
     private static final long DEV_LOG_REPEAT_WINDOW_MILLIS = 1200L;
+    private static final int DEV_TOOLTIP_LOG_STATE_LIMIT = 4096;
     private static final Pattern NAMESPACED_IDENTIFIER_PATTERN = Pattern.compile("^\\[?#?[A-Za-z0-9_.-]+:[A-Za-z0-9_/.-]+\\]?$");
     private static final Pattern GENERIC_IDENTIFIER_PATTERN = Pattern.compile("^(?=.*[A-Za-z])[A-Za-z0-9]+(?:[._/][A-Za-z0-9]+)+$");
     private static final Pattern BARE_INTERNAL_TOKEN_PATTERN = Pattern.compile("^[a-z][a-z0-9_-]{9,}$");
@@ -68,10 +70,6 @@ public final class TooltipTextMatcherSupport {
             .build();
     private static final Map<String, DevTooltipLogState> DEV_TOOLTIP_LOG_STATE_BY_SOURCE = new ConcurrentHashMap<>();
     private TooltipTextMatcherSupport() {
-    }
-
-    public static boolean shouldTranslateTooltipLine(Component line, boolean isFirstContentLine, ItemTranslateConfig config) {
-        return evaluateTooltipLine(line, isFirstContentLine, config).shouldTranslate();
     }
 
     public static TooltipLineDecision evaluateTooltipLine(Component line, boolean isFirstContentLine, ItemTranslateConfig config) {
@@ -248,48 +246,31 @@ public final class TooltipTextMatcherSupport {
     }
 
     public static boolean isDevEnabled(ItemTranslateConfig config) {
-        return config != null
-                && config.debug != null
-                && config.debug.enabled;
-    }
-
-    public static boolean isDevModeEnabled(ItemTranslateConfig config) {
-        return isDevEnabled(config);
+        return structureLevel(config) != LogLevel.OFF;
     }
 
     public static boolean shouldLogTooltipFilterResult(ItemTranslateConfig config) {
-        return isDevEnabled(config)
-                && config.debug.log_tooltip_filter_result;
+        return structureLevel(config) != LogLevel.OFF;
     }
 
     public static boolean shouldLogTooltipNodeSummary(ItemTranslateConfig config) {
-        return shouldLogTooltipFilterResult(config)
-                && config.debug.log_tooltip_node_summary;
+        return structureLevel(config) == LogLevel.DETAIL;
     }
 
     public static boolean shouldLogTooltipTiming(ItemTranslateConfig config) {
-        return isDevEnabled(config)
-                && config.debug.log_tooltip_timing;
+        return timingLevel(config) != LogLevel.OFF;
     }
 
     public static boolean shouldLogTooltipParagraphResult(ItemTranslateConfig config) {
-        return isDevEnabled(config)
-                && config.debug.log_tooltip_paragraph_result;
+        return structureLevel(config) != LogLevel.OFF;
     }
 
     public static boolean shouldLogTooltipStyleMap(ItemTranslateConfig config) {
-        return isDevEnabled(config)
-                && config.debug.log_tooltip_style_map;
-    }
-
-    public static boolean shouldLogItemBatchTiming(ItemTranslateConfig config) {
-        return isDevEnabled(config)
-                && config.debug.log_item_batch_timing;
+        return structureLevel(config) == LogLevel.DETAIL;
     }
 
     public static boolean shouldLogItemCacheMigration(ItemTranslateConfig config) {
-        return isDevEnabled(config)
-                && config.debug.log_cache_migration;
+        return flowLevel(config) != LogLevel.OFF;
     }
 
     public static boolean shouldLogAnyTooltipDev(ItemTranslateConfig config) {
@@ -297,6 +278,39 @@ public final class TooltipTextMatcherSupport {
                 || shouldLogTooltipTiming(config)
                 || shouldLogTooltipParagraphResult(config)
                 || shouldLogTooltipStyleMap(config);
+    }
+
+    private static LogLevel structureLevel(ItemTranslateConfig config) {
+        return level(config, LevelDimension.STRUCTURE);
+    }
+
+    private static LogLevel timingLevel(ItemTranslateConfig config) {
+        return level(config, LevelDimension.TIMING);
+    }
+
+    private static LogLevel flowLevel(ItemTranslateConfig config) {
+        return level(config, LevelDimension.FLOW);
+    }
+
+    private static LogLevel level(ItemTranslateConfig config, LevelDimension dimension) {
+        if (config == null) {
+            return LogLevel.OFF;
+        }
+        DebugConfig debug = Translate_AllinOne.getConfig().debug;
+        if (debug == null) {
+            return LogLevel.OFF;
+        }
+        return switch (dimension) {
+            case STRUCTURE -> debug.structure;
+            case TIMING -> debug.timing;
+            case FLOW -> debug.flow;
+        };
+    }
+
+    private enum LevelDimension {
+        STRUCTURE,
+        TIMING,
+        FLOW
     }
 
     public static void logTooltipGuardIfDev(
@@ -324,6 +338,9 @@ public final class TooltipTextMatcherSupport {
 
         int signature = computeTooltipSignature(tooltipLines);
         long nowMillis = System.currentTimeMillis();
+        if (DEV_TOOLTIP_LOG_STATE_BY_SOURCE.size() > DEV_TOOLTIP_LOG_STATE_LIMIT) {
+            DEV_TOOLTIP_LOG_STATE_BY_SOURCE.clear();
+        }
         DevTooltipLogState previous = DEV_TOOLTIP_LOG_STATE_BY_SOURCE.get(source);
         if (previous != null
                 && previous.signature() == signature

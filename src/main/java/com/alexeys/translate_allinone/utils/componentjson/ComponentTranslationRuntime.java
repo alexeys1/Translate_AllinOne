@@ -8,6 +8,8 @@ import com.alexeys.translate_allinone.utils.config.ModConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.alexeys.translate_allinone.utils.translate.ApiKeyDecryptFailureNotifier;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.Style;
+import net.minecraft.network.chat.TextColor;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -20,6 +22,8 @@ import java.util.function.Supplier;
 
 public final class ComponentTranslationRuntime {
     private static final int DOCUMENT_CACHE_LIMIT = 512;
+    private static final int MIN_UNSTABLE_RUNS = 4;
+    private static final int MAX_UNSTABLE_RUN_LENGTH = 2;
     private static final ComponentTranslationClient DEFAULT_CLIENT = new ComponentTranslationClient();
     private static final Supplier<ModConfig> DEFAULT_CONFIG_SUPPLIER = Translate_AllinOne::getConfig;
     private static volatile ComponentTranslationClient client = DEFAULT_CLIENT;
@@ -28,6 +32,15 @@ public final class ComponentTranslationRuntime {
             new LinkedHashMap<>(64, 0.75f, true) {
                 @Override
                 protected boolean removeEldestEntry(Map.Entry<DocumentMemoKey, MemoizedDocument> eldest) {
+                    return size() > DOCUMENT_CACHE_LIMIT;
+                }
+            }
+    );
+
+    private static final Map<String, MemoizedDocument> PLAIN_DOCUMENTS = Collections.synchronizedMap(
+            new LinkedHashMap<>(64, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, MemoizedDocument> eldest) {
                     return size() > DOCUMENT_CACHE_LIMIT;
                 }
             }
@@ -68,6 +81,84 @@ public final class ComponentTranslationRuntime {
         return prepare(component, policy);
     }
 
+    private static boolean isColourOnlyFragmentation(Component component) {
+        if (component.getSiblings().size() < MIN_UNSTABLE_RUNS) {
+            return false;
+        }
+        int[] runs = {0};
+        int[] totalLength = {0};
+        Style[] base = {null};
+        boolean[] colourOnly = {true};
+        try {
+            component.visit((style, text) -> {
+                if (text != null && !text.isEmpty()) {
+                    Style resolved = withoutColor(style == null ? Style.EMPTY : style);
+                    if (base[0] == null) {
+                        base[0] = resolved;
+                    } else if (colourOnly[0] && !base[0].equals(resolved)) {
+                        colourOnly[0] = false;
+                    }
+                    runs[0]++;
+                    totalLength[0] += text.length();
+                }
+                return java.util.Optional.<Void>empty();
+            }, Style.EMPTY);
+        } catch (RuntimeException error) {
+            return false;
+        }
+        return colourOnly[0]
+                && runs[0] >= MIN_UNSTABLE_RUNS
+                && totalLength[0] / runs[0] <= MAX_UNSTABLE_RUN_LENGTH;
+    }
+
+    private static boolean isColourOnlyRuns(Component component) {
+        Style[] base = {null};
+        boolean[] colourOnly = {true};
+        try {
+            component.visit((style, text) -> {
+                if (text != null && !text.isEmpty()) {
+                    Style resolved = withoutColor(style == null ? Style.EMPTY : style);
+                    if (base[0] == null) {
+                        base[0] = resolved;
+                    } else if (colourOnly[0] && !base[0].equals(resolved)) {
+                        colourOnly[0] = false;
+                    }
+                }
+                return java.util.Optional.<Void>empty();
+            }, Style.EMPTY);
+        } catch (RuntimeException error) {
+            return false;
+        }
+        return colourOnly[0];
+    }
+
+    private static Style withoutColor(Style style) {
+        return style.withColor((TextColor) null);
+    }
+
+    private static int nonEmptyRunCount(Component component) {
+        int[] runs = {0};
+        try {
+            component.visit((style, text) -> {
+                if (text != null && !text.isEmpty()) {
+                    runs[0]++;
+                }
+                return java.util.Optional.<Void>empty();
+            }, Style.EMPTY);
+        } catch (RuntimeException error) {
+            return 0;
+        }
+        return runs[0];
+    }
+
+    private static ComponentTranslationDocument plainDocumentFor(String textKey, String plainText) {
+        MemoizedDocument plain = PLAIN_DOCUMENTS.get(textKey);
+        if (plain == null || !plainText.equals(plain.source().getString())) {
+            return null;
+        }
+        return plain.document();
+    }
+
     public static ComponentTranslationDocument prepare(
             Component component,
             ComponentTranslationPolicy policy
@@ -75,16 +166,40 @@ public final class ComponentTranslationRuntime {
         if (component == null || policy == null) {
             throw new IllegalArgumentException("Component translation document input is incomplete.");
         }
+        String plainText = component.getString();
+        String textKey = policy.route().wireName() + '\u0000' + plainText;
+        boolean structureAgnostic = policy.route() == ComponentTranslationRoute.SCREEN_UI
+                && isColourOnlyFragmentation(component);
+        if (structureAgnostic) {
+            ComponentTranslationDocument plain = plainDocumentFor(textKey, plainText);
+            if (plain != null) {
+                return plain;
+            }
+        }
         DocumentMemoKey key = new DocumentMemoKey(
                 policy.route(),
                 policy.version(),
                 policy.semanticSettings(),
-                component.hashCode(),
-                component.getString()
+                structureAgnostic ? 0 : component.hashCode(),
+                plainText,
+                structureAgnostic
         );
         MemoizedDocument memoized = DOCUMENTS.get(key);
-        if (memoized != null && memoized.source().equals(component)) {
+        if (memoized != null && memoized.matches(component, key.structureAgnostic())) {
             return memoized.document();
+        }
+        if (!structureAgnostic && policy.route() == ComponentTranslationRoute.SCREEN_UI) {
+            MemoizedDocument byText = DOCUMENTS.get(new DocumentMemoKey(
+                    policy.route(),
+                    policy.version(),
+                    policy.semanticSettings(),
+                    0,
+                    plainText,
+                    true
+            ));
+            if (byText != null && byText.matches(component, true) && isColourOnlyRuns(component)) {
+                return byText.document();
+            }
         }
 
         long startedAt = System.nanoTime();
@@ -99,7 +214,14 @@ public final class ComponentTranslationRuntime {
             if (document.units().isEmpty()) {
                 ComponentTranslationMetrics.record(document, ComponentTranslationMetrics.Outcome.NO_TEXT);
             }
-            DOCUMENTS.put(key, new MemoizedDocument(component.copy(), document));
+            MemoizedDocument built = new MemoizedDocument(component.copy(), document);
+            DOCUMENTS.put(key, built);
+            if (policy.route() == ComponentTranslationRoute.SCREEN_UI
+                    && !structureAgnostic
+                    && isColourOnlyRuns(component)
+                    && nonEmptyRunCount(component) <= 1) {
+                PLAIN_DOCUMENTS.put(textKey, built);
+            }
             return document;
         } catch (RuntimeException error) {
             ComponentTranslationMetrics.record(policy.route(), ComponentTranslationMetrics.Outcome.DOCUMENT_FAILED);
@@ -169,34 +291,39 @@ public final class ComponentTranslationRuntime {
     public static long beginSession() {
         long epoch = ComponentTranslationRuntimeCore.beginSession();
         DOCUMENTS.clear();
+        PLAIN_DOCUMENTS.clear();
         return epoch;
     }
 
     public static long endSession() {
         long epoch = ComponentTranslationRuntimeCore.endSession();
         DOCUMENTS.clear();
+        PLAIN_DOCUMENTS.clear();
         return epoch;
     }
 
     public static void resetSession() {
         ComponentTranslationRuntimeCore.resetSession();
         DOCUMENTS.clear();
+        PLAIN_DOCUMENTS.clear();
     }
 
     public static long providerConfigurationChanged() {
         long epoch = ComponentTranslationRuntimeCore.providerConfigurationChanged();
         DOCUMENTS.clear();
+        PLAIN_DOCUMENTS.clear();
         return epoch;
     }
 
     public static long cancelPendingTranslations() {
         long epoch = ComponentTranslationRuntimeCore.cancelPendingTranslations();
         DOCUMENTS.clear();
+        PLAIN_DOCUMENTS.clear();
         return epoch;
     }
 
-    public static void beginScreenUiSession(int requestBudget, int retryBudget) {
-        ComponentTranslationRuntimeCore.beginScreenUiSession(requestBudget, retryBudget);
+    public static void beginScreenUiSession(int failureBudget) {
+        ComponentTranslationRuntimeCore.beginScreenUiSession(failureBudget);
     }
 
     public static void endScreenUiSession() {
@@ -368,11 +495,17 @@ public final class ComponentTranslationRuntime {
             int policyVersion,
             Map<String, String> semanticSettings,
             int componentHash,
-            String plainText
+            String plainText,
+            boolean structureAgnostic
     ) {
     }
 
     private record MemoizedDocument(Component source, ComponentTranslationDocument document) {
+        private boolean matches(Component candidate, boolean structureAgnostic) {
+            return structureAgnostic
+                    ? source.getString().equals(candidate.getString())
+                    : source.equals(candidate);
+        }
     }
 
     private static final class RuntimeAccess implements ComponentTranslationRuntimeCore.Access {
@@ -423,11 +556,6 @@ public final class ComponentTranslationRuntime {
         @Override
         public void error(ComponentTranslationRoute route, String message, Object... arguments) {
             ComponentTranslationDebugLogger.error(route, message, arguments);
-        }
-
-        @Override
-        public void textContent(ComponentTranslationDocument document, String cacheKey) {
-            ComponentTranslationDebugLogger.textContent(document, cacheKey);
         }
 
         @Override

@@ -101,4 +101,36 @@ public final class ActionBlockRegistry {
     ) {
         blocks.add(new ActionBlock(x, y, width, height, labelSupplier, action, color, hoverColor, textColor, centered, tooltip));
     }
+
+    public void add(
+            int x,
+            int y,
+            int width,
+            int height,
+            Supplier<Component> labelSupplier,
+            Runnable action,
+            int color,
+            int hoverColor,
+            int textColor,
+            boolean centered,
+            Component tooltip,
+            BooleanSupplier enabled,
+            boolean resetIcon
+    ) {
+        blocks.add(new ActionBlock(
+                x,
+                y,
+                width,
+                height,
+                labelSupplier,
+                action,
+                color,
+                hoverColor,
+                textColor,
+                centered,
+                tooltip,
+                enabled,
+                resetIcon
+        ));
+    }
 }

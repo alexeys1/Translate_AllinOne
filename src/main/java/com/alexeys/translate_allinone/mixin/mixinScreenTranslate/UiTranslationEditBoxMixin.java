@@ -27,7 +27,7 @@ public abstract class UiTranslationEditBoxMixin {
             float delta,
             CallbackInfo callbackInfo
     ) {
-        translate_allinone$inputScope = UiTranslationScope.enterInput();
+        translate_allinone$inputScope = UiTranslationScope.enterInput(((EditBox) (Object) this).getValue());
     }
 
     @Inject(
