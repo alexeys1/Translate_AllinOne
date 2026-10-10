@@ -3,10 +3,14 @@ package com.alexeys.translate_allinone.gui.configui.support;
 import com.alexeys.translate_allinone.registration.ConfigManager;
 import com.alexeys.translate_allinone.utils.cache.CacheBackupManager;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
+import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderType;
 import com.alexeys.translate_allinone.utils.llmapi.ProviderConnectionTester;
 import com.alexeys.translate_allinone.utils.translate.WynnSharedDictionaryService;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
 
 public final class ConfigUiRuntimeSupport {
@@ -80,5 +84,75 @@ public final class ConfigUiRuntimeSupport {
     @FunctionalInterface
     public interface ErrorLogger {
         void error(String message, Throwable throwable);
+    }
+
+    @FunctionalInterface
+    public interface ActionBlockAdder {
+        void add(
+                int x,
+                int y,
+                int width,
+                int height,
+                Supplier<Component> labelSupplier,
+                Runnable action,
+                int color,
+                int hoverColor,
+                int textColor,
+                boolean centered,
+                Component tooltip
+        );
+
+        default void add(
+                int x,
+                int y,
+                int width,
+                int height,
+                Supplier<Component> labelSupplier,
+                Runnable action,
+                int color,
+                int hoverColor,
+                int textColor,
+                boolean centered
+        ) {
+            add(x, y, width, height, labelSupplier, action, color, hoverColor, textColor, centered, null);
+        }
+    }
+
+    @FunctionalInterface
+    public interface TextFieldAdder {
+        EditBox add(
+                int x,
+                int y,
+                int width,
+                int maxLength,
+                String initialValue,
+                Component placeholder,
+                Consumer<String> changed,
+                boolean editable
+        );
+    }
+
+    @FunctionalInterface
+    public interface ToggleAdder {
+        void add(
+                int x,
+                int y,
+                int width,
+                Component label,
+                BooleanSupplier getter,
+                Consumer<Boolean> setter,
+                Component tooltip,
+                boolean defaultValue
+        );
+    }
+
+    @FunctionalInterface
+    public interface GroupBoxAdder {
+        void add(int x, int y, int width, int height, Component title);
+    }
+
+    @FunctionalInterface
+    public interface ProviderTypeLabelProvider {
+        Component label(ApiProviderType providerType);
     }
 }

@@ -1,11 +1,13 @@
 package com.alexeys.translate_allinone.gui.configui.sections;
 
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.ActionBlockAdder;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.TextFieldAdder;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.Translator;
 import com.alexeys.translate_allinone.utils.config.ui.ProviderProfileSupport;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.alexeys.translate_allinone.utils.config.pojos.ProviderManagerConfig;
 import java.util.List;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
 
@@ -118,42 +120,6 @@ public final class ProviderListSectionSupport {
         , translator.t("desc.add_provider"));
 
         return new RenderResult(providerSearchField, addButtonY + 20);
-    }
-
-    @FunctionalInterface
-    public interface ActionBlockAdder {
-        void add(
-                int x,
-                int y,
-                int width,
-                int height,
-                Supplier<Component> labelSupplier,
-                Runnable action,
-                int color,
-                int hoverColor,
-                int textColor,
-                boolean centered,
-                Component tooltip
-        );
-    }
-
-    @FunctionalInterface
-    public interface TextFieldAdder {
-        EditBox add(
-                int x,
-                int y,
-                int width,
-                int maxLength,
-                String initialValue,
-                Component placeholder,
-                Consumer<String> changed,
-                boolean editable
-        );
-    }
-
-    @FunctionalInterface
-    public interface Translator {
-        Component t(String key, Object... args);
     }
 
     public record RenderResult(EditBox providerSearchField, int contentBottomY) {

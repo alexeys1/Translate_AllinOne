@@ -92,10 +92,6 @@ public final class UpdateCheckManager {
                 });
     }
 
-    public static boolean isCheckCompleted() {
-        return checkCompleted;
-    }
-
     public static boolean hasUpdateAvailable() {
         return checkCompleted && updateAvailable;
     }

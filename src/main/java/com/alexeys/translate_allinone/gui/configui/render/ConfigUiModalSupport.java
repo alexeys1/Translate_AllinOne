@@ -92,11 +92,7 @@ public final class ConfigUiModalSupport {
     }
 
     public static UiRect customParametersModalRect(int screenWidth, int screenHeight) {
-        int width = Math.min(900, screenWidth - 80);
-        int height = Math.min(520, screenHeight - 90);
-        int x = (screenWidth - width) / 2;
-        int y = (screenHeight - height) / 2;
-        return new UiRect(x, y, width, height);
+        return wideModalRect(screenWidth, screenHeight);
     }
 
     public static UiRect modelTemperatureModalRect(int screenWidth, int screenHeight) {
@@ -148,6 +144,10 @@ public final class ConfigUiModalSupport {
     }
 
     public static UiRect promptEditorModalRect(int screenWidth, int screenHeight) {
+        return wideModalRect(screenWidth, screenHeight);
+    }
+
+    private static UiRect wideModalRect(int screenWidth, int screenHeight) {
         int width = Math.min(900, screenWidth - 80);
         int height = Math.min(520, screenHeight - 90);
         int x = (screenWidth - width) / 2;

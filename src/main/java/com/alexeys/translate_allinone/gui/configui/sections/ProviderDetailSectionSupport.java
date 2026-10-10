@@ -1,13 +1,16 @@
 package com.alexeys.translate_allinone.gui.configui.sections;
 
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.ActionBlockAdder;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.GroupBoxAdder;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.ProviderTypeLabelProvider;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.TextFieldAdder;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.Translator;
 import com.alexeys.translate_allinone.utils.config.ui.ProviderEditorSupport;
 import com.alexeys.translate_allinone.utils.config.ui.ProviderProfileSupport;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
-import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderType;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 import net.minecraft.network.chat.Component;
 
 public final class ProviderDetailSectionSupport {
@@ -499,37 +502,6 @@ public final class ProviderDetailSectionSupport {
     }
 
     @FunctionalInterface
-    public interface ActionBlockAdder {
-        void add(
-                int x,
-                int y,
-                int width,
-                int height,
-                Supplier<Component> labelSupplier,
-                Runnable action,
-                int color,
-                int hoverColor,
-                int textColor,
-                boolean centered,
-                Component tooltip
-        );
-    }
-
-    @FunctionalInterface
-    public interface TextFieldAdder {
-        void add(
-                int x,
-                int y,
-                int width,
-                int maxLength,
-                String initialValue,
-                Component placeholder,
-                Consumer<String> changed,
-                boolean editable
-        );
-    }
-
-    @FunctionalInterface
     public interface SecretTextFieldAdder {
         void add(
                 int x,
@@ -542,21 +514,6 @@ public final class ProviderDetailSectionSupport {
                 boolean masked,
                 boolean clearOnFirstEdit
         );
-    }
-
-    @FunctionalInterface
-    public interface Translator {
-        Component t(String key, Object... args);
-    }
-
-    @FunctionalInterface
-    public interface GroupBoxAdder {
-        void add(int x, int y, int width, int height, Component title);
-    }
-
-    @FunctionalInterface
-    public interface ProviderTypeLabelProvider {
-        Component label(ApiProviderType providerType);
     }
 
     public record Style(

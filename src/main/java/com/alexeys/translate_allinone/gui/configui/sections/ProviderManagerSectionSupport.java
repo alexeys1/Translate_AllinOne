@@ -1,10 +1,15 @@
 package com.alexeys.translate_allinone.gui.configui.sections;
 
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.ActionBlockAdder;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.GroupBoxAdder;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.ProviderTypeLabelProvider;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.TextFieldAdder;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.ToggleAdder;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.Translator;
 import com.alexeys.translate_allinone.utils.config.ui.ProviderProfileSupport;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.alexeys.translate_allinone.utils.config.pojos.ProviderManagerConfig;
 import java.util.function.BiConsumer;
-import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
@@ -36,15 +41,15 @@ public final class ProviderManagerSectionSupport {
             ProviderDetailSectionSupport.Style providerDetailStyle,
             Translator translator,
             ToggleAdder toggleAdder,
-            ProviderDetailSectionSupport.GroupBoxAdder groupBoxAdder,
-            ProviderDetailSectionSupport.ProviderTypeLabelProvider providerTypeLabelProvider,
-            ProviderListSectionSupport.ActionBlockAdder listActionBlockAdder,
-            ProviderListSectionSupport.TextFieldAdder listTextFieldAdder,
+            GroupBoxAdder groupBoxAdder,
+            ProviderTypeLabelProvider providerTypeLabelProvider,
+            ActionBlockAdder listActionBlockAdder,
+            TextFieldAdder listTextFieldAdder,
             Consumer<String> onSearchChanged,
             Consumer<String> onProviderSelected,
             Runnable onOpenAddProvider,
-            ProviderDetailSectionSupport.ActionBlockAdder detailActionBlockAdder,
-            ProviderDetailSectionSupport.TextFieldAdder detailTextFieldAdder,
+            ActionBlockAdder detailActionBlockAdder,
+            TextFieldAdder detailTextFieldAdder,
             ProviderDetailSectionSupport.SecretTextFieldAdder detailSecretTextFieldAdder,
             Consumer<ApiProviderProfile> onToggleProviderEnabled,
             Consumer<ApiProviderProfile> onDeleteProvider,
@@ -70,7 +75,8 @@ public final class ProviderManagerSectionSupport {
                 translator.t("label.global_translation"),
                 providerManager::isTranslationEnabled,
                 onToggleTranslationEnabled,
-                translator.t("desc.global_translation")
+                translator.t("desc.global_translation"),
+                new ProviderManagerConfig().translation_enabled
         );
         addGroupBox(
                 groupBoxAdder,
@@ -206,7 +212,7 @@ public final class ProviderManagerSectionSupport {
     }
 
     private static void addGroupBox(
-            ProviderDetailSectionSupport.GroupBoxAdder groupBoxAdder,
+            GroupBoxAdder groupBoxAdder,
             Component title,
             int x,
             int width,
@@ -219,16 +225,6 @@ public final class ProviderManagerSectionSupport {
         int groupWidth = width + GROUP_PADDING_SIDE * 2;
         int groupHeight = (contentBottom - contentStartY) + GROUP_PADDING_TOP + GROUP_PADDING_BOTTOM;
         groupBoxAdder.add(groupX, groupY, groupWidth, groupHeight, title);
-    }
-
-    @FunctionalInterface
-    public interface Translator {
-        Component t(String key, Object... args);
-    }
-
-    @FunctionalInterface
-    public interface ToggleAdder {
-        void add(int x, int y, int width, Component label, BooleanSupplier getter, Consumer<Boolean> setter, Component tooltip);
     }
 
     public record RenderResult(EditBox providerSearchField, String selectedProviderId, int contentBottomY) {

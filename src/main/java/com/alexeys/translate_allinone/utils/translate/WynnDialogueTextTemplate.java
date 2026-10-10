@@ -2,7 +2,6 @@ package com.alexeys.translate_allinone.utils.translate;
 
 import java.util.List;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 import net.minecraft.resources.Identifier;
 
@@ -46,14 +45,6 @@ public record WynnDialogueTextTemplate(
                 .map(ChoiceSlot::readableText)
                 .filter(value -> !value.isBlank())
                 .toList());
-    }
-
-    public Component rebuildOriginal() {
-        MutableComponent rebuilt = Component.empty();
-        for (TemplateToken token : tokens) {
-            rebuilt.append(Component.literal(token.text()).setStyle(token.style()));
-        }
-        return rebuilt;
     }
 
     private static void appendLine(StringBuilder builder, String line) {

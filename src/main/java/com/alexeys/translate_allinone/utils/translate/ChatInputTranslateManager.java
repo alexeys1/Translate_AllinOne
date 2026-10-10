@@ -93,10 +93,6 @@ public class ChatInputTranslateManager {
         submitTransform(chatField, TransformMode.EXPAND);
     }
 
-    public static void translateDetailed(EditBox chatField) {
-        translateExpand(chatField);
-    }
-
     public static void translateConcise(EditBox chatField) {
         submitTransform(chatField, TransformMode.CONCISE);
     }

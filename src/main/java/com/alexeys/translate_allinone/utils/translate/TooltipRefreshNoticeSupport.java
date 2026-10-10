@@ -1,7 +1,10 @@
 package com.alexeys.translate_allinone.utils.translate;
 
+import com.alexeys.translate_allinone.Translate_AllinOne;
 import com.alexeys.translate_allinone.utils.cache.ItemTemplateCache;
+import com.alexeys.translate_allinone.utils.config.pojos.DebugConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ItemTranslateConfig;
+import com.alexeys.translate_allinone.utils.config.pojos.LogLevel;
 import com.alexeys.translate_allinone.utils.input.KeybindingManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -101,13 +104,22 @@ public final class TooltipRefreshNoticeSupport {
         queueRemoteTranslationForCurrentTooltip(tooltip, config, null);
     }
 
+    private static boolean flowLogEnabled() {
+        try {
+            DebugConfig debug = Translate_AllinOne.getConfig().debug;
+            return debug != null && debug.flow != null && debug.flow != LogLevel.OFF;
+        } catch (IllegalStateException ignored) {
+            return false;
+        }
+    }
+
     public static void queueRemoteTranslationForCurrentTooltip(List<Component> tooltip, ItemTranslateConfig config, String source) {
         if (!TranslationFeatureGate.isEnabled()) {
             return;
         }
         Set<String> keysToQueue = TooltipTranslationSupport.collectRemoteTranslationTemplateKeys(tooltip, config);
         if (keysToQueue != null && !keysToQueue.isEmpty()) {
-            if (source != null && config != null && config.debug.enabled) {
+            if (source != null && config != null && flowLogEnabled()) {
                 LOGGER.info(
                         "[ItemDev:llm-enqueue] source=\"{}\" keyCount={}",
                         source,

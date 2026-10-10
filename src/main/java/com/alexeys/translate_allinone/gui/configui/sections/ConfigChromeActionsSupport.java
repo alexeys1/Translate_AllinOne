@@ -1,9 +1,10 @@
 package com.alexeys.translate_allinone.gui.configui.sections;
 
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.ActionBlockAdder;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.Translator;
 import com.alexeys.translate_allinone.utils.config.ui.ConfigSection;
 import java.util.List;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 import net.minecraft.network.chat.Component;
 
 public final class ConfigChromeActionsSupport {
@@ -89,27 +90,6 @@ public final class ConfigChromeActionsSupport {
             );
             y += 24;
         }
-    }
-
-    @FunctionalInterface
-    public interface Translator {
-        Component t(String key, Object... args);
-    }
-
-    @FunctionalInterface
-    public interface ActionBlockAdder {
-        void add(
-                int x,
-                int y,
-                int width,
-                int height,
-                Supplier<Component> labelSupplier,
-                Runnable action,
-                int color,
-                int hoverColor,
-                int textColor,
-                boolean centered
-        );
     }
 
     public record Style(

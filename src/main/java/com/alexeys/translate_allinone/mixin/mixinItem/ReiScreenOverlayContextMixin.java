@@ -1,7 +1,9 @@
 package com.alexeys.translate_allinone.mixin.mixinItem;
 
 import com.alexeys.translate_allinone.Translate_AllinOne;
+import com.alexeys.translate_allinone.utils.config.pojos.DebugConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ItemTranslateConfig;
+import com.alexeys.translate_allinone.utils.config.pojos.LogLevel;
 import com.alexeys.translate_allinone.utils.translate.TooltipRecentRenderGuardSupport;
 import com.alexeys.translate_allinone.utils.translate.TooltipTextDebugCopySupport;
 import com.alexeys.translate_allinone.utils.translate.TooltipTranslationContext;
@@ -120,13 +122,19 @@ public abstract class ReiScreenOverlayContextMixin {
     }
 
     @Unique
+    private static boolean isReiTooltipHookLogEnabled() {
+        DebugConfig debug = Translate_AllinOne.getConfig().debug;
+        return debug != null && debug.flow != null && debug.flow != LogLevel.OFF;
+    }
+
+    @Unique
     private static void translate_allinone$logReiTooltipHookIfDev(Object tooltip, List<Component> tooltipLines) {
         if (translate_allinone$loggedReiTooltipHook) {
             return;
         }
 
         ItemTranslateConfig config = Translate_AllinOne.getConfig().itemTranslate;
-        if (config == null || config.debug == null || !config.debug.enabled) {
+        if (config == null || !isReiTooltipHookLogEnabled()) {
             return;
         }
 
