@@ -142,8 +142,14 @@ public final class PromptMessageBuilder {
                     + "\n"
                     + "Wording:\n"
                     + "Use concise objective wording.\n";
-            case "screen_ui" -> "Translate static third-party Minecraft configuration UI text into " + targetLanguage
-                    + ". Preserve visible text only, formatting codes, URLs, paths, commands, key bindings, placeholders, numbers, units, decorative glyphs, module identities, configuration keys, and persistent values. Return only the required JSON response with no Markdown or extra fields.";
+            case "screen_ui" -> "Task:\n"
+                    + "Translate static third-party Minecraft configuration UI text into " + targetLanguage + ".\n"
+                    + "\n"
+                    + "Output contract:\n"
+                    + "Return only the requested ids with translated strings.\n"
+                    + "\n"
+                    + "Wording:\n"
+                    + "Keep module names and configuration keys as they appear; translate the rest naturally.";
             default -> "";
         };
     }
@@ -207,8 +213,9 @@ public final class PromptMessageBuilder {
                     + "Use concise objective wording."
                     + failureRule;
             case "screen_ui" -> "\nScreen UI protected data: "
-                    + "Preserve visible text only, formatting codes, URLs, paths, commands, key bindings, placeholders such as {dN}, {gN}, and {valueN}, numbers, units, decorative glyphs, module identities, configuration keys, and persistent values."
-                    + failureRule;
+                    + "Preserve exactly every formatting code, URL, path, command, key binding, {dN}/{gN}/{valueN} placeholder, number, unit, and decorative glyph."
+                    + "\nFailure rule: Do not explain, echo the source, or invent tokens; "
+                    + "translate or transliterate an uncertain term that is a normal natural-language word instead of keeping the sentence unchanged.";
             default -> "\nProtected data: "
                     + "Preserve exactly every <sN> and </sN> style tag, {dN}, {gN}, {valueN}, URL, command, item id, number, unit, %s/%d/%f, Minecraft formatting code, \\n, and \\t. "
                     + "Do not invent, remove, duplicate, or replace protected tokens."

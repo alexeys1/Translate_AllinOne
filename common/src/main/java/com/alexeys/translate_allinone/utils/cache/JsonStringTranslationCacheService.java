@@ -91,4 +91,13 @@ public class JsonStringTranslationCacheService extends AbstractTranslateCache<Li
     protected Map<String, String> entriesForSave() {
         return templateCache;
     }
+
+    @Override
+    protected String readGateSourceText(String key) {
+        if (key == null) {
+            return key;
+        }
+        int separator = key.indexOf('\u001f');
+        return separator >= 0 && separator + 1 < key.length() ? key.substring(separator + 1) : key;
+    }
 }

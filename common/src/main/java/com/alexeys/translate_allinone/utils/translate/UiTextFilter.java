@@ -9,6 +9,7 @@ public final class UiTextFilter {
             Pattern.CASE_INSENSITIVE
     );
     private static final Pattern CONFIG_KEY = Pattern.compile("^[A-Za-z0-9_.:-]+$");
+    private static final Pattern HEX_COLOR = Pattern.compile("^#[0-9A-Fa-f]{3,8}$");
     private static final Pattern KEY_BINDING = Pattern.compile(
             "^(?:CTRL|SHIFT|ALT|META|NONE|UNKNOWN|KEY_[A-Z0-9_]+|MOUSE\\d+)(?:[+ _-].*)?$",
             Pattern.CASE_INSENSITIVE
@@ -53,6 +54,9 @@ public final class UiTextFilter {
         if (text.codePoints().noneMatch(Character::isLetter)) {
             return Decision.skip(Reason.NO_LETTERS);
         }
+        if (HEX_COLOR.matcher(text).matches()) {
+            return Decision.skip(Reason.HEX_COLOR);
+        }
         return Decision.accept(text, role == null ? UiTextRole.OPTION : role);
     }
 
@@ -79,6 +83,7 @@ public final class UiTextFilter {
         NUMBER,
         KEY_BINDING,
         CONFIG_KEY,
+        HEX_COLOR,
         NO_LETTERS
     }
 

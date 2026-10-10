@@ -102,7 +102,7 @@ final class CacheRuntimeStateSupport<K, B> {
             templateCache.putAll(acceptedTranslations);
             keyQueueSupport.finishKeys(acceptedTranslations.keySet());
         }
-        requeueDeferredRefreshKeys(deferredRefreshKeys);
+        requeueDeferredRefreshKeys(keyQueueSupport, deferredRefreshKeys);
     }
 
     int forceRefresh(Iterable<K> keys) {
@@ -163,7 +163,10 @@ final class CacheRuntimeStateSupport<K, B> {
         return new ListAccess<>(keyQueueSupport, refreshAfterInProgress);
     }
 
-    private void requeueDeferredRefreshKeys(List<K> deferredRefreshKeys) {
+    private static <K, B> void requeueDeferredRefreshKeys(
+            CacheKeyQueueSupport<K, B> keyQueueSupport,
+            List<K> deferredRefreshKeys
+    ) {
         if (deferredRefreshKeys == null || deferredRefreshKeys.isEmpty()) {
             return;
         }
@@ -226,7 +229,7 @@ final class CacheRuntimeStateSupport<K, B> {
                 }
             }
             keyQueueSupport.releaseInProgress(keys);
-            requeueDeferredRefreshKeys(deferredRefreshKeys);
+            requeueDeferredRefreshKeys(keyQueueSupport, deferredRefreshKeys);
         }
 
         void markErrored(Collection<K> failedKeys, String errorMessage, String fallbackErrorMessage) {
@@ -246,18 +249,7 @@ final class CacheRuntimeStateSupport<K, B> {
             if (!erroredKeys.isEmpty()) {
                 keyQueueSupport.markErrored(erroredKeys, errorMessage, fallbackErrorMessage);
             }
-            requeueDeferredRefreshKeys(deferredRefreshKeys);
-        }
-
-        private void requeueDeferredRefreshKeys(List<K> deferredRefreshKeys) {
-            if (deferredRefreshKeys == null || deferredRefreshKeys.isEmpty()) {
-                return;
-            }
-
-            keyQueueSupport.finishKeys(deferredRefreshKeys);
-            for (int index = deferredRefreshKeys.size() - 1; index >= 0; index--) {
-                keyQueueSupport.requeueToFront(deferredRefreshKeys.get(index));
-            }
+            requeueDeferredRefreshKeys(keyQueueSupport, deferredRefreshKeys);
         }
 
         int pendingSize() {
