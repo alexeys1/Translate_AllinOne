@@ -65,13 +65,13 @@ public final class TranslationContentGate {
             int sourceLetters = ProtectedTextNormalizer.countAsciiLetters(strippedSource);
             String candidateComparable = ProtectedTextNormalizer.normalizeComparable(candidate);
             boolean candidateHasComparableText = !candidateComparable.isEmpty();
-            if (sourceLetters >= ProtectedTextNormalizer.MIN_SOURCE_LETTERS
+            if (sourceLetters >= ProtectedTextNormalizer.MIN_SOURCE_LETTERS_FOR_LANGUAGE_CHECKS
                     && candidateHasComparableText
                     && ProtectedTextNormalizer.normalizeComparable(source).equals(candidateComparable)) {
                 return TranslationContentVerdict.reject(TranslationContentVerdict.SOURCE_COPY);
             }
             if (ProtectedTextNormalizer.isChineseTarget(targetLanguage)
-                    && sourceLetters >= ProtectedTextNormalizer.MIN_SOURCE_LETTERS
+                    && sourceLetters >= ProtectedTextNormalizer.MIN_SOURCE_LETTERS_FOR_LANGUAGE_CHECKS
                     && candidateComparable.length() >= ProtectedTextNormalizer.MIN_SOURCE_LETTERS
                     && !ProtectedTextNormalizer.containsCjk(candidate)) {
                 return TranslationContentVerdict.reject(TranslationContentVerdict.MISSING_TARGET_LANGUAGE_SIGNAL);

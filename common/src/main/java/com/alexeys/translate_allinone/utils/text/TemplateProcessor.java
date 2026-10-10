@@ -292,35 +292,6 @@ public class TemplateProcessor {
         return normalized.toString();
     }
 
-    private static String extractInlineSpacerGlyphRuns(String text, Integer styleId, List<String> values) {
-        if (text == null || text.isEmpty()) {
-            return "";
-        }
-
-        StringBuilder normalized = new StringBuilder(text.length());
-        boolean pendingSpacer = false;
-        for (int offset = 0; offset < text.length(); ) {
-            int codePoint = text.codePointAt(offset);
-            offset += Character.charCount(codePoint);
-
-            if (isWynnInlineSpacerGlyphCodePoint(codePoint)) {
-                pendingSpacer = true;
-                continue;
-            }
-
-            if (pendingSpacer) {
-                appendInlineSpacerPlaceholder(normalized, styleId, values);
-                pendingSpacer = false;
-            }
-            normalized.appendCodePoint(codePoint);
-        }
-
-        if (pendingSpacer) {
-            appendInlineSpacerPlaceholder(normalized, styleId, values);
-        }
-        return normalized.toString();
-    }
-
     private static void appendInlineSpacerPlaceholder(StringBuilder templateBuffer, Integer styleId, List<String> values) {
         if (templateBuffer == null || values == null) {
             return;

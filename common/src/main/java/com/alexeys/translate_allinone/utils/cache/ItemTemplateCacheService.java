@@ -562,10 +562,6 @@ public class ItemTemplateCacheService {
         return new CacheStats((int) runtimeState.translatedCount(), runtimeState.totalCount());
     }
 
-    public synchronized QueueSnapshot snapshotQueues() {
-        return snapshotQueuesUnsafe();
-    }
-
     public Set<String> getErroredKeys() {
         return runtimeState.copyErroredKeys();
     }
