@@ -2,7 +2,6 @@ package com.alexeys.translate_allinone.registration;
 
 import com.alexeys.translate_allinone.Translate_AllinOne;
 import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationRuntime;
-import com.alexeys.translate_allinone.utils.llmapi.LLM;
 import com.alexeys.translate_allinone.utils.llmapi.LlmRequestLifecycle;
 import com.alexeys.translate_allinone.utils.translate.ComponentRenderTranslationSupport;
 import com.alexeys.translate_allinone.utils.config.ModConfig;
@@ -65,7 +64,6 @@ public class ConfigManager {
 
         config = loadConfig(resolveConfigPath());
         ComponentTranslationDebugLogger.refresh(config);
-        LLM.refreshRequestTextStatsLogging();
         updateGlobalTranslationEnabled(false);
         updateProviderConfigurationFingerprint(false);
         registered = true;
@@ -80,7 +78,6 @@ public class ConfigManager {
     public static synchronized void save() {
         ensureRegistered();
         ComponentTranslationDebugLogger.refresh(config);
-        LLM.refreshRequestTextStatsLogging();
         updateGlobalTranslationEnabled(true);
         updateProviderConfigurationFingerprint(true);
         writeConfig(resolveConfigPath(), config);
@@ -95,7 +92,6 @@ public class ConfigManager {
         ensureRegistered();
         config = normalizeConfig(deepCopy(replacement));
         ComponentTranslationDebugLogger.refresh(config);
-        LLM.refreshRequestTextStatsLogging();
         updateGlobalTranslationEnabled(true);
         updateProviderConfigurationFingerprint(true);
     }
@@ -104,7 +100,6 @@ public class ConfigManager {
         ensureRegistered();
         config = normalizeConfig(new ModConfig());
         ComponentTranslationDebugLogger.refresh(config);
-        LLM.refreshRequestTextStatsLogging();
         updateGlobalTranslationEnabled(true);
         updateProviderConfigurationFingerprint(true);
     }

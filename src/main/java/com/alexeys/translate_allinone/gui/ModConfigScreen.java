@@ -58,7 +58,6 @@ import com.alexeys.translate_allinone.utils.config.pojos.OtherTranslationsConfig
 import com.alexeys.translate_allinone.utils.config.pojos.ProviderManagerConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ScoreboardConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.WynnCraftConfig;
-import com.alexeys.translate_allinone.utils.llmapi.LLM;
 import com.alexeys.translate_allinone.utils.input.KeybindingManager;
 import com.alexeys.translate_allinone.utils.translate.DictionaryFileSelectionSupport;
 import com.alexeys.translate_allinone.utils.update.UpdateCheckManager;
@@ -1919,7 +1918,6 @@ public class ModConfigScreen extends Screen {
         LogLevel next = ConfigSectionContentSupport.nextLevel(ConfigSectionContentSupport.levelOf(debug, dimension));
         ConfigSectionContentSupport.setLevel(debug, dimension, next);
         ComponentTranslationDebugLogger.refresh(Translate_AllinOne.getConfig());
-        LLM.refreshRequestTextStatsLogging();
         setStatus(t("status.debug_level_changed", t(dimension.nameKey()), t(ConfigSectionContentSupport.levelStateKey(next))), COLOR_STATUS_OK);
         rebuildActionBlocks();
     }

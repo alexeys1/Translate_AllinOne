@@ -9,7 +9,6 @@ import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
 import com.alexeys.translate_allinone.utils.llmapi.LLM;
 import com.alexeys.translate_allinone.utils.llmapi.LlmPayloadJsonSupport;
 import com.alexeys.translate_allinone.utils.llmapi.ProviderSettings;
-import com.alexeys.translate_allinone.utils.TranslateStringUtils;
 import com.alexeys.translate_allinone.utils.llmapi.openai.OpenAIRequest;
 import com.google.gson.Gson;
 
@@ -199,7 +198,7 @@ public final class WynnDialogueTranslateManager {
                 userPrompt,
                 providerProfile.activeSupportsSystemMessage()
         );
-        String requestContext = buildRequestContext(providerProfile, targetLanguage, originalKeys, messages);
+        String requestContext = buildRequestContext(providerProfile, targetLanguage, originalKeys);
         WynnDialogueTranslationSupport.throttledDevLog(
                 "llm_submit",
                 1000L,
@@ -389,22 +388,14 @@ public final class WynnDialogueTranslateManager {
     private String buildRequestContext(
             ApiProviderProfile profile,
             String targetLanguage,
-            List<String> originalKeys,
-            List<OpenAIRequest.Message> messages
+            List<String> originalKeys
     ) {
-        String providerId = profile == null ? "" : profile.id;
-        String modelId = profile == null ? "" : profile.model_id;
-        int messageCount = messages == null ? 0 : messages.size();
-        String sample = originalKeys == null || originalKeys.isEmpty()
-                ? ""
-                : TranslateStringUtils.truncate(TranslateStringUtils.normalizeWhitespace(WynnDialogueTranslationSupport.extractTranslatableValue(originalKeys.getFirst())), 160);
-        return "route=wynn_npc_dialogue"
-                + ", provider=" + providerId
-                + ", model=" + modelId
-                + ", target=" + targetLanguage
-                + ", batch=" + (originalKeys == null ? 0 : originalKeys.size())
-                + ", messages=" + messageCount
-                + ", sample=\"" + sample + "\"";
+        return "[route=wynn_npc_dialogue"
+                + " provider=" + (profile == null ? "" : profile.id)
+                + " model=" + (profile == null ? "" : profile.model_id)
+                + " target=" + targetLanguage
+                + " batch=" + (originalKeys == null ? 0 : originalKeys.size())
+                + "]";
     }
 
 }
