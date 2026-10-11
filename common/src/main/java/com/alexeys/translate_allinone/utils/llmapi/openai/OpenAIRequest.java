@@ -12,6 +12,7 @@ public class OpenAIRequest {
     public double temperature;
     public boolean stream;
     public ResponseFormat response_format;
+    public StreamOptions stream_options;
 
     public OpenAIRequest(String model, List<Message> messages, double temperature, boolean stream, ResponseFormat responseFormat) {
         this.model = model;
@@ -58,6 +59,14 @@ public class OpenAIRequest {
             this.name = name;
             this.schema = schema;
             this.strict = strict;
+        }
+    }
+
+    public static class StreamOptions {
+        public boolean include_usage;
+
+        public StreamOptions(boolean includeUsage) {
+            this.include_usage = includeUsage;
         }
     }
 }
