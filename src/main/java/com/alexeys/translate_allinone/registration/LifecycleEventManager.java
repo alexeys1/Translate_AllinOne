@@ -10,6 +10,7 @@ import com.alexeys.translate_allinone.utils.cache.component.ComponentTranslation
 import com.alexeys.translate_allinone.utils.cache.component.ComponentCacheMigrationManager;
 import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationRuntime;
 import com.alexeys.translate_allinone.utils.llmapi.LlmRequestLifecycle;
+import com.alexeys.translate_allinone.utils.llmapi.TokenUsageLedger;
 import com.alexeys.translate_allinone.utils.translate.ApiKeyDecryptFailureNotifier;
 import com.alexeys.translate_allinone.utils.translate.BookTranslationSupport;
 import com.alexeys.translate_allinone.utils.translate.ChatInputTranslateManager;
@@ -182,6 +183,7 @@ public class LifecycleEventManager {
         ItemTemplateCache.getInstance().save();
         WynnDialogueTextCache.getInstance().save();
         WynntilsTaskTrackerTextCache.getInstance().save();
+        TokenUsageLedger.save();
     }
 
     private static void resetReadinessState() {
