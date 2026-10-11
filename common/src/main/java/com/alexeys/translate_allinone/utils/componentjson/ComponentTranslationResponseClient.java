@@ -352,7 +352,9 @@ public final class ComponentTranslationResponseClient {
                     openAi.modelId(),
                     temperature,
                     openAi.customParameters(),
-                    openAi.providerType()
+                    openAi.providerType(),
+                    openAi.providerId(),
+                    openAi.providerName()
             ));
         }
         if (settings.ollamaSettings() != null) {
@@ -364,7 +366,9 @@ public final class ComponentTranslationResponseClient {
                     ollama.apiKey(),
                     ollama.modelId(),
                     ollama.keepAlive(),
-                    options
+                    options,
+                    ollama.providerId(),
+                    ollama.providerName()
             ));
         }
         return settings;

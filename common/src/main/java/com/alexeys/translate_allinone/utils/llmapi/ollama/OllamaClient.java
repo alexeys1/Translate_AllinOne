@@ -4,6 +4,7 @@ import com.alexeys.translate_allinone.utils.llmapi.LLMApiException;
 import com.alexeys.translate_allinone.utils.llmapi.LlmPayloadJsonSupport;
 import com.alexeys.translate_allinone.utils.llmapi.LlmRequestLifecycle;
 import com.alexeys.translate_allinone.utils.llmapi.ProviderSettings;
+import com.alexeys.translate_allinone.utils.llmapi.TokenUsageLedger;
 import com.alexeys.translate_allinone.utils.llmapi.openai.OpenAIError;
 import com.google.gson.Gson;
 
@@ -43,7 +44,10 @@ public class OllamaClient {
                         String message = error != null && error.error != null ? error.error.message : response.body();
                         throw new LLMApiException("API returned error: " + response.statusCode() + " - " + message);
                     }
-                    return GSON.fromJson(response.body(), OllamaChatResponse.class);
+                    OllamaChatResponse completion = GSON.fromJson(response.body(), OllamaChatResponse.class);
+                    TokenUsageLedger.recordCall(settings, request.model);
+                    recordTokens(request.model, completion);
+                    return completion;
                 }
         );
     }
@@ -66,8 +70,15 @@ public class OllamaClient {
                 throw new LLMApiException("API returned error: " + response.statusCode() + " - " + message);
             }
 
+            TokenUsageLedger.recordCall(settings, request.model);
+
             return responseBody
                     .map(line -> GSON.fromJson(line, OllamaChatResponse.class))
+                    .peek(chunk -> {
+                        if (chunk != null && Boolean.TRUE.equals(chunk.done)) {
+                            recordTokens(request.model, chunk);
+                        }
+                    })
                     .filter(chunk -> chunk != null && chunk.message != null && chunk.message.content != null);
         } catch (Exception e) {
             RuntimeException cancellationFailure = streamingRequest.cancellationFailure(e);
@@ -79,6 +90,22 @@ public class OllamaClient {
             }
             throw new LLMApiException("请求Ollama流式API时出错", e);
         }
+    }
+
+    private void recordTokens(String modelId, OllamaChatResponse response) {
+        if (response == null || (response.prompt_eval_count == null && response.eval_count == null)) {
+            return;
+        }
+        TokenUsageLedger.recordTokens(
+                settings,
+                modelId,
+                evalCount(response.prompt_eval_count),
+                evalCount(response.eval_count)
+        );
+    }
+
+    private static long evalCount(Integer value) {
+        return value == null ? 0L : Math.max(0, value);
     }
 
     private HttpRequest buildRequest(String requestBody) {

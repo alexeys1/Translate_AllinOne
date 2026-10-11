@@ -9,14 +9,18 @@ import com.alexeys.translate_allinone.utils.cache.component.ComponentTranslation
 import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationDebugLogger;
 import com.alexeys.translate_allinone.utils.config.ModConfig;
 import com.alexeys.translate_allinone.utils.llmapi.LLM;
+import com.alexeys.translate_allinone.utils.llmapi.TokenUsageLedger;
 import com.alexeys.translate_allinone.utils.translate.DictionaryHotReloadManager;
 import com.alexeys.translate_allinone.utils.translate.TranslationQueueResetCoordinator;
 import com.alexeys.translate_allinone.utils.translate.WynncraftDictionaryInstaller;
 import com.alexeys.translate_allinone.utils.translate.WynnDialogueTranslationSupport;
 import com.alexeys.translate_allinone.utils.update.UpdateCheckManager;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.loader.api.FabricLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.nio.file.Path;
 
 public class Translate_AllinOne implements ModInitializer {
 
@@ -30,6 +34,7 @@ public class Translate_AllinOne implements ModInitializer {
 		ConfigManager.register();
 		ComponentTranslationDebugLogger.register();
 		LLM.configureRequestTextStatsLogging(() -> getConfig().debug.llmStats);
+		TokenUsageLedger.configure(tokenUsageFilePath());
 		TranslationQueueResetCoordinator.register();
 		ComponentTranslationStoreRegistry.getInstance().forModule(ComponentCacheModule.SCREEN_UI).load();
 		WynncraftDictionaryInstaller.ensureInstalled();
@@ -42,5 +47,12 @@ public class Translate_AllinOne implements ModInitializer {
 
 	public static ModConfig getConfig() {
 		return ConfigManager.getConfig();
+	}
+
+	private static Path tokenUsageFilePath() {
+		return FabricLoader.getInstance()
+				.getConfigDir()
+				.resolve(MOD_ID)
+				.resolve("token_usage.json");
 	}
 }

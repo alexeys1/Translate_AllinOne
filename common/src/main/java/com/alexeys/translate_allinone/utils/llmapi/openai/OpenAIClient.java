@@ -7,6 +7,7 @@ import com.alexeys.translate_allinone.utils.llmapi.LlmRequestLifecycle;
 import com.alexeys.translate_allinone.utils.llmapi.LlmCompletion;
 import com.alexeys.translate_allinone.utils.llmapi.LlmPayloadJsonSupport;
 import com.alexeys.translate_allinone.utils.llmapi.ProviderSettings;
+import com.alexeys.translate_allinone.utils.llmapi.TokenUsageLedger;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -21,6 +22,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.CompletableFuture;
@@ -64,13 +66,7 @@ public class OpenAIClient {
         String requestSummary = summarizeRequest(request, requestBody);
         String endpoint = settings.baseUrl() + "/chat/completions";
 
-        HttpRequest httpRequest = HttpRequest.newBuilder()
-                .uri(URI.create(endpoint))
-                .timeout(LlmRequestLifecycle.requestTimeout())
-                .header("Content-Type", "application/json")
-                .header("Authorization", "Bearer " + settings.apiKey())
-                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                .build();
+        HttpRequest httpRequest = buildHttpRequest(endpoint, requestBody);
 
         CompletableFuture<OpenAIChatCompletion> future = LlmRequestLifecycle.track(
                 SHARED_HTTP_CLIENT.sendAsync(httpRequest, HttpResponse.BodyHandlers.ofString()),
@@ -80,7 +76,9 @@ public class OpenAIClient {
                         logApiError(response, endpoint, requestSummary, response.body());
                         throw new LLMApiException("API returned error: " + response.statusCode() + " - " + message);
                     }
-                    return GSON.fromJson(response.body(), OpenAIChatCompletion.class);
+                    OpenAIChatCompletion completion = GSON.fromJson(response.body(), OpenAIChatCompletion.class);
+                    recordUsage(request.model, completion == null ? null : completion.usage);
+                    return completion;
                 }
         );
 
@@ -109,17 +107,31 @@ public class OpenAIClient {
         String requestSummary = summarizeRequest(request, requestBody);
         String endpoint = settings.baseUrl() + "/chat/completions";
 
-        HttpRequest httpRequest = HttpRequest.newBuilder()
-                .uri(URI.create(endpoint))
-                .timeout(LlmRequestLifecycle.requestTimeout())
-                .header("Content-Type", "application/json")
-                .header("Authorization", "Bearer " + settings.apiKey())
-                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                .build();
-
         LlmRequestLifecycle.StreamingRequest streamingRequest = LlmRequestLifecycle.startStreamingRequest();
         try {
-            HttpResponse<Stream<String>> response = SHARED_HTTP_CLIENT.send(httpRequest, HttpResponse.BodyHandlers.ofLines());
+            HttpResponse<Stream<String>> response = SHARED_HTTP_CLIENT.send(
+                    buildHttpRequest(endpoint, requestBody),
+                    HttpResponse.BodyHandlers.ofLines()
+            );
+
+            if (response.statusCode() == 400 && request.stream_options != null) {
+                String errorBody = response.body().collect(Collectors.joining("\n"));
+                if (!isStreamUsageUnsupported(errorBody)) {
+                    logApiError(response, endpoint, requestSummary, errorBody);
+                    throw new LLMApiException(
+                            "API returned error: " + response.statusCode() + " - " + resolveApiErrorMessage(errorBody)
+                    );
+                }
+                response.body().close();
+                request.stream_options = null;
+                requestBody = buildRequestBody(request);
+                requestSummary = summarizeRequest(request, requestBody);
+                response = SHARED_HTTP_CLIENT.send(
+                        buildHttpRequest(endpoint, requestBody),
+                        HttpResponse.BodyHandlers.ofLines()
+                );
+            }
+
             Stream<String> responseBody = streamingRequest.attach(response.body());
 
             if (response.statusCode() != 200) {
@@ -129,11 +141,14 @@ public class OpenAIClient {
                 throw new LLMApiException("API returned error: " + response.statusCode() + " - " + message);
             }
 
+            TokenUsageLedger.recordCall(settings, request.model);
+
             return responseBody
                     .filter(line -> line.startsWith("data: "))
                     .map(line -> line.substring("data: ".length()))
                     .filter(data -> !data.equals("[DONE]"))
                     .map(data -> GSON.fromJson(data, OpenAIChatCompletion.class))
+                    .peek(chunk -> recordTokens(request.model, chunk == null ? null : chunk.usage))
                     .filter(chunk -> chunk != null && chunk.choices != null && !chunk.choices.isEmpty() && chunk.choices.get(0).delta != null && chunk.choices.get(0).delta.content != null);
 
         } catch (Exception e) {
@@ -162,13 +177,7 @@ public class OpenAIClient {
         String requestSummary = summarizeResponsesRequest(request, requestBody);
         String endpoint = settings.baseUrl() + "/responses";
 
-        HttpRequest httpRequest = HttpRequest.newBuilder()
-                .uri(URI.create(endpoint))
-                .timeout(LlmRequestLifecycle.requestTimeout())
-                .header("Content-Type", "application/json")
-                .header("Authorization", "Bearer " + settings.apiKey())
-                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                .build();
+        HttpRequest httpRequest = buildHttpRequest(endpoint, requestBody);
 
         CompletableFuture<LlmCompletion> future = LlmRequestLifecycle.track(
                 SHARED_HTTP_CLIENT.sendAsync(httpRequest, HttpResponse.BodyHandlers.ofString()),
@@ -180,6 +189,7 @@ public class OpenAIClient {
                     }
 
                     JsonObject responseJson = parseJsonObject(response.body(), "无法解析 Responses API 响应");
+                    recordUsage(request.model, usageOf(responseJson));
                     String content = extractResponseText(responseJson);
                     if (content.isBlank()) {
                         throw new LLMApiException("Responses API returned empty output text");
@@ -211,13 +221,7 @@ public class OpenAIClient {
         String requestSummary = summarizeResponsesRequest(request, requestBody);
         String endpoint = settings.baseUrl() + "/responses";
 
-        HttpRequest httpRequest = HttpRequest.newBuilder()
-                .uri(URI.create(endpoint))
-                .timeout(LlmRequestLifecycle.requestTimeout())
-                .header("Content-Type", "application/json")
-                .header("Authorization", "Bearer " + settings.apiKey())
-                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                .build();
+        HttpRequest httpRequest = buildHttpRequest(endpoint, requestBody);
 
         LlmRequestLifecycle.StreamingRequest streamingRequest = LlmRequestLifecycle.startStreamingRequest();
         try {
@@ -230,6 +234,8 @@ public class OpenAIClient {
                 throw new LLMApiException("API returned error: " + response.statusCode() + " - " + message);
             }
 
+            TokenUsageLedger.recordCall(settings, request.model);
+
             AtomicBoolean sawDelta = new AtomicBoolean(false);
             AtomicBoolean emittedFallback = new AtomicBoolean(false);
 
@@ -239,6 +245,7 @@ public class OpenAIClient {
                     .map(String::trim)
                     .filter(data -> !data.isEmpty() && !"[DONE]".equals(data))
                     .map(data -> parseJsonObject(data, "无法解析 Responses API 流式事件"))
+                    .peek(event -> recordCompletedResponseTokens(request.model, event))
                     .map(event -> extractResponsesStreamText(event, sawDelta, emittedFallback))
                     .filter(chunk -> chunk != null && !chunk.isEmpty());
 
@@ -697,6 +704,57 @@ public class OpenAIClient {
         }
 
         return "Unknown API error";
+    }
+
+    private HttpRequest buildHttpRequest(String endpoint, String requestBody) {
+        return HttpRequest.newBuilder()
+                .uri(URI.create(endpoint))
+                .timeout(LlmRequestLifecycle.requestTimeout())
+                .header("Content-Type", "application/json")
+                .header("Authorization", "Bearer " + settings.apiKey())
+                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                .build();
+    }
+
+    private void recordUsage(String modelId, OpenAIChatCompletion.Usage usage) {
+        TokenUsageLedger.recordCall(settings, modelId);
+        recordTokens(modelId, usage);
+    }
+
+    private void recordTokens(String modelId, OpenAIChatCompletion.Usage usage) {
+        if (usage == null || !usage.hasCounts()) {
+            return;
+        }
+        TokenUsageLedger.recordTokens(settings, modelId, usage.inputTokens(), usage.outputTokens());
+    }
+
+    private void recordCompletedResponseTokens(String modelId, JsonObject event) {
+        if (event == null) {
+            return;
+        }
+        String eventType = getStringMember(event, "type");
+        if (eventType == null || !(eventType.equals("response.completed") || eventType.endsWith(".completed"))) {
+            return;
+        }
+        JsonObject payload = event.has("response") && event.get("response").isJsonObject()
+                ? event.getAsJsonObject("response")
+                : event;
+        recordTokens(modelId, usageOf(payload));
+    }
+
+    private static OpenAIChatCompletion.Usage usageOf(JsonObject owner) {
+        if (owner == null || !owner.has("usage") || !owner.get("usage").isJsonObject()) {
+            return null;
+        }
+        return GSON.fromJson(owner.getAsJsonObject("usage"), OpenAIChatCompletion.Usage.class);
+    }
+
+    private static boolean isStreamUsageUnsupported(String errorBody) {
+        if (errorBody == null) {
+            return false;
+        }
+        String normalized = errorBody.toLowerCase(Locale.ROOT);
+        return normalized.contains("stream_options") || normalized.contains("include_usage");
     }
 
     private String safeText(String value) {

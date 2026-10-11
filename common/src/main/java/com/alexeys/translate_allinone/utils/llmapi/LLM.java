@@ -329,13 +329,17 @@ public class LLM {
             case JSON_OBJECT -> new OpenAIRequest.ResponseFormat("json_object");
             case JSON_SCHEMA -> new OpenAIRequest.ResponseFormat(schema.name(), schema.schema());
         };
-        return new OpenAIRequest(
+        OpenAIRequest request = new OpenAIRequest(
                 settings.openAISettings().modelId(),
                 messages,
                 settings.openAISettings().temperature(),
                 stream,
                 responseFormat
         );
+        if (stream) {
+            request.stream_options = new OpenAIRequest.StreamOptions(true);
+        }
+        return request;
     }
 
     private OpenAIResponsesRequest buildOpenAIResponsesRequest(
