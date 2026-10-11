@@ -47,7 +47,9 @@ public record ProviderSettings(OpenAISettings openAISettings, OllamaSettings oll
                     profile.api_key,
                     modelId,
                     keepAlive,
-                    options
+                    options,
+                    profile.id,
+                    profile.name
             );
             return fromOllama(ollamaSettings);
         }
@@ -58,7 +60,9 @@ public record ProviderSettings(OpenAISettings openAISettings, OllamaSettings oll
                 modelId,
                 temperature,
                 parameters,
-                providerType
+                providerType,
+                profile.id,
+                profile.name
         );
         return fromOpenAI(openAISettings);
     }
@@ -112,7 +116,9 @@ public record ProviderSettings(OpenAISettings openAISettings, OllamaSettings oll
             String modelId,
             double temperature,
             Map<String, Object> customParameters,
-            ApiProviderType providerType
+            ApiProviderType providerType,
+            String providerId,
+            String providerName
     ) {
 
         public OpenAISettings {
@@ -121,22 +127,51 @@ public record ProviderSettings(OpenAISettings openAISettings, OllamaSettings oll
             }
         }
 
+        public OpenAISettings(
+                String baseUrl,
+                String apiKey,
+                String modelId,
+                double temperature,
+                Map<String, Object> customParameters,
+                ApiProviderType providerType
+        ) {
+            this(baseUrl, apiKey, modelId, temperature, customParameters, providerType, null, null);
+        }
+
         public OpenAISettings(String baseUrl, String apiKey, String modelId, double temperature, Map<String, Object> customParameters) {
-            this(baseUrl, apiKey, modelId, temperature, customParameters, ApiProviderType.OPENAI_COMPAT);
+            this(baseUrl, apiKey, modelId, temperature, customParameters, ApiProviderType.OPENAI_COMPAT, null, null);
         }
 
         public OpenAISettings(String baseUrl, String apiKey, String modelId, double temperature) {
-            this(baseUrl, apiKey, modelId, temperature, null, ApiProviderType.OPENAI_COMPAT);
+            this(baseUrl, apiKey, modelId, temperature, null, ApiProviderType.OPENAI_COMPAT, null, null);
         }
     }
 
-    public static record OllamaSettings(String baseUrl, String apiKey, String modelId, String keepAlive, Map<String, Object> options) {
+    public static record OllamaSettings(
+            String baseUrl,
+            String apiKey,
+            String modelId,
+            String keepAlive,
+            Map<String, Object> options,
+            String providerId,
+            String providerName
+    ) {
+        public OllamaSettings(
+                String baseUrl,
+                String apiKey,
+                String modelId,
+                String keepAlive,
+                Map<String, Object> options
+        ) {
+            this(baseUrl, apiKey, modelId, keepAlive, options, null, null);
+        }
+
         public OllamaSettings(String baseUrl, String modelId, String keepAlive, Map<String, Object> options) {
-            this(baseUrl, "", modelId, keepAlive, options);
+            this(baseUrl, "", modelId, keepAlive, options, null, null);
         }
 
         public OllamaSettings(String baseUrl, String modelId) {
-            this(baseUrl, "", modelId, "5m", null);
+            this(baseUrl, "", modelId, "5m", null, null, null);
         }
     }
 }

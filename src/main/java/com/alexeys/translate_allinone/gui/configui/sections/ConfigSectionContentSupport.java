@@ -25,8 +25,10 @@ import com.alexeys.translate_allinone.utils.config.ModConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ProviderManagerConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ScoreboardConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.WynnCraftConfig;
+import com.alexeys.translate_allinone.utils.llmapi.TokenUsageLedger;
 import com.alexeys.translate_allinone.utils.translate.DictionaryFileSelectionSupport;
 import com.alexeys.translate_allinone.versionapi.MinecraftVersionCapabilities;
+import java.util.Locale;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
@@ -1053,6 +1055,57 @@ public final class ConfigSectionContentSupport {
                 addGroupBox(groupBoxAdder, translator.t("group.cache_entries"), x, width, statsStart, y);
 
                 y += GROUP_GAP;
+                TokenUsageLedger.Snapshot tokenUsage = TokenUsageLedger.snapshot();
+                int tokenUsageStart = y;
+                addTokenUsageRow(textFieldRowAdder, translator, x, y, width, "label.token_usage_today", tokenUsage.today());
+                y += ROW_STEP;
+                addTokenUsageRow(textFieldRowAdder, translator, x, y, width, "label.token_usage_7d", tokenUsage.last7Days());
+                y += ROW_STEP;
+                addTokenUsageRow(textFieldRowAdder, translator, x, y, width, "label.token_usage_total", tokenUsage.total());
+                y += ROW_STEP;
+                addGroupBox(groupBoxAdder, translator.t("group.token_usage"), x, width, tokenUsageStart, y);
+
+                y += GROUP_GAP;
+                int tokenUsageModelsStart = y;
+                if (tokenUsage.models().isEmpty()) {
+                    textFieldRowAdder.add(
+                            x,
+                            y,
+                            width,
+                            translator.t("label.token_usage_models"),
+                            64,
+                            translator.t("value.token_usage_empty").getString(),
+                            Component.empty(),
+                            value -> {
+                            },
+                            value -> true,
+                            false
+                    );
+                } else {
+                    for (int index = 0; index < tokenUsage.models().size(); index++) {
+                        if (index > 0) {
+                            y += ROW_STEP;
+                        }
+                        TokenUsageLedger.ModelUsageSnapshot modelUsage = tokenUsage.models().get(index);
+                        textFieldRowAdder.add(
+                                x,
+                                y,
+                                width,
+                                Component.literal(modelUsageLabel(modelUsage)),
+                                64,
+                                modelUsageValue(translator, modelUsage),
+                                Component.empty(),
+                                value -> {
+                                },
+                                value -> true,
+                                false
+                        );
+                    }
+                }
+                y += ROW_STEP;
+                addGroupBox(groupBoxAdder, translator.t("group.token_usage_models"), x, width, tokenUsageModelsStart, y);
+
+                y += GROUP_GAP;
                 int toolsStart = y;
                 actionAdder.add(x, y, width, translator.t("button.open_cache_directory"), openCacheDirectoryAction, tooltip(translator, "button.open_cache_directory"));
                 y += ROW_STEP;
@@ -1065,6 +1118,79 @@ public final class ConfigSectionContentSupport {
         }
 
         return y;
+    }
+
+    private static void addTokenUsageRow(
+            TextFieldRowAdder textFieldRowAdder,
+            Translator translator,
+            int x,
+            int y,
+            int width,
+            String labelKey,
+            TokenUsageLedger.UsageTotals totals
+    ) {
+        textFieldRowAdder.add(
+                x,
+                y,
+                width,
+                translator.t(labelKey),
+                64,
+                tokenUsageValue(translator, totals),
+                Component.empty(),
+                value -> {
+                },
+                value -> true,
+                false
+        );
+    }
+
+    private static String tokenUsageValue(Translator translator, TokenUsageLedger.UsageTotals totals) {
+        return translator.t(
+                "value.token_usage",
+                formatTokenCount(totals.totalTokens()),
+                formatCallCount(totals.calls())
+        ).getString();
+    }
+
+    private static String modelUsageValue(Translator translator, TokenUsageLedger.ModelUsageSnapshot model) {
+        return translator.t(
+                "value.token_usage_model",
+                formatTokenCount(model.today().totalTokens()),
+                formatCallCount(model.today().calls()),
+                formatTokenCount(model.last7Days().totalTokens()),
+                formatCallCount(model.last7Days().calls()),
+                formatTokenCount(model.total().totalTokens()),
+                formatCallCount(model.total().calls())
+        ).getString();
+    }
+
+    private static String modelUsageLabel(TokenUsageLedger.ModelUsageSnapshot model) {
+        String provider = model.provider() == null ? "" : model.provider().trim();
+        String modelId = model.model() == null ? "" : model.model().trim();
+        if (provider.isEmpty()) {
+            return modelId;
+        }
+        if (modelId.isEmpty()) {
+            return provider;
+        }
+        return provider + " / " + modelId;
+    }
+
+    private static String formatTokenCount(long tokens) {
+        if (tokens < 1_000L) {
+            return Long.toString(tokens);
+        }
+        if (tokens < 1_000_000L) {
+            return String.format(Locale.ROOT, "%.1fk", tokens / 1_000.0);
+        }
+        if (tokens < 1_000_000_000L) {
+            return String.format(Locale.ROOT, "%.2fM", tokens / 1_000_000.0);
+        }
+        return String.format(Locale.ROOT, "%.2fB", tokens / 1_000_000_000.0);
+    }
+
+    private static String formatCallCount(long calls) {
+        return String.format(Locale.ROOT, "%,d", calls);
     }
 
     private static Component tooltip(Translator t, String prefixedKey) {
