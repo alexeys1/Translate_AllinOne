@@ -15,6 +15,9 @@ public class MainCommand {
     private static LiteralArgumentBuilder<FabricClientCommandSource> createRoot(String name) {
         return ClientCommandManager.literal(name)
                 .executes(OpenConfigCommand::run)
+                .then(ClientCommandManager.literal("prompts")
+                        .then(ClientCommandManager.argument("providerId", StringArgumentType.word())
+                                .executes(OpenConfigCommand::runPromptEditor)))
                 .then(ClientCommandManager.argument("providerId", StringArgumentType.word())
                         .executes(OpenConfigCommand::runWithProvider))
                 .then(ChatHudTranslateCommand.getArgumentBuilder());

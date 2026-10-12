@@ -37,7 +37,7 @@ public class ApiProviderProfile {
     public boolean supports_system_message = true;
     public String system_prompt_suffix = "";
     public List<CustomParameterEntry> custom_parameters = new ArrayList<>();
-    public Map<String, String> system_prompt_overrides = new LinkedHashMap<>();
+    public transient Map<String, String> system_prompt_overrides = new LinkedHashMap<>();
 
     public static ApiProviderProfile createOpenAiDefault() {
         ApiProviderProfile profile = new ApiProviderProfile();
