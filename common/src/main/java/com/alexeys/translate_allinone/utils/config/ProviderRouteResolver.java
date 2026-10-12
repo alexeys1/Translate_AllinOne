@@ -135,9 +135,7 @@ public final class ProviderRouteResolver {
         snapshot.supports_system_message = modelCopy.supports_system_message;
         snapshot.system_prompt_suffix = modelCopy.system_prompt_suffix;
         snapshot.custom_parameters = customParametersCopy;
-        if (source.system_prompt_overrides != null) {
-            snapshot.system_prompt_overrides = new java.util.LinkedHashMap<>(source.system_prompt_overrides);
-        }
+        snapshot.system_prompt_overrides = PromptOverrideStore.getInstance().overridesFor(source.id);
         return snapshot;
     }
 
