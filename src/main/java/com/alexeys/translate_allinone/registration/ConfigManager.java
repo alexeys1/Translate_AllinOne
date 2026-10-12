@@ -21,6 +21,7 @@ import com.alexeys.translate_allinone.utils.config.pojos.ScoreboardConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.WynnCraftConfig;
 import com.alexeys.translate_allinone.utils.config.ApiKeyCipher;
 import com.alexeys.translate_allinone.utils.config.ConfigApiKeyEncryptionSupport;
+import com.alexeys.translate_allinone.utils.config.PromptOverrideStore;
 import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
 
 import com.google.gson.Gson;
@@ -41,7 +42,9 @@ import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HexFormat;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -69,6 +72,10 @@ public class ConfigManager {
         registered = true;
     }
 
+    public static void registerPromptOverrideRefresh() {
+        PromptOverrideStore.getInstance().setChangeListener(ConfigManager::refreshRuntimeTranslations);
+    }
+
     public static synchronized ModConfig getConfig() {
         ensureRegistered();
         ensureApiKeysForCurrentUuid();
@@ -81,6 +88,7 @@ public class ConfigManager {
         updateGlobalTranslationEnabled(true);
         updateProviderConfigurationFingerprint(true);
         writeConfig(resolveConfigPath(), config);
+        PromptOverrideStore.getInstance().retainProviderIds(currentProviderIds());
     }
 
     public static synchronized ModConfig copyCurrentConfig() {
@@ -99,6 +107,7 @@ public class ConfigManager {
     public static synchronized void resetToDefaults() {
         ensureRegistered();
         config = normalizeConfig(new ModConfig());
+        PromptOverrideStore.getInstance().clear();
         ComponentTranslationDebugLogger.refresh(config);
         updateGlobalTranslationEnabled(true);
         updateProviderConfigurationFingerprint(true);
@@ -445,13 +454,31 @@ public class ConfigManager {
         providerConfigurationFingerprint = currentFingerprint;
         providerConfigurationFingerprintInitialized = true;
         if (notifyRuntime && changed) {
-            LlmRequestLifecycle.cancelActiveRequests();
-            ComponentTranslationRuntime.providerConfigurationChanged();
-            ComponentRenderTranslationSupport.resetRenderCache();
-            ChatOutputTranslateManager.clearTranslationQueue();
-            WynnDialogueTranslateManager.getInstance().clearTranslationQueue();
-            WynntilsTaskTrackerTranslateManager.getInstance().clearTranslationQueue();
+            refreshRuntimeTranslations();
         }
+    }
+
+    private static void refreshRuntimeTranslations() {
+        LlmRequestLifecycle.cancelActiveRequests();
+        ComponentTranslationRuntime.providerConfigurationChanged();
+        ComponentRenderTranslationSupport.resetRenderCache();
+        ChatOutputTranslateManager.clearTranslationQueue();
+        WynnDialogueTranslateManager.getInstance().clearTranslationQueue();
+        WynntilsTaskTrackerTranslateManager.getInstance().clearTranslationQueue();
+    }
+
+    private static Collection<String> currentProviderIds() {
+        Collection<String> providerIds = new LinkedHashSet<>();
+        if (config == null || config.providerManager == null || config.providerManager.providers == null) {
+            return providerIds;
+        }
+
+        for (ApiProviderProfile provider : config.providerManager.providers) {
+            if (provider != null && provider.id != null && !provider.id.isBlank()) {
+                providerIds.add(provider.id);
+            }
+        }
+        return providerIds;
     }
 
     private static void updateGlobalTranslationEnabled(boolean notifyRuntime) {
