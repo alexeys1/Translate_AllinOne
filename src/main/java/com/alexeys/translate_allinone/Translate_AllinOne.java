@@ -8,6 +8,7 @@ import com.alexeys.translate_allinone.utils.cache.component.ComponentCacheModule
 import com.alexeys.translate_allinone.utils.cache.component.ComponentTranslationStoreRegistry;
 import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationDebugLogger;
 import com.alexeys.translate_allinone.utils.config.ModConfig;
+import com.alexeys.translate_allinone.utils.config.PromptOverrideStore;
 import com.alexeys.translate_allinone.utils.llmapi.LLM;
 import com.alexeys.translate_allinone.utils.llmapi.TokenUsageLedger;
 import com.alexeys.translate_allinone.utils.translate.DictionaryHotReloadManager;
@@ -31,7 +32,9 @@ public class Translate_AllinOne implements ModInitializer {
 	public void onInitialize() {
 		LOGGER.info("Translate All in One is initializing...");
 		VersionUpgradeBackupManager.backupIfVersionChanged();
+		PromptOverrideStore.initialize(promptOverridesFilePath());
 		ConfigManager.register();
+		ConfigManager.registerPromptOverrideRefresh();
 		ComponentTranslationDebugLogger.register();
 		LLM.configureRequestTextStatsLogging(() -> getConfig().debug.llmStats);
 		TokenUsageLedger.configure(tokenUsageFilePath());
@@ -54,5 +57,12 @@ public class Translate_AllinOne implements ModInitializer {
 				.getConfigDir()
 				.resolve(MOD_ID)
 				.resolve("token_usage.json");
+	}
+
+	private static Path promptOverridesFilePath() {
+		return FabricLoader.getInstance()
+				.getConfigDir()
+				.resolve(MOD_ID)
+				.resolve(PromptOverrideStore.FILE_NAME);
 	}
 }
