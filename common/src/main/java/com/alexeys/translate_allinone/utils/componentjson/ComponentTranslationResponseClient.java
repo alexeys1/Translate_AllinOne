@@ -394,6 +394,10 @@ public final class ComponentTranslationResponseClient {
         return llm::getCompletion;
     }
 
+    public static String protocolContract() {
+        return PROTOCOL_CONTRACT;
+    }
+
     public static List<OpenAIRequest.Message> buildMessages(
             ComponentTranslationRoute route,
             ComponentTranslationRequest request,
