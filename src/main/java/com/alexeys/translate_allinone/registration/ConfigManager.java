@@ -163,6 +163,7 @@ public class ConfigManager {
             boolean removedStructuredOutputConfig = removeStructuredOutputConfig(rawConfig);
             loadedConfig = normalizeConfig(loadedConfig);
             boolean migratedApiKeyEncryption = prepareLoadedApiKeys(loadedConfig);
+            boolean migratedPromptOverrides = migratePromptResetGeneration(rawConfig, configPath);
 
             if (shouldRewriteConfig) {
                 Translate_AllinOne.LOGGER.warn("Config file is empty or invalid, using defaults: {}", configPath);
@@ -170,6 +171,7 @@ public class ConfigManager {
 
             if (shouldRewriteConfig
                     || migratedApiKeyEncryption
+                    || migratedPromptOverrides
                     || migratedLegacyItemWynnCompatibilityConfig
                     || migratedLegacyWynnTargetLanguageConfig
                     || migratedLegacyVanillaAdvancementConfig
@@ -465,6 +467,20 @@ public class ConfigManager {
         ChatOutputTranslateManager.clearTranslationQueue();
         WynnDialogueTranslateManager.getInstance().clearTranslationQueue();
         WynntilsTaskTrackerTranslateManager.getInstance().clearTranslationQueue();
+    }
+
+    private static boolean migratePromptResetGeneration(JsonElement rawConfig, Path configPath) {
+        PromptOverrideStore store = PromptOverrideStore.getInstance();
+        if (!store.applyPendingResetMigration(rawConfig)) {
+            return false;
+        }
+
+        Translate_AllinOne.LOGGER.info(
+                "Provider prompt overrides were reset to the built-in defaults for generation {}: {}",
+                PromptOverrideStore.CURRENT_RESET_GENERATION,
+                configPath
+        );
+        return true;
     }
 
     private static Collection<String> currentProviderIds() {
