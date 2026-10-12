@@ -115,6 +115,7 @@ public class PromptEditorScreen extends Screen {
 
     @Override
     protected void init() {
+        this.minecraft.textInputManager().startTextInput(this);
         loadRouteTexts();
         cursorPos = routeTexts.containsKey(selectedRoute) ? routeTexts.get(selectedRoute).length() : 0;
         selectionStart = -1;
