@@ -7,6 +7,7 @@ import com.alexeys.translate_allinone.gui.configui.controls.ActionBlockRegistry;
 import com.alexeys.translate_allinone.gui.configui.interaction.ConfigUiInteractionSupport;
 import com.alexeys.translate_allinone.gui.configui.render.ConfigUiControlRenderer;
 import com.alexeys.translate_allinone.gui.configui.render.ConfigUiDraw;
+import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationResponseClient;
 import com.alexeys.translate_allinone.utils.config.ModConfig;
 import com.alexeys.translate_allinone.utils.config.PromptOverrideStore;
 import com.alexeys.translate_allinone.utils.translate.PromptMessageBuilder;
@@ -16,6 +17,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.CharacterEvent;
@@ -46,6 +48,7 @@ public class PromptEditorScreen extends Screen {
     private static final int COLOR_SELECTION = 0x5532B44A;
     private static final int COLOR_LINE_NUMBER = 0xFF555555;
     private static final int COLOR_STATUS_BAR = 0xFF151515;
+    private static final int COLOR_FORCED_TEXT = 0xFF6E6E6E;
 
     private static final int TOP_BAR_HEIGHT = 40;
     private static final int LEFT_PANEL_WIDTH = 200;
@@ -90,6 +93,10 @@ public class PromptEditorScreen extends Screen {
             "wynn_npc_dialogue", "wynntils_task_tracker", "sign_book", "entity_text",
             "screen_ui"
     };
+
+    private static final Set<String> COMPONENT_PROTOCOL_ROUTES = Set.of(
+            "item", "scoreboard", "sign_book", "entity_text", "screen_ui"
+    );
 
     public PromptEditorScreen(Screen parent, String providerId) {
         super(t("title"));
@@ -481,8 +488,17 @@ public class PromptEditorScreen extends Screen {
 
         if (mouseX >= (LEFT_PANEL_WIDTH + EDITOR_PADDING + LINE_NUMBER_WIDTH) && mouseX < (LEFT_PANEL_WIDTH + EDITOR_PADDING + LINE_NUMBER_WIDTH) + (this.width - (LEFT_PANEL_WIDTH + EDITOR_PADDING + LINE_NUMBER_WIDTH) - EDITOR_PADDING - 12)) {
             String fullText = currentText().toString();
-            List<String> lines = wrapLines(fullText, (this.width - (LEFT_PANEL_WIDTH + EDITOR_PADDING + LINE_NUMBER_WIDTH) - EDITOR_PADDING - 12));
-            int lineIndex = (int) ((mouseY - (TOP_BAR_HEIGHT + EDITOR_PADDING) + scrollOffset * LINE_HEIGHT) / LINE_HEIGHT);
+            int textW = (this.width - (LEFT_PANEL_WIDTH + EDITOR_PADDING + LINE_NUMBER_WIDTH) - EDITOR_PADDING - 12);
+            List<String> lines = wrapLines(fullText, textW);
+            int prefixRows = forcedPrefixLines(textW, selectedRoute).size();
+            int displayRow = (int) ((mouseY - (TOP_BAR_HEIGHT + EDITOR_PADDING) + scrollOffset * LINE_HEIGHT) / LINE_HEIGHT);
+            if (displayRow < prefixRows) {
+                cursorPos = 0;
+                selectionStart = -1;
+                selectionEnd = -1;
+                return true;
+            }
+            int lineIndex = displayRow - prefixRows;
             if (lineIndex >= 0 && lineIndex < lines.size()) {
                 int col = cursorColumnFromMouse(mouseX - (LEFT_PANEL_WIDTH + EDITOR_PADDING + LINE_NUMBER_WIDTH), lines.get(lineIndex));
                 int newPos = cursorPosFromLineCol(fullText, lineIndex, col, lines);
@@ -519,8 +535,10 @@ public class PromptEditorScreen extends Screen {
         if (mouseX >= (LEFT_PANEL_WIDTH + EDITOR_PADDING + LINE_NUMBER_WIDTH)
                 && mouseX < (LEFT_PANEL_WIDTH + EDITOR_PADDING + LINE_NUMBER_WIDTH) + (this.width - (LEFT_PANEL_WIDTH + EDITOR_PADDING + LINE_NUMBER_WIDTH) - EDITOR_PADDING - 12)) {
             String fullText = currentText().toString();
-            List<String> lines = wrapLines(fullText, (this.width - (LEFT_PANEL_WIDTH + EDITOR_PADDING + LINE_NUMBER_WIDTH) - EDITOR_PADDING - 12));
-            int lineIndex = (int) ((mouseY - (TOP_BAR_HEIGHT + EDITOR_PADDING) + scrollOffset * LINE_HEIGHT) / LINE_HEIGHT);
+            int textW = (this.width - (LEFT_PANEL_WIDTH + EDITOR_PADDING + LINE_NUMBER_WIDTH) - EDITOR_PADDING - 12);
+            List<String> lines = wrapLines(fullText, textW);
+            int prefixRows = forcedPrefixLines(textW, selectedRoute).size();
+            int lineIndex = (int) ((mouseY - (TOP_BAR_HEIGHT + EDITOR_PADDING) + scrollOffset * LINE_HEIGHT) / LINE_HEIGHT) - prefixRows;
             if (lineIndex < 0) lineIndex = 0;
             if (lineIndex >= lines.size()) lineIndex = lines.size() - 1;
             if (lineIndex >= 0 && lineIndex < lines.size()) {
@@ -538,8 +556,9 @@ public class PromptEditorScreen extends Screen {
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
         String fullText = currentText().toString();
-        List<String> lines = wrapLines(fullText, (this.width - (LEFT_PANEL_WIDTH + EDITOR_PADDING + LINE_NUMBER_WIDTH) - EDITOR_PADDING - 12));
-        int maxScroll = Math.max(0, lines.size() - ((this.height - TOP_BAR_HEIGHT - STATUS_BAR_HEIGHT - EDITOR_PADDING * 2) / LINE_HEIGHT));
+        int textW = (this.width - (LEFT_PANEL_WIDTH + EDITOR_PADDING + LINE_NUMBER_WIDTH) - EDITOR_PADDING - 12);
+        int displayRows = forcedPrefixLines(textW, selectedRoute).size() + wrapLines(fullText, textW).size();
+        int maxScroll = Math.max(0, displayRows - ((this.height - TOP_BAR_HEIGHT - STATUS_BAR_HEIGHT - EDITOR_PADDING * 2) / LINE_HEIGHT));
         scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset - (int) verticalAmount));
         return true;
     }
@@ -619,6 +638,23 @@ public class PromptEditorScreen extends Screen {
         }
     }
 
+    private static String forcedContractText(String routeKey) {
+        String shape = COMPONENT_PROTOCOL_ROUTES.contains(routeKey)
+                ? ComponentTranslationResponseClient.protocolContract()
+                : PromptMessageBuilder.getForcedOutputContract(routeKey);
+        return shape.strip() + PromptMessageBuilder.getForcedProtectedDataContract(routeKey);
+    }
+
+    private List<String> forcedPrefixLines(int textW, String routeKey) {
+        StringBuilder prefix = new StringBuilder(t("forced_header").getString());
+        prefix.append('\n').append(forcedContractText(routeKey));
+        if ("item".equals(routeKey)) {
+            prefix.append('\n').append(t("forced_request_time_note").getString());
+        }
+        prefix.append('\n');
+        return wrapLines(prefix.toString(), textW);
+    }
+
     private void renderEditor(GuiGraphicsExtractor context) {
         int labelX = LEFT_PANEL_WIDTH + EDITOR_PADDING;
         int editorHeight = this.height - TOP_BAR_HEIGHT - STATUS_BAR_HEIGHT - EDITOR_PADDING * 2;
@@ -627,51 +663,61 @@ public class PromptEditorScreen extends Screen {
 
         String fullText = currentText().toString();
         int textW = (this.width - (LEFT_PANEL_WIDTH + EDITOR_PADDING + LINE_NUMBER_WIDTH) - EDITOR_PADDING - 12);
+        List<String> prefix = forcedPrefixLines(textW, selectedRoute);
+        int prefixRows = prefix.size();
         List<String> lines = wrapLines(fullText, textW);
+        List<String> displayLines = new ArrayList<>(prefixRows + lines.size());
+        displayLines.addAll(prefix);
+        displayLines.addAll(lines);
         int visibleLines = (this.height - TOP_BAR_HEIGHT - STATUS_BAR_HEIGHT - EDITOR_PADDING * 2) / LINE_HEIGHT;
 
         int selStart = selectionStart >= 0 && selectionEnd >= 0 ? Math.min(selectionStart, selectionEnd) : -1;
         int selEnd = selStart >= 0 ? Math.max(selectionStart, selectionEnd) : -1;
 
         if (selStart >= 0 && selEnd > selStart) {
-            drawSelection(context, fullText, lines, selStart, selEnd, scrollOffset);
+            drawSelection(context, fullText, lines, selStart, selEnd, scrollOffset - prefixRows);
         }
 
         int numberX = labelX;
         int lineY = (TOP_BAR_HEIGHT + EDITOR_PADDING);
         int textX = LEFT_PANEL_WIDTH + EDITOR_PADDING + LINE_NUMBER_WIDTH;
 
-        for (int i = scrollOffset; i < Math.min(lines.size(), scrollOffset + visibleLines); i++) {
-            String lineStr = lines.get(i);
-            String numStr = String.valueOf(i + 1);
-            int numWidth = this.font.width(numStr);
-            context.text(this.font, numStr, numberX + LINE_NUMBER_WIDTH - numWidth - 8, lineY, COLOR_LINE_NUMBER, false);
-            context.text(this.font, lineStr, textX, lineY, COLOR_TEXT, false);
+        for (int i = scrollOffset; i < Math.min(displayLines.size(), scrollOffset + visibleLines); i++) {
+            String lineStr = displayLines.get(i);
+            if (i < prefixRows) {
+                context.text(this.font, lineStr, textX, lineY, i == 0 ? COLOR_TEXT_MUTED : COLOR_FORCED_TEXT, false);
+            } else {
+                String numStr = String.valueOf(i - prefixRows + 1);
+                int numWidth = this.font.width(numStr);
+                context.text(this.font, numStr, numberX + LINE_NUMBER_WIDTH - numWidth - 8, lineY, COLOR_LINE_NUMBER, false);
+                context.text(this.font, lineStr, textX, lineY, COLOR_TEXT, false);
+            }
             lineY += LINE_HEIGHT;
         }
 
-        if (fullText.isEmpty() && scrollOffset == 0) {
-            context.text(this.font, t("empty_placeholder"), textX, (TOP_BAR_HEIGHT + EDITOR_PADDING), COLOR_TEXT_MUTED, false);
+        if (lines.isEmpty() && prefixRows >= scrollOffset && prefixRows < scrollOffset + visibleLines) {
+            context.text(this.font, t("empty_placeholder"), textX, (TOP_BAR_HEIGHT + EDITOR_PADDING) + (prefixRows - scrollOffset) * LINE_HEIGHT, COLOR_TEXT_MUTED, false);
         }
 
         if (cursorVisible) {
             int[] cursorLineCol = cursorVisualLine(fullText, lines, cursorPos);
-            int cursorRenderLine = cursorLineCol[0];
+            int cursorRenderLine = cursorLineCol[0] + prefixRows;
             int cursorRenderCol = cursorLineCol[1];
             int cursorScreenLine = cursorRenderLine - scrollOffset;
             if (cursorScreenLine >= 0 && cursorScreenLine < visibleLines) {
-                String cursorLineText = cursorRenderLine < lines.size() ? lines.get(cursorRenderLine) : "";
+                int cursorEditableLine = cursorRenderLine - prefixRows;
+                String cursorLineText = cursorEditableLine < lines.size() ? lines.get(cursorEditableLine) : "";
                 int cursorX = textX + this.font.width(cursorLineText.substring(0, Math.min(cursorRenderCol, cursorLineText.length())));
                 int cursorY = (TOP_BAR_HEIGHT + EDITOR_PADDING) + cursorScreenLine * LINE_HEIGHT;
                 context.fill(cursorX, cursorY, cursorX + 1, cursorY + LINE_HEIGHT, COLOR_CURSOR);
             }
         }
 
-        if (lines.size() > ((this.height - TOP_BAR_HEIGHT - STATUS_BAR_HEIGHT - EDITOR_PADDING * 2) / LINE_HEIGHT)) {
+        if (displayLines.size() > visibleLines) {
             int scrollbarX = this.width - 8;
             int scrollbarHeight = editorHeight;
-            int thumbHeight = Math.max(24, ((this.height - TOP_BAR_HEIGHT - STATUS_BAR_HEIGHT - EDITOR_PADDING * 2) / LINE_HEIGHT) * scrollbarHeight / Math.max(1, lines.size()));
-            int thumbY = (TOP_BAR_HEIGHT + EDITOR_PADDING) + scrollOffset * scrollbarHeight / Math.max(1, lines.size());
+            int thumbHeight = Math.max(24, visibleLines * scrollbarHeight / Math.max(1, displayLines.size()));
+            int thumbY = (TOP_BAR_HEIGHT + EDITOR_PADDING) + scrollOffset * scrollbarHeight / Math.max(1, displayLines.size());
             context.fill(scrollbarX, (TOP_BAR_HEIGHT + EDITOR_PADDING), scrollbarX + 4, (TOP_BAR_HEIGHT + EDITOR_PADDING) + scrollbarHeight, 0xAA171717);
             context.fill(scrollbarX, thumbY, scrollbarX + 4, thumbY + thumbHeight, COLOR_BORDER);
         }
@@ -683,10 +729,13 @@ public class PromptEditorScreen extends Screen {
         ConfigUiDraw.drawOutline(context, 0, barY, this.width, STATUS_BAR_HEIGHT, COLOR_BORDER);
 
         String fullText = currentText().toString();
-        int currentTokens = estimateTokens(fullText);
+        String forcedText = forcedContractText(selectedRoute);
 
-        String statusText = fullText.length() + " chars"
-                + "  |  ~" + currentTokens + " tokens";
+        String statusText = t("status.counts_forced").getString() + " " + forcedText.length() + " chars"
+                + "  |  ~" + estimateTokens(forcedText) + " tokens"
+                + "    " + t("status.counts_custom").getString() + " " + fullText.length() + " chars"
+                + "  |  ~" + estimateTokens(fullText) + " tokens";
+        int statusWidth = this.font.width(statusText);
         context.text(this.font, statusText, LEFT_PANEL_WIDTH + EDITOR_PADDING, barY + (STATUS_BAR_HEIGHT - this.font.lineHeight) / 2, COLOR_TEXT_MUTED, false);
 
         String defaultPrompt = PromptMessageBuilder.getDefaultPromptTemplate(selectedRoute);
@@ -694,7 +743,10 @@ public class PromptEditorScreen extends Screen {
         if (hasOverride) {
             String overrideLabel = t("status.override_active").getString();
             int labelWidth = this.font.width(overrideLabel);
-            context.text(this.font, overrideLabel, this.width - labelWidth - 12, barY + (STATUS_BAR_HEIGHT - this.font.lineHeight) / 2, COLOR_STATUS_OK, false);
+            int labelX = this.width - labelWidth - 12;
+            if (labelX > LEFT_PANEL_WIDTH + EDITOR_PADDING + statusWidth + 12) {
+                context.text(this.font, overrideLabel, labelX, barY + (STATUS_BAR_HEIGHT - this.font.lineHeight) / 2, COLOR_STATUS_OK, false);
+            }
         }
     }
 
