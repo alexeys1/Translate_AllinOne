@@ -8,7 +8,7 @@ import com.alexeys.translate_allinone.gui.configui.interaction.ConfigUiInteracti
 import com.alexeys.translate_allinone.gui.configui.render.ConfigUiControlRenderer;
 import com.alexeys.translate_allinone.gui.configui.render.ConfigUiDraw;
 import com.alexeys.translate_allinone.utils.config.ModConfig;
-import com.alexeys.translate_allinone.utils.config.pojos.ApiProviderProfile;
+import com.alexeys.translate_allinone.utils.config.PromptOverrideStore;
 import com.alexeys.translate_allinone.utils.translate.PromptMessageBuilder;
 import org.lwjgl.glfw.GLFW;
 
@@ -127,12 +127,7 @@ public class PromptEditorScreen extends Screen {
     private void loadRouteTexts() {
         routeTexts.clear();
         originalTexts.clear();
-        ModConfig config = Translate_AllinOne.getConfig();
-        config.providerManager.ensureDefaults();
-        ApiProviderProfile profile = config.providerManager.findById(providerId);
-        Map<String, String> overrides = profile == null ? new LinkedHashMap<>() :
-                profile.system_prompt_overrides == null ? new LinkedHashMap<>() :
-                        new LinkedHashMap<>(profile.system_prompt_overrides);
+        Map<String, String> overrides = PromptOverrideStore.getInstance().overridesFor(providerId);
 
         for (String key : ROUTE_KEYS) {
             String override = overrides.get(key);
@@ -150,19 +145,19 @@ public class PromptEditorScreen extends Screen {
     private void saveAll() {
         ModConfig config = Translate_AllinOne.getConfig();
         config.providerManager.ensureDefaults();
-        ApiProviderProfile profile = config.providerManager.findById(providerId);
-        if (profile == null) {
+        if (config.providerManager.findById(providerId) == null) {
             return;
         }
-        profile.system_prompt_overrides = new LinkedHashMap<>();
+
+        Map<String, String> overrides = new LinkedHashMap<>();
         for (String key : routeTexts.keySet()) {
             String text = routeTexts.get(key).toString();
             String defaultPrompt = PromptMessageBuilder.getDefaultPromptTemplate(key);
             if (!text.equals(defaultPrompt) && !text.isBlank()) {
-                profile.system_prompt_overrides.put(key, text);
+                overrides.put(key, text);
             }
         }
-        profile.normalizePromptOverrides();
+        PromptOverrideStore.getInstance().replaceProviderOverrides(providerId, overrides);
         if (this.minecraft != null) {
             MinecraftScreens.INSTANCE.open(parent);
         }

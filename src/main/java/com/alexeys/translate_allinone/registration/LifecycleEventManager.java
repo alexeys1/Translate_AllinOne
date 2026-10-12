@@ -18,6 +18,7 @@ import com.alexeys.translate_allinone.utils.translate.ChatOutputTranslateManager
 import com.alexeys.translate_allinone.utils.translate.ContinuousSignTranslationCoordinator;
 import com.alexeys.translate_allinone.utils.translate.ComponentRenderTranslationSupport;
 import com.alexeys.translate_allinone.utils.translate.ExternalScoreboardTranslationSupport;
+import com.alexeys.translate_allinone.utils.translate.PromptResetNotifier;
 import com.alexeys.translate_allinone.utils.translate.ScoreboardTranslationInputSupport;
 import com.alexeys.translate_allinone.utils.translate.TooltipTextDebugCopySupport;
 import com.alexeys.translate_allinone.utils.translate.TextDisplayTranslationSupport;
@@ -120,6 +121,7 @@ public class LifecycleEventManager {
             if (isReadyForTranslation) {
                 UpdateCheckManager.tryNotifyInChat(client);
                 ApiKeyDecryptFailureNotifier.tryNotifyOnJoin(client);
+                PromptResetNotifier.tryNotifyOnJoin(client);
                 WynnDialogueTranslationSupport.tick();
                 ContinuousSignTranslationCoordinator.tick();
                 ChatOutputTranslateManager.animatePendingChatLines();
@@ -150,6 +152,7 @@ public class LifecycleEventManager {
             ExternalScoreboardTranslationSupport.resetSession();
             ScoreboardTranslationInputSupport.reset();
             ApiKeyDecryptFailureNotifier.resetSession();
+            PromptResetNotifier.resetSession();
             LOGGER.info("Player has disconnected. Translation readiness reset.");
             stopTranslationManagers();
             saveCaches();
