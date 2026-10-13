@@ -93,6 +93,7 @@ public class LifecycleEventManager {
             TextDisplayTranslationSupport.resetSession();
             ExternalScoreboardTranslationSupport.resetSession();
             ScoreboardTranslationInputSupport.reset();
+            UiTranslationRuntime.reset();
             awaitingReadinessCheck = true;
             LOGGER.info("Player joining world, awaiting client readiness for translation...");
 
@@ -152,6 +153,7 @@ public class LifecycleEventManager {
             TextDisplayTranslationSupport.resetSession();
             ExternalScoreboardTranslationSupport.resetSession();
             ScoreboardTranslationInputSupport.reset();
+            UiTranslationRuntime.reset();
             ApiKeyDecryptFailureNotifier.resetSession();
             PromptResetNotifier.resetSession();
             LOGGER.info("Player has disconnected. Translation readiness reset.");
