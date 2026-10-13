@@ -24,7 +24,9 @@ public interface UiTranslationActiveTextCollectorMixin {
     )
     private Component translate_allinone$translateComponent(Component source) {
         Component visible = UiTranslationRuntime.translateComponent(source, UiTextRole.OPTION);
-        UiTranslationRuntime.markFormattedSequenceHandled(visible.getVisualOrderText());
+        if (visible != source) {
+            UiTranslationRuntime.markFormattedSequenceHandled(visible.getVisualOrderText());
+        }
         return visible;
     }
 

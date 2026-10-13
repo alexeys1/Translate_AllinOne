@@ -136,6 +136,7 @@ public class LifecycleEventManager {
                             ? null
                             : Translate_AllinOne.getConfig().otherTranslations
             );
+            UiTranslationRuntime.clearHandledSequences();
             UiTranslationRuntime.expireIdleScreenSessions();
             TooltipTextDebugCopySupport.tick(client);
         });
