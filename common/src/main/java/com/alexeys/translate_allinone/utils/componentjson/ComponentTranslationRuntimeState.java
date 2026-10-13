@@ -142,6 +142,9 @@ public final class ComponentTranslationRuntimeState<F> {
     }
 
     public void putFailure(String key, FailureState<F> failure) {
+        if (failures.size() >= CACHE_LIMIT) {
+            failures.clear();
+        }
         failures.put(key, failure);
     }
 

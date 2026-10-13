@@ -143,7 +143,9 @@ public abstract class UiTranslationFontMixin {
     )
     private Text translate_allinone$translatedComponent(Text source) {
         Text visible = UiTranslationRuntime.translateComponent(source, UiTextRole.OPTION);
-        UiTranslationRuntime.markFormattedSequenceHandled(visible.asOrderedText());
+        if (visible != source) {
+            UiTranslationRuntime.markFormattedSequenceHandled(visible.asOrderedText());
+        }
         return visible;
     }
 
