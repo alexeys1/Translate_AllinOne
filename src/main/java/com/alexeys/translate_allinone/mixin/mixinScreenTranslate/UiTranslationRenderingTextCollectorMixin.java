@@ -30,7 +30,9 @@ public abstract class UiTranslationRenderingTextCollectorMixin {
     )
     private Component translate_allinone$translateScrollingComponent(Component source) {
         Component visible = UiTranslationRuntime.translateComponent(source, UiTextRole.OPTION);
-        UiTranslationRuntime.markFormattedSequenceHandled(visible.getVisualOrderText());
+        if (visible != source) {
+            UiTranslationRuntime.markFormattedSequenceHandled(visible.getVisualOrderText());
+        }
         return visible;
     }
 }

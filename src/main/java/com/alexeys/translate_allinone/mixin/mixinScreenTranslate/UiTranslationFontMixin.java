@@ -188,9 +188,11 @@ public abstract class UiTranslationFontMixin {
             require = 0
     )
     private FormattedCharSequence translate_allinone$translatedComponent(Component source) {
-        FormattedCharSequence sequence = UiTranslationRuntime.translateComponent(source, UiTextRole.OPTION)
-                .getVisualOrderText();
-        UiTranslationRuntime.markFormattedSequenceHandled(sequence);
+        Component visible = UiTranslationRuntime.translateComponent(source, UiTextRole.OPTION);
+        FormattedCharSequence sequence = visible.getVisualOrderText();
+        if (visible != source) {
+            UiTranslationRuntime.markFormattedSequenceHandled(sequence);
+        }
         return sequence;
     }
 }
