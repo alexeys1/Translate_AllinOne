@@ -93,6 +93,7 @@ public class LifecycleEventManager {
             TextDisplayTranslationSupport.resetSession();
             ExternalScoreboardTranslationSupport.resetSession();
             ScoreboardTranslationInputSupport.reset();
+            UiTranslationRuntime.reset();
             awaitingReadinessCheck = true;
             LOGGER.info("Player joining world, awaiting client readiness for translation...");
 
@@ -136,6 +137,7 @@ public class LifecycleEventManager {
                             ? null
                             : Translate_AllinOne.getConfig().otherTranslations
             );
+            UiTranslationRuntime.clearHandledSequences();
             UiTranslationRuntime.expireIdleScreenSessions();
             TooltipTextDebugCopySupport.tick(client);
         });
@@ -151,6 +153,7 @@ public class LifecycleEventManager {
             TextDisplayTranslationSupport.resetSession();
             ExternalScoreboardTranslationSupport.resetSession();
             ScoreboardTranslationInputSupport.reset();
+            UiTranslationRuntime.reset();
             ApiKeyDecryptFailureNotifier.resetSession();
             PromptResetNotifier.resetSession();
             LOGGER.info("Player has disconnected. Translation readiness reset.");
