@@ -59,6 +59,10 @@ public abstract class ChatHudMixin {
 
                 if (autoTranslate) {
                     if (LifecycleEventManager.isReadyForTranslation) {
+                        Component cachedTranslation = ChatOutputTranslateManager.peekCachedTranslation(messageId, message);
+                        if (cachedTranslation != null) {
+                            return cachedTranslation;
+                        }
                         queueAutoTranslateCommand(messageId);
                         return message;
                     }

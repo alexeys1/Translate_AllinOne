@@ -191,6 +191,44 @@ public class ChatOutputTranslateManager {
         }
     }
 
+    public static Component peekCachedTranslation(UUID messageId, Component originalMessage) {
+        if (!TranslationFeatureGate.isEnabled() || messageId == null || originalMessage == null) {
+            return null;
+        }
+
+        ChatTranslateConfig.ChatOutputTranslateConfig chatOutputConfig = Translate_AllinOne.getConfig().chatTranslate.output;
+        PreparedChatTranslation preparedTranslation = prepareTranslationPayload(originalMessage);
+        ChatCacheKeys cacheKeys = buildCacheKeys(
+                chatOutputConfig.target_language,
+                preparedTranslation.textToTranslate(),
+                isSkyblockNpcMessage(originalMessage)
+        );
+        String cachedTranslation = resolveCachedTranslation(
+                peekSkyblockNpcCache(cacheKeys.skyblockCacheKey()),
+                peekChatOutputCache(cacheKeys.chatOutputCacheKey())
+        );
+        if (cachedTranslation == null) {
+            return null;
+        }
+
+        Component translatedContent = buildTranslatedMessageWithToggle(
+                messageId,
+                rebuildTranslatedText(cachedTranslation, preparedTranslation),
+                originalMessage
+        );
+        MessageUtils.setTranslatedMessage(messageId, translatedContent);
+        logChatLineMapping(messageId, "cached_before_render", -1, translatedContent);
+        return translatedContent;
+    }
+
+    private static LookupResult peekChatOutputCache(String cacheKey) {
+        return cacheKey == null ? null : ChatOutputTranslationCache.getInstance().peek(cacheKey);
+    }
+
+    private static LookupResult peekSkyblockNpcCache(String cacheKey) {
+        return cacheKey == null ? null : SkyblockNpcTranslationCache.getInstance().peek(cacheKey);
+    }
+
     public static void translate(UUID messageId, Component originalMessage) {
         translate(messageId, originalMessage, originalMessage, false);
     }
@@ -251,13 +289,13 @@ public class ChatOutputTranslateManager {
         ChatTranslateConfig.ChatOutputTranslateConfig chatOutputConfig = Translate_AllinOne.getConfig().chatTranslate.output;
         boolean skyblockNpcMessage = isSkyblockNpcMessage(originalMessage);
         PreparedChatTranslation preparedTranslation = prepareTranslationPayload(originalMessage);
-        String chatOutputCacheKey = buildChatOutputCacheKey(
+        ChatCacheKeys cacheKeys = buildCacheKeys(
                 chatOutputConfig.target_language,
-                preparedTranslation.textToTranslate()
+                preparedTranslation.textToTranslate(),
+                skyblockNpcMessage
         );
-        String skyblockCacheKey = !skyblockNpcMessage
-                ? null
-                : buildSkyblockNpcCacheKey(chatOutputConfig.target_language, preparedTranslation.textToTranslate());
+        String chatOutputCacheKey = cacheKeys.chatOutputCacheKey();
+        String skyblockCacheKey = cacheKeys.skyblockCacheKey();
         final String requestSingleFlightKey = chatOutputCacheKey == null
                 ? "uncached\u001f" + preparedTranslation.textToTranslate()
                 : chatOutputCacheKey;
@@ -1038,6 +1076,16 @@ public class ChatOutputTranslateManager {
 
     private static String buildSkyblockNpcCacheKey(String targetLanguage, String textToTranslate) {
         return buildChatOutputCacheKey(targetLanguage, textToTranslate);
+    }
+
+    private static ChatCacheKeys buildCacheKeys(String targetLanguage, String textToTranslate, boolean skyblockNpcMessage) {
+        return new ChatCacheKeys(
+                buildChatOutputCacheKey(targetLanguage, textToTranslate),
+                skyblockNpcMessage ? buildSkyblockNpcCacheKey(targetLanguage, textToTranslate) : null
+        );
+    }
+
+    private record ChatCacheKeys(String chatOutputCacheKey, String skyblockCacheKey) {
     }
 
     static String resolveCachedTranslation(LookupResult skyblockCacheLookup, LookupResult chatOutputCacheLookup) {
