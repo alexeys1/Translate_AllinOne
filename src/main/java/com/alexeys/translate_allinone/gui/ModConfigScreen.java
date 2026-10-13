@@ -272,7 +272,6 @@ public class ModConfigScreen extends Screen {
     private final Screen parent;
     private final ModConfig originalConfigSnapshot;
     private final String originalConfigSnapshotJson;
-    private final boolean screenTranslationInitiallyEnabled;
     private final String modVersion;
     private final String repositoryUrl;
     private final List<ActionBlock> actionBlocks = new ArrayList<>();
@@ -382,8 +381,6 @@ public class ModConfigScreen extends Screen {
         this.parent = parent;
         this.originalConfigSnapshot = ConfigManager.copyCurrentConfig();
         this.originalConfigSnapshotJson = CONFIG_STATE_GSON.toJson(this.originalConfigSnapshot);
-        this.screenTranslationInitiallyEnabled = this.originalConfigSnapshot.otherTranslations != null
-                && this.originalConfigSnapshot.otherTranslations.enabled_screen_translation;
         this.providerApiKeyVisible = isProviderApiKeyVisible(this.originalConfigSnapshot.providerManager);
         this.modVersion = resolveCurrentVersion();
         this.repositoryUrl = resolveRepositoryUrl();
@@ -1345,13 +1342,7 @@ public class ModConfigScreen extends Screen {
     }
 
     private void setScreenTranslationEnabled(boolean enabled) {
-        if (!enabled || screenTranslationInitiallyEnabled) {
-            Translate_AllinOne.getConfig().otherTranslations.enabled_screen_translation = enabled;
-            return;
-        }
-
-        warningConfirmation = WarningConfirmation.SCREEN_TRANSLATION;
-        rebuildActionBlocks();
+        Translate_AllinOne.getConfig().otherTranslations.enabled_screen_translation = enabled;
     }
 
     private boolean isWarningConfirmationOpen() {
@@ -1368,16 +1359,6 @@ public class ModConfigScreen extends Screen {
         if (this.client != null) {
             MinecraftScreens.INSTANCE.open(new PromptEditorScreen(this, promptEditorProviderId));
         }
-    }
-
-    private void confirmWarning() {
-        if (warningConfirmation == WarningConfirmation.SCREEN_TRANSLATION) {
-            Translate_AllinOne.getConfig().otherTranslations.enabled_screen_translation = true;
-            closeWarningConfirmation();
-            rebuildActionBlocks();
-            return;
-        }
-        openPromptEditorScreen();
     }
 
     private void addWarningConfirmation() {
@@ -1409,7 +1390,7 @@ public class ModConfigScreen extends Screen {
                 half,
                 20,
                 () -> t("button.continue"),
-                this::confirmWarning,
+                this::openPromptEditorScreen,
                 COLOR_BLOCK_ACCENT,
                 COLOR_BLOCK_ACCENT_HOVER,
                 COLOR_TEXT,
@@ -2770,10 +2751,7 @@ public class ModConfigScreen extends Screen {
         int textX = rect.x + 16;
         int textY = rect.y + 48;
         int maxWidth = Math.max(10, rect.width - 32);
-        Text message = warningConfirmation == WarningConfirmation.SCREEN_TRANSLATION
-                ? t("modal.screen_translation_warning_message")
-                : t("modal.prompt_editor_warning_message");
-        List<OrderedText> lines = this.textRenderer.wrapLines(message, maxWidth);
+        List<OrderedText> lines = this.textRenderer.wrapLines(t("modal.prompt_editor_warning_message"), maxWidth);
         int lineY = textY;
         for (OrderedText line : lines) {
             context.drawText(this.textRenderer, line, textX, lineY, COLOR_STATUS_ERROR, false);
@@ -3398,8 +3376,7 @@ public class ModConfigScreen extends Screen {
     }
 
     private enum WarningConfirmation {
-        PROMPT_EDITOR,
-        SCREEN_TRANSLATION
+        PROMPT_EDITOR
     }
 
 }
