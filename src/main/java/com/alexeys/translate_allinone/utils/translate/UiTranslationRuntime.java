@@ -344,7 +344,7 @@ public final class UiTranslationRuntime {
 
     public static void beginFrame() {
         UiTranslationScope.clearInputFrames();
-        HANDLED_FORMATTED_SEQUENCES.remove();
+        clearHandledSequences();
         FRAME_ID++;
         UiTranslationScope.discardStaleFrames(FRAME_ID);
         OtherTranslationsConfig config = currentConfig();
@@ -356,9 +356,13 @@ public final class UiTranslationRuntime {
         UiTranslationScope.expireIdleScreenSessions();
     }
 
+    public static void clearHandledSequences() {
+        HANDLED_FORMATTED_SEQUENCES.remove();
+    }
+
     public static void reset() {
         UiLanguageResourceResolver.clear();
-        HANDLED_FORMATTED_SEQUENCES.remove();
+        clearHandledSequences();
         translationKeyPressed = false;
         refreshKeyPressed = false;
     }

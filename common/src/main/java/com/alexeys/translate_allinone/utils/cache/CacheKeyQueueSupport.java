@@ -6,15 +6,20 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 final class CacheKeyQueueSupport<K, B> {
+    private static final long ERROR_RETRY_COOLDOWN_MILLIS = TimeUnit.SECONDS.toMillis(30);
+
     private final LinkedBlockingDeque<K> pendingQueue;
     private final Set<K> inProgress;
     private final LinkedBlockingQueue<B> batchWorkQueue;
     private final Set<K> allQueuedOrInProgressKeys;
     private final Map<K, String> errorCache;
+    private final Map<K, Long> errorTimestamps = new ConcurrentHashMap<>();
 
     CacheKeyQueueSupport(
             LinkedBlockingDeque<K> pendingQueue,
@@ -35,7 +40,7 @@ final class CacheKeyQueueSupport<K, B> {
         inProgress.clear();
         batchWorkQueue.clear();
         allQueuedOrInProgressKeys.clear();
-        errorCache.clear();
+        clearErrors();
     }
 
     void clearPendingAndInProgress() {
@@ -47,7 +52,7 @@ final class CacheKeyQueueSupport<K, B> {
 
     void clearTranslationQueue() {
         clearPendingAndInProgress();
-        errorCache.clear();
+        clearErrors();
     }
 
     boolean isPendingQueueEmpty() {
@@ -63,7 +68,15 @@ final class CacheKeyQueueSupport<K, B> {
     }
 
     String getError(K key) {
-        return errorCache.get(key);
+        Long expiresAtMillis = errorTimestamps.get(key);
+        if (expiresAtMillis == null) {
+            return null;
+        }
+        if (System.currentTimeMillis() < expiresAtMillis) {
+            return errorCache.get(key);
+        }
+        requeueFromError(key);
+        return null;
     }
 
     Set<K> copyErroredKeys() {
@@ -101,7 +114,7 @@ final class CacheKeyQueueSupport<K, B> {
     }
 
     boolean requeueFromError(K key) {
-        if (errorCache.remove(key) == null) {
+        if (!clearError(key)) {
             return false;
         }
         inProgress.remove(key);
@@ -138,8 +151,10 @@ final class CacheKeyQueueSupport<K, B> {
                 ? errorMessage
                 : (fallbackErrorMessage != null ? fallbackErrorMessage : "Unknown translation error");
         inProgress.removeAll(failedKeys);
+        long expiresAtMillis = System.currentTimeMillis() + ERROR_RETRY_COOLDOWN_MILLIS;
         for (K key : failedKeys) {
             errorCache.put(key, resolvedErrorMessage);
+            errorTimestamps.put(key, expiresAtMillis);
         }
     }
 
@@ -169,11 +184,21 @@ final class CacheKeyQueueSupport<K, B> {
     }
 
     private void clearRuntimeStateForKey(K key) {
-        errorCache.remove(key);
+        clearError(key);
         inProgress.remove(key);
         allQueuedOrInProgressKeys.remove(key);
         while (pendingQueue.remove(key)) {
             // Remove stale queued copies so the next state transition starts cleanly.
         }
+    }
+
+    private boolean clearError(K key) {
+        errorTimestamps.remove(key);
+        return errorCache.remove(key) != null;
+    }
+
+    private void clearErrors() {
+        errorCache.clear();
+        errorTimestamps.clear();
     }
 }
