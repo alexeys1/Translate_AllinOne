@@ -17,6 +17,7 @@ import com.alexeys.translate_allinone.utils.config.ui.RouteSlot;
 import com.alexeys.translate_allinone.utils.config.ui.UiRect;
 import com.alexeys.translate_allinone.gui.configui.modals.AddProviderModalSupport;
 import com.alexeys.translate_allinone.gui.configui.modals.CustomParametersModalSupport;
+import com.alexeys.translate_allinone.gui.configui.modals.DictionaryFilesModalSupport;
 import com.alexeys.translate_allinone.gui.configui.modals.ModelSettingsModalSupport;
 import com.alexeys.translate_allinone.gui.configui.modals.ModelTemperatureModalSupport;
 import com.alexeys.translate_allinone.gui.configui.render.ConfigUiControlRenderer;
@@ -51,7 +52,6 @@ import com.alexeys.translate_allinone.utils.config.pojos.CacheBackupConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ChatTranslateConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.CustomParameterEntry;
 import com.alexeys.translate_allinone.utils.config.pojos.DebugConfig;
-import com.alexeys.translate_allinone.utils.config.pojos.DictionaryConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.InputBindingConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ItemTranslateConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.LogLevel;
@@ -133,9 +133,6 @@ public class ModConfigScreen extends Screen {
     private static final int SCROLLBAR_WIDTH = 8;
     private static final int SCROLLBAR_MIN_THUMB_HEIGHT = 26;
     private static final int SCROLL_STEP = 28;
-    private static final int DICTIONARY_ROW_HEIGHT = 20;
-    private static final int DICTIONARY_ROW_GAP = 4;
-    private static final int SCROLLBAR_LIST_GAP = 8;
     private static final double SCROLL_ANIMATION_SPEED = 15.0;
     private static final double OVER_SCROLL_RESISTANCE = 0.42;
     private static final double OVER_SCROLL_MAX = 56.0;
@@ -224,6 +221,24 @@ public class ModConfigScreen extends Screen {
             COLOR_BLOCK_ACCENT,
             COLOR_BLOCK_ACCENT_HOVER,
             COLOR_TEXT
+    );
+    private static final DictionaryFilesModalSupport.Style DICTIONARY_FILES_MODAL_STYLE = new DictionaryFilesModalSupport.Style(
+            COLOR_BLOCK_MUTED,
+            COLOR_BLOCK,
+            COLOR_BLOCK_HOVER,
+            COLOR_BLOCK_SELECTED,
+            COLOR_BLOCK_SELECTED_HOVER,
+            COLOR_BLOCK_ACCENT,
+            COLOR_BLOCK_ACCENT_HOVER,
+            COLOR_BLOCK_DANGER,
+            COLOR_BLOCK_DANGER_HOVER,
+            COLOR_TEXT,
+            COLOR_TEXT_MUTED,
+            COLOR_TEXT_ACCENT,
+            COLOR_SCROLL_TRACK,
+            COLOR_SCROLL_THUMB,
+            COLOR_SCROLL_THUMB_HOVER,
+            COLOR_BORDER
     );
     private static final CustomParametersModalSupport.Style CUSTOM_PARAMETERS_MODAL_STYLE = new CustomParametersModalSupport.Style(
             COLOR_BLOCK_MUTED,
@@ -343,12 +358,8 @@ public class ModConfigScreen extends Screen {
     private EditBox customParameterNameField;
     private EditBox customParameterValueField;
     private boolean modelSettingsSetDefault;
-    private DictionaryFileSelectionSupport.Slot dictionaryFilesModalSlot = DictionaryFileSelectionSupport.Slot.WYNNCRAFT_DIALOGUE;
-    private List<String> dictionaryFilesSelectionBackup = new ArrayList<>();
-    private int dictionaryFilesScrollOffset;
-    private UiRect dictionaryFilesListViewport;
-    private int dictionaryFilesModalMaxScroll;
-    private boolean draggingDictionaryFilesScrollbar;
+    private final DictionaryFilesModalSupport dictionaryFilesModal =
+            new DictionaryFilesModalSupport(SCROLLBAR_WIDTH, SCROLLBAR_MIN_THUMB_HEIGHT, this::rebuildActionBlocks);
 
     private FocusTarget pendingFocusTarget = FocusTarget.NONE;
     private ConfigSectionContentSupport.HotkeyTarget hotkeyCaptureTarget;
@@ -603,7 +614,14 @@ public class ModConfigScreen extends Screen {
 
         addSectionSpecificActions();
         if (dictionaryFilesModalOpen) {
-            addDictionaryFilesModal();
+            dictionaryFilesModal.add(
+                    this.width,
+                    this.height,
+                    ModConfigScreen::t,
+                    floatingActionBlockRegistry::add,
+                    DICTIONARY_FILES_MODAL_STYLE,
+                    this::closeDictionaryFilesModal
+            );
         } else if (updateNoticeModalOpen) {
             addUpdateNoticeModal();
         } else if (resetConfirmModalOpen) {
@@ -2159,13 +2177,8 @@ public class ModConfigScreen extends Screen {
     }
 
     private void openDictionaryFilesModal(DictionaryFileSelectionSupport.Slot slot) {
-        dictionaryFilesModalSlot = slot == null ? DictionaryFileSelectionSupport.Slot.WYNNCRAFT_DIALOGUE : slot;
+        dictionaryFilesModal.open(slot);
         dictionaryFilesModalOpen = true;
-        dictionaryFilesScrollOffset = 0;
-        draggingDictionaryFilesScrollbar = false;
-        dictionaryFilesSelectionBackup = new ArrayList<>(
-                DictionaryFileSelectionSupport.getSelectedFiles(ensureDictionaryConfig(), dictionaryFilesModalSlot)
-        );
         routeDropdownSlot = null;
         addProviderTypeDropdownOpen = false;
         rebuildActionBlocks();
@@ -2176,83 +2189,8 @@ public class ModConfigScreen extends Screen {
     }
 
     private void closeDictionaryFilesModal(boolean keepChanges) {
-        if (!keepChanges) {
-            DictionaryFileSelectionSupport.setSelectedFiles(
-                    ensureDictionaryConfig(),
-                    dictionaryFilesModalSlot,
-                    dictionaryFilesSelectionBackup
-            );
-        }
+        dictionaryFilesModal.close(keepChanges);
         dictionaryFilesModalOpen = false;
-        dictionaryFilesSelectionBackup = new ArrayList<>();
-        dictionaryFilesScrollOffset = 0;
-        dictionaryFilesModalMaxScroll = 0;
-        draggingDictionaryFilesScrollbar = false;
-    }
-
-    private boolean scrollDictionaryFilesBy(int rows) {
-        if (dictionaryFilesModalMaxScroll <= 0) {
-            return false;
-        }
-        int next = Math.max(0, Math.min(dictionaryFilesModalMaxScroll, dictionaryFilesScrollOffset + rows));
-        if (next == dictionaryFilesScrollOffset) {
-            return false;
-        }
-        dictionaryFilesScrollOffset = next;
-        rebuildActionBlocks();
-        return true;
-    }
-
-    private UiRect dictionaryFilesScrollbarTrackRect() {
-        UiRect viewport = dictionaryFilesListViewport;
-        if (viewport == null || viewport.height < DICTIONARY_ROW_HEIGHT || dictionaryFilesModalMaxScroll <= 0) {
-            return null;
-        }
-        int trackX = viewport.right() - SCROLLBAR_WIDTH - 2;
-        return new UiRect(trackX, viewport.y, SCROLLBAR_WIDTH, viewport.height);
-    }
-
-    private UiRect dictionaryFilesScrollbarThumbRect() {
-        UiRect track = dictionaryFilesScrollbarTrackRect();
-        if (track == null) {
-            return null;
-        }
-        int extraHeight = dictionaryFilesModalMaxScroll * (DICTIONARY_ROW_HEIGHT + DICTIONARY_ROW_GAP);
-        int thumbHeight = Math.max(
-                SCROLLBAR_MIN_THUMB_HEIGHT,
-                (int) Math.round(track.height * (track.height / (double) (track.height + extraHeight)))
-        );
-        thumbHeight = Math.min(track.height, thumbHeight);
-        int travel = Math.max(0, track.height - thumbHeight);
-        int thumbY = travel == 0
-                ? track.y
-                : track.y + (int) Math.round((dictionaryFilesScrollOffset / (double) Math.max(1, dictionaryFilesModalMaxScroll)) * travel);
-        return new UiRect(track.x, thumbY, track.width, thumbHeight);
-    }
-
-    private int dictionaryFilesOffsetFromThumbMouseY(double mouseY) {
-        UiRect track = dictionaryFilesScrollbarTrackRect();
-        UiRect thumb = dictionaryFilesScrollbarThumbRect();
-        if (track == null || thumb == null || dictionaryFilesModalMaxScroll <= 0) {
-            return dictionaryFilesScrollOffset;
-        }
-        int travel = Math.max(1, track.height - thumb.height);
-        double anchorY = mouseY - thumb.height / 2.0;
-        double ratio = Math.max(0.0, Math.min(1.0, (anchorY - track.y) / travel));
-        return (int) Math.round(ratio * dictionaryFilesModalMaxScroll);
-    }
-
-    private void drawDictionaryFilesModalScrollbar(GuiGraphicsExtractor context, int mouseX, int mouseY) {
-        UiRect track = dictionaryFilesScrollbarTrackRect();
-        UiRect thumb = dictionaryFilesScrollbarThumbRect();
-        if (track == null || thumb == null) {
-            return;
-        }
-        context.fill(track.x, track.y, track.right(), track.bottom(), COLOR_SCROLL_TRACK);
-        boolean hovered = thumb.contains(mouseX, mouseY);
-        int thumbColor = draggingDictionaryFilesScrollbar || hovered ? COLOR_SCROLL_THUMB_HOVER : COLOR_SCROLL_THUMB;
-        context.fill(thumb.x, thumb.y, thumb.right(), thumb.bottom(), thumbColor);
-        ConfigUiDraw.drawOutline(context, track.x, track.y, track.width, track.height, COLOR_BORDER);
     }
 
     private void closeResetConfirmModal() {
@@ -2399,179 +2337,6 @@ public class ModConfigScreen extends Screen {
                 },
                 COLOR_BLOCK,
                 COLOR_BLOCK_HOVER,
-                COLOR_TEXT,
-                true
-        );
-    }
-
-    private void addDictionaryFilesModal() {
-        UiRect modalRect = ConfigUiModalSupport.dictionaryFilesModalRect(this.width, this.height);
-        int contentX = modalRect.x + 16;
-        int contentWidth = modalRect.width - 32;
-        int rowY = modalRect.y + 48;
-        int rowHeight = DICTIONARY_ROW_HEIGHT;
-        int rowGap = DICTIONARY_ROW_GAP;
-        int rowStep = rowHeight + rowGap;
-        int maxRowsBottom = modalRect.bottom() - 58;
-
-        DictionaryConfig dictionaryConfig = ensureDictionaryConfig();
-        List<String> availableFiles = DictionaryFileSelectionSupport.listAvailableFiles();
-        List<String> selectedFiles = DictionaryFileSelectionSupport.getSelectedFiles(dictionaryConfig, dictionaryFilesModalSlot);
-
-        floatingActionBlockRegistry.add(
-                contentX,
-                rowY,
-                contentWidth,
-                rowHeight,
-                t("modal.dictionary_files.current", dictionaryFileDisplayValue(dictionaryConfig, dictionaryFilesModalSlot)),
-                () -> {
-                },
-                COLOR_BLOCK_MUTED,
-                COLOR_BLOCK_MUTED,
-                COLOR_TEXT,
-                false
-        );
-        rowY += rowHeight + rowGap;
-
-        floatingActionBlockRegistry.add(
-                contentX,
-                rowY,
-                contentWidth,
-                rowHeight,
-                t("modal.dictionary_files.instructions"),
-                () -> {
-                },
-                COLOR_BLOCK_MUTED,
-                COLOR_BLOCK_MUTED,
-                COLOR_TEXT_MUTED,
-                false
-        );
-        rowY += rowHeight + 8;
-
-        if (availableFiles.isEmpty()) {
-            floatingActionBlockRegistry.add(
-                    contentX,
-                    rowY,
-                    contentWidth,
-                    rowHeight,
-                    t("modal.dictionary_files.empty"),
-                    () -> {
-                    },
-                    COLOR_BLOCK_MUTED,
-                    COLOR_BLOCK_MUTED,
-                    COLOR_TEXT_MUTED,
-                    false
-            );
-        } else {
-            int listTop = rowY;
-            int maxVisible = Math.max(1, (maxRowsBottom - listTop + rowGap) / rowStep);
-            dictionaryFilesModalMaxScroll = Math.max(0, availableFiles.size() - maxVisible);
-            dictionaryFilesScrollOffset = Math.max(0, Math.min(dictionaryFilesModalMaxScroll, dictionaryFilesScrollOffset));
-            dictionaryFilesListViewport = new UiRect(
-                    contentX,
-                    listTop,
-                    contentWidth,
-                    Math.max(0, maxRowsBottom - listTop)
-            );
-            int rowWidth = dictionaryFilesModalMaxScroll > 0
-                    ? contentWidth - SCROLLBAR_WIDTH - SCROLLBAR_LIST_GAP
-                    : contentWidth;
-            for (int i = dictionaryFilesScrollOffset; i < availableFiles.size(); i++) {
-                if (rowY + rowHeight > maxRowsBottom) {
-                    break;
-                }
-                String fileName = availableFiles.get(i);
-                boolean selected = selectedFiles.contains(fileName);
-                Component label = selected
-                        ? t("modal.dictionary_files.entry_selected", fileName)
-                        : Component.literal(fileName);
-                floatingActionBlockRegistry.add(
-                        contentX,
-                        rowY,
-                        rowWidth,
-                        rowHeight,
-                        label,
-                        () -> {
-                            if (DictionaryFileSelectionSupport.isMultiSelect(dictionaryFilesModalSlot)) {
-                                DictionaryFileSelectionSupport.toggleSelectedFile(
-                                        ensureDictionaryConfig(),
-                                        dictionaryFilesModalSlot,
-                                        fileName
-                                );
-                            } else {
-                                DictionaryFileSelectionSupport.setSelectedFile(
-                                        ensureDictionaryConfig(),
-                                        dictionaryFilesModalSlot,
-                                        fileName
-                                );
-                            }
-                            rebuildActionBlocks();
-                        },
-                        selected ? COLOR_BLOCK_SELECTED : COLOR_BLOCK,
-                        selected ? COLOR_BLOCK_SELECTED_HOVER : COLOR_BLOCK_HOVER,
-                        selected ? COLOR_TEXT_ACCENT : COLOR_TEXT,
-                        false
-                );
-                rowY += rowStep;
-            }
-        }
-
-        int buttonWidth = 104;
-        int buttonHeight = 20;
-        int buttonGap = 8;
-        int buttonY = modalRect.bottom() - 30;
-        int doneX = modalRect.right() - 16 - buttonWidth;
-        int cancelX = doneX - buttonGap - buttonWidth;
-        int clearX = cancelX - buttonGap - buttonWidth;
-
-        floatingActionBlockRegistry.add(
-                clearX,
-                buttonY,
-                buttonWidth,
-                buttonHeight,
-                t("button.clear_selection"),
-                () -> {
-                    DictionaryFileSelectionSupport.setSelectedFiles(
-                            ensureDictionaryConfig(),
-                            dictionaryFilesModalSlot,
-                            List.of()
-                    );
-                    rebuildActionBlocks();
-                },
-                COLOR_BLOCK_DANGER,
-                COLOR_BLOCK_DANGER_HOVER,
-                COLOR_TEXT,
-                true
-        );
-
-        floatingActionBlockRegistry.add(
-                cancelX,
-                buttonY,
-                buttonWidth,
-                buttonHeight,
-                t("button.cancel"),
-                () -> {
-                    closeDictionaryFilesModal(false);
-                    rebuildActionBlocks();
-                },
-                COLOR_BLOCK,
-                COLOR_BLOCK_HOVER,
-                COLOR_TEXT,
-                true
-        );
-
-        floatingActionBlockRegistry.add(
-                doneX,
-                buttonY,
-                buttonWidth,
-                buttonHeight,
-                t("button.done"),
-                () -> {
-                    closeDictionaryFilesModal(true);
-                    rebuildActionBlocks();
-                },
-                COLOR_BLOCK_ACCENT,
-                COLOR_BLOCK_ACCENT_HOVER,
                 COLOR_TEXT,
                 true
         );
@@ -2748,22 +2513,8 @@ public class ModConfigScreen extends Screen {
 
         if (modalOpen) {
             draggingSlider = null;
-            if (dictionaryFilesModalOpen) {
-                UiRect thumb = dictionaryFilesScrollbarThumbRect();
-                if (thumb != null && thumb.contains(mouseX, mouseY)) {
-                    draggingDictionaryFilesScrollbar = true;
-                    return true;
-                }
-                UiRect track = dictionaryFilesScrollbarTrackRect();
-                if (track != null && track.contains(mouseX, mouseY)) {
-                    int next = dictionaryFilesOffsetFromThumbMouseY(mouseY);
-                    if (next != dictionaryFilesScrollOffset) {
-                        dictionaryFilesScrollOffset = next;
-                        rebuildActionBlocks();
-                    }
-                    draggingDictionaryFilesScrollbar = true;
-                    return true;
-                }
+            if (dictionaryFilesModalOpen && dictionaryFilesModal.pressScrollbar(mouseX, mouseY)) {
+                return true;
             }
             if (!isInsideOpenModal(mouseX, mouseY)) {
                 ConfigUiModalInteractionSupport.ModalCloseAction action = ConfigUiModalInteractionSupport.outsideModalClickAction(
@@ -2934,12 +2685,8 @@ public class ModConfigScreen extends Screen {
     public boolean mouseDragged(MouseButtonEvent click, double deltaX, double deltaY) {
         if (isAnyModalOpen()) {
             draggingSlider = null;
-            if (draggingDictionaryFilesScrollbar && click.button() == 0) {
-                int next = dictionaryFilesOffsetFromThumbMouseY(click.y());
-                if (next != dictionaryFilesScrollOffset) {
-                    dictionaryFilesScrollOffset = next;
-                    rebuildActionBlocks();
-                }
+            if (dictionaryFilesModal.isDraggingScrollbar() && click.button() == 0) {
+                dictionaryFilesModal.dragScrollbarTo(click.y());
                 return true;
             }
             stopScrollingDrag();
@@ -2991,7 +2738,7 @@ public class ModConfigScreen extends Screen {
     public boolean mouseReleased(MouseButtonEvent click) {
         if (isAnyModalOpen()) {
             draggingSlider = null;
-            draggingDictionaryFilesScrollbar = false;
+            dictionaryFilesModal.stopScrollbarDrag();
             stopScrollingDrag();
             return super.mouseReleased(click);
         }
@@ -3020,7 +2767,7 @@ public class ModConfigScreen extends Screen {
             if (verticalAmount != 0.0
                     && ConfigUiModalSupport.dictionaryFilesModalRect(this.width, this.height).contains(mouseX, mouseY)) {
                 int delta = verticalAmount > 0 ? -1 : 1;
-                if (scrollDictionaryFilesBy(delta)) {
+                if (dictionaryFilesModal.scrollBy(delta)) {
                     return true;
                 }
             }
@@ -3133,7 +2880,7 @@ public class ModConfigScreen extends Screen {
                 t("modal.model.title"),
                 t("custom_params.title"),
                 t("modal.model.temperature.title"),
-                t("modal.dictionary_files.title", dictionarySlotLabel(dictionaryFilesModalSlot)),
+                dictionaryFilesModal.title(ModConfigScreen::t),
                 t("modal.reset_confirm.title"),
                 t("modal.update_notice.title"),
                 t("modal.unsaved_changes.title"),
@@ -3161,7 +2908,7 @@ public class ModConfigScreen extends Screen {
         ConfigUiControlRenderer.drawActionBlocks(context, this.font, floatingActionBlocks, mouseX, mouseY, COLOR_BORDER);
 
         if (dictionaryFilesModalOpen) {
-            drawDictionaryFilesModalScrollbar(context, mouseX, mouseY);
+            dictionaryFilesModal.drawScrollbar(context, mouseX, mouseY, DICTIONARY_FILES_MODAL_STYLE);
         }
 
         ConfigUiScreenRenderSupport.renderStatusToast(
@@ -3179,31 +2926,6 @@ public class ModConfigScreen extends Screen {
 
         Component hoveredTooltip = resolveHoveredTooltip(mouseX, mouseY, modalOpen);
         ConfigUiDraw.drawTooltip(context, this.font, hoveredTooltip, mouseX, mouseY, this.width, this.height);
-    }
-
-    private Component dictionarySlotLabel(DictionaryFileSelectionSupport.Slot slot) {
-        return switch (slot) {
-            case ITEM_SKILL -> t("label.dictionary_slot_item_skill");
-            case WYNNCRAFT_DIALOGUE -> t("label.dictionary_slot_dialogue");
-            case WYNNCRAFT_QUEST -> t("label.dictionary_slot_quest");
-        };
-    }
-
-    private Component dictionaryFileDisplayValue(DictionaryConfig dictionaryConfig, DictionaryFileSelectionSupport.Slot slot) {
-        String effectiveSelection = DictionaryFileSelectionSupport.describeEffectiveSelection(dictionaryConfig, slot);
-        if (effectiveSelection == null || effectiveSelection.isBlank()) {
-            return t("value.dictionary_file_none_selected");
-        }
-        return Component.literal(effectiveSelection);
-    }
-
-    private DictionaryConfig ensureDictionaryConfig() {
-        ModConfig config = Translate_AllinOne.getConfig();
-        if (config.dictionary == null) {
-            config.dictionary = new DictionaryConfig();
-        }
-        config.dictionary.normalize();
-        return config.dictionary;
     }
 
     private void updateControlAnimations() {
