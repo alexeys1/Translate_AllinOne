@@ -30,6 +30,7 @@ import com.alexeys.translate_allinone.gui.configui.sections.ProviderListSectionS
 import com.alexeys.translate_allinone.gui.configui.sections.ProviderManagerSectionSupport;
 import com.alexeys.translate_allinone.gui.configui.sections.RouteModelSectionSupport;
 import com.alexeys.translate_allinone.gui.configui.sections.RouteModelSelectorSectionSupport;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigScreenStateSupport;
 import com.alexeys.translate_allinone.gui.configui.support.ConfigUiFocusSupport;
 import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport;
 import com.alexeys.translate_allinone.gui.configui.support.ConfigUiTextFieldSupport;
@@ -90,7 +91,6 @@ public class ModConfigScreen extends Screen {
     private static final String I18N_PREFIX = "text.translate_allinone.configscreen.";
     private static final Gson CONFIG_STATE_GSON = new Gson();
     private static final String DEBUG_SECTION_ACCOUNT_UUID = "ef7acee7-f759-4d1e-a1ba-5a8dc7656d01";
-    private static final String SCREEN_STATE_FILE_NAME = "config_screen_state.json";
     private static final int RESET_SLOT_WIDTH = 20;
     private static final int RESET_SLOT_GAP = 2;
 
@@ -372,7 +372,7 @@ public class ModConfigScreen extends Screen {
     private boolean restoreSnapshotOnClose = true;
 
     public ModConfigScreen(Screen parent) {
-        this(parent, loadPersistedSelectedSection());
+        this(parent, ConfigScreenStateSupport.loadPersistedSelectedSection());
     }
 
     public ModConfigScreen(Screen parent, String providerId) {
@@ -407,55 +407,6 @@ public class ModConfigScreen extends Screen {
 
     private static Component t(String key, Object... args) {
         return Component.translatable(I18N_PREFIX + key, args);
-    }
-
-    private static Path resolveScreenStatePath() {
-        return ConfigManager.getConfigPath().resolveSibling(SCREEN_STATE_FILE_NAME);
-    }
-
-    private static ConfigSection loadPersistedSelectedSection() {
-        try {
-            Path statePath = resolveScreenStatePath();
-            if (!Files.exists(statePath)) {
-                return ConfigSection.CHAT_OUTPUT;
-            }
-
-            PersistedScreenState state = CONFIG_STATE_GSON.fromJson(Files.readString(statePath), PersistedScreenState.class);
-            if (state == null) {
-                return ConfigSection.CHAT_OUTPUT;
-            }
-            return resolveSectionByKey(state.selectedSectionKey());
-        } catch (Exception e) {
-            Translate_AllinOne.LOGGER.warn("Failed to load config screen state", e);
-            return ConfigSection.CHAT_OUTPUT;
-        }
-    }
-
-    private static ConfigSection resolveSectionByKey(String key) {
-        if (key == null || key.isBlank()) {
-            return ConfigSection.CHAT_OUTPUT;
-        }
-
-        for (ConfigSection section : ConfigSection.values()) {
-            if (section.key().equalsIgnoreCase(key)) {
-                return section;
-            }
-        }
-        return ConfigSection.CHAT_OUTPUT;
-    }
-
-    private void persistScreenState() {
-        try {
-            Path statePath = resolveScreenStatePath();
-            Path parent = statePath.getParent();
-            if (parent != null) {
-                Files.createDirectories(parent);
-            }
-            ConfigSection section = selectedSection == null ? ConfigSection.CHAT_OUTPUT : selectedSection;
-            Files.writeString(statePath, CONFIG_STATE_GSON.toJson(new PersistedScreenState(section.key())));
-        } catch (Exception e) {
-            Translate_AllinOne.LOGGER.warn("Failed to persist config screen state", e);
-        }
     }
 
     private static String resolveCurrentVersion() {
@@ -555,7 +506,7 @@ public class ModConfigScreen extends Screen {
     }
 
     private void finishClose() {
-        persistScreenState();
+        ConfigScreenStateSupport.persistScreenState(selectedSection);
         if (restoreSnapshotOnClose) {
             ConfigManager.replaceConfig(originalConfigSnapshot);
         }
@@ -3386,9 +3337,6 @@ public class ModConfigScreen extends Screen {
         if (afterRenderOffset != beforeRenderOffset) {
             rebuildActionBlocks();
         }
-    }
-
-    private record PersistedScreenState(String selectedSectionKey) {
     }
 
     private enum WarningConfirmation {
