@@ -27,7 +27,7 @@ import com.alexeys.translate_allinone.gui.configui.sections.ConfigChromeActionsS
 import com.alexeys.translate_allinone.gui.configui.sections.ConfigSectionContentSupport;
 import com.alexeys.translate_allinone.gui.configui.sections.ProviderDetailSectionSupport;
 import com.alexeys.translate_allinone.gui.configui.sections.ProviderListSectionSupport;
-import com.alexeys.translate_allinone.gui.configui.sections.ProviderManagerSectionSupport;
+import com.alexeys.translate_allinone.gui.configui.sections.ProviderManagerActionsSupport;
 import com.alexeys.translate_allinone.gui.configui.sections.RouteModelSectionSupport;
 import com.alexeys.translate_allinone.gui.configui.sections.RouteModelSelectorSectionSupport;
 import com.alexeys.translate_allinone.gui.configui.support.ConfigScreenStateSupport;
@@ -79,7 +79,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
@@ -370,6 +369,7 @@ public class ModConfigScreen extends Screen {
     private int statusColor = COLOR_STATUS_OK;
     private long statusExpireAtMillis;
     private boolean restoreSnapshotOnClose = true;
+    private final ProviderManagerActionsSupport.Runtime providerManagerRuntime = new ProviderManagerRuntime();
 
     public ModConfigScreen(Screen parent) {
         this(parent, ConfigScreenStateSupport.loadPersistedSelectedSection());
@@ -386,7 +386,7 @@ public class ModConfigScreen extends Screen {
         this.parent = parent;
         this.originalConfigSnapshot = ConfigManager.copyCurrentConfig();
         this.originalConfigSnapshotJson = CONFIG_STATE_GSON.toJson(this.originalConfigSnapshot);
-        this.providerApiKeyVisible = isProviderApiKeyVisible(this.originalConfigSnapshot.providerManager);
+        this.providerApiKeyVisible = ProviderManagerActionsSupport.isProviderApiKeyVisible(this.originalConfigSnapshot.providerManager);
         this.modVersion = resolveCurrentVersion();
         this.repositoryUrl = resolveRepositoryUrl();
         this.selectedSection = selectedSection;
@@ -668,7 +668,7 @@ public class ModConfigScreen extends Screen {
     private void addSectionSpecificActions() {
         ModConfig config = Translate_AllinOne.getConfig();
         config.providerManager.ensureDefaults();
-        providerApiKeyVisible = isProviderApiKeyVisible(config.providerManager);
+        providerApiKeyVisible = ProviderManagerActionsSupport.isProviderApiKeyVisible(config.providerManager);
 
         int x = LEFT_PANEL_WIDTH + 20;
         int y = TOP_BAR_HEIGHT + 28;
@@ -876,21 +876,9 @@ public class ModConfigScreen extends Screen {
         ConfigUiDraw.drawOutline(context, track.x, track.y, track.width, track.height, COLOR_BORDER);
     }
 
-    private Component providerTypeDisplayName(ApiProviderType providerType) {
-        return t("provider_type." + providerType.name().toLowerCase(Locale.ROOT));
-    }
-
-    private static boolean isProviderApiKeyVisible(ProviderManagerConfig providerManager) {
-        return providerManager == null || providerManager.api_key_visible == null || providerManager.api_key_visible;
-    }
-
     private void setProviderApiKeyVisible(boolean visible) {
         providerApiKeyVisible = visible;
-        ModConfig config = Translate_AllinOne.getConfig();
-        if (config.providerManager == null) {
-            config.providerManager = new ProviderManagerConfig();
-        }
-        config.providerManager.api_key_visible = visible;
+        ProviderManagerActionsSupport.storeProviderApiKeyVisible(visible);
     }
 
     private void addRouteModelSelector(ProviderManagerConfig manager, RouteSlot routeSlot, int x, int y, int width) {
@@ -921,12 +909,12 @@ public class ModConfigScreen extends Screen {
     }
 
     private int addProviderManagerActions(ProviderManagerConfig providerManager, int x, int y, int width, int viewportHeight) {
-        ProviderManagerSectionSupport.RenderResult result = ProviderManagerSectionSupport.render(
+        return ProviderManagerActionsSupport.render(
                 providerManager,
-                viewportHeight,
                 x,
                 y,
                 width,
+                viewportHeight,
                 providerSearchQuery,
                 selectedProviderId,
                 selectedProviderIndex,
@@ -936,92 +924,11 @@ public class ModConfigScreen extends Screen {
                 ModConfigScreen::t,
                 this::addToggleAction,
                 this::addGroupBox,
-                this::providerTypeDisplayName,
-                contentActionBlockRegistry::add,
-                this::addTextField,
-                value -> {
-                    String next = ProviderProfileSupport.sanitizeText(value);
-                    if (!providerSearchQuery.equals(next)) {
-                        providerSearchQuery = next;
-                        rebuildActionBlocks(FocusTarget.PROVIDER_SEARCH);
-                    }
-                },
-                providerId -> {
-                    selectedProviderId = providerId;
-                    modelSettingsModalOpen = false;
-                    rebuildActionBlocks();
-                },
-                () -> {
-                    openAddProviderModal();
-                    rebuildActionBlocks(FocusTarget.ADD_PROVIDER_NAME);
-                },
                 contentActionBlockRegistry::add,
                 this::addTextField,
                 this::addSecretTextField,
-                targetProfile -> {
-                    targetProfile.enabled = !targetProfile.enabled;
-                    rebuildActionBlocks();
-                },
-                targetProfile -> deleteProvider(providerManager, targetProfile),
-                () -> {
-                    setProviderApiKeyVisible(!providerApiKeyVisible);
-                    rebuildActionBlocks();
-                },
-                profile -> ConfigUiRuntimeSupport.testProviderConnection(
-                        profile,
-                        ModConfigScreen::t,
-                        this::setStatus,
-                        COLOR_STATUS_OK,
-                        COLOR_STATUS_ERROR,
-                        runnable -> {
-                            if (this.minecraft != null) {
-                                this.minecraft.execute(runnable);
-                            } else {
-                                runnable.run();
-                            }
-                        }
-                ),
-                (targetProfile, modelId) -> {
-                    targetProfile.model_id = modelId;
-                    targetProfile.ensureModelSettings();
-                    setStatus(t("status.model_set_default", modelId), COLOR_STATUS_OK);
-                    rebuildActionBlocks();
-                },
-                (targetProfile, modelId) -> {
-                    openModelSettingsModal(targetProfile, modelId);
-                    rebuildActionBlocks(FocusTarget.MODEL_NAME);
-                },
-                this::removeModel,
-                targetProfile -> {
-                    openModelSettingsModal(targetProfile, "");
-                    rebuildActionBlocks(FocusTarget.MODEL_NAME);
-                },
-                profile -> {
-                    openPromptEditorWarning(profile);
-                    rebuildActionBlocks();
-                },
-                value -> {
-                    ConfigManager.setGlobalTranslationEnabled(value);
-                    rebuildActionBlocks();
-                }
+                providerManagerRuntime
         );
-        providerSearchField = result.providerSearchField();
-        selectedProviderId = result.selectedProviderId();
-
-        if (addProviderModalOpen) {
-            addAddProviderModal(providerManager);
-        }
-        if (modelSettingsModalOpen && !customParametersModalOpen && !modelTemperatureModalOpen) {
-            addModelSettingsModal(providerManager);
-        }
-        if (customParametersModalOpen) {
-            addCustomParametersModal();
-        }
-        if (modelTemperatureModalOpen) {
-            addModelTemperatureModal();
-        }
-
-        return result.contentBottomY();
     }
 
     private EditBox addTextField(
@@ -1134,7 +1041,7 @@ public class ModConfigScreen extends Screen {
                 addProviderTypeDraft,
                 addProviderTypeDropdownOpen,
                 ModConfigScreen::t,
-                this::providerTypeDisplayName,
+                providerType -> ProviderManagerActionsSupport.providerTypeDisplayName(ModConfigScreen::t, providerType),
                 floatingActionBlockRegistry::add,
                 (x, y, width, maxLength, initialValue, placeholder, changed, editable) ->
                         addTextField(x, y, width, maxLength, initialValue, placeholder, changed, editable, true),
@@ -2731,7 +2638,7 @@ public class ModConfigScreen extends Screen {
         hotkeyCaptureTarget = null;
         selectedProviderIndex = 0;
         selectedProviderId = "";
-        providerApiKeyVisible = isProviderApiKeyVisible(Translate_AllinOne.getConfig().providerManager);
+        providerApiKeyVisible = ProviderManagerActionsSupport.isProviderApiKeyVisible(Translate_AllinOne.getConfig().providerManager);
         providerSearchQuery = "";
         routeDropdownSlot = null;
         addProviderTypeDropdownOpen = false;
@@ -3336,6 +3243,124 @@ public class ModConfigScreen extends Screen {
         int afterRenderOffset = currentRenderScrollOffset();
         if (afterRenderOffset != beforeRenderOffset) {
             rebuildActionBlocks();
+        }
+    }
+
+    private final class ProviderManagerRuntime implements ProviderManagerActionsSupport.Runtime {
+        @Override
+        public void onSearchChanged(String value) {
+            String next = ProviderProfileSupport.sanitizeText(value);
+            if (!providerSearchQuery.equals(next)) {
+                providerSearchQuery = next;
+                rebuildActionBlocks(FocusTarget.PROVIDER_SEARCH);
+            }
+        }
+
+        @Override
+        public void onProviderSelected(String providerId) {
+            selectedProviderId = providerId;
+            modelSettingsModalOpen = false;
+            rebuildActionBlocks();
+        }
+
+        @Override
+        public void onOpenAddProvider() {
+            openAddProviderModal();
+            rebuildActionBlocks(FocusTarget.ADD_PROVIDER_NAME);
+        }
+
+        @Override
+        public void onToggleProviderEnabled(ApiProviderProfile profile) {
+            profile.enabled = !profile.enabled;
+            rebuildActionBlocks();
+        }
+
+        @Override
+        public void onDeleteProvider(ProviderManagerConfig providerManager, ApiProviderProfile profile) {
+            deleteProvider(providerManager, profile);
+        }
+
+        @Override
+        public void onToggleApiKeyVisible() {
+            setProviderApiKeyVisible(!providerApiKeyVisible);
+            rebuildActionBlocks();
+        }
+
+        @Override
+        public void onTestProviderConnection(ApiProviderProfile profile) {
+            ConfigUiRuntimeSupport.testProviderConnection(
+                    profile,
+                    ModConfigScreen::t,
+                    ModConfigScreen.this::setStatus,
+                    COLOR_STATUS_OK,
+                    COLOR_STATUS_ERROR,
+                    runnable -> {
+                        if (minecraft != null) {
+                            minecraft.execute(runnable);
+                        } else {
+                            runnable.run();
+                        }
+                    }
+            );
+        }
+
+        @Override
+        public void onSetDefaultModel(ApiProviderProfile profile, String modelId) {
+            profile.model_id = modelId;
+            profile.ensureModelSettings();
+            setStatus(t("status.model_set_default", modelId), COLOR_STATUS_OK);
+            rebuildActionBlocks();
+        }
+
+        @Override
+        public void onOpenModelSettings(ApiProviderProfile profile, String modelId) {
+            openModelSettingsModal(profile, modelId);
+            rebuildActionBlocks(FocusTarget.MODEL_NAME);
+        }
+
+        @Override
+        public void onRemoveModel(ApiProviderProfile profile, String modelId) {
+            removeModel(profile, modelId);
+        }
+
+        @Override
+        public void onAddModel(ApiProviderProfile profile) {
+            openModelSettingsModal(profile, "");
+            rebuildActionBlocks(FocusTarget.MODEL_NAME);
+        }
+
+        @Override
+        public void onOpenPromptEditor(ApiProviderProfile profile) {
+            openPromptEditorWarning(profile);
+            rebuildActionBlocks();
+        }
+
+        @Override
+        public void onToggleTranslationEnabled(boolean enabled) {
+            ConfigManager.setGlobalTranslationEnabled(enabled);
+            rebuildActionBlocks();
+        }
+
+        @Override
+        public void onEditorStateResolved(EditBox searchField, String providerId) {
+            providerSearchField = searchField;
+            selectedProviderId = providerId;
+        }
+
+        @Override
+        public void onAddActiveProviderModals(ProviderManagerConfig providerManager) {
+            if (addProviderModalOpen) {
+                addAddProviderModal(providerManager);
+            }
+            if (modelSettingsModalOpen && !customParametersModalOpen && !modelTemperatureModalOpen) {
+                addModelSettingsModal(providerManager);
+            }
+            if (customParametersModalOpen) {
+                addCustomParametersModal();
+            }
+            if (modelTemperatureModalOpen) {
+                addModelTemperatureModal();
+            }
         }
     }
 
