@@ -32,6 +32,7 @@ import com.alexeys.translate_allinone.gui.configui.sections.ProviderListSectionS
 import com.alexeys.translate_allinone.gui.configui.sections.ProviderManagerActionsSupport;
 import com.alexeys.translate_allinone.gui.configui.sections.RouteModelSectionSupport;
 import com.alexeys.translate_allinone.gui.configui.sections.RouteModelSelectorSectionSupport;
+import com.alexeys.translate_allinone.gui.configui.support.ConfigContentScrollSupport;
 import com.alexeys.translate_allinone.gui.configui.support.ConfigScreenStateSupport;
 import com.alexeys.translate_allinone.gui.configui.support.ConfigUiFocusSupport;
 import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport;
@@ -128,18 +129,6 @@ public class ModConfigScreen extends Screen {
     private static final int SLIDER_BLOCK_HEIGHT = 26;
     private static final int SCROLLBAR_WIDTH = 8;
     private static final int SCROLLBAR_MIN_THUMB_HEIGHT = 26;
-    private static final int SCROLL_STEP = 28;
-    private static final double SCROLL_ANIMATION_SPEED = 15.0;
-    private static final double OVER_SCROLL_RESISTANCE = 0.42;
-    private static final double OVER_SCROLL_MAX = 56.0;
-    private static final double OVER_SCROLL_SPRING = 58.0;
-    private static final double OVER_SCROLL_DAMPING = 12.0;
-    private static final double OVER_SCROLL_WHEEL_OFFSET_FACTOR = 0.2;
-    private static final double OVER_SCROLL_WHEEL_VELOCITY_FACTOR = 9.0;
-    private static final int CONTENT_CLIP_SIDE_PADDING = 6;
-    private static final int CONTENT_CLIP_TOP_PADDING = 6;
-    private static final int CONTENT_CLIP_BOTTOM_PADDING = 8;
-    private static final int CONTENT_SCROLLBAR_GAP = CONTENT_CLIP_SIDE_PADDING;
     private static final IntSliderBlock.Style SLIDER_STYLE = new IntSliderBlock.Style(
             COLOR_BLOCK,
             COLOR_BLOCK_HOVER,
@@ -217,6 +206,12 @@ public class ModConfigScreen extends Screen {
             COLOR_BLOCK_ACCENT,
             COLOR_BLOCK_ACCENT_HOVER,
             COLOR_TEXT
+    );
+    private static final ConfigContentScrollSupport.Style CONTENT_SCROLL_STYLE = new ConfigContentScrollSupport.Style(
+            COLOR_SCROLL_TRACK,
+            COLOR_SCROLL_THUMB,
+            COLOR_SCROLL_THUMB_HOVER,
+            COLOR_BORDER
     );
     private static final ConfirmModalSupport.Style CONFIRM_MODAL_STYLE = new ConfirmModalSupport.Style(
             COLOR_BLOCK,
@@ -376,18 +371,15 @@ public class ModConfigScreen extends Screen {
             COLOR_TEXT_MUTED,
             this::rebuildActionBlocks
     );
-    private UiRect contentViewport = new UiRect(0, 0, 0, 0);
     private UiRect versionLinkRect = new UiRect(0, 0, 0, 0);
-    private final int[] sectionScrollOffsets = new int[ConfigSection.values().length];
-    private int contentScrollOffset;
-    private double contentVisualOffset;
-    private int contentScrollMaxOffset;
-    private double contentElasticOffset;
-    private double contentElasticVelocity;
-    private boolean draggingContentScrollbar;
-    private boolean draggingContentByMouse;
-    private int contentDragStartOffset;
-    private double contentDragStartMouseY;
+    private final ConfigContentScrollSupport contentScroll = new ConfigContentScrollSupport(
+            LEFT_PANEL_WIDTH,
+            TOP_BAR_HEIGHT,
+            SCROLLBAR_WIDTH,
+            SCROLLBAR_MIN_THUMB_HEIGHT,
+            this::onContentScrollOffsetApplied,
+            this::rebuildActionBlocks
+    );
 
     private Component statusMessage = Component.empty();
     private int statusColor = COLOR_STATUS_OK;
@@ -585,11 +577,8 @@ public class ModConfigScreen extends Screen {
         customParameterNameField = null;
         customParameterValueField = null;
         pendingFocusTarget = focusTarget;
-        contentViewport = computeContentViewport();
-        contentScrollOffset = Math.max(0, sectionScrollOffsets[selectedSection.ordinal()]);
-        if (!Double.isFinite(contentVisualOffset)) {
-            contentVisualOffset = contentScrollOffset;
-        }
+        contentScroll.updateViewport(this.width, this.height);
+        contentScroll.selectSection(selectedSection);
 
         ConfigChromeActionsSupport.renderTopBarActions(
                 this.width,
@@ -610,13 +599,9 @@ public class ModConfigScreen extends Screen {
                 ModConfigScreen::t,
                 section -> {
                     if (selectedSection != section) {
-                        sectionScrollOffsets[selectedSection.ordinal()] = contentScrollOffset;
+                        contentScroll.switchSection(selectedSection, section);
                         hotkeyBindingEdit.clearCaptureTarget();
                         selectedSection = section;
-                        contentScrollOffset = Math.max(0, sectionScrollOffsets[selectedSection.ordinal()]);
-                        contentVisualOffset = contentScrollOffset;
-                        contentElasticOffset = 0.0;
-                        contentElasticVelocity = 0.0;
                         addProviderTypeDropdownOpen = false;
                         routeDropdownSlot = null;
                         rebuildActionBlocks();
@@ -735,8 +720,8 @@ public class ModConfigScreen extends Screen {
 
         int x = LEFT_PANEL_WIDTH + 20;
         int y = TOP_BAR_HEIGHT + 28;
-        int width = contentLayoutWidth();
-        int contentStartY = y - currentRenderScrollOffset();
+        int width = contentScroll.layoutWidth();
+        int contentStartY = y - contentScroll.currentRenderOffset();
 
         int contentBottomY = ConfigSectionContentSupport.render(
                 selectedSection,
@@ -744,7 +729,7 @@ public class ModConfigScreen extends Screen {
                 x,
                 contentStartY,
                 width,
-                contentViewport.height,
+                contentScroll.viewport().height,
                 ModConfigScreen::t,
                 this::addGroupBox,
                 this::addToggleAction,
@@ -767,176 +752,14 @@ public class ModConfigScreen extends Screen {
                 this::addProviderManagerActions
         );
 
-        updateScrollBounds(contentBottomY);
+        contentScroll.updateBounds(contentBottomY);
     }
 
-    private UiRect computeContentViewport() {
-        int x = LEFT_PANEL_WIDTH + 20;
-        int y = TOP_BAR_HEIGHT + 28;
-        int width = Math.max(0, this.width - x - 16);
-        int height = Math.max(0, this.height - y - 12);
-        return new UiRect(x, y, width, height);
-    }
-
-    private int contentLayoutWidth() {
-        return Math.max(0, contentViewport.width - SCROLLBAR_WIDTH - CONTENT_SCROLLBAR_GAP);
-    }
-
-    private int contentLayoutRight() {
-        return contentViewport.x + contentLayoutWidth();
-    }
-
-    private UiRect contentClipViewport() {
-        if (contentViewport.width <= 0 || contentViewport.height <= 0) {
-            return contentViewport;
-        }
-
-        int clipX = Math.max(LEFT_PANEL_WIDTH, contentViewport.x - CONTENT_CLIP_SIDE_PADDING);
-        int clipY = Math.max(TOP_BAR_HEIGHT, contentViewport.y - CONTENT_CLIP_TOP_PADDING);
-        int clipRight = Math.min(this.width, contentLayoutRight() + CONTENT_CLIP_SIDE_PADDING);
-        int clipBottom = Math.min(this.height, contentViewport.bottom() + CONTENT_CLIP_BOTTOM_PADDING);
-        return new UiRect(
-                clipX,
-                clipY,
-                Math.max(0, clipRight - clipX),
-                Math.max(0, clipBottom - clipY)
-        );
-    }
-
-    private int currentRenderScrollOffset() {
-        return (int) Math.round(contentVisualOffset - contentElasticOffset);
-    }
-
-    private static double clampDouble(double value, double min, double max) {
-        return Math.max(min, Math.min(max, value));
-    }
-
-    private void updateScrollBounds(int contentBottomY) {
-        double naturalBottomY = contentBottomY + currentRenderScrollOffset();
-        int viewportBottom = contentViewport.bottom();
-        contentScrollMaxOffset = Math.max(0, (int) Math.ceil(naturalBottomY - viewportBottom));
-        int clamped = clampScrollOffset(contentScrollOffset);
-        if (clamped != contentScrollOffset) {
-            contentScrollOffset = clamped;
-            sectionScrollOffsets[selectedSection.ordinal()] = clamped;
-        }
-    }
-
-    private int clampScrollOffset(int value) {
-        return Math.max(0, Math.min(contentScrollMaxOffset, value));
-    }
-
-    private boolean tryScrollBy(int delta) {
-        if (delta == 0) {
-            return false;
-        }
-
-        int rawNext = contentScrollOffset + delta;
-        int next = clampScrollOffset(rawNext);
-        if (next == contentScrollOffset && rawNext == next) {
-            return false;
-        }
-
-        if (rawNext != next) {
-            applyWheelOverscroll(delta);
-        }
-
-        applyScrollOffset(next, false);
-        return true;
-    }
-
-    private void applyScrollOffset(int nextOffset, boolean immediateVisual) {
-        contentScrollOffset = nextOffset;
-        sectionScrollOffsets[selectedSection.ordinal()] = nextOffset;
-        if (immediateVisual) {
-            contentVisualOffset = nextOffset;
-            if (!draggingContentByMouse) {
-                contentElasticOffset = 0.0;
-                contentElasticVelocity = 0.0;
-            }
-        }
+    private void onContentScrollOffsetApplied() {
         draggingSlider = null;
         routeDropdownSlot = null;
         addProviderTypeDropdownOpen = false;
         rebuildActionBlocks();
-    }
-
-    private void applyWheelOverscroll(int delta) {
-        double nextElastic = contentElasticOffset + (-delta) * OVER_SCROLL_WHEEL_OFFSET_FACTOR;
-        contentElasticOffset = clampDouble(nextElastic, -OVER_SCROLL_MAX, OVER_SCROLL_MAX);
-        contentElasticVelocity += (-delta) * OVER_SCROLL_WHEEL_VELOCITY_FACTOR;
-        contentElasticVelocity = clampDouble(contentElasticVelocity, -900.0, 900.0);
-    }
-
-    private UiRect scrollbarTrackRect() {
-        if (contentViewport.width <= 0 || contentViewport.height <= 0 || contentScrollMaxOffset <= 0) {
-            return null;
-        }
-        return new UiRect(
-                contentViewport.right() - SCROLLBAR_WIDTH,
-                contentViewport.y,
-                SCROLLBAR_WIDTH,
-                contentViewport.height
-        );
-    }
-
-    private UiRect scrollbarThumbRect() {
-        UiRect track = scrollbarTrackRect();
-        if (track == null) {
-            return null;
-        }
-
-        int thumbHeight = Math.max(
-                SCROLLBAR_MIN_THUMB_HEIGHT,
-                (int) Math.round(track.height * (track.height / (double) (track.height + contentScrollMaxOffset)))
-        );
-        thumbHeight = Math.min(track.height, thumbHeight);
-        int travel = Math.max(0, track.height - thumbHeight);
-        double thumbOffset = clampDouble(contentVisualOffset, 0.0, contentScrollMaxOffset);
-        int thumbY = travel == 0
-                ? track.y
-                : track.y + (int) Math.round((thumbOffset / Math.max(1.0, contentScrollMaxOffset)) * travel);
-        return new UiRect(track.x, thumbY, track.width, thumbHeight);
-    }
-
-    private int scrollOffsetFromThumbMouseY(double mouseY) {
-        UiRect track = scrollbarTrackRect();
-        UiRect thumb = scrollbarThumbRect();
-        if (track == null || thumb == null) {
-            return contentScrollOffset;
-        }
-
-        int travel = Math.max(1, track.height - thumb.height);
-        double anchorY = mouseY - thumb.height / 2.0;
-        double ratio = (anchorY - track.y) / travel;
-        ratio = Math.max(0.0, Math.min(1.0, ratio));
-        return clampScrollOffset((int) Math.round(ratio * contentScrollMaxOffset));
-    }
-
-    private void startScrollbarDrag() {
-        draggingContentScrollbar = true;
-        draggingContentByMouse = false;
-        contentElasticOffset = 0.0;
-        contentElasticVelocity = 0.0;
-    }
-
-    private void stopScrollingDrag() {
-        draggingContentScrollbar = false;
-        draggingContentByMouse = false;
-    }
-
-    private void drawContentScrollbar(GuiGraphicsExtractor context, int mouseX, int mouseY) {
-        UiRect track = scrollbarTrackRect();
-        UiRect thumb = scrollbarThumbRect();
-        if (track == null || thumb == null) {
-            return;
-        }
-
-        context.fill(track.x, track.y, track.right(), track.bottom(), COLOR_SCROLL_TRACK);
-        boolean hovered = thumb.contains(mouseX, mouseY);
-        int thumbColor = draggingContentScrollbar || hovered ? COLOR_SCROLL_THUMB_HOVER : COLOR_SCROLL_THUMB;
-        context.fill(thumb.x, thumb.y, thumb.right(), thumb.bottom(), thumbColor);
-        ConfigUiDraw.drawOutline(context, track.x, track.y, track.width, track.height, COLOR_BORDER);
     }
 
     private void setProviderApiKeyVisible(boolean visible) {
@@ -951,8 +774,8 @@ public class ModConfigScreen extends Screen {
                 x,
                 y,
                 width,
-                contentViewport.y,
-                contentViewport.bottom(),
+                contentScroll.viewport().y,
+                contentScroll.viewport().bottom(),
                 routeDropdownSlot == routeSlot,
                 ModConfigScreen::t,
                 contentActionBlockRegistry::add,
@@ -1750,7 +1573,7 @@ public class ModConfigScreen extends Screen {
             return null;
         }
 
-        if (!contentViewport.contains(mouseX, mouseY)) {
+        if (!contentScroll.containsMouse(mouseX, mouseY)) {
             return null;
         } else {
             for (CheckboxBlock checkbox : checkboxBlocks) {
@@ -1939,9 +1762,7 @@ public class ModConfigScreen extends Screen {
         providerSearchQuery = "";
         routeDropdownSlot = null;
         addProviderTypeDropdownOpen = false;
-        stopScrollingDrag();
-        contentElasticOffset = 0.0;
-        contentElasticVelocity = 0.0;
+        contentScroll.clearDragAndElastic();
         setStatus(t("status.config_reset_pending"), COLOR_STATUS_OK);
         rebuildActionBlocks();
     }
@@ -1949,7 +1770,7 @@ public class ModConfigScreen extends Screen {
     @Override
     public void onClose() {
         hotkeyBindingEdit.clearCaptureTarget();
-        stopScrollingDrag();
+        contentScroll.stopScrollDrag();
         ConfigUiModalInteractionSupport.ModalCloseAction action = ConfigUiModalInteractionSupport.closeByPriority(
                 addProviderModalOpen,
                 modelSettingsModalOpen,
@@ -2132,29 +1953,15 @@ public class ModConfigScreen extends Screen {
             return true;
         }
 
-        if (click.button() == 0) {
-            UiRect thumb = scrollbarThumbRect();
-            if (thumb != null && thumb.contains(mouseX, mouseY)) {
-                startScrollbarDrag();
-                return true;
-            }
-
-            UiRect track = scrollbarTrackRect();
-            if (track != null && track.contains(mouseX, mouseY)) {
-                int nextOffset = scrollOffsetFromThumbMouseY(mouseY);
-                if (nextOffset != contentScrollOffset) {
-                    applyScrollOffset(nextOffset, false);
-                }
-                startScrollbarDrag();
-                return true;
-            }
+        if (click.button() == 0 && contentScroll.pressScrollbar(mouseX, mouseY)) {
+            return true;
         }
 
         if (ConfigUiInteractionSupport.dispatchActionBlocks(actionBlocks, mouseX, mouseY)) {
             return true;
         }
 
-        if (!contentViewport.contains(mouseX, mouseY)) {
+        if (!contentScroll.containsMouse(mouseX, mouseY)) {
             if (addProviderTypeDropdownOpen || routeDropdownSlot != null) {
                 addProviderTypeDropdownOpen = false;
                 routeDropdownSlot = null;
@@ -2183,11 +1990,7 @@ public class ModConfigScreen extends Screen {
             return true;
         }
 
-        if (contentScrollMaxOffset > 0) {
-            draggingContentByMouse = true;
-            contentDragStartMouseY = mouseY;
-            contentDragStartOffset = contentScrollOffset;
-            draggingContentScrollbar = false;
+        if (contentScroll.startContentDrag(mouseY)) {
             return true;
         }
 
@@ -2208,7 +2011,7 @@ public class ModConfigScreen extends Screen {
                 dictionaryFilesModal.dragScrollbarTo(click.y());
                 return true;
             }
-            stopScrollingDrag();
+            contentScroll.stopScrollDrag();
             return super.mouseDragged(click, deltaX, deltaY);
         }
 
@@ -2221,32 +2024,11 @@ public class ModConfigScreen extends Screen {
             return true;
         }
 
-        if (draggingContentScrollbar && click.button() == 0) {
-            int nextOffset = scrollOffsetFromThumbMouseY(click.y());
-            if (nextOffset != contentScrollOffset) {
-                applyScrollOffset(nextOffset, true);
-            }
+        if (click.button() == 0 && contentScroll.dragScrollbarTo(click.y())) {
             return true;
         }
 
-        if (draggingContentByMouse && click.button() == 0) {
-            double delta = click.y() - contentDragStartMouseY;
-            double rawOffset = contentDragStartOffset - delta;
-            int nextOffset = clampScrollOffset((int) Math.round(rawOffset));
-            if (nextOffset != contentScrollOffset) {
-                applyScrollOffset(nextOffset, true);
-            }
-
-            double overflow = rawOffset - nextOffset;
-            if (Math.abs(overflow) > 0.001) {
-                contentElasticOffset = clampDouble(-overflow * OVER_SCROLL_RESISTANCE, -OVER_SCROLL_MAX, OVER_SCROLL_MAX);
-                contentElasticVelocity = 0.0;
-                rebuildActionBlocks();
-            } else if (Math.abs(contentElasticOffset) > 0.001 || Math.abs(contentElasticVelocity) > 0.001) {
-                contentElasticOffset = 0.0;
-                contentElasticVelocity = 0.0;
-                rebuildActionBlocks();
-            }
+        if (click.button() == 0 && contentScroll.dragContentTo(click.y())) {
             return true;
         }
 
@@ -2258,7 +2040,7 @@ public class ModConfigScreen extends Screen {
         if (isAnyModalOpen()) {
             draggingSlider = null;
             dictionaryFilesModal.stopScrollbarDrag();
-            stopScrollingDrag();
+            contentScroll.stopScrollDrag();
             return super.mouseReleased(click);
         }
 
@@ -2272,8 +2054,7 @@ public class ModConfigScreen extends Screen {
             return true;
         }
 
-        if ((draggingContentScrollbar || draggingContentByMouse) && click.button() == 0) {
-            stopScrollingDrag();
+        if (click.button() == 0 && contentScroll.releaseDrags()) {
             return true;
         }
 
@@ -2297,15 +2078,7 @@ public class ModConfigScreen extends Screen {
             return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
         }
 
-        if (!contentViewport.contains(mouseX, mouseY) || contentScrollMaxOffset <= 0 || verticalAmount == 0.0) {
-            return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
-        }
-
-        int delta = (int) Math.round(-verticalAmount * SCROLL_STEP);
-        if (delta == 0) {
-            delta = verticalAmount > 0 ? -SCROLL_STEP : SCROLL_STEP;
-        }
-        if (tryScrollBy(delta)) {
+        if (contentScroll.scrollByWheel(mouseX, mouseY, verticalAmount)) {
             return true;
         }
         return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
@@ -2334,8 +2107,8 @@ public class ModConfigScreen extends Screen {
 
         long nowMillis = System.currentTimeMillis();
         boolean modalOpen = isAnyModalOpen();
-        UiRect contentClip = contentClipViewport();
-        boolean contentMouseVisible = !modalOpen && contentViewport.contains(mouseX, mouseY);
+        UiRect contentClip = contentScroll.clipRect(this.width, this.height);
+        boolean contentMouseVisible = !modalOpen && contentScroll.containsMouse(mouseX, mouseY);
         int contentMouseX = contentMouseVisible ? mouseX : Integer.MIN_VALUE;
         int contentMouseY = contentMouseVisible ? mouseY : Integer.MIN_VALUE;
         boolean chromeMouseVisible = !modalOpen;
@@ -2368,8 +2141,8 @@ public class ModConfigScreen extends Screen {
             }
         });
 
-        if (contentScrollMaxOffset > 0 && !modalOpen) {
-            drawContentScrollbar(context, mouseX, mouseY);
+        if (!modalOpen && contentScroll.hasScrollableContent()) {
+            contentScroll.drawScrollbar(context, mouseX, mouseY, CONTENT_SCROLL_STYLE);
         }
 
         ConfigUiScreenRenderSupport.renderModalOverlayAndShell(
@@ -2454,27 +2227,7 @@ public class ModConfigScreen extends Screen {
             checkbox.update(deltaSeconds);
         }
 
-        int beforeRenderOffset = currentRenderScrollOffset();
-
-        if (draggingContentScrollbar || draggingContentByMouse) {
-            contentVisualOffset = contentScrollOffset;
-        } else {
-            double blend = 1.0 - Math.exp(-deltaSeconds * SCROLL_ANIMATION_SPEED);
-            contentVisualOffset += (contentScrollOffset - contentVisualOffset) * blend;
-
-            double acceleration = -contentElasticOffset * OVER_SCROLL_SPRING - contentElasticVelocity * OVER_SCROLL_DAMPING;
-            contentElasticVelocity += acceleration * deltaSeconds;
-            contentElasticOffset += contentElasticVelocity * deltaSeconds;
-            contentElasticOffset = clampDouble(contentElasticOffset, -OVER_SCROLL_MAX, OVER_SCROLL_MAX);
-
-            if (Math.abs(contentElasticOffset) < 0.01 && Math.abs(contentElasticVelocity) < 0.01) {
-                contentElasticOffset = 0.0;
-                contentElasticVelocity = 0.0;
-            }
-        }
-
-        int afterRenderOffset = currentRenderScrollOffset();
-        if (afterRenderOffset != beforeRenderOffset) {
+        if (contentScroll.animate(deltaSeconds)) {
             rebuildActionBlocks();
         }
     }
