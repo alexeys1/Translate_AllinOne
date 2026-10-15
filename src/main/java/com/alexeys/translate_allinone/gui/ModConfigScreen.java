@@ -35,6 +35,7 @@ import com.alexeys.translate_allinone.gui.configui.support.ConfigScreenStateSupp
 import com.alexeys.translate_allinone.gui.configui.support.ConfigUiFocusSupport;
 import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport;
 import com.alexeys.translate_allinone.gui.configui.support.ConfigUiTextFieldSupport;
+import com.alexeys.translate_allinone.gui.configui.support.HotkeyBindingEditSupport;
 import com.alexeys.translate_allinone.utils.config.ui.CustomParameterTreeSupport;
 import com.alexeys.translate_allinone.gui.configui.support.ModelCustomParameterDefaultsSupport;
 import com.alexeys.translate_allinone.gui.configui.support.ModelSettingsApplySupport;
@@ -52,14 +53,9 @@ import com.alexeys.translate_allinone.utils.config.pojos.CacheBackupConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ChatTranslateConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.CustomParameterEntry;
 import com.alexeys.translate_allinone.utils.config.pojos.DebugConfig;
-import com.alexeys.translate_allinone.utils.config.pojos.InputBindingConfig;
-import com.alexeys.translate_allinone.utils.config.pojos.ItemTranslateConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.LogLevel;
-import com.alexeys.translate_allinone.utils.config.pojos.OtherTranslationsConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ProviderManagerConfig;
 import com.alexeys.translate_allinone.utils.config.pojos.ScoreboardConfig;
-import com.alexeys.translate_allinone.utils.config.pojos.WynnCraftConfig;
-import com.alexeys.translate_allinone.utils.input.KeybindingManager;
 import com.alexeys.translate_allinone.utils.translate.DictionaryFileSelectionSupport;
 import com.alexeys.translate_allinone.utils.update.UpdateCheckManager;
 import com.google.gson.Gson;
@@ -362,7 +358,13 @@ public class ModConfigScreen extends Screen {
             new DictionaryFilesModalSupport(SCROLLBAR_WIDTH, SCROLLBAR_MIN_THUMB_HEIGHT, this::rebuildActionBlocks);
 
     private FocusTarget pendingFocusTarget = FocusTarget.NONE;
-    private ConfigSectionContentSupport.HotkeyTarget hotkeyCaptureTarget;
+    private final HotkeyBindingEditSupport hotkeyBindingEdit = new HotkeyBindingEditSupport(
+            ModConfigScreen::t,
+            this::setStatus,
+            COLOR_STATUS_OK,
+            COLOR_TEXT_MUTED,
+            this::rebuildActionBlocks
+    );
     private UiRect contentViewport = new UiRect(0, 0, 0, 0);
     private UiRect versionLinkRect = new UiRect(0, 0, 0, 0);
     private final int[] sectionScrollOffsets = new int[ConfigSection.values().length];
@@ -598,7 +600,7 @@ public class ModConfigScreen extends Screen {
                 section -> {
                     if (selectedSection != section) {
                         sectionScrollOffsets[selectedSection.ordinal()] = contentScrollOffset;
-                        hotkeyCaptureTarget = null;
+                        hotkeyBindingEdit.clearCaptureTarget();
                         selectedSection = section;
                         contentScrollOffset = Math.max(0, sectionScrollOffsets[selectedSection.ordinal()]);
                         contentVisualOffset = contentScrollOffset;
@@ -649,7 +651,7 @@ public class ModConfigScreen extends Screen {
         }
 
         selectedSection = firstVisibleSection();
-        hotkeyCaptureTarget = null;
+        hotkeyBindingEdit.clearCaptureTarget();
         addProviderTypeDropdownOpen = false;
         routeDropdownSlot = null;
     }
@@ -706,10 +708,10 @@ public class ModConfigScreen extends Screen {
                 this::addIntSliderAction,
                 this::addActionRow,
                 this::addTextInputRow,
-                this::hotkeyBindingLabel,
-                this::startHotkeyCapture,
-                this::clearHotkeyBinding,
-                this::cycleHotkeyMode,
+                hotkeyBindingEdit::bindingLabel,
+                hotkeyBindingEdit::startCapture,
+                hotkeyBindingEdit::clearBinding,
+                hotkeyBindingEdit::cycleMode,
                 this::cycleExternalScoreboardMode,
                 this::cycleOriginalDisplayMode,
                 this::cycleDebugLevel,
@@ -1605,147 +1607,6 @@ public class ModConfigScreen extends Screen {
         return Math.min(180, Math.max(minimum, width / 3));
     }
 
-    private Component hotkeyBindingLabel(ConfigSectionContentSupport.HotkeyTarget target, InputBindingConfig binding) {
-        if (hotkeyCaptureTarget == target) {
-            return hotkeyBindingLabelText(target, t("state.hotkey_listening"));
-        }
-
-        if (!KeybindingManager.isBound(binding)) {
-            return hotkeyBindingLabelText(target, t("state.hotkey_unbound"));
-        }
-
-        return hotkeyBindingLabelText(target, Component.literal(KeybindingManager.displayName(binding)));
-    }
-
-    private void startHotkeyCapture(ConfigSectionContentSupport.HotkeyTarget target) {
-        hotkeyCaptureTarget = target;
-        setStatus(t("status.hotkey_listening", sectionLabel(target)), COLOR_STATUS_OK);
-        rebuildActionBlocks();
-    }
-
-    private void clearHotkeyBinding(ConfigSectionContentSupport.HotkeyTarget target) {
-        if (target == ConfigSectionContentSupport.HotkeyTarget.ITEM) {
-            ItemTranslateConfig.KeybindingConfig keybinding = ensureItemKeybinding(Translate_AllinOne.getConfig());
-            if (keybinding.binding == null) {
-                keybinding.binding = new InputBindingConfig();
-            }
-            if (keybinding.refreshBinding == null) {
-                keybinding.refreshBinding = new InputBindingConfig();
-            }
-
-            if (hotkeyCaptureTarget == ConfigSectionContentSupport.HotkeyTarget.ITEM
-                    || hotkeyCaptureTarget == ConfigSectionContentSupport.HotkeyTarget.ITEM_REFRESH) {
-                hotkeyCaptureTarget = null;
-            }
-
-            KeybindingManager.clear(keybinding.binding);
-            KeybindingManager.clear(keybinding.refreshBinding);
-            setStatus(t("status.hotkey_cleared", sectionLabel(target)), COLOR_STATUS_OK);
-            rebuildActionBlocks();
-            return;
-        }
-
-        if (target == ConfigSectionContentSupport.HotkeyTarget.OTHER_TRANSLATIONS) {
-            OtherTranslationsConfig.KeybindingConfig keybinding = ensureOtherTranslationsKeybinding(Translate_AllinOne.getConfig());
-            if (hotkeyCaptureTarget == ConfigSectionContentSupport.HotkeyTarget.OTHER_TRANSLATIONS
-                    || hotkeyCaptureTarget == ConfigSectionContentSupport.HotkeyTarget.OTHER_TRANSLATIONS_REFRESH) {
-                hotkeyCaptureTarget = null;
-            }
-
-            KeybindingManager.clear(keybinding.binding);
-            KeybindingManager.clear(keybinding.refreshBinding);
-            setStatus(t("status.hotkey_cleared", sectionLabel(target)), COLOR_STATUS_OK);
-            rebuildActionBlocks();
-            return;
-        }
-
-        if (target == ConfigSectionContentSupport.HotkeyTarget.WYNNTILS_TASK_TRACKER) {
-            WynnCraftConfig.KeybindingConfig keybinding = ensureWynntilsTaskTrackerKeybinding(Translate_AllinOne.getConfig());
-            if (keybinding.binding == null) {
-                keybinding.binding = new InputBindingConfig();
-            }
-            if (keybinding.refreshBinding == null) {
-                keybinding.refreshBinding = new InputBindingConfig();
-            }
-
-            if (hotkeyCaptureTarget == ConfigSectionContentSupport.HotkeyTarget.WYNNTILS_TASK_TRACKER
-                    || hotkeyCaptureTarget == ConfigSectionContentSupport.HotkeyTarget.WYNNTILS_TASK_TRACKER_REFRESH) {
-                hotkeyCaptureTarget = null;
-            }
-
-            KeybindingManager.clear(keybinding.binding);
-            KeybindingManager.clear(keybinding.refreshBinding);
-            setStatus(t("status.hotkey_cleared", sectionLabel(target)), COLOR_STATUS_OK);
-            rebuildActionBlocks();
-            return;
-        }
-
-        if (target == ConfigSectionContentSupport.HotkeyTarget.SCOREBOARD) {
-            ScoreboardConfig.KeybindingConfig keybinding = ensureScoreboardKeybinding(Translate_AllinOne.getConfig());
-            if (keybinding.binding == null) {
-                keybinding.binding = new InputBindingConfig();
-            }
-            if (keybinding.refreshBinding == null) {
-                keybinding.refreshBinding = new InputBindingConfig();
-            }
-
-            if (hotkeyCaptureTarget == ConfigSectionContentSupport.HotkeyTarget.SCOREBOARD
-                    || hotkeyCaptureTarget == ConfigSectionContentSupport.HotkeyTarget.SCOREBOARD_REFRESH) {
-                hotkeyCaptureTarget = null;
-            }
-
-            KeybindingManager.clear(keybinding.binding);
-            KeybindingManager.clear(keybinding.refreshBinding);
-            setStatus(t("status.hotkey_cleared", sectionLabel(target)), COLOR_STATUS_OK);
-            rebuildActionBlocks();
-            return;
-        }
-
-        InputBindingConfig binding = ensureBinding(target);
-        if (binding == null) {
-            return;
-        }
-
-        hotkeyCaptureTarget = hotkeyCaptureTarget == target ? null : hotkeyCaptureTarget;
-        KeybindingManager.clear(binding);
-        setStatus(t("status.hotkey_cleared", sectionLabel(target)), COLOR_STATUS_OK);
-        rebuildActionBlocks();
-    }
-
-    private void cycleHotkeyMode(ConfigSectionContentSupport.HotkeyTarget target) {
-        ModConfig config = Translate_AllinOne.getConfig();
-        switch (target) {
-            case ITEM -> {
-                ItemTranslateConfig.KeybindingConfig keybinding = ensureItemKeybinding(config);
-                ItemTranslateConfig.KeybindingMode[] modes = ItemTranslateConfig.KeybindingMode.values();
-                keybinding.mode = modes[(keybinding.mode.ordinal() + 1) % modes.length];
-                setStatus(t("status.hotkey_mode_changed", sectionLabel(target), modeLabel(keybinding.mode.name())), COLOR_STATUS_OK);
-            }
-            case SCOREBOARD -> {
-                ScoreboardConfig.KeybindingConfig keybinding = ensureScoreboardKeybinding(config);
-                ScoreboardConfig.KeybindingMode[] modes = ScoreboardConfig.KeybindingMode.values();
-                keybinding.mode = modes[(keybinding.mode.ordinal() + 1) % modes.length];
-                setStatus(t("status.hotkey_mode_changed", sectionLabel(target), modeLabel(keybinding.mode.name())), COLOR_STATUS_OK);
-            }
-            case OTHER_TRANSLATIONS -> {
-                OtherTranslationsConfig.KeybindingConfig keybinding = ensureOtherTranslationsKeybinding(config);
-                OtherTranslationsConfig.KeybindingMode[] modes = OtherTranslationsConfig.KeybindingMode.values();
-                keybinding.mode = modes[(keybinding.mode.ordinal() + 1) % modes.length];
-                setStatus(t("status.hotkey_mode_changed", sectionLabel(target), modeLabel(keybinding.mode.name())), COLOR_STATUS_OK);
-            }
-            case WYNNTILS_TASK_TRACKER -> {
-                WynnCraftConfig.KeybindingConfig keybinding = ensureWynntilsTaskTrackerKeybinding(config);
-                WynnCraftConfig.KeybindingMode[] modes = WynnCraftConfig.KeybindingMode.values();
-                keybinding.mode = modes[(keybinding.mode.ordinal() + 1) % modes.length];
-                setStatus(t("status.hotkey_mode_changed", sectionLabel(target), modeLabel(keybinding.mode.name())), COLOR_STATUS_OK);
-            }
-            default -> {
-                return;
-            }
-        }
-        rebuildActionBlocks();
-    }
-
     private void cycleExternalScoreboardMode() {
         ScoreboardConfig scoreboard = Translate_AllinOne.getConfig().scoreboardTranslate;
         if (scoreboard.external_custom_scoreboard_mode == null) {
@@ -1807,171 +1668,6 @@ public class ModConfigScreen extends Screen {
             case DISABLED -> t("state.external_scoreboard_disabled");
             case AUTO -> t("state.external_scoreboard_auto");
             case FORCE -> t("state.external_scoreboard_force");
-        };
-    }
-
-    private InputBindingConfig ensureBinding(ConfigSectionContentSupport.HotkeyTarget target) {
-        ModConfig config = Translate_AllinOne.getConfig();
-        return switch (target) {
-            case CHAT_INPUT -> {
-                if (config.chatTranslate.input.keybinding == null) {
-                    config.chatTranslate.input.keybinding = new InputBindingConfig();
-                }
-                yield config.chatTranslate.input.keybinding;
-            }
-            case ITEM -> {
-                ItemTranslateConfig.KeybindingConfig keybinding = ensureItemKeybinding(config);
-                if (keybinding.binding == null) {
-                    keybinding.binding = new InputBindingConfig();
-                }
-                yield keybinding.binding;
-            }
-            case ITEM_REFRESH -> {
-                ItemTranslateConfig.KeybindingConfig keybinding = ensureItemKeybinding(config);
-                if (keybinding.refreshBinding == null) {
-                    keybinding.refreshBinding = new InputBindingConfig();
-                }
-                yield keybinding.refreshBinding;
-            }
-            case SCOREBOARD -> {
-                ScoreboardConfig.KeybindingConfig keybinding = ensureScoreboardKeybinding(config);
-                if (keybinding.binding == null) {
-                    keybinding.binding = new InputBindingConfig();
-                }
-                yield keybinding.binding;
-            }
-            case SCOREBOARD_REFRESH -> {
-                ScoreboardConfig.KeybindingConfig keybinding = ensureScoreboardKeybinding(config);
-                if (keybinding.refreshBinding == null) {
-                    keybinding.refreshBinding = new InputBindingConfig();
-                }
-                yield keybinding.refreshBinding;
-            }
-            case OTHER_TRANSLATIONS -> {
-                OtherTranslationsConfig.KeybindingConfig keybinding = ensureOtherTranslationsKeybinding(config);
-                yield keybinding.binding;
-            }
-            case OTHER_TRANSLATIONS_REFRESH -> {
-                OtherTranslationsConfig.KeybindingConfig keybinding = ensureOtherTranslationsKeybinding(config);
-                yield keybinding.refreshBinding;
-            }
-            case WYNNTILS_TASK_TRACKER -> {
-                WynnCraftConfig.KeybindingConfig keybinding = ensureWynntilsTaskTrackerKeybinding(config);
-                if (keybinding.binding == null) {
-                    keybinding.binding = new InputBindingConfig();
-                }
-                yield keybinding.binding;
-            }
-            case WYNNTILS_TASK_TRACKER_REFRESH -> {
-                WynnCraftConfig.KeybindingConfig keybinding = ensureWynntilsTaskTrackerKeybinding(config);
-                if (keybinding.refreshBinding == null) {
-                    keybinding.refreshBinding = new InputBindingConfig();
-                }
-                yield keybinding.refreshBinding;
-            }
-        };
-    }
-
-    private ItemTranslateConfig.KeybindingConfig ensureItemKeybinding(ModConfig config) {
-        if (config.itemTranslate.keybinding == null) {
-            config.itemTranslate.keybinding = new ItemTranslateConfig.KeybindingConfig();
-        }
-        return config.itemTranslate.keybinding;
-    }
-
-    private ScoreboardConfig.KeybindingConfig ensureScoreboardKeybinding(ModConfig config) {
-        if (config.scoreboardTranslate.keybinding == null) {
-            config.scoreboardTranslate.keybinding = new ScoreboardConfig.KeybindingConfig();
-        }
-        if (config.scoreboardTranslate.keybinding.refreshBinding == null) {
-            config.scoreboardTranslate.keybinding.refreshBinding = new InputBindingConfig();
-        }
-        return config.scoreboardTranslate.keybinding;
-    }
-
-    private OtherTranslationsConfig.KeybindingConfig ensureOtherTranslationsKeybinding(ModConfig config) {
-        if (config.otherTranslations == null) {
-            config.otherTranslations = new OtherTranslationsConfig();
-        }
-        if (config.otherTranslations.keybinding == null) {
-            config.otherTranslations.keybinding = new OtherTranslationsConfig.KeybindingConfig();
-        }
-        if (config.otherTranslations.keybinding.binding == null) {
-            config.otherTranslations.keybinding.binding = new InputBindingConfig();
-        }
-        if (config.otherTranslations.keybinding.refreshBinding == null) {
-            config.otherTranslations.keybinding.refreshBinding = new InputBindingConfig();
-        }
-        return config.otherTranslations.keybinding;
-    }
-
-    private WynnCraftConfig.KeybindingConfig ensureWynntilsTaskTrackerKeybinding(ModConfig config) {
-        if (config.wynnCraft == null) {
-            config.wynnCraft = new WynnCraftConfig();
-        }
-        if (config.wynnCraft.wynntils_task_tracker == null) {
-            config.wynnCraft.wynntils_task_tracker = new WynnCraftConfig.WynntilsTaskTrackerConfig();
-        }
-        if (config.wynnCraft.wynntils_task_tracker.keybinding == null) {
-            config.wynnCraft.wynntils_task_tracker.keybinding = new WynnCraftConfig.KeybindingConfig();
-        }
-        if (config.wynnCraft.wynntils_task_tracker.keybinding.refreshBinding == null) {
-            config.wynnCraft.wynntils_task_tracker.keybinding.refreshBinding = new InputBindingConfig();
-        }
-        return config.wynnCraft.wynntils_task_tracker.keybinding;
-    }
-
-    private void applyCapturedBinding(InputBindingConfig captured) {
-        if (hotkeyCaptureTarget == null || captured == null) {
-            return;
-        }
-
-        ConfigSectionContentSupport.HotkeyTarget target = hotkeyCaptureTarget;
-        InputBindingConfig binding = ensureBinding(target);
-        KeybindingManager.apply(binding, captured);
-        hotkeyCaptureTarget = null;
-        setStatus(t("status.hotkey_bound", sectionLabel(target), Component.literal(KeybindingManager.displayName(binding))), COLOR_STATUS_OK);
-        rebuildActionBlocks();
-    }
-
-    private void cancelHotkeyCapture() {
-        if (hotkeyCaptureTarget == null) {
-            return;
-        }
-        hotkeyCaptureTarget = null;
-        setStatus(t("status.hotkey_capture_cancelled"), COLOR_TEXT_MUTED);
-        rebuildActionBlocks();
-    }
-
-    private Component sectionLabel(ConfigSectionContentSupport.HotkeyTarget target) {
-        return switch (target) {
-            case CHAT_INPUT -> t("section.chat_input");
-            case ITEM -> t("section.item");
-            case ITEM_REFRESH -> t("section.item");
-            case SCOREBOARD -> t("section.scoreboard");
-            case SCOREBOARD_REFRESH -> t("section.scoreboard");
-            case OTHER_TRANSLATIONS -> t("section.other_translations");
-            case OTHER_TRANSLATIONS_REFRESH -> t("section.other_translations");
-            case WYNNTILS_TASK_TRACKER -> t("section.wynncraft");
-            case WYNNTILS_TASK_TRACKER_REFRESH -> t("section.wynncraft");
-        };
-    }
-
-    private Component hotkeyBindingLabelText(ConfigSectionContentSupport.HotkeyTarget target, Component bindingLabel) {
-        return switch (target) {
-            case ITEM_REFRESH -> t("label.item_refresh_hotkey_binding", bindingLabel);
-            case SCOREBOARD_REFRESH -> t("label.scoreboard_refresh_hotkey_binding", bindingLabel);
-            case OTHER_TRANSLATIONS_REFRESH -> t("label.other_translations_refresh_hotkey_binding", bindingLabel);
-            case WYNNTILS_TASK_TRACKER_REFRESH -> t("label.item_refresh_hotkey_binding", bindingLabel);
-            default -> t("label.hotkey_binding", bindingLabel);
-        };
-    }
-
-    private Component modeLabel(String modeName) {
-        return switch (modeName) {
-            case "HOLD_TO_TRANSLATE" -> t("state.hold_to_translate");
-            case "HOLD_TO_SEE_ORIGINAL" -> t("state.hold_to_see_original");
-            default -> t("state.disabled");
         };
     }
 
@@ -2400,7 +2096,7 @@ public class ModConfigScreen extends Screen {
     private void applyResetToDefaults() {
         closeResetConfirmModal();
         ConfigManager.resetToDefaults();
-        hotkeyCaptureTarget = null;
+        hotkeyBindingEdit.clearCaptureTarget();
         selectedProviderIndex = 0;
         selectedProviderId = "";
         providerApiKeyVisible = ProviderManagerActionsSupport.isProviderApiKeyVisible(Translate_AllinOne.getConfig().providerManager);
@@ -2416,7 +2112,7 @@ public class ModConfigScreen extends Screen {
 
     @Override
     public void onClose() {
-        hotkeyCaptureTarget = null;
+        hotkeyBindingEdit.clearCaptureTarget();
         stopScrollingDrag();
         ConfigUiModalInteractionSupport.ModalCloseAction action = ConfigUiModalInteractionSupport.closeByPriority(
                 addProviderModalOpen,
@@ -2490,13 +2186,8 @@ public class ModConfigScreen extends Screen {
 
     @Override
     public boolean mouseClicked(MouseButtonEvent click, boolean doubled) {
-        if (hotkeyCaptureTarget != null) {
-            if (hotkeyCaptureTarget != ConfigSectionContentSupport.HotkeyTarget.CHAT_INPUT) {
-                InputBindingConfig captured = KeybindingManager.captureMouseBinding(click.button());
-                if (captured != null) {
-                    applyCapturedBinding(captured);
-                }
-            }
+        if (hotkeyBindingEdit.isCapturing()) {
+            hotkeyBindingEdit.captureMouse(click.button());
             return true;
         }
 
@@ -2794,16 +2485,8 @@ public class ModConfigScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyEvent input) {
-        if (hotkeyCaptureTarget != null) {
-            if (KeybindingManager.isEscape(input)) {
-                cancelHotkeyCapture();
-                return true;
-            }
-
-            InputBindingConfig captured = KeybindingManager.captureKeyboardBinding(input);
-            if (captured != null) {
-                applyCapturedBinding(captured);
-            }
+        if (hotkeyBindingEdit.isCapturing()) {
+            hotkeyBindingEdit.captureKey(input);
             return true;
         }
         return super.keyPressed(input);
@@ -2811,7 +2494,7 @@ public class ModConfigScreen extends Screen {
 
     @Override
     public boolean charTyped(CharacterEvent input) {
-        if (hotkeyCaptureTarget != null) {
+        if (hotkeyBindingEdit.isCapturing()) {
             return true;
         }
         return super.charTyped(input);
