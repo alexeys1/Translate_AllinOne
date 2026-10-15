@@ -16,6 +16,7 @@ import com.alexeys.translate_allinone.utils.config.ui.FocusTarget;
 import com.alexeys.translate_allinone.utils.config.ui.RouteSlot;
 import com.alexeys.translate_allinone.utils.config.ui.UiRect;
 import com.alexeys.translate_allinone.gui.configui.modals.AddProviderModalSupport;
+import com.alexeys.translate_allinone.gui.configui.modals.ConfirmModalSupport;
 import com.alexeys.translate_allinone.gui.configui.modals.CustomParametersModalSupport;
 import com.alexeys.translate_allinone.gui.configui.modals.DictionaryFilesModalSupport;
 import com.alexeys.translate_allinone.gui.configui.modals.ModelSettingsModalSupport;
@@ -67,7 +68,6 @@ import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
-import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Util;
 
 import java.io.IOException;
@@ -218,6 +218,17 @@ public class ModConfigScreen extends Screen {
             COLOR_BLOCK_ACCENT_HOVER,
             COLOR_TEXT
     );
+    private static final ConfirmModalSupport.Style CONFIRM_MODAL_STYLE = new ConfirmModalSupport.Style(
+            COLOR_BLOCK,
+            COLOR_BLOCK_HOVER,
+            COLOR_BLOCK_ACCENT,
+            COLOR_BLOCK_ACCENT_HOVER,
+            COLOR_BLOCK_DANGER,
+            COLOR_BLOCK_DANGER_HOVER,
+            COLOR_TEXT,
+            COLOR_TEXT_MUTED,
+            COLOR_STATUS_ERROR
+    );
     private static final DictionaryFilesModalSupport.Style DICTIONARY_FILES_MODAL_STYLE = new DictionaryFilesModalSupport.Style(
             COLOR_BLOCK_MUTED,
             COLOR_BLOCK,
@@ -347,7 +358,7 @@ public class ModConfigScreen extends Screen {
     private boolean resetConfirmModalOpen;
     private boolean updateNoticeModalOpen;
     private boolean unsavedChangesConfirmModalOpen;
-    private WarningConfirmation warningConfirmation;
+    private ConfirmModalSupport.WarningConfirmation warningConfirmation;
     private String promptEditorProviderId = "";
     private boolean updateNoticeAutoPrompted;
     private String selectedCustomParameterPath = "";
@@ -625,13 +636,45 @@ public class ModConfigScreen extends Screen {
                     this::closeDictionaryFilesModal
             );
         } else if (updateNoticeModalOpen) {
-            addUpdateNoticeModal();
+            ConfirmModalSupport.addUpdateNotice(
+                    this.width,
+                    this.height,
+                    ModConfigScreen::t,
+                    floatingActionBlockRegistry::add,
+                    CONFIRM_MODAL_STYLE,
+                    this::dismissUpdateNotice
+            );
         } else if (resetConfirmModalOpen) {
-            addResetConfirmModal();
+            ConfirmModalSupport.addResetConfirm(
+                    this.width,
+                    this.height,
+                    ModConfigScreen::t,
+                    floatingActionBlockRegistry::add,
+                    CONFIRM_MODAL_STYLE,
+                    this::dismissResetConfirm,
+                    this::applyResetToDefaults
+            );
         } else if (unsavedChangesConfirmModalOpen) {
-            addUnsavedChangesConfirmModal();
+            ConfirmModalSupport.addUnsavedChanges(
+                    this.width,
+                    this.height,
+                    ModConfigScreen::t,
+                    floatingActionBlockRegistry::add,
+                    CONFIRM_MODAL_STYLE,
+                    this::dismissUnsavedChanges,
+                    this::saveAndClose,
+                    this::discardChangesAndClose
+            );
         } else if (isWarningConfirmationOpen()) {
-            addWarningConfirmation();
+            ConfirmModalSupport.addWarningConfirm(
+                    this.width,
+                    this.height,
+                    ModConfigScreen::t,
+                    floatingActionBlockRegistry::add,
+                    CONFIRM_MODAL_STYLE,
+                    this::dismissWarningConfirmation,
+                    this::openPromptEditorScreen
+            );
         }
         ConfigUiFocusSupport.applyPendingFocus(
                 this,
@@ -1227,7 +1270,7 @@ public class ModConfigScreen extends Screen {
     }
 
     private void openPromptEditorWarning(ApiProviderProfile profile) {
-        warningConfirmation = WarningConfirmation.PROMPT_EDITOR;
+        warningConfirmation = ConfirmModalSupport.WarningConfirmation.PROMPT_EDITOR;
         promptEditorProviderId = profile.id;
     }
 
@@ -1244,48 +1287,16 @@ public class ModConfigScreen extends Screen {
         promptEditorProviderId = "";
     }
 
+    private void dismissWarningConfirmation() {
+        closeWarningConfirmation();
+        rebuildActionBlocks();
+    }
+
     private void openPromptEditorScreen() {
         warningConfirmation = null;
         if (this.minecraft != null) {
             MinecraftScreens.INSTANCE.open(new PromptEditorScreen(this, promptEditorProviderId));
         }
-    }
-
-    private void addWarningConfirmation() {
-        UiRect rect = ConfigUiModalSupport.promptEditorWarningRect(this.width, this.height);
-        int buttonsY = rect.y + rect.height - 32;
-        int half = (rect.width - 44) / 2;
-        int leftX = rect.x + 20;
-        int rightX = leftX + half + 4;
-
-        floatingActionBlockRegistry.add(
-                leftX,
-                buttonsY,
-                half,
-                20,
-                () -> t("button.cancel"),
-                () -> {
-                    closeWarningConfirmation();
-                    rebuildActionBlocks();
-                },
-                COLOR_BLOCK,
-                COLOR_BLOCK_HOVER,
-                COLOR_TEXT,
-                true
-        );
-
-        floatingActionBlockRegistry.add(
-                rightX,
-                buttonsY,
-                half,
-                20,
-                () -> t("button.continue"),
-                this::openPromptEditorScreen,
-                COLOR_BLOCK_ACCENT,
-                COLOR_BLOCK_ACCENT_HOVER,
-                COLOR_TEXT,
-                true
-        );
     }
 
     private void addCustomParametersModal() {
@@ -1884,6 +1895,11 @@ public class ModConfigScreen extends Screen {
         updateNoticeModalOpen = false;
     }
 
+    private void dismissUpdateNotice() {
+        closeUpdateNoticeModal();
+        rebuildActionBlocks();
+    }
+
     private void closeDictionaryFilesModal(boolean keepChanges) {
         dictionaryFilesModal.close(keepChanges);
         dictionaryFilesModalOpen = false;
@@ -1891,6 +1907,11 @@ public class ModConfigScreen extends Screen {
 
     private void closeResetConfirmModal() {
         resetConfirmModalOpen = false;
+    }
+
+    private void dismissResetConfirm() {
+        closeResetConfirmModal();
+        rebuildActionBlocks();
     }
 
     private void openUnsavedChangesConfirmModal() {
@@ -1903,194 +1924,9 @@ public class ModConfigScreen extends Screen {
         unsavedChangesConfirmModalOpen = false;
     }
 
-    private void addResetConfirmModal() {
-        UiRect modalRect = ConfigUiModalSupport.resetConfirmModalRect(this.width, this.height);
-        int buttonWidth = 92;
-        int buttonHeight = 20;
-        int buttonGap = 10;
-        int buttonY = modalRect.bottom() - 30;
-        int resetX = modalRect.right() - 16 - buttonWidth;
-        int cancelX = resetX - buttonGap - buttonWidth;
-
-        floatingActionBlockRegistry.add(
-                cancelX,
-                buttonY,
-                buttonWidth,
-                buttonHeight,
-                t("button.cancel"),
-                () -> {
-                    closeResetConfirmModal();
-                    rebuildActionBlocks();
-                },
-                COLOR_BLOCK,
-                COLOR_BLOCK_HOVER,
-                COLOR_TEXT,
-                true
-        );
-
-        floatingActionBlockRegistry.add(
-                resetX,
-                buttonY,
-                buttonWidth,
-                buttonHeight,
-                t("button.reset"),
-                this::applyResetToDefaults,
-                COLOR_BLOCK_DANGER,
-                COLOR_BLOCK_DANGER_HOVER,
-                COLOR_TEXT,
-                true
-        );
-    }
-
-    private void addUpdateNoticeModal() {
-        UiRect modalRect = ConfigUiModalSupport.updateNoticeModalRect(this.width, this.height);
-        int buttonWidth = 108;
-        int buttonHeight = 20;
-        int buttonGap = 10;
-        int buttonY = modalRect.bottom() - 30;
-        int openX = modalRect.right() - 16 - buttonWidth;
-        int cancelX = openX - buttonGap - buttonWidth;
-
-        floatingActionBlockRegistry.add(
-                cancelX,
-                buttonY,
-                buttonWidth,
-                buttonHeight,
-                t("button.cancel"),
-                () -> {
-                    closeUpdateNoticeModal();
-                    rebuildActionBlocks();
-                },
-                COLOR_BLOCK,
-                COLOR_BLOCK_HOVER,
-                COLOR_TEXT,
-                true
-        );
-
-        floatingActionBlockRegistry.add(
-                openX,
-                buttonY,
-                buttonWidth,
-                buttonHeight,
-                t("button.open_release"),
-                () -> {
-                    UpdateCheckManager.openLatestReleasePage();
-                    closeUpdateNoticeModal();
-                    rebuildActionBlocks();
-                },
-                COLOR_BLOCK_ACCENT,
-                COLOR_BLOCK_ACCENT_HOVER,
-                COLOR_TEXT,
-                true
-        );
-    }
-
-    private void addUnsavedChangesConfirmModal() {
-        UiRect modalRect = ConfigUiModalSupport.unsavedChangesConfirmModalRect(this.width, this.height);
-        int buttonWidth = 120;
-        int buttonHeight = 20;
-        int buttonGap = 8;
-        int buttonY = modalRect.bottom() - 30;
-        int cancelX = modalRect.right() - 16 - buttonWidth;
-        int discardX = cancelX - buttonGap - buttonWidth;
-        int saveX = discardX - buttonGap - buttonWidth;
-
-        floatingActionBlockRegistry.add(
-                saveX,
-                buttonY,
-                buttonWidth,
-                buttonHeight,
-                t("button.save_and_close"),
-                this::saveAndClose,
-                COLOR_BLOCK_ACCENT,
-                COLOR_BLOCK_ACCENT_HOVER,
-                COLOR_TEXT,
-                true
-        );
-
-        floatingActionBlockRegistry.add(
-                discardX,
-                buttonY,
-                buttonWidth,
-                buttonHeight,
-                t("button.close_without_saving"),
-                this::discardChangesAndClose,
-                COLOR_BLOCK_DANGER,
-                COLOR_BLOCK_DANGER_HOVER,
-                COLOR_TEXT,
-                true
-        );
-
-        floatingActionBlockRegistry.add(
-                cancelX,
-                buttonY,
-                buttonWidth,
-                buttonHeight,
-                t("button.cancel"),
-                () -> {
-                    closeUnsavedChangesConfirmModal();
-                    rebuildActionBlocks();
-                },
-                COLOR_BLOCK,
-                COLOR_BLOCK_HOVER,
-                COLOR_TEXT,
-                true
-        );
-    }
-
-    private void renderResetConfirmModalMessage(GuiGraphicsExtractor context) {
-        UiRect modalRect = ConfigUiModalSupport.resetConfirmModalRect(this.width, this.height);
-        int textX = modalRect.x + 16;
-        int textY = modalRect.y + 48;
-        int maxWidth = Math.max(10, modalRect.width - 32);
-        List<FormattedCharSequence> lines = this.font.split(t("modal.reset_confirm.message"), maxWidth);
-        int lineY = textY;
-        for (FormattedCharSequence line : lines) {
-            context.text(this.font, line, textX, lineY, COLOR_TEXT_MUTED, false);
-            lineY += this.font.lineHeight + 2;
-        }
-    }
-
-    private void renderUpdateNoticeModalMessage(GuiGraphicsExtractor context) {
-        UiRect modalRect = ConfigUiModalSupport.updateNoticeModalRect(this.width, this.height);
-        int textX = modalRect.x + 16;
-        int textY = modalRect.y + 48;
-        int maxWidth = Math.max(10, modalRect.width - 32);
-        List<FormattedCharSequence> lines = this.font.split(
-                t("modal.update_notice.message", UpdateCheckManager.latestVersion(), UpdateCheckManager.currentVersion()),
-                maxWidth
-        );
-        int lineY = textY;
-        for (FormattedCharSequence line : lines) {
-            context.text(this.font, line, textX, lineY, COLOR_TEXT_MUTED, false);
-            lineY += this.font.lineHeight + 2;
-        }
-    }
-
-    private void renderUnsavedChangesConfirmModalMessage(GuiGraphicsExtractor context) {
-        UiRect modalRect = ConfigUiModalSupport.unsavedChangesConfirmModalRect(this.width, this.height);
-        int textX = modalRect.x + 16;
-        int textY = modalRect.y + 48;
-        int maxWidth = Math.max(10, modalRect.width - 32);
-        List<FormattedCharSequence> lines = this.font.split(t("modal.unsaved_changes.message"), maxWidth);
-        int lineY = textY;
-        for (FormattedCharSequence line : lines) {
-            context.text(this.font, line, textX, lineY, COLOR_TEXT_MUTED, false);
-            lineY += this.font.lineHeight + 2;
-        }
-    }
-
-    private void renderWarningConfirmationMessage(GuiGraphicsExtractor context) {
-        UiRect rect = ConfigUiModalSupport.promptEditorWarningRect(this.width, this.height);
-        int textX = rect.x + 16;
-        int textY = rect.y + 48;
-        int maxWidth = Math.max(10, rect.width - 32);
-        List<FormattedCharSequence> lines = this.font.split(t("modal.prompt_editor_warning_message"), maxWidth);
-        int lineY = textY;
-        for (FormattedCharSequence line : lines) {
-            context.text(this.font, line, textX, lineY, COLOR_STATUS_ERROR, false);
-            lineY += this.font.lineHeight + 2;
-        }
+    private void dismissUnsavedChanges() {
+        closeUnsavedChangesConfirmModal();
+        rebuildActionBlocks();
     }
 
     private void applyResetToDefaults() {
@@ -2128,23 +1964,19 @@ public class ModConfigScreen extends Screen {
 
         switch (action) {
             case CLOSE_UPDATE_NOTICE -> {
-                closeUpdateNoticeModal();
-                rebuildActionBlocks();
+                dismissUpdateNotice();
                 return;
             }
             case CLOSE_RESET_CONFIRM -> {
-                closeResetConfirmModal();
-                rebuildActionBlocks();
+                dismissResetConfirm();
                 return;
             }
             case CLOSE_UNSAVED_CHANGES -> {
-                closeUnsavedChangesConfirmModal();
-                rebuildActionBlocks();
+                dismissUnsavedChanges();
                 return;
             }
             case CLOSE_PROMPT_EDITOR_WARNING -> {
-                closeWarningConfirmation();
-                rebuildActionBlocks();
+                dismissWarningConfirmation();
                 return;
             }
             case CLOSE_DICTIONARY_FILES -> {
@@ -2221,23 +2053,19 @@ public class ModConfigScreen extends Screen {
                 );
                 switch (action) {
                     case CLOSE_UPDATE_NOTICE -> {
-                        closeUpdateNoticeModal();
-                        rebuildActionBlocks();
+                        dismissUpdateNotice();
                         return true;
                     }
                     case CLOSE_RESET_CONFIRM -> {
-                        closeResetConfirmModal();
-                        rebuildActionBlocks();
+                        dismissResetConfirm();
                         return true;
                     }
                     case CLOSE_UNSAVED_CHANGES -> {
-                        closeUnsavedChangesConfirmModal();
-                        rebuildActionBlocks();
+                        dismissUnsavedChanges();
                         return true;
                     }
                     case CLOSE_PROMPT_EDITOR_WARNING -> {
-                        closeWarningConfirmation();
-                        rebuildActionBlocks();
+                        dismissWarningConfirmation();
                         return true;
                     }
                     case CLOSE_DICTIONARY_FILES -> {
@@ -2572,13 +2400,13 @@ public class ModConfigScreen extends Screen {
         );
 
         if (updateNoticeModalOpen) {
-            renderUpdateNoticeModalMessage(context);
+            ConfirmModalSupport.renderUpdateNoticeMessage(context, this.font, this.width, this.height, ModConfigScreen::t, CONFIRM_MODAL_STYLE);
         } else if (resetConfirmModalOpen) {
-            renderResetConfirmModalMessage(context);
+            ConfirmModalSupport.renderResetMessage(context, this.font, this.width, this.height, ModConfigScreen::t, CONFIRM_MODAL_STYLE);
         } else if (unsavedChangesConfirmModalOpen) {
-            renderUnsavedChangesConfirmModalMessage(context);
+            ConfirmModalSupport.renderUnsavedChangesMessage(context, this.font, this.width, this.height, ModConfigScreen::t, CONFIRM_MODAL_STYLE);
         } else if (isWarningConfirmationOpen()) {
-            renderWarningConfirmationMessage(context);
+            ConfirmModalSupport.renderWarningMessage(context, this.font, this.width, this.height, ModConfigScreen::t, CONFIRM_MODAL_STYLE);
         }
 
         if (modalOpen) {
@@ -2767,10 +2595,6 @@ public class ModConfigScreen extends Screen {
                 addModelTemperatureModal();
             }
         }
-    }
-
-    private enum WarningConfirmation {
-        PROMPT_EDITOR
     }
 
 }
