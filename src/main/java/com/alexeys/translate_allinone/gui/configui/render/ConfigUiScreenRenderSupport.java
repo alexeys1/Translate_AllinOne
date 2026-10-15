@@ -2,6 +2,8 @@ package com.alexeys.translate_allinone.gui.configui.render;
 
 import static com.alexeys.translate_allinone.gui.configui.render.ConfigUiDraw.drawOutline;
 
+import com.alexeys.translate_allinone.utils.config.ui.ConfigUiModalState;
+
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
@@ -45,15 +47,7 @@ public final class ConfigUiScreenRenderSupport {
             int screenWidth,
             int screenHeight,
             int topBarHeight,
-            boolean addProviderModalOpen,
-            boolean modelSettingsModalOpen,
-            boolean customParametersModalOpen,
-            boolean modelTemperatureModalOpen,
-            boolean dictionaryFilesModalOpen,
-            boolean resetConfirmModalOpen,
-            boolean updateNoticeModalOpen,
-            boolean unsavedChangesConfirmModalOpen,
-            boolean promptEditorWarningOpen,
+            ConfigUiModalState state,
             Component addProviderTitle,
             Component modelSettingsTitle,
             Component customParametersTitle,
@@ -65,22 +59,12 @@ public final class ConfigUiScreenRenderSupport {
             Component promptEditorWarningTitle,
             Style style
     ) {
-        if (!ConfigUiModalSupport.isAnyModalOpen(
-                addProviderModalOpen,
-                modelSettingsModalOpen,
-                customParametersModalOpen,
-                modelTemperatureModalOpen,
-                dictionaryFilesModalOpen,
-                resetConfirmModalOpen,
-                updateNoticeModalOpen,
-                unsavedChangesConfirmModalOpen,
-                promptEditorWarningOpen
-        )) {
+        if (!state.isAnyOpen()) {
             return;
         }
 
         context.fill(0, topBarHeight, screenWidth, screenHeight, style.colorModalOverlay());
-        if (updateNoticeModalOpen) {
+        if (state.updateNotice()) {
             ConfigUiModalSupport.renderModalShell(
                     context,
                     textRenderer,
@@ -90,7 +74,7 @@ public final class ConfigUiScreenRenderSupport {
                     style.colorBorder(),
                     style.colorText()
             );
-        } else if (resetConfirmModalOpen) {
+        } else if (state.resetConfirm()) {
             ConfigUiModalSupport.renderModalShell(
                     context,
                     textRenderer,
@@ -100,7 +84,7 @@ public final class ConfigUiScreenRenderSupport {
                     style.colorBorder(),
                     style.colorText()
             );
-        } else if (unsavedChangesConfirmModalOpen) {
+        } else if (state.unsavedChanges()) {
             ConfigUiModalSupport.renderModalShell(
                     context,
                     textRenderer,
@@ -110,7 +94,7 @@ public final class ConfigUiScreenRenderSupport {
                     style.colorBorder(),
                     style.colorText()
             );
-        } else if (promptEditorWarningOpen) {
+        } else if (state.promptEditorWarning()) {
             ConfigUiModalSupport.renderModalShell(
                     context,
                     textRenderer,
@@ -120,7 +104,7 @@ public final class ConfigUiScreenRenderSupport {
                     style.colorBorder(),
                     style.colorText()
             );
-        } else if (customParametersModalOpen) {
+        } else if (state.customParameters()) {
             ConfigUiModalSupport.renderModalShell(
                     context,
                     textRenderer,
@@ -130,7 +114,7 @@ public final class ConfigUiScreenRenderSupport {
                     style.colorBorder(),
                     style.colorText()
             );
-        } else if (modelTemperatureModalOpen) {
+        } else if (state.modelTemperature()) {
             ConfigUiModalSupport.renderModalShell(
                     context,
                     textRenderer,
@@ -140,7 +124,7 @@ public final class ConfigUiScreenRenderSupport {
                     style.colorBorder(),
                     style.colorText()
             );
-        } else if (dictionaryFilesModalOpen) {
+        } else if (state.dictionaryFiles()) {
             ConfigUiModalSupport.renderModalShell(
                     context,
                     textRenderer,
@@ -150,7 +134,7 @@ public final class ConfigUiScreenRenderSupport {
                     style.colorBorder(),
                     style.colorText()
             );
-        } else if (addProviderModalOpen) {
+        } else if (state.addProvider()) {
             ConfigUiModalSupport.renderModalShell(
                     context,
                     textRenderer,
@@ -160,7 +144,7 @@ public final class ConfigUiScreenRenderSupport {
                     style.colorBorder(),
                     style.colorText()
             );
-        } else if (modelSettingsModalOpen) {
+        } else if (state.modelSettings()) {
             ConfigUiModalSupport.renderModalShell(
                     context,
                     textRenderer,

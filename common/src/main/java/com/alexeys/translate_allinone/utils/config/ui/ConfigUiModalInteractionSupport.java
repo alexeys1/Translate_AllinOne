@@ -4,83 +4,63 @@ public final class ConfigUiModalInteractionSupport {
     private ConfigUiModalInteractionSupport() {
     }
 
-    public static ModalCloseAction outsideModalClickAction(
-            boolean addProviderModalOpen,
-            boolean modelSettingsModalOpen,
-            boolean customParametersModalOpen,
-            boolean modelTemperatureModalOpen,
-            boolean dictionaryFilesModalOpen,
-            boolean resetConfirmModalOpen,
-            boolean updateNoticeModalOpen,
-            boolean unsavedChangesConfirmModalOpen,
-            boolean promptEditorWarningOpen
-    ) {
-        if (updateNoticeModalOpen) {
+    public static ModalCloseAction outsideModalClickAction(ConfigUiModalState state) {
+        if (state.updateNotice()) {
             return ModalCloseAction.CLOSE_UPDATE_NOTICE;
         }
-        if (resetConfirmModalOpen) {
+        if (state.resetConfirm()) {
             return ModalCloseAction.CLOSE_RESET_CONFIRM;
         }
-        if (unsavedChangesConfirmModalOpen) {
+        if (state.unsavedChanges()) {
             return ModalCloseAction.CLOSE_UNSAVED_CHANGES;
         }
-        if (dictionaryFilesModalOpen) {
+        if (state.dictionaryFiles()) {
             return ModalCloseAction.CLOSE_DICTIONARY_FILES;
         }
-        if (promptEditorWarningOpen) {
+        if (state.promptEditorWarning()) {
             return ModalCloseAction.CLOSE_PROMPT_EDITOR_WARNING;
         }
-        if (customParametersModalOpen) {
+        if (state.customParameters()) {
             return ModalCloseAction.CLOSE_CUSTOM_PARAMETERS;
         }
-        if (modelTemperatureModalOpen) {
+        if (state.modelTemperature()) {
             return ModalCloseAction.CLOSE_MODEL_TEMPERATURES;
         }
-        if (addProviderModalOpen) {
+        if (state.addProvider()) {
             return ModalCloseAction.CLOSE_ADD_PROVIDER;
         }
-        if (modelSettingsModalOpen) {
+        if (state.modelSettings()) {
             return ModalCloseAction.CLOSE_MODEL_SETTINGS;
         }
         return ModalCloseAction.NONE;
     }
 
-    public static ModalCloseAction closeByPriority(
-            boolean addProviderModalOpen,
-            boolean modelSettingsModalOpen,
-            boolean customParametersModalOpen,
-            boolean modelTemperatureModalOpen,
-            boolean dictionaryFilesModalOpen,
-            boolean resetConfirmModalOpen,
-            boolean updateNoticeModalOpen,
-            boolean unsavedChangesConfirmModalOpen,
-            boolean promptEditorWarningOpen
-    ) {
-        if (updateNoticeModalOpen) {
+    public static ModalCloseAction closeByPriority(ConfigUiModalState state) {
+        if (state.updateNotice()) {
             return ModalCloseAction.CLOSE_UPDATE_NOTICE;
         }
-        if (resetConfirmModalOpen) {
+        if (state.resetConfirm()) {
             return ModalCloseAction.CLOSE_RESET_CONFIRM;
         }
-        if (unsavedChangesConfirmModalOpen) {
+        if (state.unsavedChanges()) {
             return ModalCloseAction.CLOSE_UNSAVED_CHANGES;
         }
-        if (dictionaryFilesModalOpen) {
+        if (state.dictionaryFiles()) {
             return ModalCloseAction.CLOSE_DICTIONARY_FILES;
         }
-        if (promptEditorWarningOpen) {
+        if (state.promptEditorWarning()) {
             return ModalCloseAction.CLOSE_PROMPT_EDITOR_WARNING;
         }
-        if (addProviderModalOpen) {
+        if (state.addProvider()) {
             return ModalCloseAction.CLOSE_ADD_PROVIDER;
         }
-        if (modelTemperatureModalOpen) {
+        if (state.modelTemperature()) {
             return ModalCloseAction.CLOSE_MODEL_TEMPERATURES;
         }
-        if (customParametersModalOpen) {
+        if (state.customParameters()) {
             return ModalCloseAction.CLOSE_CUSTOM_PARAMETERS;
         }
-        if (modelSettingsModalOpen) {
+        if (state.modelSettings()) {
             return ModalCloseAction.CLOSE_MODEL_SETTINGS;
         }
         return ModalCloseAction.NONE;

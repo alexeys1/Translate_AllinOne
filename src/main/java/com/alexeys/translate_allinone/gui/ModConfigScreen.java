@@ -12,6 +12,7 @@ import com.alexeys.translate_allinone.gui.configui.controls.StaticTextRow;
 import com.alexeys.translate_allinone.gui.configui.interaction.ConfigUiInteractionSupport;
 import com.alexeys.translate_allinone.utils.config.ui.ConfigUiModalInteractionSupport;
 import com.alexeys.translate_allinone.utils.config.ui.ConfigSection;
+import com.alexeys.translate_allinone.utils.config.ui.ConfigUiModalState;
 import com.alexeys.translate_allinone.utils.config.ui.FocusTarget;
 import com.alexeys.translate_allinone.utils.config.ui.RouteSlot;
 import com.alexeys.translate_allinone.utils.config.ui.UiRect;
@@ -489,8 +490,8 @@ public class ModConfigScreen extends Screen {
         return !originalConfigSnapshotJson.equals(CONFIG_STATE_GSON.toJson(ConfigManager.copyCurrentConfig()));
     }
 
-    private boolean isAnyModalOpen() {
-        return ConfigUiModalSupport.isAnyModalOpen(
+    private ConfigUiModalState modalState() {
+        return new ConfigUiModalState(
                 addProviderModalOpen,
                 modelSettingsModalOpen,
                 customParametersModalOpen,
@@ -503,21 +504,17 @@ public class ModConfigScreen extends Screen {
         );
     }
 
+    private boolean isAnyModalOpen() {
+        return modalState().isAnyOpen();
+    }
+
     private boolean isInsideOpenModal(double mouseX, double mouseY) {
         return ConfigUiModalSupport.isInsideOpenModal(
                 mouseX,
                 mouseY,
                 this.width,
                 this.height,
-                addProviderModalOpen,
-                modelSettingsModalOpen,
-                customParametersModalOpen,
-                modelTemperatureModalOpen,
-                dictionaryFilesModalOpen,
-                resetConfirmModalOpen,
-                updateNoticeModalOpen,
-                unsavedChangesConfirmModalOpen,
-                isWarningConfirmationOpen()
+                modalState()
         );
     }
 
@@ -1771,17 +1768,8 @@ public class ModConfigScreen extends Screen {
     public void onClose() {
         hotkeyBindingEdit.clearCaptureTarget();
         contentScroll.stopScrollDrag();
-        ConfigUiModalInteractionSupport.ModalCloseAction action = ConfigUiModalInteractionSupport.closeByPriority(
-                addProviderModalOpen,
-                modelSettingsModalOpen,
-                customParametersModalOpen,
-                modelTemperatureModalOpen,
-                dictionaryFilesModalOpen,
-                resetConfirmModalOpen,
-                updateNoticeModalOpen,
-                unsavedChangesConfirmModalOpen,
-                isWarningConfirmationOpen()
-        );
+        ConfigUiModalInteractionSupport.ModalCloseAction action =
+                ConfigUiModalInteractionSupport.closeByPriority(modalState());
 
         switch (action) {
             case CLOSE_UPDATE_NOTICE -> {
@@ -1861,17 +1849,8 @@ public class ModConfigScreen extends Screen {
                 return true;
             }
             if (!isInsideOpenModal(mouseX, mouseY)) {
-                ConfigUiModalInteractionSupport.ModalCloseAction action = ConfigUiModalInteractionSupport.outsideModalClickAction(
-                        addProviderModalOpen,
-                        modelSettingsModalOpen,
-                        customParametersModalOpen,
-                        modelTemperatureModalOpen,
-                        dictionaryFilesModalOpen,
-                        resetConfirmModalOpen,
-                        updateNoticeModalOpen,
-                        unsavedChangesConfirmModalOpen,
-                        isWarningConfirmationOpen()
-                );
+                ConfigUiModalInteractionSupport.ModalCloseAction action =
+                        ConfigUiModalInteractionSupport.outsideModalClickAction(modalState());
                 switch (action) {
                     case CLOSE_UPDATE_NOTICE -> {
                         dismissUpdateNotice();
@@ -2151,15 +2130,7 @@ public class ModConfigScreen extends Screen {
                 this.width,
                 this.height,
                 TOP_BAR_HEIGHT,
-                addProviderModalOpen,
-                modelSettingsModalOpen,
-                customParametersModalOpen,
-                modelTemperatureModalOpen,
-                dictionaryFilesModalOpen,
-                resetConfirmModalOpen,
-                updateNoticeModalOpen,
-                unsavedChangesConfirmModalOpen,
-                isWarningConfirmationOpen(),
+                modalState(),
                 t("modal.add_provider.title"),
                 t("modal.model.title"),
                 t("custom_params.title"),

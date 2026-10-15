@@ -1,5 +1,6 @@
 package com.alexeys.translate_allinone.gui.configui.render;
 
+import com.alexeys.translate_allinone.utils.config.ui.ConfigUiModalState;
 import com.alexeys.translate_allinone.utils.config.ui.UiRect;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -11,68 +12,38 @@ public final class ConfigUiModalSupport {
     private ConfigUiModalSupport() {
     }
 
-    public static boolean isAnyModalOpen(
-            boolean addProviderModalOpen,
-            boolean modelSettingsModalOpen,
-            boolean customParametersModalOpen,
-            boolean modelTemperatureModalOpen,
-            boolean dictionaryFilesModalOpen,
-            boolean resetConfirmModalOpen,
-            boolean updateNoticeModalOpen,
-            boolean unsavedChangesConfirmModalOpen,
-            boolean promptEditorWarningOpen
-    ) {
-        return addProviderModalOpen
-                || modelSettingsModalOpen
-                || customParametersModalOpen
-                || modelTemperatureModalOpen
-                || dictionaryFilesModalOpen
-                || resetConfirmModalOpen
-                || updateNoticeModalOpen
-                || unsavedChangesConfirmModalOpen
-                || promptEditorWarningOpen;
-    }
-
     public static boolean isInsideOpenModal(
             double x,
             double y,
             int screenWidth,
             int screenHeight,
-            boolean addProviderModalOpen,
-            boolean modelSettingsModalOpen,
-            boolean customParametersModalOpen,
-            boolean modelTemperatureModalOpen,
-            boolean dictionaryFilesModalOpen,
-            boolean resetConfirmModalOpen,
-            boolean updateNoticeModalOpen,
-            boolean unsavedChangesConfirmModalOpen,
-            boolean promptEditorWarningOpen
+            ConfigUiModalState state
     ) {
-        if (updateNoticeModalOpen && updateNoticeModalRect(screenWidth, screenHeight).contains(x, y)) {
+        if (state.updateNotice() && updateNoticeModalRect(screenWidth, screenHeight).contains(x, y)) {
             return true;
         }
-        if (resetConfirmModalOpen && resetConfirmModalRect(screenWidth, screenHeight).contains(x, y)) {
+        if (state.resetConfirm() && resetConfirmModalRect(screenWidth, screenHeight).contains(x, y)) {
             return true;
         }
-        if (unsavedChangesConfirmModalOpen && unsavedChangesConfirmModalRect(screenWidth, screenHeight).contains(x, y)) {
+        if (state.unsavedChanges() && unsavedChangesConfirmModalRect(screenWidth, screenHeight).contains(x, y)) {
             return true;
         }
-        if (customParametersModalOpen && customParametersModalRect(screenWidth, screenHeight).contains(x, y)) {
+        if (state.customParameters() && customParametersModalRect(screenWidth, screenHeight).contains(x, y)) {
             return true;
         }
-        if (modelTemperatureModalOpen && modelTemperatureModalRect(screenWidth, screenHeight).contains(x, y)) {
+        if (state.modelTemperature() && modelTemperatureModalRect(screenWidth, screenHeight).contains(x, y)) {
             return true;
         }
-        if (dictionaryFilesModalOpen && dictionaryFilesModalRect(screenWidth, screenHeight).contains(x, y)) {
+        if (state.dictionaryFiles() && dictionaryFilesModalRect(screenWidth, screenHeight).contains(x, y)) {
             return true;
         }
-        if (addProviderModalOpen && addProviderModalRect(screenWidth, screenHeight).contains(x, y)) {
+        if (state.addProvider() && addProviderModalRect(screenWidth, screenHeight).contains(x, y)) {
             return true;
         }
-        if (promptEditorWarningOpen && promptEditorWarningRect(screenWidth, screenHeight).contains(x, y)) {
+        if (state.promptEditorWarning() && promptEditorWarningRect(screenWidth, screenHeight).contains(x, y)) {
             return true;
         }
-        return modelSettingsModalOpen && modelSettingsModalRect(screenWidth, screenHeight).contains(x, y);
+        return state.modelSettings() && modelSettingsModalRect(screenWidth, screenHeight).contains(x, y);
     }
 
     public static UiRect addProviderModalRect(int screenWidth, int screenHeight) {
