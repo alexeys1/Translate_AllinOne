@@ -4,6 +4,7 @@ import com.alexeys.translate_allinone.gui.configui.model.RouteModelOption;
 import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.ActionBlockAdder;
 import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.Translator;
 import com.alexeys.translate_allinone.utils.config.ui.RouteSlot;
+import com.alexeys.translate_allinone.utils.config.ui.UiRect;
 import com.alexeys.translate_allinone.utils.config.pojos.ProviderManagerConfig;
 import java.util.List;
 import net.minecraft.network.chat.Component;
@@ -16,18 +17,17 @@ public final class RouteModelSelectorSectionSupport {
     private RouteModelSelectorSectionSupport() {
     }
 
-    public static void render(
+    public static void addSelector(
             ProviderManagerConfig manager,
             RouteSlot routeSlot,
             int x,
             int y,
             int width,
-            int dropdownMinY,
-            int dropdownMaxY,
+            UiRect dropdownBounds,
             boolean dropdownOpen,
             Translator translator,
             ActionBlockAdder actionBlockAdder,
-            ActionBlockAdder ActionBlockAdder,
+            ActionBlockAdder floatingActionBlockAdder,
             Runnable onToggleDropdown,
             RouteSelectionHandler onSelected,
             Style style
@@ -65,16 +65,16 @@ public final class RouteModelSelectorSectionSupport {
         int dropdownHeight = dropdownHeight(options.size());
         int belowTop = y + OPTION_STEP;
         int aboveTop = y - dropdownHeight - OPTION_GAP;
-        int availableBelow = Math.max(0, dropdownMaxY - belowTop);
-        int availableAbove = Math.max(0, (y - OPTION_GAP) - dropdownMinY);
+        int availableBelow = Math.max(0, dropdownBounds.bottom() - belowTop);
+        int availableAbove = Math.max(0, (y - OPTION_GAP) - dropdownBounds.y);
         boolean openUpward = dropdownHeight > availableBelow && availableAbove > availableBelow;
-        int optionY = clampDropdownTop(openUpward ? aboveTop : belowTop, dropdownHeight, dropdownMinY, dropdownMaxY);
+        int optionY = clampDropdownTop(openUpward ? aboveTop : belowTop, dropdownHeight, dropdownBounds.y, dropdownBounds.bottom());
         for (RouteModelOption option : options) {
             boolean selected = option.routeKey().equals(selectedRouteKey == null ? "" : selectedRouteKey);
             int color = selected ? style.colorBlockAccent() : style.colorBlock();
             int hoverColor = selected ? style.colorBlockAccentHover() : style.colorBlockHover();
             int textColor = selected ? style.colorTextAccent() : style.colorText();
-            ActionBlockAdder.add(
+            floatingActionBlockAdder.add(
                     dropdownX,
                     optionY,
                     dropdownWidth,

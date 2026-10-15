@@ -1,7 +1,7 @@
 package com.alexeys.translate_allinone.gui.configui.support;
 
 import com.alexeys.translate_allinone.Translate_AllinOne;
-import com.alexeys.translate_allinone.gui.configui.sections.ConfigSectionContentSupport.HotkeyTarget;
+import com.alexeys.translate_allinone.gui.configui.model.HotkeyTarget;
 import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.StatusSetter;
 import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.Translator;
 import com.alexeys.translate_allinone.utils.config.ModConfig;

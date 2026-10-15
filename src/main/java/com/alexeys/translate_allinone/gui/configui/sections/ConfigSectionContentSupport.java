@@ -1,5 +1,6 @@
 package com.alexeys.translate_allinone.gui.configui.sections;
 
+import com.alexeys.translate_allinone.gui.configui.model.HotkeyTarget;
 import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.GroupBoxAdder;
 import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.ToggleAdder;
 import com.alexeys.translate_allinone.gui.configui.support.ConfigUiRuntimeSupport.Translator;
@@ -1543,17 +1544,5 @@ public final class ConfigSectionContentSupport {
         public String nameKey() {
             return nameKey;
         }
-    }
-
-    public enum HotkeyTarget {
-        CHAT_INPUT,
-        ITEM,
-        ITEM_REFRESH,
-        SCOREBOARD,
-        SCOREBOARD_REFRESH,
-        OTHER_TRANSLATIONS,
-        OTHER_TRANSLATIONS_REFRESH,
-        WYNNTILS_TASK_TRACKER,
-        WYNNTILS_TASK_TRACKER_REFRESH
     }
 }

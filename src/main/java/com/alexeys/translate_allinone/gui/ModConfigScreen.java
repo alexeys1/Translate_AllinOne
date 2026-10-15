@@ -765,14 +765,13 @@ public class ModConfigScreen extends Screen {
     }
 
     private void addRouteModelSelector(ProviderManagerConfig manager, RouteSlot routeSlot, int x, int y, int width) {
-        RouteModelSelectorSectionSupport.render(
+        RouteModelSelectorSectionSupport.addSelector(
                 manager,
                 routeSlot,
                 x,
                 y,
                 width,
-                contentScroll.viewport().y,
-                contentScroll.viewport().bottom(),
+                contentScroll.viewport(),
                 routeDropdownSlot == routeSlot,
                 ModConfigScreen::t,
                 contentActionBlockRegistry::add,
