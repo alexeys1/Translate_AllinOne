@@ -11,6 +11,7 @@ import java.nio.file.Path;
 public final class ConfigScreenStateSupport {
     private static final Gson STATE_GSON = new Gson();
     private static final String SCREEN_STATE_FILE_NAME = "config_screen_state.json";
+    private static final ConfigSection DEFAULT_SECTION = ConfigSection.PROVIDERS;
 
     private ConfigScreenStateSupport() {
     }
@@ -19,17 +20,17 @@ public final class ConfigScreenStateSupport {
         try {
             Path statePath = resolveScreenStatePath();
             if (!Files.exists(statePath)) {
-                return ConfigSection.CHAT_OUTPUT;
+                return DEFAULT_SECTION;
             }
 
             PersistedScreenState state = STATE_GSON.fromJson(Files.readString(statePath), PersistedScreenState.class);
             if (state == null) {
-                return ConfigSection.CHAT_OUTPUT;
+                return DEFAULT_SECTION;
             }
             return resolveSectionByKey(state.selectedSectionKey());
         } catch (Exception e) {
             Translate_AllinOne.LOGGER.warn("Failed to load config screen state", e);
-            return ConfigSection.CHAT_OUTPUT;
+            return DEFAULT_SECTION;
         }
     }
 
@@ -55,7 +56,7 @@ public final class ConfigScreenStateSupport {
             if (parent != null) {
                 Files.createDirectories(parent);
             }
-            ConfigSection section = selectedSection == null ? ConfigSection.CHAT_OUTPUT : selectedSection;
+            ConfigSection section = selectedSection == null ? DEFAULT_SECTION : selectedSection;
             Files.writeString(statePath, STATE_GSON.toJson(new PersistedScreenState(section.key(), setupCompleted)));
         } catch (Exception e) {
             Translate_AllinOne.LOGGER.warn("Failed to persist config screen state", e);
@@ -68,7 +69,7 @@ public final class ConfigScreenStateSupport {
 
     private static ConfigSection resolveSectionByKey(String key) {
         if (key == null || key.isBlank()) {
-            return ConfigSection.CHAT_OUTPUT;
+            return DEFAULT_SECTION;
         }
 
         for (ConfigSection section : ConfigSection.values()) {
@@ -76,7 +77,7 @@ public final class ConfigScreenStateSupport {
                 return section;
             }
         }
-        return ConfigSection.CHAT_OUTPUT;
+        return DEFAULT_SECTION;
     }
 
     private record PersistedScreenState(String selectedSectionKey, Boolean setupCompleted) {

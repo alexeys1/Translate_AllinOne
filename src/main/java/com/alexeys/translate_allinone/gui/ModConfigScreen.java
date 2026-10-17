@@ -824,7 +824,7 @@ public class ModConfigScreen extends Screen {
                 return section;
             }
         }
-        return ConfigSection.CHAT_OUTPUT;
+        return ConfigSection.PROVIDERS;
     }
 
     private boolean isSectionVisible(ConfigSection section) {
