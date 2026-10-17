@@ -9,7 +9,8 @@ public record ConfigUiModalState(
         boolean resetConfirm,
         boolean updateNotice,
         boolean unsavedChanges,
-        boolean promptEditorWarning
+        boolean promptEditorWarning,
+        boolean setupWizard
 ) {
     public boolean isAnyOpen() {
         return addProvider
@@ -20,6 +21,7 @@ public record ConfigUiModalState(
                 || resetConfirm
                 || updateNotice
                 || unsavedChanges
-                || promptEditorWarning;
+                || promptEditorWarning
+                || setupWizard;
     }
 }

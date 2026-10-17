@@ -19,6 +19,9 @@ public final class ProviderManagerSectionSupport {
     private static final int COLUMN_GAP = 16;
     private static final int STACKED_SECTION_GAP = 34;
     private static final int MIN_CONTENT_HEIGHT = 24;
+    private static final int GLOBAL_ROW_HEIGHT = 20;
+    private static final int GLOBAL_ROW_STEP = 24;
+    private static final int GLOBAL_ACTION_WIDTH = 200;
     private static final int GROUP_PADDING_TOP = 18;
     private static final int GROUP_PADDING_BOTTOM = 8;
     private static final int GROUP_PADDING_SIDE = 6;
@@ -60,7 +63,8 @@ public final class ProviderManagerSectionSupport {
             BiConsumer<ApiProviderProfile, String> onRemoveModel,
             Consumer<ApiProviderProfile> onAddModel,
             Consumer<ApiProviderProfile> onOpenPromptEditor,
-            Consumer<Boolean> onToggleTranslationEnabled
+            Consumer<Boolean> onToggleTranslationEnabled,
+            Runnable onRerunSetupWizard
     ) {
         int workspaceHeight = Math.max(120, viewportHeight - 12);
         int contentY = y + CONTENT_TOP_INSET;
@@ -84,9 +88,22 @@ public final class ProviderManagerSectionSupport {
                 x,
                 width,
                 globalTranslationStartY,
-                globalTranslationStartY + MIN_CONTENT_HEIGHT
+                globalTranslationStartY + MIN_CONTENT_HEIGHT + GLOBAL_ROW_STEP
         );
-        contentY = globalTranslationStartY + MIN_CONTENT_HEIGHT + STACKED_SECTION_GAP;
+        listActionBlockAdder.add(
+                x,
+                globalTranslationStartY + MIN_CONTENT_HEIGHT,
+                GLOBAL_ACTION_WIDTH,
+                GLOBAL_ROW_HEIGHT,
+                () -> translator.t("setup.button.rerun"),
+                onRerunSetupWizard,
+                providerListStyle.colorBlock(),
+                providerListStyle.colorBlockHover(),
+                providerListStyle.colorText(),
+                true,
+                translator.t("setup.button.rerun.tooltip")
+        );
+        contentY = globalTranslationStartY + MIN_CONTENT_HEIGHT + GLOBAL_ROW_STEP + STACKED_SECTION_GAP;
 
         ProviderProfileSupport.SelectedProvider selected = ProviderProfileSupport.resolveSelectedProvider(
                 providerManager,

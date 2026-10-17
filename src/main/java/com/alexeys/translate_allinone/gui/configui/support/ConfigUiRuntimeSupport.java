@@ -46,24 +46,41 @@ public final class ConfigUiRuntimeSupport {
             int errorColor,
             Consumer<Runnable> uiThreadExecutor
     ) {
+        testProviderConnection(profile, translator, statusSetter, okColor, errorColor, uiThreadExecutor, success -> {
+        });
+    }
+
+    public static void testProviderConnection(
+            ApiProviderProfile profile,
+            Translator translator,
+            StatusSetter statusSetter,
+            int okColor,
+            int errorColor,
+            Consumer<Runnable> uiThreadExecutor,
+            Consumer<Boolean> onResult
+    ) {
         statusSetter.set(translator.t("status.testing_provider", profile.name), okColor);
         ProviderConnectionTester.test(profile).whenComplete((result, throwable) -> {
             Runnable updateStatus = () -> {
                 if (throwable != null) {
                     String reason = throwable.getMessage() == null ? "request failed" : throwable.getMessage();
                     statusSetter.set(translator.t("status.test_failed", profile.name, reason), errorColor);
+                    onResult.accept(false);
                     return;
                 }
 
                 if (result == null) {
                     statusSetter.set(translator.t("status.test_failed", profile.name, "null result"), errorColor);
+                    onResult.accept(false);
                     return;
                 }
 
                 if (result.success()) {
                     statusSetter.set(translator.t("status.test_success", profile.name, result.detail()), okColor);
+                    onResult.accept(true);
                 } else {
                     statusSetter.set(translator.t("status.test_failed", profile.name, result.detail()), errorColor);
+                    onResult.accept(false);
                 }
             };
 

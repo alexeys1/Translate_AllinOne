@@ -5,6 +5,9 @@ public final class ConfigUiModalInteractionSupport {
     }
 
     public static ModalCloseAction outsideModalClickAction(ConfigUiModalState state) {
+        if (state.setupWizard()) {
+            return ModalCloseAction.NONE;
+        }
         if (state.updateNotice()) {
             return ModalCloseAction.CLOSE_UPDATE_NOTICE;
         }
@@ -36,6 +39,9 @@ public final class ConfigUiModalInteractionSupport {
     }
 
     public static ModalCloseAction closeByPriority(ConfigUiModalState state) {
+        if (state.setupWizard()) {
+            return ModalCloseAction.SKIP_SETUP_WIZARD;
+        }
         if (state.updateNotice()) {
             return ModalCloseAction.CLOSE_UPDATE_NOTICE;
         }
@@ -68,6 +74,7 @@ public final class ConfigUiModalInteractionSupport {
 
     public enum ModalCloseAction {
         NONE,
+        SKIP_SETUP_WIZARD,
         CLOSE_UPDATE_NOTICE,
         CLOSE_RESET_CONFIRM,
         CLOSE_UNSAVED_CHANGES,

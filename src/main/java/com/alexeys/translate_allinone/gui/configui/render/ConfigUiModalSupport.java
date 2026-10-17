@@ -19,6 +19,9 @@ public final class ConfigUiModalSupport {
             int screenHeight,
             ConfigUiModalState state
     ) {
+        if (state.setupWizard() && setupWizardModalRect(screenWidth, screenHeight).contains(x, y)) {
+            return true;
+        }
         if (state.updateNotice() && updateNoticeModalRect(screenWidth, screenHeight).contains(x, y)) {
             return true;
         }
@@ -44,6 +47,14 @@ public final class ConfigUiModalSupport {
             return true;
         }
         return state.modelSettings() && modelSettingsModalRect(screenWidth, screenHeight).contains(x, y);
+    }
+
+    public static UiRect setupWizardModalRect(int screenWidth, int screenHeight) {
+        int width = Math.min(620, screenWidth - 40);
+        int height = Math.min(380, screenHeight - 60);
+        int x = (screenWidth - width) / 2;
+        int y = (screenHeight - height) / 2;
+        return new UiRect(x, y, width, height);
     }
 
     public static UiRect addProviderModalRect(int screenWidth, int screenHeight) {
@@ -106,8 +117,7 @@ public final class ConfigUiModalSupport {
         return new UiRect(x, y, width, height);
     }
 
-    public static UiRect promptEditorWarningRect(int screenWidth, int screenHeight) {
-        int width = 480;
+    public static UiRect promptEditorWarningRect(int screenWidth, int screenHeight) {        int width = 480;
         int height = 170;
         int x = (screenWidth - width) / 2;
         int y = (screenHeight - height) / 2;

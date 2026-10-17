@@ -26,6 +26,12 @@ public final class OpenConfigCommand {
         return 1;
     }
 
+    public static int runSetup(CommandContext<FabricClientCommandSource> context) {
+        Minecraft client = Minecraft.getInstance();
+        client.execute(() -> MinecraftScreens.INSTANCE.open(new ModConfigScreen(null, true)));
+        return 1;
+    }
+
     public static int runPromptEditor(CommandContext<FabricClientCommandSource> context) {
         String providerId = StringArgumentType.getString(context, "providerId");
         Minecraft client = Minecraft.getInstance();

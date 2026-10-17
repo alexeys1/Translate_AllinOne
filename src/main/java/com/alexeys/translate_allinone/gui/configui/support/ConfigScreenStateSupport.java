@@ -33,7 +33,22 @@ public final class ConfigScreenStateSupport {
         }
     }
 
-    public static void persistScreenState(ConfigSection selectedSection) {
+    public static boolean loadSetupCompleted() {
+        try {
+            Path statePath = resolveScreenStatePath();
+            if (!Files.exists(statePath)) {
+                return false;
+            }
+
+            PersistedScreenState state = STATE_GSON.fromJson(Files.readString(statePath), PersistedScreenState.class);
+            return state != null && Boolean.TRUE.equals(state.setupCompleted());
+        } catch (Exception e) {
+            Translate_AllinOne.LOGGER.warn("Failed to load config screen state", e);
+            return false;
+        }
+    }
+
+    public static void persistScreenState(ConfigSection selectedSection, boolean setupCompleted) {
         try {
             Path statePath = resolveScreenStatePath();
             Path parent = statePath.getParent();
@@ -41,7 +56,7 @@ public final class ConfigScreenStateSupport {
                 Files.createDirectories(parent);
             }
             ConfigSection section = selectedSection == null ? ConfigSection.CHAT_OUTPUT : selectedSection;
-            Files.writeString(statePath, STATE_GSON.toJson(new PersistedScreenState(section.key())));
+            Files.writeString(statePath, STATE_GSON.toJson(new PersistedScreenState(section.key(), setupCompleted)));
         } catch (Exception e) {
             Translate_AllinOne.LOGGER.warn("Failed to persist config screen state", e);
         }
@@ -64,6 +79,6 @@ public final class ConfigScreenStateSupport {
         return ConfigSection.CHAT_OUTPUT;
     }
 
-    private record PersistedScreenState(String selectedSectionKey) {
+    private record PersistedScreenState(String selectedSectionKey, Boolean setupCompleted) {
     }
 }

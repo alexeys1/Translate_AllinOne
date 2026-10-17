@@ -10,6 +10,7 @@ import com.alexeys.translate_allinone.gui.configui.controls.GroupBox;
 import com.alexeys.translate_allinone.gui.configui.controls.IntSliderBlock;
 import com.alexeys.translate_allinone.gui.configui.controls.StaticTextRow;
 import com.alexeys.translate_allinone.gui.configui.interaction.ConfigUiInteractionSupport;
+import com.alexeys.translate_allinone.gui.configui.model.HotkeyTarget;
 import com.alexeys.translate_allinone.utils.config.ui.ConfigUiModalInteractionSupport;
 import com.alexeys.translate_allinone.utils.config.ui.ConfigSection;
 import com.alexeys.translate_allinone.utils.config.ui.ConfigUiModalState;
@@ -33,6 +34,7 @@ import com.alexeys.translate_allinone.gui.configui.sections.ProviderListSectionS
 import com.alexeys.translate_allinone.gui.configui.sections.ProviderManagerActionsSupport;
 import com.alexeys.translate_allinone.gui.configui.sections.RouteModelSectionSupport;
 import com.alexeys.translate_allinone.gui.configui.sections.RouteModelSelectorSectionSupport;
+import com.alexeys.translate_allinone.gui.configui.setup.SetupWizardModalSupport;
 import com.alexeys.translate_allinone.gui.configui.support.ConfigContentScrollSupport;
 import com.alexeys.translate_allinone.gui.configui.support.ConfigScreenStateSupport;
 import com.alexeys.translate_allinone.gui.configui.support.ConfigUiFocusSupport;
@@ -47,6 +49,7 @@ import com.alexeys.translate_allinone.gui.configui.support.ModelSettingsMutation
 import com.alexeys.translate_allinone.utils.config.ui.ModelSettingsValueSupport;
 import com.alexeys.translate_allinone.utils.config.ui.ProviderManagerMutationSupport;
 import com.alexeys.translate_allinone.utils.config.ui.ProviderProfileSupport;
+import com.alexeys.translate_allinone.utils.config.ui.SetupWizardSupport;
 import com.alexeys.translate_allinone.utils.cache.CacheBackupManager;
 import com.alexeys.translate_allinone.utils.componentjson.ComponentTranslationDebugLogger;
 import com.alexeys.translate_allinone.utils.config.ModConfig;
@@ -112,6 +115,7 @@ public class ModConfigScreen extends Screen {
     private static final int COLOR_TEXT_LINK_HOVER = 0xFF9CF0C0;
     private static final int COLOR_STATUS_OK = 0xFF59D185;
     private static final int COLOR_STATUS_ERROR = 0xFFFF6A6A;
+    private static final int COLOR_STATUS_WARNING = 0xFFFFC061;
     private static final int COLOR_MODAL_OVERLAY = 0x98000000;
     private static final int COLOR_SLIDER_TRACK = 0xFF0E0E0E;
     private static final int COLOR_SLIDER_FILL = 0xFF276749;
@@ -281,6 +285,23 @@ public class ModConfigScreen extends Screen {
             COLOR_BLOCK_DANGER,
             COLOR_BLOCK_DANGER_HOVER
     );
+    private static final SetupWizardModalSupport.Style SETUP_WIZARD_STYLE = new SetupWizardModalSupport.Style(
+            COLOR_BLOCK,
+            COLOR_BLOCK_MUTED,
+            COLOR_BLOCK_HOVER,
+            COLOR_BLOCK_DANGER,
+            COLOR_BLOCK_DANGER_HOVER,
+            COLOR_BLOCK_ACCENT,
+            COLOR_BLOCK_ACCENT_HOVER,
+            COLOR_TEXT,
+            COLOR_TEXT_MUTED,
+            COLOR_TEXT_ACCENT,
+            COLOR_STATUS_OK,
+            COLOR_STATUS_ERROR,
+            COLOR_STATUS_WARNING,
+            COLOR_SLIDER_TRACK,
+            COLOR_SLIDER_FILL
+    );
 
     private static final int TOP_BAR_HEIGHT = 40;
     private static final int LEFT_PANEL_WIDTH = 200;
@@ -290,13 +311,15 @@ public class ModConfigScreen extends Screen {
     private static final int TOP_BAR_LINK_GAP = 16;
 
     private final Screen parent;
-    private final ModConfig originalConfigSnapshot;
-    private final String originalConfigSnapshotJson;
+    private ModConfig originalConfigSnapshot;
+    private String originalConfigSnapshotJson;
     private final String modVersion;
     private final String repositoryUrl;
     private final List<ActionBlock> actionBlocks = new ArrayList<>();
     private final List<ActionBlock> contentActionBlocks = new ArrayList<>();
     private final List<ActionBlock> floatingActionBlocks = new ArrayList<>();
+    private final List<ActionBlock> floatingContentActionBlocks = new ArrayList<>();
+    private final List<ActionBlock> floatingChromeActionBlocks = new ArrayList<>();
     private final List<GroupBox> groupBoxes = new ArrayList<>();
     private final List<StaticTextRow> staticTextRows = new ArrayList<>();
     private final List<CheckboxBlock> checkboxBlocks = new ArrayList<>();
@@ -304,6 +327,8 @@ public class ModConfigScreen extends Screen {
     private final ActionBlockRegistry actionBlockRegistry = new ActionBlockRegistry(actionBlocks, COLOR_BLOCK, COLOR_BLOCK_HOVER, COLOR_TEXT);
     private final ActionBlockRegistry contentActionBlockRegistry = new ActionBlockRegistry(contentActionBlocks, COLOR_BLOCK, COLOR_BLOCK_HOVER, COLOR_TEXT);
     private final ActionBlockRegistry floatingActionBlockRegistry = new ActionBlockRegistry(floatingActionBlocks, COLOR_BLOCK, COLOR_BLOCK_HOVER, COLOR_TEXT);
+    private final ActionBlockRegistry floatingContentActionBlockRegistry = new ActionBlockRegistry(floatingContentActionBlocks, COLOR_BLOCK, COLOR_BLOCK_HOVER, COLOR_TEXT);
+    private final ActionBlockRegistry floatingChromeActionBlockRegistry = new ActionBlockRegistry(floatingChromeActionBlocks, COLOR_BLOCK, COLOR_BLOCK_HOVER, COLOR_TEXT);
     private final List<IntSliderBlock> sliderBlocks = new ArrayList<>();
     private final List<EditBox> providerEditorFields = new ArrayList<>();
     private final List<EditBox> floatingEditorFields = new ArrayList<>();
@@ -387,9 +412,48 @@ public class ModConfigScreen extends Screen {
     private long statusExpireAtMillis;
     private boolean restoreSnapshotOnClose = true;
     private final ProviderManagerActionsSupport.Runtime providerManagerRuntime = new ProviderManagerRuntime();
+    private boolean setupWizardOpen;
+    private boolean setupWizardPrompted;
+    private boolean setupCompleted;
+    private boolean forcedSetupWizard;
+    private ModConfig setupEntrySnapshot;
+    private final ConfigContentScrollSupport setupWizardScroll = new ConfigContentScrollSupport(
+            0,
+            0,
+            SCROLLBAR_WIDTH,
+            SCROLLBAR_MIN_THUMB_HEIGHT,
+            this::rebuildActionBlocks,
+            this::rebuildActionBlocks
+    );
+    private final SetupWizardModalSupport.Runtime setupWizardRuntime = new SetupWizardRuntime();
+    private final SetupWizardModalSupport.HotkeySupport setupWizardHotkeys = new SetupWizardHotkeySupport();
+    private final SetupWizardModalSupport setupWizard = new SetupWizardModalSupport(
+            setupWizardScroll,
+            ModConfigScreen::t,
+            this::setStatus,
+            COLOR_STATUS_ERROR,
+            floatingContentActionBlockRegistry::add,
+            floatingActionBlockRegistry::add,
+            floatingChromeActionBlockRegistry::add,
+            this::addFloatingToggleAction,
+            (x, y, width, maxLength, initialValue, placeholder, changed, editable) ->
+                    addTextField(x, y, width, maxLength, initialValue, placeholder, changed, editable, true),
+            (x, y, width, maxLength, initialValue, placeholder, changed, masked) ->
+                    addSecretTextField(x, y, width, maxLength, initialValue, placeholder, changed, masked, false, true, false),
+            type -> ProviderManagerActionsSupport.providerTypeDisplayName(ModConfigScreen::t, type),
+            setupWizardHotkeys,
+            floatingChromeActionBlockRegistry::addLive,
+            setupWizardRuntime,
+            SETUP_WIZARD_STYLE
+    );
 
     public ModConfigScreen(Screen parent) {
         this(parent, ConfigScreenStateSupport.loadPersistedSelectedSection());
+    }
+
+    public ModConfigScreen(Screen parent, boolean setupWizardRequested) {
+        this(parent, ConfigScreenStateSupport.loadPersistedSelectedSection());
+        this.forcedSetupWizard = setupWizardRequested;
     }
 
     public ModConfigScreen(Screen parent, String providerId) {
@@ -407,6 +471,7 @@ public class ModConfigScreen extends Screen {
         this.modVersion = resolveCurrentVersion();
         this.repositoryUrl = resolveRepositoryUrl();
         this.selectedSection = selectedSection;
+        this.setupCompleted = ConfigScreenStateSupport.loadSetupCompleted();
     }
 
     private int resolveSelectedProviderIndex(String providerId) {
@@ -500,7 +565,8 @@ public class ModConfigScreen extends Screen {
                 resetConfirmModalOpen,
                 updateNoticeModalOpen,
                 unsavedChangesConfirmModalOpen,
-                isWarningConfirmationOpen()
+                isWarningConfirmationOpen(),
+                setupWizardOpen
         );
     }
 
@@ -519,7 +585,7 @@ public class ModConfigScreen extends Screen {
     }
 
     private void finishClose() {
-        ConfigScreenStateSupport.persistScreenState(selectedSection);
+        ConfigScreenStateSupport.persistScreenState(selectedSection, setupCompleted);
         if (restoreSnapshotOnClose) {
             ConfigManager.replaceConfig(originalConfigSnapshot);
         }
@@ -533,7 +599,13 @@ public class ModConfigScreen extends Screen {
 
     @Override
     protected void init() {
-        if (!updateNoticeAutoPrompted && UpdateCheckManager.shouldShowConfigNotice()) {
+        if (!setupWizardPrompted) {
+            setupWizardPrompted = true;
+            if (SetupWizardSupport.shouldShowSetupWizard(setupCompleted, forcedSetupWizard, Translate_AllinOne.getConfig())) {
+                openSetupWizard(forcedSetupWizard);
+            }
+        }
+        if (!setupWizardOpen && !updateNoticeAutoPrompted && UpdateCheckManager.shouldShowConfigNotice()) {
             openUpdateNoticeModal();
         }
         rebuildActionBlocks();
@@ -542,10 +614,61 @@ public class ModConfigScreen extends Screen {
     @Override
     public void tick() {
         super.tick();
-        if (!updateNoticeAutoPrompted && UpdateCheckManager.shouldShowConfigNotice()) {
+        if (!setupWizardOpen && !updateNoticeAutoPrompted && UpdateCheckManager.shouldShowConfigNotice()) {
             openUpdateNoticeModal();
             rebuildActionBlocks();
         }
+    }
+
+    private void openSetupWizard(boolean forced) {
+        setupEntrySnapshot = ConfigManager.copyCurrentConfig();
+        routeDropdownSlot = null;
+        addProviderTypeDropdownOpen = false;
+        setupWizard.open(forced);
+        setupWizardOpen = true;
+    }
+
+    private void closeSetupWizard() {
+        setupWizard.close();
+        setupWizardOpen = false;
+        setupEntrySnapshot = null;
+    }
+
+    private boolean completeSetupWizard() {
+        applyModelCustomParameterDefaults();
+        boolean saved = ConfigUiRuntimeSupport.saveConfig(
+                ModConfigScreen::t,
+                this::setStatus,
+                COLOR_STATUS_OK,
+                COLOR_STATUS_ERROR,
+                (message, throwable) -> Translate_AllinOne.LOGGER.error(message, throwable)
+        );
+        if (!saved) {
+            return false;
+        }
+
+        refreshConfigSnapshotBaseline();
+        setupCompleted = true;
+        ConfigScreenStateSupport.persistScreenState(selectedSection, true);
+        closeSetupWizard();
+        rebuildActionBlocks();
+        return true;
+    }
+
+    private void skipSetupWizard() {
+        if (setupEntrySnapshot != null) {
+            ConfigManager.replaceConfig(setupEntrySnapshot);
+        }
+        setupCompleted = true;
+        ConfigScreenStateSupport.persistScreenState(selectedSection, true);
+        closeSetupWizard();
+        setStatus(t("status.setup_skipped"), COLOR_STATUS_OK);
+        rebuildActionBlocks();
+    }
+
+    private void refreshConfigSnapshotBaseline() {
+        originalConfigSnapshot = ConfigManager.copyCurrentConfig();
+        originalConfigSnapshotJson = CONFIG_STATE_GSON.toJson(originalConfigSnapshot);
     }
 
     private void rebuildActionBlocks() {
@@ -558,6 +681,8 @@ public class ModConfigScreen extends Screen {
         actionBlocks.clear();
         contentActionBlocks.clear();
         floatingActionBlocks.clear();
+        floatingContentActionBlocks.clear();
+        floatingChromeActionBlocks.clear();
         groupBoxes.clear();
         staticTextRows.clear();
         checkboxBlocks.clear();
@@ -608,7 +733,9 @@ public class ModConfigScreen extends Screen {
         );
 
         addSectionSpecificActions();
-        if (dictionaryFilesModalOpen) {
+        if (setupWizardOpen) {
+            setupWizard.add(this.width, this.height);
+        } else if (dictionaryFilesModalOpen) {
             dictionaryFilesModal.add(
                     this.width,
                     this.height,
@@ -896,7 +1023,23 @@ public class ModConfigScreen extends Screen {
             boolean masked,
             boolean clearOnFirstEdit
     ) {
-        ConfigUiTextFieldSupport.createSecret(
+        addSecretTextField(x, y, width, maxLength, initialValue, placeholder, changed, masked, clearOnFirstEdit, false, true);
+    }
+
+    private EditBox addSecretTextField(
+            int x,
+            int y,
+            int width,
+            int maxLength,
+            String initialValue,
+            Component placeholder,
+            Consumer<String> changed,
+            boolean masked,
+            boolean clearOnFirstEdit,
+            boolean floating,
+            boolean revealOnEdit
+    ) {
+        return ConfigUiTextFieldSupport.createSecret(
                 this.font,
                 this::addRenderableWidget,
                 providerEditorFields,
@@ -910,7 +1053,8 @@ public class ModConfigScreen extends Screen {
                 changed,
                 masked,
                 clearOnFirstEdit,
-                false,
+                revealOnEdit,
+                floating,
                 isAnyModalOpen()
         );
     }
@@ -1525,6 +1669,19 @@ public class ModConfigScreen extends Screen {
         ));
     }
 
+    private void addFloatingToggleAction(
+            int x,
+            int y,
+            int width,
+            Component label,
+            BooleanSupplier getter,
+            Consumer<Boolean> setter,
+            Component tooltip,
+            boolean defaultValue
+    ) {
+        addFloatingCheckbox(x, y, width, 20, () -> label, getter, setter, CHECKBOX_STYLE, tooltip);
+    }
+
     private void addIntSliderAction(
             int x,
             int y,
@@ -1550,9 +1707,27 @@ public class ModConfigScreen extends Screen {
 
     private Component resolveHoveredTooltip(double mouseX, double mouseY, boolean modalOpen) {
         if (modalOpen || routeDropdownSlot != null) {
-            for (CheckboxBlock checkbox : floatingCheckboxBlocks) {
-                if (checkbox.contains(mouseX, mouseY)) {
-                    Component t = checkbox.tooltip();
+            if (!setupWizardOpen || setupWizard.viewportRect().contains(mouseX, mouseY)) {
+                for (CheckboxBlock checkbox : floatingCheckboxBlocks) {
+                    if (checkbox.contains(mouseX, mouseY)) {
+                        Component t = checkbox.tooltip();
+                        if (t != null && !t.getString().isEmpty()) {
+                            return t;
+                        }
+                    }
+                }
+                for (ActionBlock action : floatingContentActionBlocks) {
+                    if (action.contains(mouseX, mouseY)) {
+                        Component t = action.tooltip();
+                        if (t != null && !t.getString().isEmpty()) {
+                            return t;
+                        }
+                    }
+                }
+            }
+            for (ActionBlock action : floatingChromeActionBlocks) {
+                if (action.contains(mouseX, mouseY)) {
+                    Component t = action.tooltip();
                     if (t != null && !t.getString().isEmpty()) {
                         return t;
                     }
@@ -1771,6 +1946,10 @@ public class ModConfigScreen extends Screen {
                 ConfigUiModalInteractionSupport.closeByPriority(modalState());
 
         switch (action) {
+            case SKIP_SETUP_WIZARD -> {
+                skipSetupWizard();
+                return;
+            }
             case CLOSE_UPDATE_NOTICE -> {
                 dismissUpdateNotice();
                 return;
@@ -1844,6 +2023,9 @@ public class ModConfigScreen extends Screen {
 
         if (modalOpen) {
             draggingSlider = null;
+            if (setupWizardOpen && setupWizardScroll.pressScrollbar(mouseX, mouseY)) {
+                return true;
+            }
             if (dictionaryFilesModalOpen && dictionaryFilesModal.pressScrollbar(mouseX, mouseY)) {
                 return true;
             }
@@ -1897,16 +2079,37 @@ public class ModConfigScreen extends Screen {
                 }
             }
 
+            if (setupWizardOpen) {
+                if (setupWizard.viewportRect().contains(mouseX, mouseY)) {
+                    if (ConfigUiInteractionSupport.dispatchActionBlocks(floatingContentActionBlocks, mouseX, mouseY)) {
+                        return true;
+                    }
+                    if (ConfigUiInteractionSupport.dispatchCheckboxBlocks(floatingCheckboxBlocks, mouseX, mouseY)) {
+                        return true;
+                    }
+                }
+            } else if (ConfigUiInteractionSupport.dispatchCheckboxBlocks(floatingCheckboxBlocks, mouseX, mouseY)) {
+                return true;
+            }
+
+            if (ConfigUiInteractionSupport.dispatchActionBlocks(floatingChromeActionBlocks, mouseX, mouseY)) {
+                return true;
+            }
+
             if (ConfigUiInteractionSupport.dispatchActionBlocks(floatingActionBlocks, mouseX, mouseY)) {
                 return true;
             }
 
-            if (ConfigUiInteractionSupport.dispatchCheckboxBlocks(floatingCheckboxBlocks, mouseX, mouseY)) {
+            if (setupWizardOpen && setupWizard.isTypeDropdownOpen()) {
+                setupWizard.closeTypeDropdown();
+                rebuildActionBlocks();
                 return true;
             }
 
-            if (super.mouseClicked(click, doubled)) {
-                return true;
+            if (!setupWizardOpen || setupWizard.viewportRect().contains(mouseX, mouseY)) {
+                if (super.mouseClicked(click, doubled)) {
+                    return true;
+                }
             }
             return true;
         }
@@ -1985,6 +2188,9 @@ public class ModConfigScreen extends Screen {
     public boolean mouseDragged(MouseButtonEvent click, double deltaX, double deltaY) {
         if (isAnyModalOpen()) {
             draggingSlider = null;
+            if (setupWizardOpen && click.button() == 0 && setupWizardScroll.dragScrollbarTo(click.y())) {
+                return true;
+            }
             if (dictionaryFilesModal.isDraggingScrollbar() && click.button() == 0) {
                 dictionaryFilesModal.dragScrollbarTo(click.y());
                 return true;
@@ -2017,6 +2223,7 @@ public class ModConfigScreen extends Screen {
     public boolean mouseReleased(MouseButtonEvent click) {
         if (isAnyModalOpen()) {
             draggingSlider = null;
+            setupWizardScroll.stopScrollDrag();
             dictionaryFilesModal.stopScrollbarDrag();
             contentScroll.stopScrollDrag();
             return super.mouseReleased(click);
@@ -2041,6 +2248,13 @@ public class ModConfigScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        if (setupWizardOpen) {
+            if (setupWizardScroll.scrollByWheel(mouseX, mouseY, verticalAmount)) {
+                return true;
+            }
+            return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+        }
+
         if (dictionaryFilesModalOpen) {
             if (verticalAmount != 0.0
                     && ConfigUiModalSupport.dictionaryFilesModalRect(this.width, this.height).contains(mouseX, mouseY)) {
@@ -2130,6 +2344,7 @@ public class ModConfigScreen extends Screen {
                 this.height,
                 TOP_BAR_HEIGHT,
                 modalState(),
+                t("setup.title"),
                 t("modal.add_provider.title"),
                 t("modal.model.title"),
                 t("custom_params.title"),
@@ -2142,6 +2357,10 @@ public class ModConfigScreen extends Screen {
                 SCREEN_RENDER_STYLE
         );
 
+        if (setupWizardOpen) {
+            setupWizard.renderContent(context, this.font, this.width, this.height);
+        }
+
         if (updateNoticeModalOpen) {
             ConfirmModalSupport.renderUpdateNoticeMessage(context, this.font, this.width, this.height, ModConfigScreen::t, CONFIRM_MODAL_STYLE);
         } else if (resetConfirmModalOpen) {
@@ -2153,12 +2372,33 @@ public class ModConfigScreen extends Screen {
         }
 
         if (modalOpen) {
-            super.extractRenderState(context, mouseX, mouseY, delta);
+            if (setupWizardOpen) {
+                ConfigUiDraw.withScissor(
+                        context,
+                        setupWizardScroll.clipRect(this.width, this.height),
+                        () -> super.extractRenderState(context, mouseX, mouseY, delta)
+                );
+            } else {
+                super.extractRenderState(context, mouseX, mouseY, delta);
+            }
         }
-        if (routeDropdownSlot != null) {
+        if (setupWizardOpen) {
+            ConfigUiDraw.withScissor(context, setupWizardScroll.clipRect(this.width, this.height), () -> {
+                ConfigUiControlRenderer.drawCheckboxBlocks(context, this.font, floatingCheckboxBlocks, mouseX, mouseY);
+                ConfigUiControlRenderer.drawActionBlocks(context, this.font, floatingContentActionBlocks, mouseX, mouseY, COLOR_BORDER);
+            });
+        } else {
+            ConfigUiControlRenderer.drawCheckboxBlocks(context, this.font, floatingCheckboxBlocks, mouseX, mouseY);
+        }
+        ConfigUiControlRenderer.drawActionBlocks(context, this.font, floatingChromeActionBlocks, mouseX, mouseY, COLOR_BORDER);
+
+        if (setupWizardOpen) {
+            setupWizardScroll.drawScrollbar(context, mouseX, mouseY, CONTENT_SCROLL_STYLE);
+        }
+
+        if (routeDropdownSlot != null || (setupWizardOpen && setupWizard.isTypeDropdownOpen())) {
             context.fill(0, 0, this.width, this.height, COLOR_MODAL_OVERLAY);
         }
-        ConfigUiControlRenderer.drawCheckboxBlocks(context, this.font, floatingCheckboxBlocks, mouseX, mouseY);
         ConfigUiControlRenderer.drawActionBlocks(context, this.font, floatingActionBlocks, mouseX, mouseY, COLOR_BORDER);
 
         if (dictionaryFilesModalOpen) {
@@ -2198,6 +2438,9 @@ public class ModConfigScreen extends Screen {
         }
 
         if (contentScroll.animate(deltaSeconds)) {
+            rebuildActionBlocks();
+        }
+        if (setupWizardOpen && setupWizardScroll.animate(deltaSeconds)) {
             rebuildActionBlocks();
         }
     }
@@ -2298,6 +2541,12 @@ public class ModConfigScreen extends Screen {
         }
 
         @Override
+        public void onRerunSetupWizard() {
+            openSetupWizard(true);
+            rebuildActionBlocks();
+        }
+
+        @Override
         public void onEditorStateResolved(EditBox searchField, String providerId) {
             providerSearchField = searchField;
             selectedProviderId = providerId;
@@ -2317,6 +2566,76 @@ public class ModConfigScreen extends Screen {
             if (modelTemperatureModalOpen) {
                 addModelTemperatureModal();
             }
+        }
+    }
+
+    private final class SetupWizardHotkeySupport implements SetupWizardModalSupport.HotkeySupport {
+        @Override
+        public Component modeLabel(HotkeyTarget target) {
+            return hotkeyBindingEdit.modeRowLabel(target);
+        }
+
+        @Override
+        public Component bindingLabel(HotkeyTarget target) {
+            return hotkeyBindingEdit.bindingRowLabel(target);
+        }
+
+        @Override
+        public void cycleMode(HotkeyTarget target) {
+            hotkeyBindingEdit.cycleMode(target);
+        }
+
+        @Override
+        public void startCapture(HotkeyTarget target) {
+            hotkeyBindingEdit.startCapture(target);
+        }
+    }
+
+    private final class SetupWizardRuntime implements SetupWizardModalSupport.Runtime {
+        @Override
+        public void onRebuild() {
+            rebuildActionBlocks();
+        }
+
+        @Override
+        public void onRequestFocus(EditBox field) {
+            setFocused(field);
+            field.setFocused(true);
+        }
+
+        @Override
+        public void onProviderLanded(ApiProviderProfile profile) {
+            selectedProviderId = profile.id;
+            selectedProviderIndex = resolveSelectedProviderIndex(profile.id);
+        }
+
+        @Override
+        public void onTestConnection(ApiProviderProfile probe, Consumer<Boolean> onResult) {
+            ConfigUiRuntimeSupport.testProviderConnection(
+                    probe,
+                    ModConfigScreen::t,
+                    ModConfigScreen.this::setStatus,
+                    COLOR_STATUS_OK,
+                    COLOR_STATUS_ERROR,
+                    runnable -> {
+                        if (minecraft != null) {
+                            minecraft.execute(runnable);
+                        } else {
+                            runnable.run();
+                        }
+                    },
+                    onResult
+            );
+        }
+
+        @Override
+        public void onSetupCompleted() {
+            completeSetupWizard();
+        }
+
+        @Override
+        public void onSetupSkipped() {
+            skipSetupWizard();
         }
     }
 

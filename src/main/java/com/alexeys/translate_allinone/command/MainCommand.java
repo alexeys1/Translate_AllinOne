@@ -15,6 +15,8 @@ public class MainCommand {
     private static LiteralArgumentBuilder<FabricClientCommandSource> createRoot(String name) {
         return ClientCommands.literal(name)
                 .executes(OpenConfigCommand::run)
+                .then(ClientCommands.literal("setup")
+                        .executes(OpenConfigCommand::runSetup))
                 .then(ClientCommands.literal("prompts")
                         .then(ClientCommands.argument("providerId", StringArgumentType.word())
                                 .executes(OpenConfigCommand::runPromptEditor)))

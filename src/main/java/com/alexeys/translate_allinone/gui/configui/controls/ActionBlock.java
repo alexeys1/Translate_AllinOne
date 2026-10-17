@@ -1,6 +1,7 @@
 package com.alexeys.translate_allinone.gui.configui.controls;
 
 import java.util.function.BooleanSupplier;
+import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 import net.minecraft.network.chat.Component;
 
@@ -11,11 +12,11 @@ public final class ActionBlock {
     private final int height;
     private final Supplier<Component> labelSupplier;
     private final Runnable action;
-    private final int color;
-    private final int hoverColor;
+    private final IntSupplier colorSupplier;
+    private final IntSupplier hoverColorSupplier;
     private final int textColor;
     private final boolean centered;
-    private final Component tooltip;
+    private final Supplier<Component> tooltipSupplier;
     private final BooleanSupplier enabled;
     private final boolean resetIcon;
 
@@ -33,6 +34,22 @@ public final class ActionBlock {
             Component tooltip
     ) {
         this(x, y, width, height, labelSupplier, action, color, hoverColor, textColor, centered, tooltip, () -> true, false);
+    }
+
+    public ActionBlock(
+            int x,
+            int y,
+            int width,
+            int height,
+            Supplier<Component> labelSupplier,
+            Runnable action,
+            int color,
+            int hoverColor,
+            int textColor,
+            boolean centered,
+            Supplier<Component> tooltipSupplier
+    ) {
+        this(x, y, width, height, labelSupplier, action, () -> color, () -> hoverColor, textColor, centered, tooltipSupplier, () -> true, false);
     }
 
     public ActionBlock(
@@ -67,17 +84,80 @@ public final class ActionBlock {
             BooleanSupplier enabled,
             boolean resetIcon
     ) {
+        this(
+                x,
+                y,
+                width,
+                height,
+                labelSupplier,
+                action,
+                () -> color,
+                () -> hoverColor,
+                textColor,
+                centered,
+                tooltip == null ? null : () -> tooltip,
+                enabled,
+                resetIcon
+        );
+    }
+
+    public ActionBlock(
+            int x,
+            int y,
+            int width,
+            int height,
+            Supplier<Component> labelSupplier,
+            Runnable action,
+            IntSupplier colorSupplier,
+            IntSupplier hoverColorSupplier,
+            int textColor,
+            boolean centered,
+            Supplier<Component> tooltipSupplier,
+            BooleanSupplier enabled
+    ) {
+        this(
+                x,
+                y,
+                width,
+                height,
+                labelSupplier,
+                action,
+                colorSupplier,
+                hoverColorSupplier,
+                textColor,
+                centered,
+                tooltipSupplier,
+                enabled,
+                false
+        );
+    }
+
+    private ActionBlock(
+            int x,
+            int y,
+            int width,
+            int height,
+            Supplier<Component> labelSupplier,
+            Runnable action,
+            IntSupplier colorSupplier,
+            IntSupplier hoverColorSupplier,
+            int textColor,
+            boolean centered,
+            Supplier<Component> tooltipSupplier,
+            BooleanSupplier enabled,
+            boolean resetIcon
+    ) {
         this.x = x;
         this.y = y;
         this.width = width;
         this.height = height;
         this.labelSupplier = labelSupplier;
         this.action = action;
-        this.color = color;
-        this.hoverColor = hoverColor;
+        this.colorSupplier = colorSupplier;
+        this.hoverColorSupplier = hoverColorSupplier;
         this.textColor = textColor;
         this.centered = centered;
-        this.tooltip = tooltip;
+        this.tooltipSupplier = tooltipSupplier;
         this.enabled = enabled == null ? () -> true : enabled;
         this.resetIcon = resetIcon;
     }
@@ -109,11 +189,11 @@ public final class ActionBlock {
     }
 
     public int color() {
-        return color;
+        return colorSupplier.getAsInt();
     }
 
     public int hoverColor() {
-        return hoverColor;
+        return hoverColorSupplier.getAsInt();
     }
 
     public int textColor() {
@@ -125,7 +205,7 @@ public final class ActionBlock {
     }
 
     public Component tooltip() {
-        return tooltip;
+        return tooltipSupplier == null ? null : tooltipSupplier.get();
     }
 
     public boolean enabled() {

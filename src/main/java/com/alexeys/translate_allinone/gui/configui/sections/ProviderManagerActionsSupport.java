@@ -45,6 +45,8 @@ public final class ProviderManagerActionsSupport {
 
         void onToggleTranslationEnabled(boolean enabled);
 
+        void onRerunSetupWizard();
+
         void onEditorStateResolved(EditBox providerSearchField, String selectedProviderId);
 
         void onAddActiveProviderModals(ProviderManagerConfig providerManager);
@@ -103,7 +105,8 @@ public final class ProviderManagerActionsSupport {
                 runtime::onRemoveModel,
                 runtime::onAddModel,
                 runtime::onOpenPromptEditor,
-                runtime::onToggleTranslationEnabled
+                runtime::onToggleTranslationEnabled,
+                runtime::onRerunSetupWizard
         );
 
         runtime.onEditorStateResolved(result.providerSearchField(), result.selectedProviderId());

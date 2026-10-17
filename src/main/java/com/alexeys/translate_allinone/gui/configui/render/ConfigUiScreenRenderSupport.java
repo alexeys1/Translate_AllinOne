@@ -48,6 +48,7 @@ public final class ConfigUiScreenRenderSupport {
             int screenHeight,
             int topBarHeight,
             ConfigUiModalState state,
+            Component setupWizardTitle,
             Component addProviderTitle,
             Component modelSettingsTitle,
             Component customParametersTitle,
@@ -64,7 +65,17 @@ public final class ConfigUiScreenRenderSupport {
         }
 
         context.fill(0, topBarHeight, screenWidth, screenHeight, style.colorModalOverlay());
-        if (state.updateNotice()) {
+        if (state.setupWizard()) {
+            ConfigUiModalSupport.renderModalShell(
+                    context,
+                    textRenderer,
+                    ConfigUiModalSupport.setupWizardModalRect(screenWidth, screenHeight),
+                    setupWizardTitle,
+                    style.colorMainPanel(),
+                    style.colorBorder(),
+                    style.colorText()
+            );
+        } else if (state.updateNotice()) {
             ConfigUiModalSupport.renderModalShell(
                     context,
                     textRenderer,

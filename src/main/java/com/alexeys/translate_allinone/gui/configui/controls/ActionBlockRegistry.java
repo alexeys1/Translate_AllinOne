@@ -2,6 +2,7 @@ package com.alexeys.translate_allinone.gui.configui.controls;
 
 import java.util.List;
 import java.util.function.BooleanSupplier;
+import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 import net.minecraft.network.chat.Component;
 
@@ -84,6 +85,36 @@ public final class ActionBlockRegistry {
             boolean centered
     ) {
         add(x, y, width, height, labelSupplier, action, color, hoverColor, textColor, centered, null);
+    }
+
+    public void addLive(
+            int x,
+            int y,
+            int width,
+            int height,
+            Supplier<Component> labelSupplier,
+            Runnable action,
+            IntSupplier colorSupplier,
+            IntSupplier hoverColorSupplier,
+            int textColor,
+            boolean centered,
+            Supplier<Component> tooltipSupplier,
+            BooleanSupplier enabled
+    ) {
+        blocks.add(new ActionBlock(
+                x,
+                y,
+                width,
+                height,
+                labelSupplier,
+                action,
+                colorSupplier,
+                hoverColorSupplier,
+                textColor,
+                centered,
+                tooltipSupplier,
+                enabled
+        ));
     }
 
     public void add(

@@ -67,6 +67,18 @@ public final class ConfigContentScrollSupport {
         viewport = new UiRect(x, y, width, height);
     }
 
+    public void useViewport(UiRect rect) {
+        viewport = rect;
+    }
+
+    public void resetOffset() {
+        scrollOffset = 0;
+        visualOffset = 0.0;
+        elasticOffset = 0.0;
+        elasticVelocity = 0.0;
+        stopScrollDrag();
+    }
+
     public void selectSection(ConfigSection section) {
         activeSectionIndex = section.ordinal();
         scrollOffset = Math.max(0, sectionScrollOffsets[activeSectionIndex]);

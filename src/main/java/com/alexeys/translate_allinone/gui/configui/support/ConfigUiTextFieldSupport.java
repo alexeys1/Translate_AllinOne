@@ -72,6 +72,7 @@ public final class ConfigUiTextFieldSupport {
             Consumer<String> changed,
             boolean masked,
             boolean clearOnFirstEdit,
+            boolean revealOnEdit,
             boolean floating,
             boolean modalOpen
     ) {
@@ -82,7 +83,7 @@ public final class ConfigUiTextFieldSupport {
             renderY = -10000;
         }
 
-        SecretEditBox field = new SecretEditBox(textRenderer, renderX, renderY, width, 20, Component.empty(), masked, clearOnFirstEdit);
+        SecretEditBox field = new SecretEditBox(textRenderer, renderX, renderY, width, 20, Component.empty(), masked, clearOnFirstEdit, revealOnEdit);
         field.setMaxLength(maxLength);
         field.setValue(initialValue == null ? "" : initialValue);
         field.setResponder(changed);
@@ -106,13 +107,15 @@ public final class ConfigUiTextFieldSupport {
 
         private Consumer<String> externalResponder;
         private boolean masked;
-        private boolean clearOnFirstEdit;
+        private final boolean clearOnFirstEdit;
+        private final boolean revealOnEdit;
         private boolean oldKeyCleared;
 
-        SecretEditBox(Font textRenderer, int x, int y, int width, int height, Component message, boolean masked, boolean clearOnFirstEdit) {
+        SecretEditBox(Font textRenderer, int x, int y, int width, int height, Component message, boolean masked, boolean clearOnFirstEdit, boolean revealOnEdit) {
             super(textRenderer, x, y, width, height, message);
             this.masked = masked;
             this.clearOnFirstEdit = clearOnFirstEdit;
+            this.revealOnEdit = revealOnEdit;
             if (masked) {
                 setTextColor(HIDDEN_TEXT_COLOR);
             }
@@ -163,7 +166,7 @@ public final class ConfigUiTextFieldSupport {
         }
 
         private void beginEdit(boolean reveal) {
-            if (reveal) {
+            if (reveal && revealOnEdit) {
                 masked = false;
                 setTextColor(EditBox.DEFAULT_TEXT_COLOR);
             }

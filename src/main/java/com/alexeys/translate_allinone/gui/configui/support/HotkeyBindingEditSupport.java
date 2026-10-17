@@ -81,6 +81,21 @@ public final class HotkeyBindingEditSupport {
         return bindingLabelText(target, Component.literal(KeybindingManager.displayName(binding)));
     }
 
+    public Component bindingRowLabel(HotkeyTarget target) {
+        return bindingLabel(target, ensureBinding(target));
+    }
+
+    public Component modeRowLabel(HotkeyTarget target) {
+        ModConfig config = Translate_AllinOne.getConfig();
+        return switch (target) {
+            case ITEM -> translator.t("label.hotkey_mode", modeLabel(ensureItemKeybinding(config).mode.name()));
+            case SCOREBOARD -> translator.t("label.hotkey_mode", modeLabel(ensureScoreboardKeybinding(config).mode.name()));
+            case OTHER_TRANSLATIONS -> translator.t("label.hotkey_mode", modeLabel(ensureOtherTranslationsKeybinding(config).mode.name()));
+            case WYNNTILS_TASK_TRACKER -> translator.t("label.hotkey_mode", modeLabel(ensureWynntilsTaskTrackerKeybinding(config).mode.name()));
+            default -> translator.t("label.hotkey_mode", modeLabel("DISABLED"));
+        };
+    }
+
     public void startCapture(HotkeyTarget target) {
         captureTarget = target;
         statusSetter.set(translator.t("status.hotkey_listening", sectionLabel(target)), statusOkColor);
