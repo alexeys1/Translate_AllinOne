@@ -439,7 +439,7 @@ public class ModConfigScreen extends Screen {
             (x, y, width, maxLength, initialValue, placeholder, changed, editable) ->
                     addTextField(x, y, width, maxLength, initialValue, placeholder, changed, editable, true),
             (x, y, width, maxLength, initialValue, placeholder, changed, masked) ->
-                    addSecretTextField(x, y, width, maxLength, initialValue, placeholder, changed, masked, false, true, false),
+                    addSecretTextField(x, y, width, maxLength, initialValue, placeholder, changed, masked, false, true),
             type -> ProviderManagerActionsSupport.providerTypeDisplayName(ModConfigScreen::t, type),
             setupWizardHotkeys,
             floatingChromeActionBlockRegistry::addLive,
@@ -1023,7 +1023,7 @@ public class ModConfigScreen extends Screen {
             boolean masked,
             boolean clearOnFirstEdit
     ) {
-        addSecretTextField(x, y, width, maxLength, initialValue, placeholder, changed, masked, clearOnFirstEdit, false, true);
+        addSecretTextField(x, y, width, maxLength, initialValue, placeholder, changed, masked, clearOnFirstEdit, false);
     }
 
     private EditBox addSecretTextField(
@@ -1036,8 +1036,7 @@ public class ModConfigScreen extends Screen {
             Consumer<String> changed,
             boolean masked,
             boolean clearOnFirstEdit,
-            boolean floating,
-            boolean revealOnEdit
+            boolean floating
     ) {
         return ConfigUiTextFieldSupport.createSecret(
                 this.font,
@@ -1053,7 +1052,6 @@ public class ModConfigScreen extends Screen {
                 changed,
                 masked,
                 clearOnFirstEdit,
-                revealOnEdit,
                 floating,
                 isAnyModalOpen()
         );

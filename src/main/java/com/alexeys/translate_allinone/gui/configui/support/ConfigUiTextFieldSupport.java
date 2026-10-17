@@ -72,7 +72,6 @@ public final class ConfigUiTextFieldSupport {
             Consumer<String> changed,
             boolean masked,
             boolean clearOnFirstEdit,
-            boolean revealOnEdit,
             boolean floating,
             boolean modalOpen
     ) {
@@ -83,7 +82,7 @@ public final class ConfigUiTextFieldSupport {
             renderY = -10000;
         }
 
-        SecretEditBox field = new SecretEditBox(textRenderer, renderX, renderY, width, 20, Component.empty(), masked, clearOnFirstEdit, revealOnEdit);
+        SecretEditBox field = new SecretEditBox(textRenderer, renderX, renderY, width, 20, Component.empty(), masked, clearOnFirstEdit);
         field.setMaxLength(maxLength);
         field.setValue(initialValue == null ? "" : initialValue);
         field.setResponder(changed);
@@ -106,16 +105,14 @@ public final class ConfigUiTextFieldSupport {
         private static final int HIDDEN_TEXT_COLOR = 0xFF555555;
 
         private Consumer<String> externalResponder;
-        private boolean masked;
+        private final boolean masked;
         private final boolean clearOnFirstEdit;
-        private final boolean revealOnEdit;
         private boolean oldKeyCleared;
 
-        SecretEditBox(Font textRenderer, int x, int y, int width, int height, Component message, boolean masked, boolean clearOnFirstEdit, boolean revealOnEdit) {
+        SecretEditBox(Font textRenderer, int x, int y, int width, int height, Component message, boolean masked, boolean clearOnFirstEdit) {
             super(textRenderer, x, y, width, height, message);
             this.masked = masked;
             this.clearOnFirstEdit = clearOnFirstEdit;
-            this.revealOnEdit = revealOnEdit;
             if (masked) {
                 setTextColor(HIDDEN_TEXT_COLOR);
             }
@@ -132,7 +129,7 @@ public final class ConfigUiTextFieldSupport {
         @Override
         public boolean charTyped(CharacterEvent input) {
             if (masked && isActive() && isFocused() && input.isAllowedChatCharacter()) {
-                beginEdit(true);
+                beginEdit();
             }
             return super.charTyped(input);
         }
@@ -144,7 +141,7 @@ public final class ConfigUiTextFieldSupport {
                 if (clipboard == null || clipboard.isEmpty()) {
                     return true;
                 }
-                beginEdit(false);
+                beginEdit();
             }
             return super.keyPressed(key);
         }
@@ -152,7 +149,7 @@ public final class ConfigUiTextFieldSupport {
         @Override
         public void deleteChars(int amount) {
             if (masked && isActive() && isFocused()) {
-                beginEdit(true);
+                beginEdit();
             }
             super.deleteChars(amount);
         }
@@ -160,16 +157,12 @@ public final class ConfigUiTextFieldSupport {
         @Override
         public void deleteWords(int amount) {
             if (masked && isActive() && isFocused()) {
-                beginEdit(true);
+                beginEdit();
             }
             super.deleteWords(amount);
         }
 
-        private void beginEdit(boolean reveal) {
-            if (reveal && revealOnEdit) {
-                masked = false;
-                setTextColor(EditBox.DEFAULT_TEXT_COLOR);
-            }
+        private void beginEdit() {
             if (oldKeyCleared) {
                 return;
             }
