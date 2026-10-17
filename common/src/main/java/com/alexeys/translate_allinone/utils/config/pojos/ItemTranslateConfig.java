@@ -3,7 +3,7 @@ package com.alexeys.translate_allinone.utils.config.pojos;
 public class ItemTranslateConfig {
     public boolean enabled = false;
     public boolean enabled_translate_item_custom_name = false;
-    public boolean enabled_translate_item_lore = false;
+    public boolean enabled_translate_item_lore = true;
     public int max_concurrent_requests = 2;
     public int requests_per_minute = 60;
     public int max_batch_size = 10;
